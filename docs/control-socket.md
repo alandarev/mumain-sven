@@ -86,6 +86,12 @@ Error codes: `bad_request`, `unknown_command`, `wrong_scene`, `busy`,
 | `say` (`text`), `whisper` (`name`, `text`) | chat, including `/` commands |
 | `party` (`action`, `target`) | `invite`, `accept`, `decline`, `leave` |
 | `halt` | stop the walk or repeated attack in progress |
+| `inject` (`hex`) | run one decrypted server→client packet through the receive path (debug-ui) |
+| `net` (`action`) | `mute`/`unmute`/`status`/`reset`: drop every real incoming packet while muted (debug-ui) |
+| `ui` (`action`, `window`, `raw`, `name`, `percent`) | `list`, `show`/`hide`/`toggle` a main-scene window, `theme`, `scale` (debug-ui) |
+| `window` (`action`, `width`, `height`) | `status`, `resize` the game window (debug-ui) |
+| `hover` (`x`, `y`) | move the pointer to a window pixel and leave it there (debug-ui) |
+| `render` (`world`) | `on`/`off`/`status`: skip the 3D world so only the UI is drawn (debug-ui) |
 
 `state` reports the scene and account on every screen, and in the world adds:
 character name, class, level, experience, zen, HP/mana/SD/AG with their
@@ -110,6 +116,51 @@ locate and click. Key names are case-insensitive: the letters, the digits,
 and `f1`–`f12`; anything else answers `bad_request`. Both answer once the
 release frame has run; a second injection while one is in flight answers
 `busy`. Not covered: typing text (`say` sends chat), key chords, drags.
+
+### Debug-UI: reproducible UI states without a server
+
+The six commands marked *debug-ui* (`App/Control/ControlCommandsDebugUi.cpp`)
+exist so that a UI can be photographed in a known state, the same state
+every run, on any build that carries them:
+
+- `inject` takes a complete, decrypted `C1`/`C2` packet as hex
+  (`"C1 0A F8 ..."`, whitespace optional) and processes it on the main thread
+  exactly as a received packet — the length byte(s) must match, `C3`/`C4`
+  are refused, and so is a client without a game-server connection
+  (`not_connected`). Nearly every window state the client can show is a
+  stored packet (gens membership, party, guild, duel request, quests, buffs),
+  so this is how a scenario produces one deterministically.
+- `net mute` drops every real incoming packet on the network thread from
+  then on (`status` reports how many, by head code, `reset` zeroes the
+  counts; `unmute` resumes). The session stays open and the client still
+  sends, so the server keeps its view — the world on screen simply stops
+  changing.
+- `ui list` names every main-scene window (`INTERFACE_*` without the prefix,
+  lowercased: `inventory`, `character`, `gensranking`, …) with its
+  registered/visible flags and, where the build has RmlUi, the active theme.
+  `ui show|hide|toggle <window>` goes through the window system's own
+  `Show`/`Hide` (dock-neighbour placement, group hiding, refusals included);
+  `raw: true` flips only the manager flag. `ui theme <name>` performs the
+  `$theme` console command's sweep; a build without RmlUi answers `failed`.
+  `ui scale <percent>` sets `UIScalePercent` for the session and re-applies
+  the current window size. `ui` needs the world for everything but
+  `theme`/`scale`.
+- `window resize <w> <h>` resizes the (windowed) game window through the
+  same path as the options dialog and answers with the size the window
+  really got — a tiling compositor may decide otherwise. `window status`
+  reports size and scale.
+- `hover x y` pushes one mouse-motion event through SDL's own queue, so the
+  legacy pointer variables *and* (where present) the RmlUi context see it;
+  the pointer stays there until the next motion, which is what a tooltip
+  needs.
+
+- `render world off` skips the 3D world (terrain, objects, characters,
+  effects, items) in the main scene; the UI renders over the clear colour,
+  so a screenshot of two builds differs only where the UI does. `on`
+  restores it, `status` reports.
+
+`ui`, `window`, `hover` and `render` answer after two rendered frames, so
+the next command — usually `screenshot` — sees the result.
 
 ## Events
 
@@ -162,7 +213,9 @@ logout) plus the scene and map watcher in `App/Control/ControlServer.cpp`.
 When one of those functions is rewritten:
 
 1. `rg -c 'App::Control::Events::' src/source/Network/Server/WSclient.cpp` —
-   the count is 19; a lower one means a tap was dropped.
+   the count is 19; a lower one means a tap was dropped. The debug-ui mute
+   is one more call, `App::Control::Net::DropIncoming`, at the top of
+   `HandleIncomingPacket`.
 2. Re-run the live checks that cover the dropped tap (a fight records `hit`,
    `killed` and `stat`; a pickup records `drop` and `drop_gone`).
 

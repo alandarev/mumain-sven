@@ -1,6 +1,7 @@
 // The control socket's command implementations, one file per family:
 // Session (login/select-char/logout/quit), World (movement, combat, chat,
-// party) and Query (state/nearby/scene/screenshot/hotkey/click-ui).
+// party), Query (state/nearby/scene/screenshot/hotkey/click-ui) and DebugUi
+// (inject/net/ui/window/hover/render: reproducible UI states for screenshots).
 //
 // Every handler answers with an encoded response line, or takes over the
 // dispatcher's single act slot for a command that needs several frames.
@@ -51,4 +52,12 @@ std::string Say(const Request& request, std::unique_ptr<Act>& act);
 std::string Whisper(const Request& request, std::unique_ptr<Act>& act);
 std::string Party(const Request& request, std::unique_ptr<Act>& act);
 std::string Halt(const Request& request, std::unique_ptr<Act>& act);
+
+// DebugUi family.
+std::string Inject(const Request& request, std::unique_ptr<Act>& act);
+std::string Net(const Request& request, std::unique_ptr<Act>& act);
+std::string Ui(const Request& request, std::unique_ptr<Act>& act);
+std::string Window(const Request& request, std::unique_ptr<Act>& act);
+std::string Hover(const Request& request, std::unique_ptr<Act>& act);
+std::string Render(const Request& request, std::unique_ptr<Act>& act);
 } // namespace App::Control::Commands

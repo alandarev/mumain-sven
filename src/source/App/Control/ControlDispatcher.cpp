@@ -45,6 +45,12 @@ const std::vector<CommandEntry>& CommandTable()
         {"whisper", SceneRequirement::World, &Commands::Whisper},
         {"party", SceneRequirement::World, &Commands::Party},
         {"halt", SceneRequirement::Any, &Commands::Halt},
+        {"inject", SceneRequirement::Any, &Commands::Inject},
+        {"net", SceneRequirement::Any, &Commands::Net},
+        {"ui", SceneRequirement::Any, &Commands::Ui},
+        {"window", SceneRequirement::Any, &Commands::Window},
+        {"hover", SceneRequirement::Any, &Commands::Hover},
+        {"render", SceneRequirement::World, &Commands::Render},
     };
     return table;
 }

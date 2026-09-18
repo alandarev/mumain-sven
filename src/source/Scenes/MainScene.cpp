@@ -394,6 +394,19 @@ void SetDisableEffects(bool disabled)
     g_bDisableEffectsDebug = disabled;
 }
 
+// Control-socket toggle -- see MainScene.h's SetSkipWorldRender() doc comment.
+static bool g_bSkipWorldRender = false;
+
+void SetSkipWorldRender(bool skip)
+{
+    g_bSkipWorldRender = skip;
+}
+
+bool IsWorldRenderSkipped()
+{
+    return g_bSkipWorldRender;
+}
+
 // DXP-23 diagnostic toggles, finer-grained bisection -- see MainScene.h doc comments.
 static bool g_bDisableSpritesDebug = false;
 static bool g_bDisableParticlesDebug = false;
@@ -697,7 +710,8 @@ bool RenderMainScene()
     }
 
     SetupMainSceneViewport(width, height, byWaterMap, cameraPos);
-    RenderGameWorld(byWaterMap, width, height);
+    if (!g_bSkipWorldRender)
+        RenderGameWorld(byWaterMap, width, height);
 
 #ifdef _EDITOR
     // Render spectated camera frustum wireframe when in FreeFly mode
