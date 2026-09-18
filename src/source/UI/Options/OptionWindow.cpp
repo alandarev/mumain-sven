@@ -200,6 +200,12 @@ bool mu::ui::window::COptionWindow::Create(CManager* pNewUIMng, int x, int y)
 
 void mu::ui::window::COptionWindow::BuildRmlUi()
 {
+    // A rebuilt document's <select>s settle all over again (see RmlResolutionChanged's own
+    // comment), so the settle window restarts here -- not only at Create(). Without this a theme
+    // reload in the world let the spurious change land and forced the window to the smallest
+    // listed resolution.
+    m_rmlSyncCount = 0;
+
     const bool modelCreated = m_RmlBinder.Create(RmlUiRuntime::Instance().GetContext(), "option_window",
         [this](Rml::DataModelConstructor& c, OptionRmlModel& model)
         {
