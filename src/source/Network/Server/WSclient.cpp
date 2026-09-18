@@ -15142,6 +15142,11 @@ void ProcessPacketCallback(const PacketInfo* Packet)
 
 static void HandleIncomingPacket(int32_t Handle, const BYTE* ReceiveBuffer, int32_t Size)
 {
+    if (App::Control::Net::DropIncoming(ReceiveBuffer, Size))
+    {
+        return;
+    }
+
     auto Packet = std::make_unique<PacketInfo>();
     Packet->ReceiveBuffer = std::make_unique<BYTE[]>(Size);
     std::copy(ReceiveBuffer, ReceiveBuffer + Size, Packet->ReceiveBuffer.get());
