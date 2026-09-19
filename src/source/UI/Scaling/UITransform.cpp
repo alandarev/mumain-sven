@@ -133,11 +133,15 @@ float UI::Scaling::BottomHudScale(int windowWidth, int windowHeight)
                       kMaximumHudScale * contentScale);
 }
 
-UI::Scaling::Transform UI::Scaling::BottomHudLeftTransform(int windowWidth, int windowHeight)
-{
-    return BottomHudTransform(windowWidth, windowHeight, 0.0f);
-}
-
+// The bottom HUD is authored as one contiguous 640-wide bar: the left band
+// (logical x 0-152), the center band (152-488), the right band (488-640) and the
+// experience strip beneath them are adjacent slices of a single graphic. They all
+// share the same horizontal placement — the centered offset — so the bar renders
+// joined and horizontally centered at every resolution instead of splitting into
+// left/right edge-docked pieces separated by a gap. Rendering (CNewUIMainFrameWindow)
+// and the mouse hit-test (BottomHudContainsWindowPoint) both route through these
+// accessors, so they stay aligned automatically. At 640x480 the centered offset is
+// 0, i.e. the untouched legacy layout.
 UI::Scaling::Transform UI::Scaling::BottomHudCenterTransform(int windowWidth, int windowHeight)
 {
     const float scale = BottomHudScale(windowWidth, windowHeight);
@@ -145,18 +149,19 @@ UI::Scaling::Transform UI::Scaling::BottomHudCenterTransform(int windowWidth, in
                               static_cast<float>(windowWidth) * 0.5f - 320.0f * scale);
 }
 
+UI::Scaling::Transform UI::Scaling::BottomHudLeftTransform(int windowWidth, int windowHeight)
+{
+    return BottomHudCenterTransform(windowWidth, windowHeight);
+}
+
 UI::Scaling::Transform UI::Scaling::BottomHudRightTransform(int windowWidth, int windowHeight)
 {
-    const float scale = BottomHudScale(windowWidth, windowHeight);
-    return BottomHudTransform(windowWidth, windowHeight,
-                              static_cast<float>(windowWidth) - kReferenceWidth * scale);
+    return BottomHudCenterTransform(windowWidth, windowHeight);
 }
 
 UI::Scaling::Transform UI::Scaling::BottomHudExperienceTransform(int windowWidth, int windowHeight)
 {
-    Transform transform = BottomHudLeftTransform(windowWidth, windowHeight);
-    transform.scaleX = static_cast<float>(windowWidth) / kReferenceWidth;
-    return transform;
+    return BottomHudCenterTransform(windowWidth, windowHeight);
 }
 
 UI::Scaling::Transform UI::Scaling::DockLeftTransform(int windowWidth, int windowHeight)
