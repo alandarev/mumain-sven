@@ -21,6 +21,7 @@
 #include "App/Control/ControlUiObservability.h"
 #include "App/Control/ControlUiReplay.h"
 #include "App/Control/ControlQuickPeer.h"
+#include "App/Control/QuickPeerSettleAct.h"
 #include "Data/GameConfig/GameConfig.h"
 #include "Network/Server/WSclient.h"
 #include "Render/Textures/ZzzOpenglUtil.h"
@@ -201,8 +202,8 @@ constexpr NamedWindow NamedWindows[] = {
 #undef MU_UI_WINDOW
 // clang-format on
 
-// Two rendered frames: one for the event loop to consume a pushed SDL event
-// or a resize, one for the UI to react to it.
+// Legacy tick-count settling retained for existing commands. Guarded quick UI
+// uses QuickPeerSettleAct instead: dispatcher ticks are not rendered frames.
 constexpr int SettleFrames = 2;
 constexpr std::chrono::milliseconds SettleDeadline{5000};
 
@@ -210,9 +211,8 @@ constexpr std::chrono::milliseconds SettleDeadline{5000};
 class SettleAct : public Act
 {
 public:
-    SettleAct(std::string_view name, std::string encodedResult, int frames = SettleFrames,
-              std::function<std::string()> validate = {})
-        : m_name(name), m_encodedResult(std::move(encodedResult)), m_frames(frames), m_validate(std::move(validate))
+    SettleAct(std::string_view name, std::string encodedResult, int frames = SettleFrames)
+        : m_name(name), m_encodedResult(std::move(encodedResult)), m_frames(frames)
     {
     }
 
@@ -228,14 +228,6 @@ public:
 
     [[nodiscard]] Status Tick(std::string& response) override
     {
-        if (m_validate)
-        {
-            if (const auto reason = m_validate(); !reason.empty())
-            {
-                response = App::Control::EncodeError(EncodedId(), ErrorCode::NotAllowed, reason);
-                return Status::Finished;
-            }
-        }
         if (--m_frames > 0)
         {
             return Status::Running;
@@ -248,7 +240,6 @@ private:
     std::string_view m_name;
     std::string m_encodedResult;
     int m_frames;
-    std::function<std::string()> m_validate;
 };
 
 std::string Lowercase(std::string_view text)
@@ -487,21 +478,24 @@ std::string ApplyGuardedUi(bool show, const std::string& name)
 std::string SettleGuardedUi(const Request& request, const std::string& name, bool show, int peerKey,
                             const std::string& peerId, std::unique_ptr<Act>& act)
 {
-    std::function<std::string()> validate;
+    const auto result = json({{"window", name}, {"requested_visible", show}}).dump();
     if (name == "quick_command")
     {
+        const auto ready = [peerKey, peerId]
+        {
+            return SceneFlag == MAIN_SCENE && LoadingWorld < 30 && WindowSystemReady() && !g_muted.load() &&
+                   json::parse(App::Control::QuickPeerObservation(peerKey, peerId)).value("ready", false);
+        };
+        if (!ready())
+            return App::Control::EncodeError(request.EncodedId(), ErrorCode::NotAllowed, "quick peer unavailable");
         const auto expected = UiSnapshot(peerKey, peerId).dump();
         if (const auto failure = App::Control::UiReplayRefusal(expected, !show, name, false); !failure.empty())
             return App::Control::EncodeError(request.EncodedId(), ErrorCode::NotAllowed, failure);
-        validate = [peerKey, peerId, expected]
-        {
-            return !g_muted.load() && UiSnapshot(peerKey, peerId).dump() == expected
-                       ? std::string{}
-                       : "quick peer UI changed while settling";
-        };
+        act = std::make_unique<App::Control::QuickPeerSettleAct>(result, expected, ready, [peerKey, peerId]
+                                                                 { return UiSnapshot(peerKey, peerId).dump(); });
+        return {};
     }
-    act = std::make_unique<SettleAct>("ui", json({{"window", name}, {"requested_visible", show}}).dump(), SettleFrames,
-                                      std::move(validate));
+    act = std::make_unique<SettleAct>("ui", result);
     return {};
 }
 

@@ -4,6 +4,7 @@
 #include "Core/Input/KeyState.h"
 #include "Core/Input/UiInputRouter.h"
 #include "App/Control/ControlServer.h"
+#include "App/Control/ControlUiFrames.h"
 #if MU_ENABLE_CONTROL_SOCKET
 #include "App/Control/ControlQuickPeer.h"
 #endif
@@ -1612,9 +1613,11 @@ MSG MainLoop()
 
                 RequestDiagnosticFrameCapture();
                 ApplyPendingVSyncPreference();
+                App::Control::BeginUiFrame();
                 mu::GetRenderer().BeginFrame();
                 RenderScene(g_hDC);
                 mu::GetRenderer().EndFrame();
+                App::Control::CompleteUiFrame();
                 ConsumeDiagnosticFrameCapture();
             }
         }

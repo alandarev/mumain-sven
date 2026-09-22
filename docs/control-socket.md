@@ -336,7 +336,12 @@ identity, index or guard prerequisites refuse. Opening leaves gameplay selection
 unchanged; closing requires the identified current menu. Read `quick_peer` after
 settling and around capture to verify `menu_visible`, `menu_matches`, name/index,
 position and prerequisites, then inspect genuine full-frame content. The quick
-settle action also stops on quick-observation drift without cleanup. It does not
+settle action waits for two distinct completed UI-update/render frame boundaries,
+not two dispatcher ticks or elapsed time. Same-poll and repeated same-frame ticks
+cannot complete it. World/loading/registry/peer readiness is checked before every
+deferred full snapshot; any snapshot drift stops without cleanup. Skipped UI
+update/render frames do not advance settlement (the normal timeout still applies).
+It does not
 replace complete capture-time UI/modal checks, prevent future human input or make
 Trade/Buy/Party/Follow/Duel safe. No command should be selected during comparison.
 

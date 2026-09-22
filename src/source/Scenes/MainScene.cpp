@@ -6,6 +6,7 @@
 #include "Engine/Object/EditObjects.h"
 #include "UI/Chat/Chat.h"
 #include "MainScene.h"
+#include "App/Control/ControlUiFrames.h"
 #include "SceneCommon.h"
 #include "Camera/CameraUtility.h"
 #include "Render/Textures/ZzzOpenglUtil.h"
@@ -229,7 +230,8 @@ static void UpdateUIAndInput()
         MouseOnWindow = true;
 
     g_pPartyManager->Update();
-    g_pNewUISystem->Update();
+    if (g_pNewUISystem->Update())
+        App::Control::ObserveUiUpdate();
 
     if (MouseLButton == true &&
         false == g_pNewUISystem->CheckMouseUse() &&
@@ -634,7 +636,8 @@ static void RenderMainSceneUI()
     EndBitmap();
 
     g_pPartyManager->Render();
-    g_pNewUISystem->Render();
+    if (g_pNewUISystem->Render())
+        App::Control::ObserveUiRender();
 
     BeginBitmap();
     RenderInfomation();
