@@ -123,11 +123,15 @@ TEST_CASE("Owned fixed menu config invalidates on ordinary close Release and sam
     CHECK_FALSE(menu->OwnsControlFixture(second));
     menu->Show(GenericMenuConfig{});
     CHECK_FALSE(menu->RetireControlFixture(second));
-    menu.reset();
+    menu->Release();
+    const auto destroyed = menu->CreateControlFixture("one");
+    REQUIRE(menu->OwnsControlFixture(destroyed));
+    menu.reset(); // Destroy an actively owned config, not an already retired one.
     menu.emplace();
     REQUIRE(&*menu == address);
     const auto third = menu->CreateControlFixture("one");
-    CHECK(third != second);
+    CHECK(third != destroyed);
+    CHECK_FALSE(menu->RetireControlFixture(destroyed));
     CHECK_FALSE(menu->RetireControlFixture(second));
     CHECK(menu->RetireControlFixture(third));
 }

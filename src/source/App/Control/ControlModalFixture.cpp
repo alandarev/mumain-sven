@@ -55,6 +55,25 @@ bool ValidNonce(std::string_view nonce)
                                   c == '-' || c == '_';
                        });
 }
+std::string ApplyFixture(const App::Control::Request& request, Windows::CGenericMenuDialog& menu, bool retiring,
+                         std::string token, std::string_view nonce)
+{
+    using namespace App::Control;
+    if (retiring)
+    {
+        if (!menu.RetireControlFixture(token))
+            return EncodeError(request.EncodedId(), ErrorCode::NotAllowed, "fixture ownership changed");
+    }
+    else
+    {
+        token = menu.CreateControlFixture(nonce);
+        if (token.empty())
+            return EncodeError(request.EncodedId(), ErrorCode::NotAllowed, "fixture creation refused");
+    }
+    return EncodeResult(
+        request.EncodedId(),
+        json({{"version", FixtureVersion}, {"token", token}, {"created", !retiring}, {"retired", retiring}}).dump());
+}
 } // namespace
 
 namespace App::Control
@@ -100,19 +119,6 @@ std::string ModalFixture(const Request& request, std::string_view snapshot, bool
         return EncodeError(request.EncodedId(), ErrorCode::NotAllowed, "fixture ownership mismatch");
     if (auto reason = UiFixtureRefusal(snapshot, retiring); !reason.empty())
         return EncodeError(request.EncodedId(), ErrorCode::NotAllowed, reason);
-    if (retiring)
-    {
-        if (!menu->RetireControlFixture(token))
-            return EncodeError(request.EncodedId(), ErrorCode::NotAllowed, "fixture ownership changed");
-    }
-    else
-    {
-        token = menu->CreateControlFixture(nonce);
-        if (token.empty())
-            return EncodeError(request.EncodedId(), ErrorCode::NotAllowed, "fixture creation refused");
-    }
-    return EncodeResult(
-        request.EncodedId(),
-        json({{"version", FixtureVersion}, {"token", token}, {"created", !retiring}, {"retired", retiring}}).dump());
+    return ApplyFixture(request, *menu, retiring, std::move(token), nonce);
 }
 } // namespace App::Control

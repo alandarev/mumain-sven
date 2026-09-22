@@ -1,10 +1,9 @@
 #include "stdafx.h"
 #include "doctest.h"
 #include "UiLifecycleFixture.h"
-#include "App/Control/ControlCommands.h"
+#include "App/Control/ControlDispatcher.h"
 #include "UI/Dialogs/GenericMenuDialog.h"
 #include "UI/Dialogs/GenericConfirmDialog.h"
-#include "Core/Input/SyntheticInput.h"
 #include "json.hpp"
 #include <SDL3/SDL.h>
 
@@ -16,10 +15,12 @@ namespace Windows = mu::ui::window;
 json Call(json request)
 {
     request["cmd"] = "ui";
-    std::unique_ptr<App::Control::Act> act;
-    const auto reply = json::parse(App::Control::Commands::Ui(App::Control::Request::Parse(request.dump()), act));
-    CHECK(act == nullptr);
-    return reply;
+    App::Control::Dispatcher dispatcher;
+    dispatcher.Handle(App::Control::Request::Parse(request.dump()), 1);
+    CHECK_FALSE(dispatcher.HasActInFlight());
+    const auto replies = dispatcher.TakeResponses();
+    REQUIRE(replies.size() == 1);
+    return json::parse(replies.front().line);
 }
 json Inspect(const std::string& token = {})
 {
@@ -67,6 +68,32 @@ TEST_CASE(
         auto malformed = Mutation("fixture_create");
         malformed.erase("fixture_opt_in");
         Refuse(malformed, "invalid fixture contract");
+        malformed = Mutation("fixture_create");
+        malformed["fixture_version"] = 2;
+        Refuse(malformed, "invalid fixture contract");
+        malformed = Mutation("fixture_create");
+        auto guard = json::parse(malformed["guard"].get<std::string>());
+        guard["ui"]["observability"].erase("native_events_pending");
+        malformed["guard"] = guard.dump();
+        Refuse(malformed, "fixture state changed or unavailable");
+        {
+            // Idempotent raw Show on the already-visible isolated passive object
+            // produces a real SettleAct, without gameplay callbacks or synthetic input.
+            App::Control::Dispatcher dispatcher;
+            dispatcher.Handle(
+                App::Control::Request::Parse(R"({"cmd":"ui","action":"show","window":"hotkey","raw":true})"), 1);
+            REQUIRE(dispatcher.HasActInFlight());
+            const auto before = Inspect();
+            auto request = Mutation("fixture_create");
+            request["cmd"] = "ui";
+            dispatcher.Handle(App::Control::Request::Parse(request.dump()), 2);
+            const auto replies = dispatcher.TakeResponses();
+            REQUIRE(replies.size() == 1);
+            CHECK(json::parse(replies.front().line)["message"] == "control action pending");
+            CHECK(dispatcher.HasActInFlight());
+            CHECK(Inspect() == before);
+            dispatcher.AbandonConnection(1);
+        }
         const auto created = Call(Mutation("fixture_create"));
         INFO(created.dump());
         REQUIRE(created["ok"] == true);
@@ -114,6 +141,12 @@ TEST_CASE(
         CHECK(menu.IsVisible());
         CHECK(callbacks == 0);
         menu.Release(); // Isolated owner teardown, not control cleanup.
+        const auto released = Call(Mutation("fixture_create"));
+        REQUIRE(released["ok"] == true);
+        const auto releasedToken = released["result"]["token"].get<std::string>();
+        menu.Release(); // Retained m_Active storage is not authority.
+        CHECK(Inspect(releasedToken)["token_valid"] == false);
+        Refuse(Mutation("fixture_retire", releasedToken), "fixture ownership mismatch");
         Windows::g_pGenericMenuDialog = nullptr;
     }
     SDL_QuitSubSystem(SDL_INIT_EVENTS);
