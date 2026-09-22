@@ -74,6 +74,7 @@ bool mu::ui::window::CNPCShop::Create(CManager* pNewUIMng, int x, int y)
     if (!m_pRmlDoc && RmlUiRuntime::Instance().IsCreated())
     {
         BuildRmlUi();
+        UI::RmlBridge::RegisterForThemeReload(this, [this] { ReloadRmlTheme(); });
     }
 
     Show(false);
@@ -124,8 +125,8 @@ void mu::ui::window::CNPCShop::BuildRmlUi()
                 });
             if (bgModelCreated)
             {
-                // Shown immediately (unlike m_pRmlDoc) -- Render() only runs while this window is
-                // visible, so there's no "wrong scene" case to guard against here.
+                // Starts hidden -- CreateBackgroundDocument() no longer Show()s eagerly (see its
+                // own comment, RmlTheme.h); SyncRmlModel() below is what shows/hides it.
                 m_pRmlBgDoc = UI::RmlBridge::CreateBackgroundDocument("Data/Interface/RmlUi/npc_shop_bg.rml");
             }
         }
@@ -163,6 +164,7 @@ void mu::ui::window::CNPCShop::Release()
 
     if (m_pNewUIMng)
     {
+        UI::RmlBridge::UnregisterForThemeReload(this);
         m_pNewUIMng->RemoveUIObj(this);
         m_pNewUIMng = NULL;
     }

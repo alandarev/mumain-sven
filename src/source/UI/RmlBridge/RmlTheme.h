@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 #include <string>
 
 namespace Rml
@@ -25,7 +26,8 @@ namespace Rml
 // alone does nothing visually: a window's Rml::ElementDocument/DataModel was already built against
 // whatever theme was active when LoadThemedDocument() last ran for it, so a caller that wants the
 // change to be visible must also tear down and rebuild every currently-open themed window's
-// document (see IObject::ReloadRmlTheme()) after calling SetActiveThemeName().
+// document -- see RegisterForThemeReload()/ReloadAllThemedDocuments() below -- after calling
+// SetActiveThemeName().
 namespace UI::RmlBridge
 {
     // Cached on first call from GameConfig::GetRmlTheme() (e.g. "legacy", "modern", or any
@@ -72,13 +74,16 @@ namespace UI::RmlBridge
     // be read or the document failed to parse (logged via g_ErrorReport either way).
     Rml::ElementDocument* LoadThemedDocument(Rml::Context* context, const char* documentPath);
 
-    // LoadThemedDocument() against RmlUiRuntime::Instance().GetBackgroundContext(), then Show()s it
-    // immediately -- a background-context document doesn't follow its owning window's own
-    // Show()/Hide() lifecycle the way the main-context document does (it's driven entirely by
-    // RmlUiRuntime::RenderBackgroundLayer() being called or not, see MyInventory.h's
-    // MyInventoryBgRmlModel comment), so unlike a typical LoadThemedDocument() caller this one
-    // shows eagerly at Create() time rather than waiting for the window to actually open. Returns
-    // nullptr (silently) if the background context doesn't exist yet.
+    // LoadThemedDocument() against RmlUiRuntime::Instance().GetBackgroundContext(). Starts hidden,
+    // same as LoadThemedDocument() itself -- the caller's own SyncRmlModel() shows/hides it against
+    // IsVisible(), same as its root_x/root_y/root_scale sync (MyInventory.h's MyInventoryBgRmlModel
+    // comment). Used to Show() eagerly here instead, since these documents are driven by
+    // RmlUiRuntime::RenderBackgroundLayer() rather than their owner's own Show()/Hide() -- but every
+    // one of these is created once at boot (LoadMainSceneInterface()), before CSystem::Update() ever
+    // runs its first correcting SyncRmlModel() (gated to SceneFlag == MAIN_SCENE), so the eager
+    // Show() left it visible at its model's zero-initialized default (unscaled, top-left) for the
+    // first few MAIN_SCENE frames of a client's very first login. Returns nullptr (silently) if the
+    // background context doesn't exist yet.
     Rml::ElementDocument* CreateBackgroundDocument(const char* documentPath);
 
     // Same as CreateBackgroundDocument(const char*) but against an explicit context instead of
@@ -87,4 +92,33 @@ namespace UI::RmlBridge
     // frame than every ordinary window's own bg doc (see RenderDialogBackgroundLayer()'s own
     // comment for why). Returns nullptr (silently) if `context` is null.
     Rml::ElementDocument* CreateBackgroundDocument(const char* documentPath, Rml::Context* context);
+
+    // Tier-agnostic theme-reload registry. Any owner of a themed document -- a window (keyed by
+    // `this`) or a free-function module with no `this` (keyed by the address of a private static
+    // token) -- registers one callback here, right next to the code that already creates its first
+    // document, instead of overriding a virtual and hoping every sweep call site reaches it.
+    using ThemeReloadCallback = std::function<void()>;
+
+    // Registers-or-replaces `owner`'s callback (same shape as
+    // Core::Time::FrameTimerScheduler::SetRepeating() -- calling again for an already-registered
+    // owner just replaces its callback, it does not duplicate). Safe, and expected, to call on
+    // every Create()/BuildRmlUi() re-entry, including repeated calls across an object's lifetime
+    // (e.g. a window whose Create() re-runs across scene transitions) -- always leaves exactly one
+    // live callback per owner.
+    void RegisterForThemeReload(const void* owner, ThemeReloadCallback callback);
+
+    // Removes `owner`'s callback, if any -- a no-op if `owner` isn't registered (same shape as
+    // FrameTimerScheduler::Kill()), so it's safe to call from a Release()/destructor path that may
+    // run more than once. Call this ONLY where the owner already unhooks from its CManager
+    // (RemoveUIObj(this)) -- an owner that never does that (a handful of app/scene-lifetime
+    // singleton windows) must never call this either, so its registration outlives every Release()
+    // the same way its CManager registration already does.
+    void UnregisterForThemeReload(const void* owner);
+
+    // Calls every registered callback, rebuilding every currently-open themed document/model
+    // against whatever SetActiveThemeName() most recently set. The one call a theme switch needs
+    // after SetActiveThemeName(). Copies the registry before iterating -- cheap at this scale and
+    // removes any reliance on no callback ever registering/unregistering another owner while this
+    // sweep is in progress.
+    void ReloadAllThemedDocuments();
 }

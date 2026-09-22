@@ -54,7 +54,10 @@ void CGenericConfirmDialog::Create(CManager* pMng)
     Release();
 
     if (RmlUiRuntime::Instance().IsCreated())
+    {
         BuildRmlUi();
+        UI::RmlBridge::RegisterForThemeReload(this, [this] { ReloadRmlTheme(); });
+    }
 
     pMng->AddUIObj(mu::ui::window::INTERFACE_GENERIC_CONFIRM_DIALOG, this);
 
@@ -143,13 +146,11 @@ void CGenericConfirmDialog::BuildRmlUi()
             "Data/Interface/RmlUi/generic_confirm_dialog.rml");
 
     // Background-context companion -- see the class comment for the mechanism. No RmlModelBinder
-    // needed (100% static markup, see generic_confirm_dialog_bg.rml). CreateBackgroundDocument()
-    // auto-Show()s it; Hide() immediately since this dialog starts inactive -- Show()/ShowNext()/
-    // Resolve()/Release()/ReloadRmlTheme() keep it in lockstep with m_pRmlDoc from here on.
+    // needed (100% static markup, see generic_confirm_dialog_bg.rml). Starts hidden
+    // (CreateBackgroundDocument()); Show()/ShowNext()/Resolve()/Release()/ReloadRmlTheme() keep it
+    // in lockstep with m_pRmlDoc from here on.
     m_pRmlBgDoc = UI::RmlBridge::CreateBackgroundDocument("Data/Interface/RmlUi/generic_confirm_dialog_bg.rml",
         RmlUiRuntime::Instance().GetDialogBackgroundContext());
-    if (m_pRmlBgDoc)
-        m_pRmlBgDoc->Hide();
 }
 
 void CGenericConfirmDialog::ReloadRmlTheme()

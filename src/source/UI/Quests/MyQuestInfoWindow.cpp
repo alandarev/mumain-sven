@@ -16,6 +16,7 @@
 #include "UI/Scaling/UITransform.h"
 #include "Render/RmlUi/RmlUiRuntime.h"
 #include "UI/RmlBridge/RmlTheme.h"
+#include "UI/RmlBridge/RmlTooltip.h"
 
 #include <RmlUi/Core/DataModelHandle.h>
 #include <RmlUi/Core/ElementDocument.h>
@@ -68,6 +69,7 @@ bool mu::ui::window::CMyQuestInfoWindow::Create(CManager* pNewUIMng, int x, int 
     if (RmlUiRuntime::Instance().IsCreated())
     {
         BuildRmlUi();
+        UI::RmlBridge::RegisterForThemeReload(this, [this] { ReloadRmlTheme(); });
     }
 
     Show(false);
@@ -195,6 +197,7 @@ void mu::ui::window::CMyQuestInfoWindow::Release()
 
     if (m_pNewUIMng)
     {
+        UI::RmlBridge::UnregisterForThemeReload(this);
         m_pNewUIMng->RemoveUIObj(this);
         m_pNewUIMng = NULL;
     }
@@ -244,6 +247,15 @@ bool mu::ui::window::CMyQuestInfoWindow::UpdateKeyEvent()
 bool mu::ui::window::CMyQuestInfoWindow::Update()
 {
     SyncRmlModel();
+
+    // Mirrors Render()'s own condition for drawing the reward-item info popup: whenever it
+    // wouldn't be (re)shown this frame -- tab switched away from TAB_QUEST, selection cleared,
+    // or the window itself hidden -- make sure the persistent tooltip document doesn't linger.
+    if (IsVisible() && !(m_eTabBtnIndex == TAB_QUEST && m_pSelectedRewardItem))
+    {
+        UI::RmlBridge::Tooltip::Hide();
+    }
+
     return true;
 }
 
@@ -253,10 +265,10 @@ bool mu::ui::window::CMyQuestInfoWindow::Render()
     // popup is still a native per-frame call here (see m_pSelectedRewardItem).
     if (m_eTabBtnIndex == TAB_QUEST && m_pSelectedRewardItem)
     {
-        const auto transform = UI::Scaling::GetActiveTransform();
-        const int nX = static_cast<int>((m_Pos.x + 95) * transform.scaleX + transform.offsetX);
-        const int nY = static_cast<int>((m_Pos.y + 230) * transform.scaleY + transform.offsetY);
-        ::RenderItemInfo(nX, nY, m_pSelectedRewardItem, false, 0, true);
+        // Reference-pixel, not screen pixel -- RenderItemInfo() converts internally via the
+        // ambient transform (same convention every other caller uses, see ZzzInventory.cpp).
+        // Pre-converting here too used to double-apply the transform.
+        ::RenderItemInfo(m_Pos.x + 95, m_Pos.y + 230, m_pSelectedRewardItem, false, 0, true);
     }
 
     return true;
@@ -325,42 +337,15 @@ void mu::ui::window::CMyQuestInfoWindow::SetSelQuestRequestReward()
     if (!g_QuestMng.IsRequestRewardQS(dwSelQuestIndex))
         return;
 
-    const SQuestRequestReward* pQuestRequestReward = g_QuestMng.GetRequestReward(dwSelQuestIndex);
-    if (NULL == pQuestRequestReward)
-        return;
+    // This window appends the reward rows after other content already in m_ContentRows (the quest
+    // summary, above) -- push the leading spacer here rather than in the shared helper, which
+    // CQuestProgress/CQuestProgressByEtc's own reward list (nothing precedes it) don't want.
+    m_ContentRows.push_back({ " ", 0xffffffff, 0, nullptr });
 
-    SRequestRewardText aRequestRewardText[13];
-    g_QuestMng.GetRequestRewardText(aRequestRewardText, 13, dwSelQuestIndex);
-
-    int i = 0;
-    int j, nLoop;
-    for (j = 0; j < 3; ++j)
-    {
-        if (0 == j)
-        {
-            m_ContentRows.push_back({ " ", 0xffffffff, 0, nullptr });
-            nLoop = 1 + pQuestRequestReward->m_byRequestCount;
-        }
-        else if (1 == j && pQuestRequestReward->m_byGeneralRewardCount)
-        {
-            m_ContentRows.push_back({ " ", 0xffffffff, 0, nullptr });
-            nLoop = 1 + pQuestRequestReward->m_byGeneralRewardCount + i;
-        }
-        else if (2 == j && pQuestRequestReward->m_byRandRewardCount)
-        {
-            m_ContentRows.push_back({ " ", 0xffffffff, 0, nullptr });
-            nLoop = 1 + pQuestRequestReward->m_byRandRewardCount + i;
-        }
-        else
-            nLoop = 0;
-
-        for (; i < nLoop; ++i)
-        {
-            m_ContentRows.push_back({ StringUtils::WideToNarrow(aRequestRewardText[i].m_szText),
-                static_cast<DWORD>(aRequestRewardText[i].m_dwColor), aRequestRewardText[i].m_dwType,
-                aRequestRewardText[i].m_pItem });
-        }
-    }
+    bool unusedRequestComplete = false;
+    std::vector<UI::Quests::RewardModel::RowData> rows =
+        UI::Quests::RewardModel::BuildRows(dwSelQuestIndex, unusedRequestComplete);
+    m_ContentRows.insert(m_ContentRows.end(), rows.begin(), rows.end());
 }
 
 void mu::ui::window::CMyQuestInfoWindow::QuestOpenBtnEnable(bool bEnable)
@@ -458,7 +443,7 @@ void mu::ui::window::CMyQuestInfoWindow::RmlClickSelectContent(int nContentIndex
     if (nContentIndex < 0 || static_cast<size_t>(nContentIndex) >= m_ContentRows.size())
         return;
 
-    const ContentRowData& row = m_ContentRows[nContentIndex];
+    const UI::Quests::RewardModel::RowData& row = m_ContentRows[nContentIndex];
     if ((row.dwType == QUEST_REQUEST_ITEM || row.dwType == QUEST_REWARD_ITEM) && row.pItem)
         m_pSelectedRewardItem = row.pItem;
     else
@@ -555,13 +540,9 @@ void mu::ui::window::CMyQuestInfoWindow::SyncRmlModel()
     model.contents.clear();
     for (size_t rowIndex = 0; rowIndex < m_ContentRows.size(); ++rowIndex)
     {
-        const ContentRowData& row = m_ContentRows[rowIndex];
-        wchar_t colorBuf[32];
-        mu_swprintf(colorBuf, L"rgba(%d,%d,%d,%d)", (row.dwColor >> 16) & 0xff, (row.dwColor >> 8) & 0xff,
-            row.dwColor & 0xff, (row.dwColor >> 24) & 0xff);
-        const bool clickable = row.pItem && (row.dwType == QUEST_REQUEST_ITEM || row.dwType == QUEST_REWARD_ITEM);
-        model.contents.push_back({ row.text, StringUtils::WideToNarrow(colorBuf), false,
-            static_cast<int>(rowIndex), clickable });
+        const UI::Quests::RewardModel::Entry entry =
+            UI::Quests::RewardModel::ToEntry(m_ContentRows[rowIndex], static_cast<int>(rowIndex));
+        model.contents.push_back({ entry.text, entry.color, entry.bold, entry.index, entry.clickable });
     }
     m_RmlBinder.MarkDirty("contents");
 

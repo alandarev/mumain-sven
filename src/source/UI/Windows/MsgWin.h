@@ -69,7 +69,7 @@ public:
     {
         return 50.0f;
     }
-    void ReloadRmlTheme() override;
+    void ReloadRmlTheme();
 
     // The message code currently on screen, or -1 when the window is hidden.
     // Automation reads it because several results — a refused login above all —

@@ -13,6 +13,7 @@
 #include <fstream>
 #include <regex>
 #include <sstream>
+#include <unordered_map>
 
 namespace UI::RmlBridge
 {
@@ -257,9 +258,39 @@ namespace UI::RmlBridge
         if (!context)
             return nullptr;
 
-        Rml::ElementDocument* doc = LoadThemedDocument(context, documentPath);
-        if (doc)
-            doc->Show();
-        return doc;
+        // Starts hidden -- see this function's own header comment (RmlTheme.h) for why an eager
+        // Show() here used to cause a real first-login-only flicker.
+        return LoadThemedDocument(context, documentPath);
+    }
+
+    namespace
+    {
+        // Function-local static, same idiom ActiveThemeNameStorage() above already uses.
+        std::unordered_map<const void*, ThemeReloadCallback>& ThemeReloadRegistry()
+        {
+            static std::unordered_map<const void*, ThemeReloadCallback> registry;
+            return registry;
+        }
+    }
+
+    void RegisterForThemeReload(const void* owner, ThemeReloadCallback callback)
+    {
+        ThemeReloadRegistry()[owner] = std::move(callback);
+    }
+
+    void UnregisterForThemeReload(const void* owner)
+    {
+        ThemeReloadRegistry().erase(owner);
+    }
+
+    void ReloadAllThemedDocuments()
+    {
+        // Copy first -- see this function's own header comment (RmlTheme.h) for why.
+        const auto callbacks = ThemeReloadRegistry();
+        for (const auto& [owner, callback] : callbacks)
+        {
+            if (callback)
+                callback();
+        }
     }
 }

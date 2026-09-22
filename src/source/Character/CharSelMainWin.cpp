@@ -134,7 +134,10 @@ void CCharSelMainWin::Create()
     // briefly did, after rebasing onto upstream's own Create() ordering) left every RmlUi element
     // at its unstyled default position on the window's very first Create() call.
     if (!m_pRmlDoc && RmlUiRuntime::Instance().IsCreated())
+    {
         BuildRmlUi();
+        UI::RmlBridge::RegisterForThemeReload(this, [this] { ReloadRmlTheme(); });
+    }
 
     CSceneUICoordinator::Instance().GetNewStyleMng().AddUIObj(mu::ui::window::INTERFACE_CHAR_SEL_MAIN, this);
 
@@ -221,6 +224,12 @@ void CCharSelMainWin::Release()
     // transition.
     if (m_pRmlDoc)
         m_pRmlDoc->Hide();
+
+    // Base-class visibility reset (same fix as CServerMsgWin::Release()/CMsgWin::Release()) -- this
+    // is the screen the player is on right up until the transition instant, so IsVisible() is
+    // essentially guaranteed true when this Release() runs; without resetting it, anything that
+    // later checks this window's own IsVisible() during MAIN_SCENE would see a stale true.
+    mu::ui::window::CObject::Show(false);
 }
 
 void CCharSelMainWin::SetPosition(int nXCoord, int nYCoord)

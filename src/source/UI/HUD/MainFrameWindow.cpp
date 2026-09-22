@@ -33,6 +33,7 @@
 #include "Render/RmlUi/RmlUiRuntime.h"
 #include "Render/Textures/ZzzOpenglUtil.h"
 #include "UI/RmlBridge/RmlTheme.h"
+#include "UI/RmlBridge/RmlTooltip.h"
 #include "Core/Utilities/StringUtils.h"
 #include <RmlUi/Core/ElementDocument.h>
 #include <RmlUi/Core/Event.h>
@@ -98,7 +99,10 @@ bool mu::ui::window::CMainFrameWindow::Create(CManager* pNewUIMng, C3DRenderMng*
 
     // Guarded so the doc/model are created once, even though Create() re-runs on resolution change.
     if (!m_pRmlDoc && RmlUiRuntime::Instance().IsCreated())
+    {
         BuildRmlUi();
+        UI::RmlBridge::RegisterForThemeReload(this, [this] { ReloadRmlTheme(); });
+    }
 
     Show(true);
 
@@ -182,22 +186,9 @@ void mu::ui::window::CMainFrameWindow::BuildRmlUi()
                 skillCell.RegisterMember("cooldown_fraction", &SkillCellEntry::cooldownFraction);
                 c.RegisterArray<std::vector<SkillCellEntry>>();
 
-                auto tooltipLine = c.RegisterStruct<SkillTooltipLineEntry>();
-                tooltipLine.RegisterMember("text", &SkillTooltipLineEntry::text);
-                tooltipLine.RegisterMember("color_blue", &SkillTooltipLineEntry::colorBlue);
-                tooltipLine.RegisterMember("color_red", &SkillTooltipLineEntry::colorRed);
-                tooltipLine.RegisterMember("color_dark_red", &SkillTooltipLineEntry::colorDarkRed);
-                tooltipLine.RegisterMember("bold", &SkillTooltipLineEntry::bold);
-                c.RegisterArray<std::vector<SkillTooltipLineEntry>>();
-
                 c.Bind("skill_grid_open", &model.skillGridOpen);
                 c.Bind("skill_grid_cells", &model.skillGridCells);
                 c.Bind("pet_skill_cells", &model.petSkillCells);
-
-                c.Bind("skill_tooltip_visible", &model.skillTooltipVisible);
-                c.Bind("skill_tooltip_left", &model.skillTooltipLeft);
-                c.Bind("skill_tooltip_top", &model.skillTooltipTop);
-                c.Bind("skill_tooltip_lines", &model.skillTooltipLines);
 
                 // Skill list click/hover bindings route into CSkillList (g_pSkillList has no RmlUi
                 // doc of its own). Args are literal ints in RML (e.g. skill_hotkey_click(0)) or the
@@ -326,6 +317,7 @@ void mu::ui::window::CMainFrameWindow::Release()
     if (m_pNewUIMng)
     {
         m_pNewUIMng->RemoveUIObj(this);
+        UI::RmlBridge::UnregisterForThemeReload(this);
         m_pNewUIMng = NULL;
     }
 
@@ -889,41 +881,42 @@ void mu::ui::window::CMainFrameWindow::SyncRmlModel()
     }
 
     // Shared skill tooltip: one hover target queued at a time (QueueTooltip()/OnUnhover()).
-    // BuildModelForSlot() is the same content resolution SkillTooltip.cpp's Render() uses; only
-    // the destination (RmlUi vs. legacy TextList) differs.
+    // BuildModelForSlot() is the same content resolution SkillTooltip.cpp's Render() uses; the
+    // destination is now UI::RmlBridge::Tooltip's own shared document, not a per-window RML block
+    // -- consolidated onto it so this window doesn't carry its own separate tooltip styling/z-order
+    // (see docs/rmlui-ui-system/component-catalog.md's "Tooltip" entry).
     if (g_pSkillList->IsTooltipPending())
     {
         UI::Skills::Tooltip::Model tooltipModel;
         if (UI::Skills::Tooltip::BuildModelForSlot(g_pSkillList->GetTooltipSkillIndex(), tooltipModel))
         {
-            model.skillTooltipLines.clear();
-            for (int i = 0; i < tooltipModel.count; ++i)
-            {
-                const UI::Skills::Tooltip::Line& src = tooltipModel.lines[i];
-                SkillTooltipLineEntry line;
-                line.text = StringUtils::WideToNarrow(src.text);
-                line.colorBlue = (src.color == UI::Skills::Tooltip::LineColor::Blue);
-                line.colorRed = (src.color == UI::Skills::Tooltip::LineColor::Red);
-                line.colorDarkRed = (src.color == UI::Skills::Tooltip::LineColor::DarkRed);
-                line.bold = src.isBold;
-                model.skillTooltipLines.push_back(line);
-            }
-            model.skillTooltipLeft = g_pSkillList->GetTooltipAnchorX();
-            model.skillTooltipTop = g_pSkillList->GetTooltipAnchorY();
-            model.skillTooltipVisible = true;
-            m_RmlBinder.MarkDirty("skill_tooltip_lines");
-            m_RmlBinder.MarkDirty("skill_tooltip_left");
-            m_RmlBinder.MarkDirty("skill_tooltip_top");
-            m_RmlBinder.MarkDirty("skill_tooltip_visible");
+            UI::RmlBridge::Tooltip::Config config;
+            config.lines = UI::Skills::Tooltip::ToRmlBridgeLines(tooltipModel);
+            // GetTooltipAnchorX/Y() are #bars-relative reference-pixel coordinates (same convention
+            // as skill_grid_cells' cell.left/top), meaningful only through BottomHudCenterTransform
+            // (same one #bars's own scale/offset above uses) -- NOT through the ambient
+            // UI::Scaling::GetActiveTransform(), which during this window's own Update() is
+            // LayoutMode::Hud (ScreenOverlayTransform, per UILayoutPolicy.cpp's INTERFACE_MAINFRAME
+            // entry -- CManager::AddUIObj() overrides whatever CObject's own constructor set).
+            // Tooltip::Show() used to apply that ambient conversion itself; see RmlTooltip.h's own
+            // comment for why it no longer does.
+            const auto skillTooltipTransform = UI::Scaling::BottomHudCenterTransform(WindowWidth, WindowHeight);
+            config.anchorX = UI::Scaling::PositionX(skillTooltipTransform, g_pSkillList->GetTooltipAnchorX());
+            config.anchorY = UI::Scaling::PositionY(skillTooltipTransform, g_pSkillList->GetTooltipAnchorY());
+            // The old #skill_tooltip's CSS (`transform: translateY(-100%)`) always grew upward,
+            // unconditionally -- AboveLeft matches that; Show()'s own clamping now also covers the
+            // horizontal/lower-edge cases that CSS-only transform never did.
+            config.anchor = UI::RmlBridge::Tooltip::AnchorPoint::AboveLeft;
+            UI::RmlBridge::Tooltip::Show(config, g_pSkillList);
         }
         else
         {
-            syncBool(&MainFrameRmlModel::skillTooltipVisible, "skill_tooltip_visible", false);
+            UI::RmlBridge::Tooltip::Hide(g_pSkillList);
         }
     }
     else
     {
-        syncBool(&MainFrameRmlModel::skillTooltipVisible, "skill_tooltip_visible", false);
+        UI::RmlBridge::Tooltip::Hide(g_pSkillList);
     }
 }
 
