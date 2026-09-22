@@ -195,6 +195,7 @@ namespace SEASON3B
                     m_pObj = _container.GetInstance();
                     m_InstState = INSTANCE_REFERENCE;
                 }
+                return *this;
             }
         };
         template <class T>
@@ -228,6 +229,8 @@ namespace SEASON3B
 
     class CNewUIMessageBoxMng : public CNewUIObj
     {
+        // Headless tests initialize storage without loading renderer assets.
+        friend struct MessageBoxLifecycleFixture;
         class CNewUIEvent
         {
             CNewUIMessageBoxBase* m_pOwner;
@@ -321,6 +324,16 @@ namespace SEASON3B
         void PopAllMessageBoxes();
 
         bool IsEmpty();
+        bool IsOnlySystemMenu() const;
+        // Read-only stack identity; manager visibility is independent of these children.
+        const std::vector<CNewUIMessageBoxBase*>& GetMessageBoxes() const
+        {
+            return m_vecMsgBoxes;
+        }
+        bool HasPendingEvents() const
+        {
+            return !m_queueEvents.empty();
+        }
 
         void SendEvent(CNewUIMessageBoxBase* pOwner, DWORD dwEvent);
         void SendEvent(CNewUIMessageBoxBase* pOwner, DWORD dwEvent, const leaf::xstreambuf& xParam);

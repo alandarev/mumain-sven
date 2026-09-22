@@ -88,7 +88,7 @@ Error codes: `bad_request`, `unknown_command`, `wrong_scene`, `busy`,
 | `halt` | stop the walk or repeated attack in progress |
 | `inject` (`hex`) | run one decrypted server→client packet through the receive path (debug-ui) |
 | `net` (`action`) | `mute`/`unmute`/`status`/`reset`: drop every real incoming packet while muted (debug-ui) |
-| `ui` (`action`, `window`, `raw`, `name`, `percent`) | `list`, `show`/`hide`/`toggle` a main-scene window, `theme`, `scale` (debug-ui) |
+| `ui` (`action`, `window`, `raw`, `name`, `percent`, `guard`) | `list`, `show`/`hide`/`toggle`, opt-in `guarded_show`/`guarded_hide`, `theme`, `scale` (debug-ui) |
 | `window` (`action`, `width`, `height`) | `status`, `resize` the game window (debug-ui) |
 | `hover` (`x`, `y`) | move the pointer to a window pixel and leave it there (debug-ui) |
 | `render` (`world`) | `on`/`off`/`status`: skip the 3D world so only the UI is drawn (debug-ui) |
@@ -138,6 +138,19 @@ every run, on any build that carries them:
 - `ui list` names every main-scene window (`INTERFACE_*` without the prefix,
   lowercased: `inventory`, `character`, `gensranking`, …) with its
   registered/visible flags and, where the build has RmlUi, the active theme.
+  Instrumented builds additionally return `observability.version: 2`, with
+  `messagebox_active` (native dialog stack, independent of manager visibility),
+  `legacy_popup_active`, `generic_confirm_active`/`generic_menu_active`,
+  `helper_active`, `input_focused` and `friend_open_allowed`.
+  `input_focus_owner` is `"chatinputbox"` only for focus held by that exact
+  registered panel's chat/whisper field; otherwise it is null (unidentified).
+  Activity is boolean when observable and `null` when unavailable; never treat
+  missing/null as inactive. `generic_dialogs_supported: false` explicitly marks
+  a build without those RmlUi mechanisms; their activity fields stay null.
+  These read-only observations do not certify that every modal/input mechanism
+  is covered. Consumers must also check scene, registry/transaction state and
+  any other prerequisites of their operation. Repeating `ui list` does not
+  dismiss a dialog or change focus.
   `ui show|hide|toggle <window>` goes through the window system's own
   `Show`/`Hide` (dock-neighbour placement, group hiding, refusals included);
   `raw: true` flips only the manager flag. `ui theme <name>` performs the
@@ -230,3 +243,43 @@ When one of those functions is rewritten:
   250 ms between automation steps). Do not remove that pacing.
 - Attacks are refused inside a safe zone; `state`'s `safe_zone` flag says when
   the character is in one, and `attack` answers `not_allowed` there.
+
+### Guarded comparison operations
+
+Instrumented comparison builds report pending inventory/character opening quest
+actions, carried items, native pending events, legacy message windows, friend
+children and identified system-menu state. `ui list` includes an opaque `guard`
+string describing the observed UI snapshot. Do not construct it yourself.
+
+`ui` actions `guarded_show` and `guarded_hide` accept `window` and that `guard`.
+They refuse changed/unknown state, unsupported panels and transaction/modal state
+before invoking the ordinary synchronous Show/Hide path. `system_menu` is a special
+name for opening the normal system menu or cancelling that identified menu only.
+These operations never execute menu choices. Existing unguarded commands retain
+their original behavior. A successful request still needs visibility and full-frame
+verification: an unavailable natural route is not automatically an opening pass.
+Only closing the registered, visible chat-input panel may retain its own identified
+native input focus; other focused or unidentified inputs still refuse. This native
+build identifies the chat and whisper fields by their exact owned pointers, not
+parent IDs. Positive focused-chat runtime verification is still required.
+
+The guard covers all reported window visibility, including autonomous HUD flags.
+A stale refusal requires a fresh observation and full prerequisite revalidation,
+not a blind retry. The settle reply reports the requested action, not its outcome:
+query `ui list` again after settling and verify the expected visibility/modal state.
+Native pending events may remain reported after a dialog is popped; never clear or
+ignore them to force a guarded operation. RmlUi focus is covered by the observed
+generic dialogs and refused option window, not a general DOM-focus observation.
+
+Ordinary callbacks are preserved, so these operations are not packet-free. Opening
+party requests the party list; closing the quest journal (including opening inventory
+while the journal is open) sends a close-NPC request. Opening friends can request the
+friends list and clears the mail alert. Character/inventory opening is refused when
+its observed tutorial-quest callback would change progression. No callback is
+suppressed to obtain a screenshot.
+
+The native headless lifecycle test initializes only messagebox storage, not renderer
+assets or a game world. It exercises the real stack, pending-event queue, system-menu
+identity and original Escape/cancel/destroy callbacks; it is not a runtime fixture
+command or proof of successful live guarded-handler operation. No RmlUi dialog is
+added to this native baseline.

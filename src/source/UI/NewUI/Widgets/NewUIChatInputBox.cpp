@@ -194,6 +194,14 @@ bool SEASON3B::CNewUIChatInputBox::HaveFocus()
     return (m_pChatInputBox->HaveFocus() || m_pWhsprIDInputBox->HaveFocus());
 }
 
+bool SEASON3B::CNewUIChatInputBox::OwnsFocusedInput() const
+{
+    const auto* focused = CUITextInputBox::GetFocusedPortable();
+    return CUITextInputBox::IsAnyInputBoxFocused() &&
+           ((m_pChatInputBox != nullptr && focused == m_pChatInputBox) ||
+            (m_pWhsprIDInputBox != nullptr && focused == m_pWhsprIDInputBox));
+}
+
 void SEASON3B::CNewUIChatInputBox::AddChatHistory(const type_string& strText)
 {
     auto vi = std::find(m_vecChatHistory.begin(), m_vecChatHistory.end(), strText);

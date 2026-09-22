@@ -5,6 +5,7 @@
 #include "stdafx.h"
 #include "UI/NewUI/Dialogs/NewUIMessageBox.h"	// self
 #include "UI/NewUI/NewUIManager.h"
+#include "UI/NewUI/Dialogs/NewUICustomMessageBox.h"
 #include "UI/Legacy/UIControls.h"
 #include "UI/Scaling/UITransform.h"
 #include "Render/Textures/ZzzOpenglUtil.h"
@@ -420,6 +421,12 @@ void SEASON3B::CNewUIMessageBoxMng::PopAllMessageBoxes()
 bool SEASON3B::CNewUIMessageBoxMng::IsEmpty()
 {
     return m_vecMsgBoxes.empty();
+}
+
+bool SEASON3B::CNewUIMessageBoxMng::IsOnlySystemMenu() const
+{
+    return m_vecMsgBoxes.size() == 1 && dynamic_cast<const CSystemMenuMsgBox*>(m_vecMsgBoxes.front()) != nullptr &&
+           !HasPendingEvents();
 }
 
 void SEASON3B::CNewUIMessageBoxMng::SendEvent(CNewUIMessageBoxBase* pOwner, DWORD dwEvent)

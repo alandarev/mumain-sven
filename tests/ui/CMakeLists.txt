@@ -69,3 +69,27 @@ mu_add_test(
     SOURCES test_character_name_lifecycle.cpp
     LINK_LIBS MuClient
 )
+
+mu_add_test(
+    NAME friend_window_manager_tests
+    SOURCES
+        test_friend_window_manager.cpp
+        ${CMAKE_SOURCE_DIR}/src/source/App/Platform/Windows/Winmain.cpp
+    LINK_LIBS MuClient
+)
+
+mu_add_test(
+    NAME chat_input_focus_tests
+    SOURCES
+        test_chat_input_focus.cpp
+        ${CMAKE_SOURCE_DIR}/src/source/App/Platform/Windows/Winmain.cpp
+    LINK_LIBS MuClient
+)
+
+mu_add_test(
+    NAME native_message_box_tests
+    SOURCES
+        test_native_message_box.cpp
+        ${CMAKE_SOURCE_DIR}/src/source/App/Platform/Windows/Winmain.cpp
+    LINK_LIBS MuClient
+)

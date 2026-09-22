@@ -4,7 +4,7 @@
 //   inject   run one decrypted server->client packet through the receive
 //            path as if the server had sent it;
 //   net      mute/unmute every real incoming packet (the session stays open);
-//   ui       list/show/hide/toggle main-scene windows by name, switch the
+//   ui       list/show/hide/toggle/guarded_show/guarded_hide main-scene windows by name, switch the
 //            RmlUi theme, change the UI scale;
 //   window   resize the game window;
 //   hover    move the pointer to a window pixel and leave it there;
@@ -18,10 +18,14 @@
 #include "App/Control/ControlCommands.h"
 
 #include "App/Control/ControlTaps.h"
+#include "App/Control/ControlUiObservability.h"
+#include "App/Control/ControlUiReplay.h"
 #include "Data/GameConfig/GameConfig.h"
 #include "Network/Server/WSclient.h"
 #include "Render/Textures/ZzzOpenglUtil.h"
 #include "Scenes/MainScene.h"
+
+extern int LoadingWorld;
 
 #if __has_include("UI/Core/WindowSystem.h")
 #define MU_DEBUG_UI_RMLUI 1
@@ -32,6 +36,7 @@
 #else
 #define MU_DEBUG_UI_RMLUI 0
 #include "UI/NewUI/NewUISystem.h"
+#include "UI/NewUI/Dialogs/NewUICustomMessageBox.h"
 #endif
 
 #include "json.hpp"
@@ -408,7 +413,7 @@ json WindowGeometry()
     return geometry;
 }
 
-std::string UiList(const Request& request)
+json UiSnapshot()
 {
     json result;
     json windows = json::array();
@@ -417,13 +422,65 @@ std::string UiList(const Request& request)
         windows.push_back(WindowObject(window));
     }
     result["windows"] = std::move(windows);
+    result["observability"] = json::parse(App::Control::UiObservabilityObject());
 #if MU_DEBUG_UI_RMLUI
     result["theme"] = UI::RmlBridge::GetActiveThemeName();
 #else
     result["theme"] = nullptr;
 #endif
     result["ui_scale_percent"] = WindowGeometry()["ui_scale_percent"];
+    return result;
+}
+
+std::string UiList(const Request& request)
+{
+    json result = UiSnapshot();
+    result["guard"] = result.dump();
     return App::Control::EncodeResult(request.EncodedId(), result.dump());
+}
+
+std::string ApplyGuardedUi(bool show, const std::string& name)
+{
+    if (name == "system_menu")
+    {
+#if MU_DEBUG_UI_RMLUI
+        if (show)
+            Windows::ShowSystemMenuDialog();
+        else if (Windows::g_pGenericMenuDialog == nullptr || !Windows::g_pGenericMenuDialog->DismissSystemMenu())
+            return "system menu changed";
+#else
+        if (show)
+            Windows::CreateMessageBox(MSGBOX_LAYOUT_CLASS(Windows::CSystemMenuMsgBoxLayout));
+        else
+            Windows::CSystemMenuMsgBox::CancelBtnDown(g_MessageBox->GetMessageBoxes().front(), leaf::xstreambuf());
+#endif
+        return {};
+    }
+    const auto* window = FindWindow(name);
+    if (window == nullptr || g_pNewUIMng == nullptr || g_pNewUIMng->FindUIObj(window->key) == nullptr)
+        return "panel unavailable";
+    if (show)
+        g_pNewUISystem->Show(window->key);
+    else
+        g_pNewUISystem->Hide(window->key);
+    return {};
+}
+
+std::string GuardedUi(const Request& request, bool show, std::unique_ptr<Act>& act)
+{
+    std::string name;
+    std::string guard;
+    if (!request.GetString("window", name) || !request.GetString("guard", guard))
+        return App::Control::EncodeError(request.EncodedId(), ErrorCode::BadRequest, "window and guard required");
+    const auto snapshot = UiSnapshot().dump();
+    // No event injection or packet-processing frame between the guard and callback.
+    const auto reason =
+        App::Control::ExecuteGuardedUi(guard, snapshot, SceneFlag == MAIN_SCENE && LoadingWorld < 30, g_muted.load(),
+                                       show, name, [&] { return ApplyGuardedUi(show, name); });
+    if (!reason.empty())
+        return App::Control::EncodeError(request.EncodedId(), ErrorCode::NotAllowed, reason);
+    act = std::make_unique<SettleAct>("ui", json({{"window", name}, {"requested_visible", show}}).dump());
+    return {};
 }
 
 std::string UiVisibility(const Request& request, std::string_view action, std::unique_ptr<Act>& act)
@@ -633,8 +690,9 @@ std::string Ui(const Request& request, std::unique_ptr<Act>& act)
     std::string action;
     if (!request.GetString("action", action) || action.empty())
     {
-        return EncodeError(request.EncodedId(), ErrorCode::BadRequest,
-                           "`ui` needs an `action`: list, show, hide, toggle, theme or scale");
+        return EncodeError(
+            request.EncodedId(), ErrorCode::BadRequest,
+            "`ui` needs an `action`: list, show, hide, toggle, guarded_show, guarded_hide, theme or scale");
     }
     if (action == "theme")
     {
@@ -653,12 +711,17 @@ std::string Ui(const Request& request, std::unique_ptr<Act>& act)
     {
         return UiList(request);
     }
+    if (action == "guarded_show" || action == "guarded_hide")
+    {
+        return GuardedUi(request, action == "guarded_show", act);
+    }
     if (action == "show" || action == "hide" || action == "toggle")
     {
         return UiVisibility(request, action, act);
     }
     return EncodeError(request.EncodedId(), ErrorCode::BadRequest,
-                       "unknown `ui` action `" + action + "`; known: list, show, hide, toggle, theme, scale");
+                       "unknown `ui` action `" + action +
+                           "`; known: list, show, hide, toggle, guarded_show, guarded_hide, theme, scale");
 }
 
 std::string Window(const Request& request, std::unique_ptr<Act>& act)

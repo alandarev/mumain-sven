@@ -750,6 +750,7 @@ public:
         return (m_WindowArrangeList.empty() == TRUE ? 0 : *m_WindowArrangeList.rbegin());
     }
     DWORD GetTopNotMainWindowUIID();
+    bool HasReplayBlockingChildren() const;
 
     void AddWindowFinder(CUIBaseWindow* pWindow);
     void RemoveWindowFinder(DWORD dwUIID);

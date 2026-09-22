@@ -29,6 +29,10 @@ namespace SEASON3B
         float GetLayerDepth();		// 6.f
 
         void Reset();
+        const CUIWindowMgr* GetWindowManager() const
+        {
+            return m_pFriendWindowMgr;
+        }
 
         void SendUIMessage(int iMessage, int iParam1, int iParam2) { m_pFriendWindowMgr->SendUIMessage(iMessage, iParam1, iParam2); }
         void SendUIMessageToWindow(DWORD dwUIID, int iMessage, int iParam1, int iParam2)
