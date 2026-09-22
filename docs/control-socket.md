@@ -297,3 +297,40 @@ assets or a game world. It exercises the real stack, pending-event queue, system
 identity and original Escape/cancel/destroy callbacks; it is not a runtime fixture
 command or proof of successful live guarded-handler operation. No RmlUi dialog is
 added to this native baseline.
+
+#### Explicit quick-command peer variant
+
+`SOC-14.comparison-peer-target` opens ordinary target choices, never a choice itself.
+No-target quick menus and physical Alt/right-click behavior are not covered. For
+this route, send `ui list` with integer `peer_key` and string `peer_id` identifying
+the intended live comparison character. Use its fresh opaque guard with
+`guarded_show` or `guarded_hide`, `window: "quick_command"`, and the same two peer
+fields. The version-1 `quick_peer` sub-contract is required; ordinary schema-3
+observations and existing unguarded commands retain their semantics. A list without
+peer fields is suitable for other guarded panels, not quick commands.
+
+The route resolves the current bounded world-array entry by both server key and
+name. Server keys are not array indices. It refuses missing/ambiguous/self targets,
+unsafe natural context, nonplayers, excluded subtypes, nonfinite/out-of-range
+positions, unproven storage, pending/held/released/synthetic input and unsafe
+placement. The existing pointer is not moved. It uses the natural caller's logical
+coordinate transform and requires the complete menu to fit on screen. A refusal
+near a screen edge is not permission to force visibility.
+
+This binds semantic current peer identity, not continuous allocation lifetime:
+same-peer reappearance with identical current conditions may be accepted. Changed
+identity, index or guard prerequisites refuse. Opening leaves gameplay selection
+unchanged; closing requires the identified current menu. Read `quick_peer` after
+settling and around capture to verify `menu_visible`, `menu_matches`, name/index,
+position and prerequisites, then inspect genuine full-frame content. The quick
+settle action waits for two distinct completed UI-update/render frame boundaries,
+not two dispatcher ticks or elapsed time. Same-poll and repeated same-frame ticks
+cannot complete it. World/loading/registry/peer readiness is checked before every
+deferred full snapshot; any snapshot drift stops without cleanup. Skipped UI
+update/render frames do not advance settlement (the normal timeout still applies).
+It does not
+replace complete capture-time UI/modal checks, prevent future human input or make
+Trade/Buy/Party/Follow/Duel safe. No command should be selected during comparison.
+
+The adapter is source-side only until separately built, reviewed, ported and loaded
+on both clients; a rebuild does not update a running client.

@@ -159,6 +159,16 @@ SEASON3B::CNewKeyInput* SEASON3B::CNewKeyInput::GetInstance()
     return &s_Instance;
 }
 
+bool SEASON3B::CNewKeyInput::HasPendingInput() const
+{
+    for (const auto& input : m_pInputInfo)
+    {
+        if (input.byKeyState != KEY_NONE)
+            return true;
+    }
+    return false;
+}
+
 void SEASON3B::CNewKeyInput::ScanAsyncKeyState()
 {
 #ifdef ASG_FIX_ACTIVATE_APP_INPUT

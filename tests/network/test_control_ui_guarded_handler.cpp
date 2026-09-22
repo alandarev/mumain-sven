@@ -33,6 +33,30 @@ TEST_CASE("UI handler preserves unavailable-world refusal before dispatch [netwo
     CHECK(act == nullptr);
 }
 
+TEST_CASE("Native dispatcher refuses unavailable quick world without installing an act [network][control-ui]")
+{
+    REQUIRE(g_pNewUIMng == nullptr);
+    const auto before = App::Control::UiObservabilityObject();
+    App::Control::Dispatcher dispatcher;
+    for (const char* action : {"guarded_show", "guarded_hide"})
+    {
+        const auto request = App::Control::Request::Parse(
+            json({{"cmd", "ui"}, {"id", 17}, {"action", action}, {"window", "quick_command"},
+                  {"peer_key", 123}, {"peer_id", "Peer"}, {"guard", "{}"}}).dump());
+        REQUIRE(request.IsValid());
+        dispatcher.Handle(request, 3);
+        dispatcher.Tick(); // Real dispatcher; no socket or renderer is initialized.
+        const auto replies = dispatcher.TakeResponses();
+        REQUIRE(replies.size() == 1);
+        CHECK(replies.front().connection == 3);
+        const auto response = json::parse(replies.front().line);
+        CHECK(response["id"] == 17);
+        CHECK(response["error"] == "wrong_scene");
+        CHECK_FALSE(dispatcher.HasActInFlight());
+        CHECK(App::Control::UiObservabilityObject() == before);
+    }
+}
+
 TEST_CASE("Real observation producer reports unavailable managers without mutation [network][control-ui]")
 {
     REQUIRE(g_pNewUIMng == nullptr);

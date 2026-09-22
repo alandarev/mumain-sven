@@ -61,6 +61,7 @@ namespace SEASON3B
         void Init();
 #endif
         void ScanAsyncKeyState();
+        bool HasPendingInput() const;
 
         bool IsNone(int iVirtKey);
         bool IsRelease(int iVirtKey);
