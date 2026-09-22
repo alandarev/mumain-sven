@@ -483,17 +483,10 @@ std::string UiTheme(const Request& request, std::unique_ptr<Act>& act)
     {
         return App::Control::EncodeError(request.EncodedId(), ErrorCode::Failed, "no RmlUi theme named `" + name + "`");
     }
-    // The same sweep the `$theme` console command performs
-    // (Core/Utilities/Log/muConsoleDebug.cpp): the scene registry, the
-    // main-scene registry when it exists, and the one prompt outside both.
+    // Use the same owner-keyed document registry as the `$theme` console command.
     GameConfig::GetInstance().SetRmlTheme(std::wstring(name.begin(), name.end()));
     UI::RmlBridge::SetActiveThemeName(name);
-    CSceneUICoordinator::Instance().GetNewStyleMng().ReloadAllRmlThemes();
-    if (Windows::CManager* mainSceneRegistry = g_pNewUIMng)
-    {
-        mainSceneRegistry->ReloadAllRmlThemes();
-    }
-    UI::Login::ReloadRmlTheme();
+    UI::RmlBridge::ReloadAllThemedDocuments();
 
     json result;
     result["theme"] = UI::RmlBridge::GetActiveThemeName();
