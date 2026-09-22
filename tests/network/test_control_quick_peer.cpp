@@ -3,6 +3,7 @@
 #include "App/Control/ControlQuickPeer.h"
 #include "App/Control/ControlUiReplay.h"
 #include "Engine/Object/ZzzCharacter.h"
+#include "Engine/Object/ZzzInterface.h"
 #include "Engine/Object/ZzzInventory.h"
 #include "UI/Core/WindowCommon.h"
 #include "UI/HUD/QuickCommandWindow.h"
