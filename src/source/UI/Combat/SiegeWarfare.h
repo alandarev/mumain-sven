@@ -13,6 +13,7 @@ namespace mu::ui::window
 {
     class CSiegeWarfare : public CObject
     {
+        friend class UiLifecycleFixture; // Test-owned objects without renderer startup.
     public:
         enum SIEGEWAR_TYPE
         {
