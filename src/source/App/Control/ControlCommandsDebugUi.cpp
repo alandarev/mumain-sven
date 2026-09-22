@@ -18,6 +18,7 @@
 #include "App/Control/ControlCommands.h"
 
 #include "App/Control/ControlTaps.h"
+#include "App/Control/ControlUiObservability.h"
 #include "Data/GameConfig/GameConfig.h"
 #include "Network/Server/WSclient.h"
 #include "Render/Textures/ZzzOpenglUtil.h"
@@ -416,6 +417,7 @@ std::string UiList(const Request& request)
         windows.push_back(WindowObject(window));
     }
     result["windows"] = std::move(windows);
+    result["observability"] = json::parse(App::Control::UiObservabilityObject());
 #if MU_DEBUG_UI_RMLUI
     result["theme"] = UI::RmlBridge::GetActiveThemeName();
 #else
