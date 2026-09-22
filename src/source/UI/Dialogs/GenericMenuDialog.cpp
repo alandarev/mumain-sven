@@ -73,15 +73,8 @@ void CGenericMenuDialog::BuildRmlUi()
             // proven RmlUi pattern already used by char_make.rml/server_select.rml/
             // my_quest_info.rml/main_frame.rml, not a fixed-slot workaround.
             c.BindEventCallback("gmd_button_click",
-                [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& args)
-                {
-                    if (!m_bActive) return;
-                    const int index = args.empty() ? -1 : args[0].Get<int>(-1);
-                    if (index < 0 || index >= static_cast<int>(m_Active.buttons.size())) return;
-                    if (!m_Active.buttons[index].enabled) return;
-                    m_bButtonClicked = true;
-                    m_iClickedButtonIndex = index;
-                });
+                                [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& args)
+                                { OnButtonClicked(args.empty() ? -1 : args[0].Get<int>(-1)); });
         });
 
     if (modelCreated)
@@ -136,6 +129,26 @@ void CGenericMenuDialog::Show(GenericMenuConfig cfg)
         SyncRmlModel();
         m_pRmlDoc->Show(Rml::ModalFlag::Modal, Rml::FocusFlag::Document);
     }
+}
+
+void CGenericMenuDialog::OnButtonClicked(int index)
+{
+    if (!m_bActive)
+        return;
+    if (index < 0 || index >= static_cast<int>(m_Active.buttons.size()))
+        return;
+    if (!m_Active.buttons[index].enabled)
+        return;
+    m_bButtonClicked = true;
+    m_iClickedButtonIndex = index;
+}
+
+bool CGenericMenuDialog::DismissSystemMenu()
+{
+    if (!IsOnlySystemMenu())
+        return false;
+    Resolve(-1);
+    return true;
 }
 
 void CGenericMenuDialog::ShowNext()

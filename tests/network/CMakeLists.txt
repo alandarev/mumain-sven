@@ -18,6 +18,22 @@ mu_add_test(
 # the client (same mechanics as tests/editor's editor_leak).
 if(ENABLE_CONTROL_SOCKET)
     mu_add_test(
+        NAME test_control_ui_guarded_handler
+        SOURCES
+            test_control_ui_guarded_handler.cpp
+            ${CMAKE_SOURCE_DIR}/src/source/App/Platform/Windows/Winmain.cpp
+        LINK_LIBS MuClient
+    )
+    target_include_directories(test_control_ui_guarded_handler PRIVATE ${CMAKE_SOURCE_DIR}/src/ThirdParty)
+
+    mu_add_test(
+        NAME test_control_ui_replay
+        SOURCES test_control_ui_replay.cpp
+        LINK_LIBS MuClient
+    )
+    target_include_directories(test_control_ui_replay PRIVATE ${CMAKE_SOURCE_DIR}/src/ThirdParty)
+
+    mu_add_test(
         NAME test_control_ui_observability
         SOURCES
             test_control_ui_observability.cpp
