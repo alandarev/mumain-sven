@@ -27,8 +27,6 @@
 #define MU_DEBUG_UI_RMLUI 1
 #include "UI/Core/WindowSystem.h"
 #include "UI/RmlBridge/RmlTheme.h"
-#include "UI/Core/SceneUICoordinator.h"
-#include "UI/Windows/RememberPasswordPrompt.h"
 #else
 #define MU_DEBUG_UI_RMLUI 0
 #include "UI/NewUI/NewUISystem.h"
