@@ -158,6 +158,16 @@ every run, on any build that carries them:
 - `ui list` names every main-scene window (`INTERFACE_*` without the prefix,
   lowercased: `inventory`, `character`, `gensranking`, …) with its
   registered/visible flags and, where the build has RmlUi, the active theme.
+  Instrumented builds additionally return `observability.version: 1`, with
+  `messagebox_active` (native dialog stack, independent of manager visibility),
+  `legacy_popup_active`, and `generic_confirm_active`/`generic_menu_active`.
+  Activity is boolean when observable and `null` when unavailable; never treat
+  missing/null as inactive. `generic_dialogs_supported: false` explicitly marks
+  a build without those RmlUi mechanisms; their activity fields stay null.
+  These read-only observations do not certify that every modal/input mechanism
+  is covered. Consumers must also check scene, registry/transaction state and
+  any other prerequisites of their operation. Repeating `ui list` does not
+  dismiss a dialog or change focus.
   `ui show|hide|toggle <window>` goes through the window system's own
   `Show`/`Hide` (dock-neighbour placement, group hiding, refusals included);
   `raw: true` flips only the manager flag. `ui theme <name>` performs the

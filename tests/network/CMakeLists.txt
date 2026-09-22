@@ -18,6 +18,12 @@ mu_add_test(
 # the client (same mechanics as tests/editor's editor_leak).
 if(ENABLE_CONTROL_SOCKET)
     mu_add_test(
+        NAME test_control_ui_observability
+        SOURCES
+            test_control_ui_observability.cpp
+    )
+
+    mu_add_test(
         NAME test_control_protocol
         SOURCES
             test_control_protocol.cpp
