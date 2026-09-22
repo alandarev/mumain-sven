@@ -90,6 +90,7 @@ namespace mu::ui::window
 {
     class CSystem
     {
+        friend class UiLifecycleFixture; // Test-owned objects without renderer startup.
         CManager* m_pNewUIMng;
         C3DRenderMng* m_pNewUI3DRenderMng;
         CHotKey* m_pNewUIHotKey;
