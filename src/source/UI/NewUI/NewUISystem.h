@@ -88,6 +88,7 @@ namespace SEASON3B
 {
     class CNewUISystem
     {
+        friend class UiLifecycleFixture; // Test-owned objects without renderer startup.
         CNewUIManager* m_pNewUIMng;
         CNewUI3DRenderMng* m_pNewUI3DRenderMng;
         CNewUIHotKey* m_pNewUIHotKey;

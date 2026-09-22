@@ -16,6 +16,7 @@ namespace SEASON3B
 {
     class CNewUISiegeWarfare : public CNewUIObj
     {
+        friend class UiLifecycleFixture; // Test-owned objects without renderer startup.
     public:
         enum SIEGEWAR_TYPE
         {

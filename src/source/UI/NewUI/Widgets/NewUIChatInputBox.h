@@ -20,6 +20,7 @@ namespace SEASON3B
 
     class CNewUIChatInputBox : public CNewUIObj
     {
+        friend class UiLifecycleFixture; // Test-owned objects without renderer startup.
     public:
         // It's also the size of the graphics IMAGE_INPUTBOX_BACK.
         enum
