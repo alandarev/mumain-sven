@@ -1,0 +1,327 @@
+[
+  {
+    "output": "location-typography.png",
+    "row": "Same Lorencia coordinates; native-size crops",
+    "zoom": 1,
+    "sources": [
+      {
+        "file": "before_changes/1024x768_legacy_341a920a_20260922-122620.png",
+        "crop": [
+          0,
+          0,
+          305,
+          32
+        ]
+      },
+      {
+        "file": "verified_b1522858/1024x768_legacy_b1522858_20260922-142919_full-unhovered.png",
+        "crop": [
+          0,
+          0,
+          305,
+          32
+        ]
+      }
+    ]
+  },
+  {
+    "output": "menu-tooltip-typography.png",
+    "row": "Shop",
+    "zoom": 1,
+    "sources": [
+      {
+        "file": "hover_audit_settled/1024x768_new_shop.png",
+        "crop": [
+          640,
+          640,
+          1024,
+          768
+        ]
+      },
+      {
+        "file": "verified_b1522858/1024x768_legacy_b1522858_20260922-142822_shop-entered.png",
+        "crop": [
+          640,
+          640,
+          1024,
+          768
+        ]
+      }
+    ]
+  },
+  {
+    "output": "menu-tooltip-typography.png",
+    "row": "Character",
+    "zoom": 1,
+    "sources": [
+      {
+        "file": "hover_audit_settled/1024x768_new_character.png",
+        "crop": [
+          640,
+          640,
+          1024,
+          768
+        ]
+      },
+      {
+        "file": "verified_b1522858/1024x768_legacy_b1522858_20260922-142826_character-entered.png",
+        "crop": [
+          640,
+          640,
+          1024,
+          768
+        ]
+      }
+    ]
+  },
+  {
+    "output": "menu-tooltip-typography.png",
+    "row": "Inventory",
+    "zoom": 1,
+    "sources": [
+      {
+        "file": "hover_audit_settled/1024x768_new_inventory.png",
+        "crop": [
+          640,
+          640,
+          1024,
+          768
+        ]
+      },
+      {
+        "file": "verified_b1522858/1024x768_legacy_b1522858_20260922-142829_inventory-entered.png",
+        "crop": [
+          640,
+          640,
+          1024,
+          768
+        ]
+      }
+    ]
+  },
+  {
+    "output": "menu-tooltip-typography.png",
+    "row": "Friend",
+    "zoom": 1,
+    "sources": [
+      {
+        "file": "hover_audit_settled/1024x768_new_friend.png",
+        "crop": [
+          640,
+          640,
+          1024,
+          768
+        ]
+      },
+      {
+        "file": "verified_b1522858/1024x768_legacy_b1522858_20260922-142833_friend-entered.png",
+        "crop": [
+          640,
+          640,
+          1024,
+          768
+        ]
+      }
+    ]
+  },
+  {
+    "output": "menu-tooltip-typography.png",
+    "row": "Menu",
+    "zoom": 1,
+    "sources": [
+      {
+        "file": "hover_audit_settled/1024x768_new_menu.png",
+        "crop": [
+          640,
+          640,
+          1024,
+          768
+        ]
+      },
+      {
+        "file": "verified_b1522858/1024x768_legacy_b1522858_20260922-142837_menu-entered.png",
+        "crop": [
+          640,
+          640,
+          1024,
+          768
+        ]
+      }
+    ]
+  },
+  {
+    "output": "resource-exp-hints.png",
+    "row": "SD",
+    "zoom": 1,
+    "sources": [
+      {
+        "file": "hover_audit_settled/1024x768_new_sd.png",
+        "crop": [
+          220,
+          635,
+          650,
+          768
+        ]
+      },
+      {
+        "file": "verified_b1522858/1024x768_legacy_b1522858_20260922-142808_sd-entered.png",
+        "crop": [
+          220,
+          635,
+          650,
+          768
+        ]
+      }
+    ]
+  },
+  {
+    "output": "resource-exp-hints.png",
+    "row": "AG",
+    "zoom": 1,
+    "sources": [
+      {
+        "file": "hover_audit_settled/1024x768_new_ag.png",
+        "crop": [
+          590,
+          635,
+          1020,
+          768
+        ]
+      },
+      {
+        "file": "verified_b1522858/1024x768_legacy_b1522858_20260922-142811_ag-entered.png",
+        "crop": [
+          590,
+          635,
+          1020,
+          768
+        ]
+      }
+    ]
+  },
+  {
+    "output": "resource-exp-hints.png",
+    "row": "MANA",
+    "zoom": 1,
+    "sources": [
+      {
+        "file": "hover_audit_settled/1024x768_new_mana.png",
+        "crop": [
+          590,
+          635,
+          1020,
+          768
+        ]
+      },
+      {
+        "file": "verified_b1522858/1024x768_legacy_b1522858_20260922-142815_mana-entered.png",
+        "crop": [
+          590,
+          635,
+          1020,
+          768
+        ]
+      }
+    ]
+  },
+  {
+    "output": "resource-exp-hints.png",
+    "row": "EXP",
+    "zoom": 1,
+    "sources": [
+      {
+        "file": "hover_audit_settled/1024x768_new_exp.png",
+        "crop": [
+          320,
+          635,
+          750,
+          768
+        ]
+      },
+      {
+        "file": "verified_b1522858/1024x768_legacy_b1522858_20260922-142819_exp-entered.png",
+        "crop": [
+          320,
+          635,
+          750,
+          768
+        ]
+      }
+    ]
+  },
+  {
+    "output": "helper-typography-parity.png",
+    "row": "Helper Config",
+    "zoom": 1,
+    "sources": [
+      {
+        "file": "verified_b1522858/1024x768_old_688ed1b7_20260922-142840_helper_config-entered.png",
+        "crop": [
+          0,
+          0,
+          450,
+          95
+        ]
+      },
+      {
+        "file": "verified_b1522858/1024x768_legacy_b1522858_20260922-142840_helper_config-entered.png",
+        "crop": [
+          0,
+          0,
+          450,
+          95
+        ]
+      }
+    ]
+  },
+  {
+    "output": "helper-typography-parity.png",
+    "row": "Helper Start",
+    "zoom": 1,
+    "sources": [
+      {
+        "file": "verified_b1522858/1024x768_old_688ed1b7_20260922-142844_helper_start-entered.png",
+        "crop": [
+          0,
+          0,
+          450,
+          95
+        ]
+      },
+      {
+        "file": "verified_b1522858/1024x768_legacy_b1522858_20260922-142844_helper_start-entered.png",
+        "crop": [
+          0,
+          0,
+          450,
+          95
+        ]
+      }
+    ]
+  },
+  {
+    "output": "ag-occlusion-fix.png",
+    "row": "Equal AG / mana values: 12345; 2x nearest-neighbor detail",
+    "zoom": 2,
+    "sources": [
+      {
+        "file": "verified_0c7c8d96/1024x768_legacy_0c7c8d96_20260922-133231_12345.png",
+        "crop": [
+          620,
+          690,
+          780,
+          758
+        ]
+      },
+      {
+        "file": "verified_b1522858/1024x768_legacy_b1522858_20260922-142753_12345.png",
+        "crop": [
+          620,
+          690,
+          780,
+          758
+        ]
+      }
+    ]
+  }
+]
