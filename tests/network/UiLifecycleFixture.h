@@ -7,6 +7,7 @@
 #include "Core/Time/FrameTimerScheduler.h"
 #include "UI/Dialogs/MessageBox.h"
 #include "UI/Core/UIManager.h"
+#include "UI/Windows/MsgWin.h"
 
 extern int LoadingWorld;
 
@@ -17,7 +18,9 @@ namespace mu::ui::window
 class UiLifecycleFixture
 {
 public:
-    UiLifecycleFixture() : m_scene(SceneFlag), m_loading(LoadingWorld), m_savedPopup(g_pUIPopup)
+    UiLifecycleFixture()
+        : m_scene(SceneFlag), m_loading(LoadingWorld), m_savedPopup(g_pUIPopup),
+          m_savedMessageVisible(g_MsgWin.IsVisible())
     {
         auto* system = CSystem::GetInstance();
         system->m_pNewUIMng = &registry;
@@ -57,6 +60,8 @@ public:
         SceneFlag = m_scene;
         LoadingWorld = m_loading;
         g_pUIPopup = m_savedPopup;
+        if (m_preparedPopup)
+            g_MsgWin.CObject::Show(m_savedMessageVisible);
     }
 
     UiLifecycleFixture(const UiLifecycleFixture&) = delete;
@@ -65,6 +70,10 @@ public:
     void PreparePopup()
     {
         g_pUIPopup = &popup;
+        // CMsgWin has not run Create in this isolated executable. Initialize only
+        // its inherited visibility; derived Show would read uninitialized widget state.
+        m_preparedPopup = true;
+        g_MsgWin.CObject::Show(false);
     }
 
     bool PrepareModalPrerequisites()
@@ -104,5 +113,7 @@ private:
     EGameScene m_scene;
     int m_loading;
     CUIPopup* m_savedPopup;
+    bool m_savedMessageVisible;
+    bool m_preparedPopup = false;
 };
 } // namespace mu::ui::window
