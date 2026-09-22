@@ -36,7 +36,7 @@ json List(const char* window = "chatinputbox")
     return reply["result"];
 }
 
-void RefuseWithoutMutation(const json& guard, const char* reason, const char* window = "chatinputbox")
+void RefuseWithoutMutation(const char* reason, const json& guard, const char* window = "chatinputbox")
 {
     const auto before = List(window);
     std::unique_ptr<App::Control::Act> act;
@@ -59,12 +59,12 @@ void RefuseWithoutMutation(const json& guard, const char* reason, const char* wi
 void RefuseStale(const json& guard, const char* window = "chatinputbox")
 {
     REQUIRE(guard != List(window));
-    RefuseWithoutMutation(guard, "UI state changed or unavailable", window);
+    RefuseWithoutMutation("UI state changed or unavailable", guard, window);
 }
 
 void RefuseFresh(const char* reason, const char* window = "chatinputbox")
 {
-    RefuseWithoutMutation(List(window), reason, window);
+    RefuseWithoutMutation(reason, List(window), window);
 }
 
 void PrepareModalPrerequisites(UiLifecycleFixture& fixture)
