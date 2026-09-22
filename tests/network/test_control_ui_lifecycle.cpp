@@ -72,6 +72,8 @@ void PrepareModalPrerequisites(UiLifecycleFixture& fixture)
     REQUIRE(g_iChatInputType == 1);
     REQUIRE(g_dwTopWindow == 0);
     REQUIRE(g_pCryWolfInterface == nullptr);
+    REQUIRE(g_pUIPopup == nullptr);
+    fixture.PreparePopup();
     REQUIRE(g_MessageBox->IsEmpty());
     REQUIRE_FALSE(g_MessageBox->HasPendingEvents());
     REQUIRE(fixture.PrepareModalPrerequisites());
@@ -80,7 +82,7 @@ void PrepareModalPrerequisites(UiLifecycleFixture& fixture)
          {"legacy_popup_active", "message_window_active", "friend_children_active", "picked_item_active",
           "native_events_pending", "helper_active", "crywolf_event_active", "siegewarfare_child_active"})
     {
-        CAPTURE(field);
+        CAPTURE(std::string(field));
         REQUIRE(observation[field] == false);
     }
 }
@@ -172,6 +174,8 @@ TEST_CASE("Registered Friends producer retains delayed message blocker after chi
     REQUIRE(g_iChatInputType == 1); // Ordinary Reset cannot send logout in this fixture.
     REQUIRE(g_dwTopWindow == 0);
     UiLifecycleFixture fixture;
+    REQUIRE(g_pUIPopup == nullptr);
+    fixture.PreparePopup();
     // Create only this subsystem, never the Friends main window or its network requests.
     auto destroy = [](mu::ui::window::CFriendWindow* friends)
     {

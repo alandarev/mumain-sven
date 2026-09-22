@@ -6,6 +6,7 @@
 #include "Scenes/MainScene.h"
 #include "Core/Time/FrameTimerScheduler.h"
 #include "UI/Dialogs/MessageBox.h"
+#include "UI/Core/UIManager.h"
 
 extern int LoadingWorld;
 
@@ -16,7 +17,7 @@ namespace mu::ui::window
 class UiLifecycleFixture
 {
 public:
-    UiLifecycleFixture() : m_scene(SceneFlag), m_loading(LoadingWorld)
+    UiLifecycleFixture() : m_scene(SceneFlag), m_loading(LoadingWorld), m_savedPopup(g_pUIPopup)
     {
         auto* system = CSystem::GetInstance();
         system->m_pNewUIMng = &registry;
@@ -55,10 +56,16 @@ public:
         registry.RemoveAllUIObjs();
         SceneFlag = m_scene;
         LoadingWorld = m_loading;
+        g_pUIPopup = m_savedPopup;
     }
 
     UiLifecycleFixture(const UiLifecycleFixture&) = delete;
     UiLifecycleFixture& operator=(const UiLifecycleFixture&) = delete;
+
+    void PreparePopup()
+    {
+        g_pUIPopup = &popup;
+    }
 
     bool PrepareModalPrerequisites()
     {
@@ -90,10 +97,12 @@ public:
     CHotKey hotkey;
     CCryWolf cryWolf;
     CFriendWindow friends;
+    CUIPopup popup;
 
 private:
     bool m_modalPrerequisites = false;
     EGameScene m_scene;
     int m_loading;
+    CUIPopup* m_savedPopup;
 };
 } // namespace mu::ui::window
