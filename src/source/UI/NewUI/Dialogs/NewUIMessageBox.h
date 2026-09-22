@@ -266,7 +266,7 @@ namespace SEASON3B
         CNewUIMessageBoxFactory* m_pMsgBoxFactory;
         type_vector_msgbox			m_vecMsgBoxes;
         type_queue_event			m_queueEvents;
-        EVENT_STATE					m_EventState;
+        EVENT_STATE m_EventState = EVENT_NONE;
 
     public:
         enum IMAGE_LIST
@@ -333,6 +333,15 @@ namespace SEASON3B
         bool HasPendingEvents() const
         {
             return !m_queueEvents.empty();
+        }
+
+        bool HasPendingPointerPress() const
+        {
+            return m_EventState == EVENT_WND_MOUSE_LBUTTON_DOWN || m_EventState == EVENT_WND_MOUSE_RBUTTON_DOWN;
+        }
+        bool HasMessageBoxStorage() const
+        {
+            return m_pMsgBoxFactory != nullptr;
         }
 
         void SendEvent(CNewUIMessageBoxBase* pOwner, DWORD dwEvent);

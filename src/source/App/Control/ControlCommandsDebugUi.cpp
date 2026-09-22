@@ -22,6 +22,7 @@
 #include "App/Control/ControlUiReplay.h"
 #include "App/Control/ControlQuickPeer.h"
 #include "App/Control/QuickPeerSettleAct.h"
+#include "App/Control/ControlModalFixture.h"
 #include "Data/GameConfig/GameConfig.h"
 #include "Network/Server/WSclient.h"
 #include "Render/Textures/ZzzOpenglUtil.h"
@@ -734,6 +735,11 @@ std::string Ui(const Request& request, std::unique_ptr<Act>& act)
         return EncodeError(
             request.EncodedId(), ErrorCode::BadRequest,
             "`ui` needs an `action`: list, show, hide, toggle, guarded_show, guarded_hide, theme or scale");
+    }
+    if (action == "fixture_inspect" || action == "fixture_create" || action == "fixture_retire")
+    {
+        const bool ready = WindowSystemReady() && SceneFlag == MAIN_SCENE && LoadingWorld < 30;
+        return ModalFixture(request, ready ? UiSnapshot().dump() : "{}", ready, g_muted.load());
     }
     if (action == "theme")
     {

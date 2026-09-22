@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "App/Control/ControlModalFixture.h"
 #include "App/Control/ControlDispatcher.h"
 
 #include "App/Control/ControlCommands.h"
@@ -175,6 +176,12 @@ void Dispatcher::Handle(const Request& request, std::size_t connection)
     if (request.Command() == HaltCommand)
     {
         InterruptAct("halted");
+    }
+
+    if (m_act && IsModalFixtureMutation(request))
+    {
+        Queue(connection, EncodeError(request.EncodedId(), ErrorCode::NotAllowed, "control action pending"));
+        return;
     }
 
     std::unique_ptr<Act> act;

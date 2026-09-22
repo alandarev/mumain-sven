@@ -334,3 +334,41 @@ Trade/Buy/Party/Follow/Duel safe. No command should be selected during compariso
 
 The adapter is source-side only until separately built, reviewed, ported and loaded
 on both clients; a rebuild does not update a running client.
+
+### Owned inert native modal fixture (control builds only)
+
+`ui` actions `fixture_inspect`, `fixture_create`, and `fixture_retire` implement
+version 1 of the local comparison fixture contract. This is source-only tooling;
+loading and using it live requires separate authorization. No caller text,
+callbacks, invitation responses or transaction commands are accepted.
+
+1. Inspect with `{"cmd":"ui","action":"fixture_inspect","token":""}` and save
+   the returned full `guard` string verbatim. Inspect reports current `ui`, exact
+   registration/storage availability, nullable token/activity/queue/click state,
+   and `input_idle`. Unknown ownership is null, not fabricated safe state.
+2. Create with `action:"fixture_create"`, `token:""`, `fixture_version:1`,
+   `fixture_opt_in:true`, `nonce` (1–64 ASCII letters/digits/underscore/hyphen),
+   and that `guard`. The native common messagebox shows fixed text:
+   **UI comparison fixture. Local observation test. No game action.** Its OK
+   button is disabled and no callbacks remain. Save the returned unique token.
+3. Inspect with that token, then retire with `action:"fixture_retire"`, that
+   token, `fixture_version:1`, `fixture_opt_in:true` and the fresh guard.
+   Retirement synchronously deletes only the exact owned box. Inspect again to
+   confirm the token is invalid; retirement never queues DESTROY or clears events.
+
+Both mutations require current complete world/registration/modal observations,
+networking unmuted, no unrelated ordinary panel, no pending control Act, idle
+queued/held/edge/synthetic input and native event/pointer-press state. Guard equality
+alone does not grant permission. Ownership requires the exact sole pointer plus
+its private non-reused fixture token. Release, replacement through the base
+interface and every destruction invalidate ownership, including address reuse.
+Unrelated modals/events, stale tokens and missing/replaced managers refuse without
+cleanup. A refusal never authorizes a different dismissal command. No unregister
+or observation-overwrite command is provided.
+
+Headless tests exercise the real dispatcher, handler, JSON producer, native
+factory, creation and deletion. They do not load fonts/textures or render a frame;
+text measurement safely returns zero without its renderer. Isolated native owner
+Release may call absent-texture DeleteBitmap; the test asset boundary asserts an
+empty, unchanged texture registry, never clears it or bypasses destructors.
+Asset-backed content/geometry and live socket behavior remain later verification.

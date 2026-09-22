@@ -6,6 +6,8 @@
 
 namespace App::Control
 {
+// ownsFixture is obtained synchronously from exact private config identity, never from wire JSON.
+[[nodiscard]] std::string UiFixtureRefusal(std::string_view snapshot, bool ownsFixture);
 // Empty means the snapshot meets the bounded starter-panel policy, not universal UI safety.
 [[nodiscard]] std::string UiReplayRefusal(std::string_view snapshot, bool show, std::string_view window,
                                           bool allowSystemMenu);

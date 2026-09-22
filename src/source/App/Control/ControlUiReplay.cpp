@@ -28,7 +28,7 @@ template <std::size_t Size> bool Contains(const std::array<const char*, Size>& n
     return std::find(names.begin(), names.end(), name) != names.end();
 }
 
-std::string ModalRefusal(const json& observation, bool allowSystemMenu, bool closingChatInput)
+std::string ModalRefusal(const json& observation, bool allowSystemMenu, bool closingChatInput, bool ownsFixture = false)
 {
     if (!observation.is_object() || !observation.contains("version") || !observation["version"].is_number_integer() ||
         observation["version"] != App::Control::UiObservabilityVersion)
@@ -50,12 +50,12 @@ std::string ModalRefusal(const json& observation, bool allowSystemMenu, bool clo
     {
         if (!Is(observation, "messagebox_active", false) || !Is(observation, "generic_confirm_active", false) ||
             !(Is(observation, "generic_menu_active", false) ||
-              (systemMenu && Is(observation, "generic_menu_active", true))))
+              ((systemMenu || ownsFixture) && Is(observation, "generic_menu_active", true))))
             return "active or unknown modal";
     }
     else if (!Is(observation, "generic_dialogs_supported", false) ||
              !(Is(observation, "messagebox_active", false) ||
-               (systemMenu && Is(observation, "messagebox_active", true))))
+               ((systemMenu || ownsFixture) && Is(observation, "messagebox_active", true))))
         return "active or unknown native modal";
     return {};
 }
@@ -110,6 +110,30 @@ std::string TargetRefusal(const json& state, bool show, std::string_view window)
 
 namespace App::Control
 {
+std::string UiFixtureRefusal(std::string_view snapshot, bool ownsFixture)
+{
+    try
+    {
+        const auto state = json::parse(snapshot);
+        if (!state.is_object() || !state.contains("observability") || !state.contains("windows"))
+            return "missing UI observations";
+        if (auto reason = ModalRefusal(state["observability"], false, false, ownsFixture); !reason.empty())
+            return reason;
+        if (auto reason = WindowRefusal(state["windows"]); !reason.empty())
+            return reason;
+        for (const auto& entry : state["windows"])
+        {
+            if (Is(entry, "visible", true) && Contains(OrdinaryPanels, entry["window"].get<std::string>()))
+                return "unrelated panel active";
+        }
+        return {};
+    }
+    catch (const json::exception&)
+    {
+        return "malformed UI observations";
+    }
+}
+
 std::string UiReplayRefusal(std::string_view snapshot, bool show, std::string_view window, bool allowSystemMenu)
 {
     try
