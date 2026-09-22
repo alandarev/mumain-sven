@@ -157,10 +157,10 @@ std::string_view ErrorCodeName(ErrorCode code)
 const std::vector<std::string>& CommandNames()
 {
     static const std::vector<std::string> names = {
-        "ping",     "scene",  "state",  "nearby", "events",  "wait-for", "screenshot", "login",
-        "select-char", "logout", "quit", "move",   "warp",    "teleport", "attack",     "skill",
-        "pickup",   "use",    "equip",  "say",    "whisper", "party",    "halt",       "hotkey",
-        "click-ui", "type",   "inject", "net",    "ui",      "window",   "hover",      "render",
+        "ping",        "scene",  "state",  "nearby", "events",  "wait-for", "screenshot", "login",
+        "select-char", "logout", "quit",   "move",   "warp",    "teleport", "attack",     "skill",
+        "pickup",      "use",    "equip",  "say",    "whisper", "party",    "halt",       "hotkey",
+        "click-ui",    "type",   "inject", "net",    "ui",      "window",   "hover",      "render",
     };
     return names;
 }
