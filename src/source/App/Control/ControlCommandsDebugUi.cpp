@@ -20,6 +20,7 @@
 #include "App/Control/ControlTaps.h"
 #include "App/Control/ControlUiObservability.h"
 #include "App/Control/ControlUiReplay.h"
+#include "App/Control/ControlQuickPeer.h"
 #include "Data/GameConfig/GameConfig.h"
 #include "Network/Server/WSclient.h"
 #include "Render/Textures/ZzzOpenglUtil.h"
@@ -209,8 +210,9 @@ constexpr std::chrono::milliseconds SettleDeadline{5000};
 class SettleAct : public Act
 {
 public:
-    SettleAct(std::string_view name, std::string encodedResult, int frames = SettleFrames)
-        : m_name(name), m_encodedResult(std::move(encodedResult)), m_frames(frames)
+    SettleAct(std::string_view name, std::string encodedResult, int frames = SettleFrames,
+              std::function<std::string()> validate = {})
+        : m_name(name), m_encodedResult(std::move(encodedResult)), m_frames(frames), m_validate(std::move(validate))
     {
     }
 
@@ -226,6 +228,14 @@ public:
 
     [[nodiscard]] Status Tick(std::string& response) override
     {
+        if (m_validate)
+        {
+            if (const auto reason = m_validate(); !reason.empty())
+            {
+                response = App::Control::EncodeError(EncodedId(), ErrorCode::NotAllowed, reason);
+                return Status::Finished;
+            }
+        }
         if (--m_frames > 0)
         {
             return Status::Running;
@@ -238,6 +248,7 @@ private:
     std::string_view m_name;
     std::string m_encodedResult;
     int m_frames;
+    std::function<std::string()> m_validate;
 };
 
 std::string Lowercase(std::string_view text)
@@ -415,7 +426,7 @@ json WindowGeometry()
     return geometry;
 }
 
-json UiSnapshot()
+json UiSnapshot(int peerKey = -1, std::string_view peerId = {})
 {
     json result;
     json windows = json::array();
@@ -425,6 +436,7 @@ json UiSnapshot()
     }
     result["windows"] = std::move(windows);
     result["observability"] = json::parse(App::Control::UiObservabilityObject());
+    result["quick_peer"] = json::parse(App::Control::QuickPeerObservation(peerKey, peerId));
 #if MU_DEBUG_UI_RMLUI
     result["theme"] = UI::RmlBridge::GetActiveThemeName();
 #else
@@ -436,7 +448,11 @@ json UiSnapshot()
 
 std::string UiList(const Request& request)
 {
-    json result = UiSnapshot();
+    int peerKey = -1;
+    std::string peerId;
+    (void)request.GetInt("peer_key", peerKey);
+    (void)request.GetString("peer_id", peerId);
+    json result = UiSnapshot(peerKey, peerId);
     result["guard"] = result.dump();
     return App::Control::EncodeResult(request.EncodedId(), result.dump());
 }
@@ -468,21 +484,52 @@ std::string ApplyGuardedUi(bool show, const std::string& name)
     return {};
 }
 
+std::string SettleGuardedUi(const Request& request, const std::string& name, bool show, int peerKey,
+                            const std::string& peerId, std::unique_ptr<Act>& act)
+{
+    std::function<std::string()> validate;
+    if (name == "quick_command")
+    {
+        const auto expected = UiSnapshot(peerKey, peerId).dump();
+        if (const auto failure = App::Control::UiReplayRefusal(expected, !show, name, false); !failure.empty())
+            return App::Control::EncodeError(request.EncodedId(), ErrorCode::NotAllowed, failure);
+        validate = [peerKey, peerId, expected]
+        {
+            return !g_muted.load() && UiSnapshot(peerKey, peerId).dump() == expected
+                       ? std::string{}
+                       : "quick peer UI changed while settling";
+        };
+    }
+    act = std::make_unique<SettleAct>("ui", json({{"window", name}, {"requested_visible", show}}).dump(), SettleFrames,
+                                      std::move(validate));
+    return {};
+}
+
 std::string GuardedUi(const Request& request, bool show, std::unique_ptr<Act>& act)
 {
     std::string name;
     std::string guard;
     if (!request.GetString("window", name) || !request.GetString("guard", guard))
         return App::Control::EncodeError(request.EncodedId(), ErrorCode::BadRequest, "window and guard required");
-    const auto snapshot = UiSnapshot().dump();
+    int peerKey = -1;
+    std::string peerId;
+    if (name == "quick_command" && (!request.GetInt("peer_key", peerKey) || !request.GetString("peer_id", peerId)))
+        return App::Control::EncodeError(request.EncodedId(), ErrorCode::BadRequest,
+                                         "quick peer_key and peer_id required");
+    const auto state = UiSnapshot(peerKey, peerId);
+    const auto snapshot = state.dump();
     // No event injection or packet-processing frame between the guard and callback.
-    const auto reason =
-        App::Control::ExecuteGuardedUi(guard, snapshot, SceneFlag == MAIN_SCENE && LoadingWorld < 30, g_muted.load(),
-                                       show, name, [&] { return ApplyGuardedUi(show, name); });
+    const auto reason = App::Control::ExecuteGuardedUi(
+        guard, snapshot, SceneFlag == MAIN_SCENE && LoadingWorld < 30, g_muted.load(), show, name,
+        [&]
+        {
+            if (name == "quick_command")
+                return App::Control::ApplyQuickPeer(peerKey, peerId, show, state["quick_peer"].dump());
+            return ApplyGuardedUi(show, name);
+        });
     if (!reason.empty())
         return App::Control::EncodeError(request.EncodedId(), ErrorCode::NotAllowed, reason);
-    act = std::make_unique<SettleAct>("ui", json({{"window", name}, {"requested_visible", show}}).dump());
-    return {};
+    return SettleGuardedUi(request, name, show, peerKey, peerId, act);
 }
 
 std::string UiVisibility(const Request& request, std::string_view action, std::unique_ptr<Act>& act)
