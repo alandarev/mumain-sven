@@ -407,6 +407,76 @@ TEST_CASE("Schema 3 requires inactive event observations even for hidden manager
     }
 }
 
+TEST_CASE("Quick contract is mandatory and snapshot drift never calls the action [network][control-ui]")
+{
+    auto state = Snapshot();
+    int calls = 0;
+    const auto action = [&]() -> std::string
+    {
+        ++calls;
+        return {};
+    };
+    const auto execute = [&](const nlohmann::json& guard, const nlohmann::json& current)
+    {
+        return App::Control::ExecuteGuardedUi(guard.dump(), current.dump(), true, false, true, "quick_command", action);
+    };
+    CHECK_FALSE(execute(state, state).empty());
+    // Policy fixtures only: production resolver/input/placement have separate coverage.
+    state["quick_peer"] = {
+        {"version", 1},          {"ready", true}, {"allowed", true}, {"input_idle", true}, {"placement_valid", true},
+        {"menu_visible", false}, {"index", 1},    {"key", 123},      {"id", "Peer"},       {"placement", {20, 30}}};
+    auto& quick = state["quick_peer"];
+    for (const char* key :
+         {"world", "hero_key", "hero_index", "kind", "type", "subtype", "menu_index", "command_index"})
+        quick[key] = 0;
+    quick["hero_id"] = "Hero";
+    for (const char* key : {"menu_matches", "duel_watch", "chaos_castle", "cursed_temple", "strife"})
+        quick[key] = false;
+    quick["position"] = quick["hero_position"] = {0, 0, 0};
+    quick["gens"] = {0, 0};
+    quick["geometry"] = {1024, 768};
+    quick["transform"] = quick["menu_transform"] = {1, 1, 0, 0, 1};
+    quick["pointer"] = {10, 80, 10, 80};
+    const auto clean = state;
+    for (const char* field : {"ready", "allowed", "input_idle", "placement_valid"})
+    {
+        for (const auto& bad : {nlohmann::json(false), nlohmann::json(nullptr), nlohmann::json(0)})
+        {
+            state = clean;
+            state["quick_peer"][field] = bad;
+            CHECK_FALSE(execute(state, state).empty());
+        }
+        state["quick_peer"].erase(field);
+        CHECK_FALSE(execute(state, state).empty());
+    }
+    for (const char* field : {"version", "index", "key", "id", "placement"})
+    {
+        state = clean;
+        state["quick_peer"][field] = nullptr;
+        CHECK_FALSE(execute(clean, state).empty());
+    }
+    for (auto it = clean["quick_peer"].begin(); it != clean["quick_peer"].end(); ++it)
+    {
+        state = clean;
+        state["quick_peer"].erase(it.key());
+        CHECK_FALSE(execute(state, state).empty());
+    }
+    CHECK(calls == 0);
+    CHECK(execute(clean, clean).empty());
+    CHECK(calls == 1);
+    state = clean;
+    for (auto& window : state["windows"])
+        if (window["window"] == "quick_command")
+            window["visible"] = true;
+    state["quick_peer"]["menu_visible"] = true;
+    state["quick_peer"]["menu_matches"] = true;
+    state["quick_peer"]["menu_name"] = "Peer";
+    state["quick_peer"]["menu_position"] = {20, 30};
+    CHECK(App::Control::UiReplayRefusal(state.dump(), false, "quick_command", false).empty());
+    state["quick_peer"]["menu_name"] = "Other";
+    CHECK_FALSE(App::Control::UiReplayRefusal(state.dump(), false, "quick_command", false).empty());
+}
+
 TEST_CASE("Event field drift and an off-map Siege child refuse before action [network][control-ui]")
 {
     for (const char* key : {"crywolf_event_active", "siegewarfare_child_active"})

@@ -186,6 +186,16 @@ mu::ui::window::CNewKeyInput* mu::ui::window::CNewKeyInput::GetInstance()
     return &s_Instance;
 }
 
+bool mu::ui::window::CNewKeyInput::HasPendingInput() const
+{
+    for (const auto& input : m_pInputInfo)
+    {
+        if (input.byKeyState != KEY_NONE)
+            return true;
+    }
+    return false;
+}
+
 void mu::ui::window::CNewKeyInput::ScanAsyncKeyState()
 {
 #ifdef ASG_FIX_ACTIVATE_APP_INPUT

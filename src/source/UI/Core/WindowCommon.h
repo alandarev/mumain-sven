@@ -111,6 +111,7 @@ namespace mu::ui::window
         void Init();
 #endif
         void ScanAsyncKeyState();
+        bool HasPendingInput() const;
 
         bool IsNone(int iVirtKey);
         bool IsRelease(int iVirtKey);

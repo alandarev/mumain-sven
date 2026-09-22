@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "App/Control/ControlUiReplay.h"
 #include "App/Control/ControlUiObservability.h"
+#include "App/Control/ControlQuickPeer.h"
 
 #include "json.hpp"
 
@@ -130,6 +131,13 @@ std::string UiReplayRefusal(std::string_view snapshot, bool show, std::string_vi
             const auto* key = window == "inventory" ? "inventory_open_effect" : "character_open_effect";
             if (!Is(observation, key, false))
                 return "opening may change quest state";
+        }
+        if (window == "quick_command")
+        {
+            if (!state.contains("quick_peer"))
+                return "missing quick peer observations";
+            if (auto reason = QuickPeerRefusal(state["quick_peer"].dump(), show); !reason.empty())
+                return reason;
         }
         return TargetRefusal(state, show, window);
     }
