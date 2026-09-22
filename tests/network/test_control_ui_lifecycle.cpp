@@ -17,13 +17,14 @@ extern CHARACTER* CharacterMemoryDump;
 
 namespace
 {
-using nlohmann::json;
 using mu::ui::window::UiLifecycleFixture;
+using nlohmann::json;
 
 json List()
 {
     std::unique_ptr<App::Control::Act> act;
-    const auto request = App::Control::Request::Parse(R"({"cmd":"ui","id":17,"action":"list","peer_key":123,"peer_id":"Peer"})");
+    const auto request =
+        App::Control::Request::Parse(R"({"cmd":"ui","id":17,"action":"list","peer_key":123,"peer_id":"Peer"})");
     const auto reply = json::parse(App::Control::Commands::Ui(request, act));
     REQUIRE(reply["ok"] == true);
     REQUIRE(act == nullptr);
@@ -34,8 +35,14 @@ void RefuseWithoutMutation(const json& guard, const char* window = "chatinputbox
 {
     const auto before = List();
     std::unique_ptr<App::Control::Act> act;
-    const auto request = App::Control::Request::Parse(json({{"cmd", "ui"}, {"id", 18}, {"action", "guarded_hide"},
-        {"window", window}, {"guard", guard["guard"]}, {"peer_key", 123}, {"peer_id", "Peer"}}).dump());
+    const auto request = App::Control::Request::Parse(json({{"cmd", "ui"},
+                                                            {"id", 18},
+                                                            {"action", "guarded_hide"},
+                                                            {"window", window},
+                                                            {"guard", guard["guard"]},
+                                                            {"peer_key", 123},
+                                                            {"peer_id", "Peer"}})
+                                                          .dump());
     const auto reply = json::parse(App::Control::Commands::Ui(request, act));
     CHECK(reply["ok"] == false);
     CHECK(reply["error"] == "not_allowed");
@@ -54,7 +61,8 @@ void RequireUnownedSystem()
 }
 } // namespace
 
-TEST_CASE("Registered Siege child producer serializes empty populated retired and unavailable lifecycle [network][control-ui]")
+TEST_CASE("Registered Siege child producer serializes empty populated retired and unavailable lifecycle "
+          "[network][control-ui]")
 {
     RequireUnownedSystem();
     const auto unavailable = App::Control::UiObservabilityObject();
@@ -71,6 +79,7 @@ TEST_CASE("Registered Siege child producer serializes empty populated retired an
         RefuseWithoutMutation(populated);
         fixture.siege.InitMiniMapUI();
         CHECK(fixture.siege.GetBase() == nullptr);
+        CHECK(fixture.siege.IsVisible()); // Visibility is still not modal absence.
         CHECK(List()["observability"]["siegewarfare_child_active"] == false);
         RefuseWithoutMutation(populated);
         fixture.registry.RemoveUIObj(mu::ui::window::INTERFACE_SIEGEWARFARE);
@@ -129,7 +138,8 @@ TEST_CASE("Registered Friends producer retains delayed message blocker after chi
         delete friends;
         Core::Time::FrameTimerScheduler::Instance().Kill(CHATCONNECT_TIMER);
     };
-    std::unique_ptr<mu::ui::window::CFriendWindow, decltype(destroy)> friends(new mu::ui::window::CFriendWindow, destroy);
+    std::unique_ptr<mu::ui::window::CFriendWindow, decltype(destroy)> friends(new mu::ui::window::CFriendWindow,
+                                                                              destroy);
     REQUIRE(friends->Create(&fixture.registry));
     // Create allocated a mutable manager owned solely by this test window.
     auto* manager = const_cast<CUIWindowMgr*>(friends->GetWindowManager());
@@ -150,7 +160,8 @@ TEST_CASE("Registered Friends producer retains delayed message blocker after chi
     RefuseWithoutMutation(unavailable);
 }
 
-TEST_CASE("Quick producer drift reaches real JSON handler refusal and settlement without command execution [network][control-ui]")
+TEST_CASE("Quick producer drift reaches real JSON handler refusal and settlement without command execution "
+          "[network][control-ui]")
 {
     RequireUnownedSystem();
     REQUIRE(SDL_WasInit(SDL_INIT_EVENTS) == 0);
@@ -207,19 +218,41 @@ TEST_CASE("Quick producer drift reaches real JSON handler refusal and settlement
     REQUIRE(initial["quick_peer"]["input_idle"] == true);
     // The Act is production code reading production snapshots. Installation is
     // explicit, not a successful guarded OpenQuickCommand or renderer-frame test.
-    for (const char* drift : {"geometry", "index", "context", "held", "edge", "queued"})
+    for (const char* drift : {"geometry", "index", "peer_index", "context", "held", "edge", "queued", "unavailable"})
     {
         CAPTURE(drift);
         const auto before = List();
-        App::Control::QuickPeerSettleAct act("{}", before.dump(), [] { return true; }, [] { return List().dump(); });
+        App::Control::QuickPeerSettleAct act(
+            "{}", before.dump(),
+            [] { return json::parse(App::Control::QuickPeerObservation(123, "Peer"))["ready"].get<bool>(); },
+            [] { return List().dump(); });
         std::string response;
         CHECK(act.Tick(response) == App::Control::Act::Status::Running);
         const std::string kind(drift);
-        if (kind == "geometry") WindowWidth += 1;
-        if (kind == "index") fixture.quick.SetSelectedCharacterIndex(2);
-        if (kind == "context") gMapManager.WorldActive = WD_34CRYWOLF_1ST;
-        if (kind == "held") MouseLButton = true; // Platform-input fixture, not physical SDL evidence.
-        if (kind == "edge") g_pNewKeyInput->SetKeyState(VK_LBUTTON, mu::ui::window::CNewKeyInput::KEY_RELEASE);
+        if (kind == "geometry")
+            WindowWidth += 1;
+        if (kind == "index")
+            fixture.quick.SetSelectedCharacterIndex(2);
+        if (kind == "peer_index")
+        {
+            CharactersClient[1].Object.Live = false;
+            auto& moved = CharactersClient[2];
+            moved.Object.Live = true;
+            moved.Object.Kind = KIND_PLAYER;
+            moved.Object.Type = MODEL_PLAYER;
+            moved.Object.SubType = 0;
+            moved.Key = 123;
+            wcscpy(moved.ID, L"Peer");
+            Vector(0.f, 0.f, 0.f, moved.Object.Position);
+        }
+        if (kind == "unavailable")
+            fixture.registry.RemoveUIObj(mu::ui::window::INTERFACE_HOTKEY);
+        if (kind == "context")
+            gMapManager.WorldActive = WD_34CRYWOLF_1ST;
+        if (kind == "held")
+            MouseLButton = true; // Platform-input fixture, not physical SDL evidence.
+        if (kind == "edge")
+            g_pNewKeyInput->SetKeyState(VK_LBUTTON, mu::ui::window::CNewKeyInput::KEY_RELEASE);
         if (kind == "queued")
         {
             SDL_Event event{};
@@ -237,9 +270,13 @@ TEST_CASE("Quick producer drift reaches real JSON handler refusal and settlement
         if (kind == "queued")
         {
             CHECK(SDL_HasEvent(SDL_EVENT_USER)); // Observation/guard/settle did not consume it.
-            SDL_FlushEvent(SDL_EVENT_USER); // This process owns the isolated test queue.
+            SDL_FlushEvent(SDL_EVENT_USER);      // This process owns the isolated test queue.
         }
         WindowWidth = 1024;
+        CharactersClient[1].Object.Live = true;
+        CharactersClient[2].Object.Live = false;
+        if (kind == "unavailable")
+            fixture.registry.AddUIObj(mu::ui::window::INTERFACE_HOTKEY, &fixture.hotkey);
         fixture.quick.SetSelectedCharacterIndex(-1);
         gMapManager.WorldActive = WD_0LORENCIA;
         MouseLButton = false;
