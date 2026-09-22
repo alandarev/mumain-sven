@@ -2,6 +2,7 @@
 #include "UI/NewUI/Dialogs/ControlModalMessageBox.h"
 
 #if MU_ENABLE_CONTROL_SOCKET
+#include <algorithm>
 #include <cstdint>
 #include <limits>
 
@@ -14,11 +15,23 @@ ControlModalMessageBox::~ControlModalMessageBox()
     Release();
 }
 
-void ControlModalMessageBox::Release()
+void ControlModalMessageBox::InvalidateOwner(const CNewUIMessageBoxMng& manager)
+{
+    const auto& boxes = manager.GetMessageBoxes();
+    if (s_owned != nullptr && std::find(boxes.begin(), boxes.end(), s_owned) != boxes.end())
+        s_owned->InvalidateIdentity();
+}
+
+void ControlModalMessageBox::InvalidateIdentity()
 {
     m_token.clear();
     if (s_owned == this)
         s_owned = nullptr;
+}
+
+void ControlModalMessageBox::Release()
+{
+    InvalidateIdentity();
     CNewUIMessageBoxBase::Release();
 }
 

@@ -6,6 +6,9 @@
 #include "UI/NewUI/Dialogs/NewUIMessageBox.h"	// self
 #include "UI/NewUI/NewUIManager.h"
 #include "UI/NewUI/Dialogs/NewUICustomMessageBox.h"
+#if MU_ENABLE_CONTROL_SOCKET
+#include "UI/NewUI/Dialogs/ControlModalMessageBox.h"
+#endif
 #include "UI/Legacy/UIControls.h"
 #include "UI/Scaling/UITransform.h"
 #include "Render/Textures/ZzzOpenglUtil.h"
@@ -175,6 +178,9 @@ bool SEASON3B::CNewUIMessageBoxMng::Create(CNewUIManager* pNewUIMng)
     if (NULL == pNewUIMng)
         return false;
 
+#if MU_ENABLE_CONTROL_SOCKET
+    ControlModalMessageBox::InvalidateOwner(*this);
+#endif
     m_pNewUIMng = pNewUIMng;
     m_pNewUIMng->AddUIObj(SEASON3B::INTERFACE_MESSAGEBOX, this);
 
@@ -192,6 +198,9 @@ void SEASON3B::CNewUIMessageBoxMng::Release()
         return;
     }
 
+#if MU_ENABLE_CONTROL_SOCKET
+    ControlModalMessageBox::InvalidateOwner(*this);
+#endif
     UnloadImages();
 
     PopAllEvents();

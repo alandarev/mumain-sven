@@ -128,6 +128,12 @@ TEST_CASE("Native owned modal dispatcher handler producer JSON lifecycle and exa
         MouseLButton = true;
         Refuse(Mutation("fixture_create"), "fixture input or queue pending");
         MouseLButton = false;
+        const auto unavailableGuard = Mutation("fixture_create");
+        LoadingWorld = 30;
+        CHECK(Inspect()["token_valid"].is_null());
+        Refuse(unavailableGuard, "fixture state changed or unavailable");
+        Refuse(Mutation("fixture_create"), "fixture state changed or unavailable");
+        LoadingWorld = 0;
         const auto token = Create();
         REQUIRE(Inspect(token)["token_valid"] == true);
         CHECK(Inspect(token)["ui"]["observability"]["messagebox_active"] == true);

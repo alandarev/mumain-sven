@@ -23,6 +23,9 @@ public:
     static bool Retire(CNewUIMessageBoxMng& manager, std::string_view token);
 
 private:
+    friend class CNewUIMessageBoxMng;
+    static void InvalidateOwner(const CNewUIMessageBoxMng& manager);
+    void InvalidateIdentity();
     static ControlModalMessageBox* s_owned;
     std::string m_token;
 };
