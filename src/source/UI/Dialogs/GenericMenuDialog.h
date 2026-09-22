@@ -27,6 +27,12 @@ namespace mu::ui::window
     // (primaryLabel/secondaryLabel), and native itself never needs both at once.
     struct GenericMenuConfig
     {
+        enum class Purpose : unsigned char
+        {
+            Unspecified,
+            SystemMenu
+        };
+        Purpose purpose = Purpose::Unspecified;
         std::wstring title; // optional heading row above `lines`. Empty = no title row.
 
         struct Line { std::wstring text; bool bold = false; };
@@ -100,6 +106,14 @@ namespace mu::ui::window
         // the opposite of what "first priority" suggests. 100.0f, matching that sibling exactly.
         float GetKeyEventOrder() override { return 100.0f; }
         void ReloadRmlTheme();
+        bool IsOnlySystemMenu() const
+        {
+            return m_bActive && m_Queue.empty() && !m_bButtonClicked &&
+                   m_Active.purpose == GenericMenuConfig::Purpose::SystemMenu;
+        }
+        // The ordinary cancel path, restricted to an identified system menu.
+        bool DismissSystemMenu();
+        void OnButtonClicked(int index);
 
     private:
         void BuildRmlUi();

@@ -150,6 +150,7 @@ namespace mu::ui::window
 
         // Recreate the internal text-input DCs at the current g_fScreenRate.
         bool HaveFocus();
+        bool OwnsFocusedInput() const;
 
         void AddChatHistory(const type_string& strText);
         void RemoveChatHistory(int index);
