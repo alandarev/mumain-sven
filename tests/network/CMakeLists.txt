@@ -50,6 +50,14 @@ if(ENABLE_CONTROL_SOCKET)
     target_include_directories(test_control_ui_guarded_handler PRIVATE ${CMAKE_SOURCE_DIR}/src/ThirdParty)
 
     mu_add_test(
+        NAME test_control_modal_fixture
+        SOURCES test_control_modal_fixture.cpp
+            ${CMAKE_SOURCE_DIR}/src/source/App/Platform/Windows/Winmain.cpp
+        LINK_LIBS MuClient
+    )
+    target_include_directories(test_control_modal_fixture PRIVATE ${CMAKE_SOURCE_DIR}/src/ThirdParty)
+
+    mu_add_test(
         NAME test_control_ui_replay
         SOURCES test_control_ui_replay.cpp
         LINK_LIBS MuClient

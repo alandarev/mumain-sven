@@ -347,3 +347,44 @@ Trade/Buy/Party/Follow/Duel safe. No command should be selected during compariso
 
 The adapter is source-side only until separately built, reviewed, ported and loaded
 on both clients; a rebuild does not update a running client.
+
+### Owned inert modal fixture (control builds only)
+
+The `ui` actions `fixture_inspect`, `fixture_create`, and `fixture_retire` are a
+bounded local observation fixture, not general dialog scripting. They never accept
+caller content, callbacks or invitation/transaction actions. This RmlUi-side API
+is source-tested; loading it and using it live requires separate authorization.
+
+1. Send `{"cmd":"ui","action":"fixture_inspect","token":""}`. Save the returned
+   `guard` string verbatim. Inspect is read-only and reports version 1, current `ui`
+   observations, exact manager registration, nullable token validity/activity/queue/
+   click state, and read-only `input_idle`. Unavailable owners remain null.
+2. Send `ui` / `fixture_create` with `token:""`, `fixture_version:1`,
+   `fixture_opt_in:true`, `nonce` (1–64 ASCII letters/digits/underscore/hyphen), and
+   that `guard`. It opens the normal generic menu with the fixed title
+   **UI comparison fixture**, text **Local observation test. No game action.**,
+   and an inert **Close** button. It returns the unique process-local `token`.
+3. Inspect again with that token. Retire using `ui` / `fixture_retire`, the same
+   token, `fixture_version:1`, `fixture_opt_in:true`, and the fresh returned guard.
+   Successful retirement is synchronous. Re-inspect; the old token is invalid.
+
+Both mutations require known world/registration/modal state, unmuted networking,
+no unrelated ordinary panel, no pending control act, and no queued/held/edge or
+synthetic input. Exact full guard equality is necessary but insufficient: fresh
+safety predicates and exact private active-config ownership are also checked.
+No event queue is drained. A queued menu, pending click, replacement, stale token
+or missing manager refuses without cleanup. A refusal is not permission to dismiss
+anything through a different command.
+
+The token is privately associated only with the fixed callback-free active config;
+it cannot be attached to caller configs or queued menus. Ordinary close, Release,
+replacement, queue promotion and object destruction invalidate it, including when
+Release retains stored content or a later object reuses the same address. Tokens
+use a fixture-only non-reused process sequence (overflow refuses), not a global UI
+epoch. Singleton/purpose/caption identity never grants retirement. Ordinary dialog
+callers are unchanged; token storage/hooks do not exist with control disabled.
+
+Headless tests exercise real logical creation/registration/observation/retirement,
+not document rendering or live input. Unknown live observations must arise naturally;
+there is no API to hide/unregister owners or overwrite observations. No native-side
+fixture command is supplied by this RmlUi implementation.
