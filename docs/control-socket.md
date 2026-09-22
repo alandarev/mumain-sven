@@ -138,7 +138,7 @@ every run, on any build that carries them:
 - `ui list` names every main-scene window (`INTERFACE_*` without the prefix,
   lowercased: `inventory`, `character`, `gensranking`, …) with its
   registered/visible flags and, where the build has RmlUi, the active theme.
-  Instrumented builds additionally return `observability.version: 2`, with
+  Instrumented builds additionally return `observability.version: 3`, with
   `messagebox_active` (native dialog stack, independent of manager visibility),
   `legacy_popup_active`, `generic_confirm_active`/`generic_menu_active`,
   `helper_active`, `input_focused` and `friend_open_allowed`.
@@ -147,6 +147,20 @@ every run, on any build that carries them:
   Activity is boolean when observable and `null` when unavailable; never treat
   missing/null as inactive. `generic_dialogs_supported: false` explicitly marks
   a build without those RmlUi mechanisms; their activity fields stay null.
+  Schema 3 additionally requires `crywolf_event_active` and
+  `siegewarfare_child_active`: nullable booleans observed synchronously on the
+  main thread. Both are null unless the world is ready and the exact system-owned
+  instance is registered. CryWolf is active throughout its authoritative event
+  map context, even with no dialog drawn. SiegeWarfare is active whenever its
+  actual child exists, including outside the castle map; manager visibility and
+  `IsCreated()` do not establish inactivity. Guarded replay requires both fields
+  to be boolean false, whether the managers are visible or hidden. It never hides
+  these managers or treats them as unconditionally passive.
+  Consumers must require integer schema 3 and reject older binaries, missing,
+  null or malformed event flags before input. Forward the complete opaque `guard`
+  unchanged; both fields participate in that snapshot, so event-state drift
+  refuses before the normal synchronous callback. Rebuilding does not update an
+  already-running client: reload verified builds separately before using schema 3.
   These read-only observations do not certify that every modal/input mechanism
   is covered. Consumers must also check scene, registry/transaction state and
   any other prerequisites of their operation. Repeating `ui list` does not

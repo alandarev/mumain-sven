@@ -10,9 +10,11 @@ nlohmann::json Snapshot(bool rml = true)
                                  {{{"window", "mainframe"}, {"visible", true}, {"registered", true}},
                                   {{"window", "messagebox"}, {"visible", true}, {"registered", true}}}},
                                 {"observability",
-                                 {{"version", 2},
+                                 {{"version", 3},
                                   {"messagebox_active", false},
                                   {"native_events_pending", false},
+                                  {"crywolf_event_active", false},
+                                  {"siegewarfare_child_active", false},
                                   {"legacy_popup_active", false},
                                   {"message_window_active", false},
                                   {"friend_children_active", false},
@@ -129,9 +131,9 @@ nlohmann::json Snapshot(bool rml = true)
         state["windows"].push_back({{"window", name}, {"visible", false}, {"registered", true}});
     for (auto& entry : state["windows"])
     {
-        for (const char* visible :
-             {"mainframe", "skill_list", "hotkey", "chatlogwindow", "systemlogwindow", "slidewindow", "messagebox",
-              "party_info_window", "name_window", "item_endurance_info", "buff_window", "mu_helper_bar"})
+        for (const char* visible : {"mainframe", "skill_list", "hotkey", "chatlogwindow", "systemlogwindow",
+                                    "slidewindow", "messagebox", "party_info_window", "name_window",
+                                    "item_endurance_info", "buff_window", "mu_helper_bar", "crywolf", "siegewarfare"})
             if (entry["window"] == visible)
                 entry["visible"] = true;
     }
@@ -357,4 +359,79 @@ TEST_CASE("Replay character quest and snapshot drift refuse before callbacks [ne
     CHECK(calls == 0);
     CHECK(App::Control::ExecuteGuardedUi(guard, guard, true, false, true, "inventory", []() -> std::string
                                          { return "system menu changed"; }) == "system menu changed");
+}
+
+TEST_CASE("Schema 3 requires inactive event observations even for hidden managers [network][control-ui]")
+{
+    for (const bool rml : {false, true})
+    {
+        const auto clean = Snapshot(rml);
+        CHECK(Check(clean).empty()); // Includes both inert, default-visible event managers.
+        for (const char* key : {"crywolf_event_active", "siegewarfare_child_active"})
+        {
+            CAPTURE(key);
+            for (const auto& invalid : {nlohmann::json(true), nlohmann::json(nullptr), nlohmann::json(0),
+                                        nlohmann::json("false"), nlohmann::json::array(), nlohmann::json::object()})
+            {
+                auto state = clean;
+                state["observability"][key] = invalid;
+                CHECK(Check(state) == std::string("active or unknown prerequisite: ") + key);
+                for (auto& entry : state["windows"])
+                    if (entry["window"] == "crywolf" || entry["window"] == "siegewarfare")
+                        entry["visible"] = false;
+                CHECK_FALSE(Check(state).empty());
+                int calls = 0;
+                CHECK_FALSE(App::Control::ExecuteGuardedUi(state.dump(), state.dump(), true, false, true, "inventory",
+                                                           [&]() -> std::string
+                                                           {
+                                                               ++calls;
+                                                               return {};
+                                                           })
+                                .empty());
+                CHECK(calls == 0);
+            }
+            auto state = clean;
+            state["observability"].erase(key);
+            CHECK_FALSE(Check(state).empty());
+        }
+        for (const auto& version : {nlohmann::json(2), nlohmann::json(4), nlohmann::json(nullptr), nlohmann::json("3"),
+                                    nlohmann::json(3.0), nlohmann::json(true)})
+        {
+            auto state = clean;
+            state["observability"]["version"] = version;
+            CHECK(Check(state) == "unsupported UI observability");
+        }
+        auto state = clean;
+        state["observability"].erase("version");
+        CHECK(Check(state) == "unsupported UI observability");
+    }
+}
+
+TEST_CASE("Event field drift and an off-map Siege child refuse before action [network][control-ui]")
+{
+    for (const char* key : {"crywolf_event_active", "siegewarfare_child_active"})
+    {
+        const auto clean = Snapshot();
+        int calls = 0;
+        const auto action = [&]() -> std::string
+        {
+            ++calls;
+            return {};
+        };
+        auto changed = clean;
+        changed["observability"][key] = true;
+        CHECK(App::Control::ExecuteGuardedUi(clean.dump(), changed.dump(), true, false, true, "inventory", action) ==
+              "UI state changed or unavailable");
+        changed["map"] = 0; // Policy fixture, not an actual populated-child producer test.
+        CHECK_FALSE(
+            App::Control::ExecuteGuardedUi(changed.dump(), changed.dump(), true, false, true, "inventory", action)
+                .empty());
+        changed["observability"][key] = nullptr;
+        CHECK_FALSE(App::Control::ExecuteGuardedUi(clean.dump(), changed.dump(), true, false, true, "inventory", action)
+                        .empty());
+        changed["observability"].erase(key);
+        CHECK_FALSE(App::Control::ExecuteGuardedUi(clean.dump(), changed.dump(), true, false, true, "inventory", action)
+                        .empty());
+        CHECK(calls == 0);
+    }
 }
