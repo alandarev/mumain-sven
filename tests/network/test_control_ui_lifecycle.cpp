@@ -20,34 +20,69 @@ namespace
 using mu::ui::window::UiLifecycleFixture;
 using nlohmann::json;
 
-json List()
+json List(const char* window = "chatinputbox")
 {
     std::unique_ptr<App::Control::Act> act;
-    const auto request =
-        App::Control::Request::Parse(R"({"cmd":"ui","id":17,"action":"list","peer_key":123,"peer_id":"Peer"})");
+    json parameters = {{"cmd", "ui"}, {"id", 17}, {"action", "list"}};
+    if (std::string_view(window) == "quick_command")
+    {
+        parameters["peer_key"] = 123;
+        parameters["peer_id"] = "Peer";
+    }
+    const auto request = App::Control::Request::Parse(parameters.dump());
     const auto reply = json::parse(App::Control::Commands::Ui(request, act));
     REQUIRE(reply["ok"] == true);
     REQUIRE(act == nullptr);
     return reply["result"];
 }
 
-void RefuseWithoutMutation(const json& guard, const char* window = "chatinputbox")
+void RefuseWithoutMutation(const json& guard, const char* reason, const char* window = "chatinputbox")
 {
-    const auto before = List();
+    const auto before = List(window);
     std::unique_ptr<App::Control::Act> act;
-    const auto request = App::Control::Request::Parse(json({{"cmd", "ui"},
-                                                            {"id", 18},
-                                                            {"action", "guarded_hide"},
-                                                            {"window", window},
-                                                            {"guard", guard["guard"]},
-                                                            {"peer_key", 123},
-                                                            {"peer_id", "Peer"}})
-                                                          .dump());
+    json parameters = {
+        {"cmd", "ui"}, {"id", 18}, {"action", "guarded_hide"}, {"window", window}, {"guard", guard["guard"]}};
+    if (std::string_view(window) == "quick_command")
+    {
+        parameters["peer_key"] = 123;
+        parameters["peer_id"] = "Peer";
+    }
+    const auto request = App::Control::Request::Parse(parameters.dump());
     const auto reply = json::parse(App::Control::Commands::Ui(request, act));
     CHECK(reply["ok"] == false);
     CHECK(reply["error"] == "not_allowed");
+    CHECK(reply["message"] == reason);
     CHECK(act == nullptr);
-    CHECK(List() == before);
+    CHECK(List(window) == before);
+}
+
+void RefuseStale(const json& guard, const char* window = "chatinputbox")
+{
+    REQUIRE(guard != List(window));
+    RefuseWithoutMutation(guard, "UI state changed or unavailable", window);
+}
+
+void RefuseFresh(const char* reason, const char* window = "chatinputbox")
+{
+    RefuseWithoutMutation(List(window), reason, window);
+}
+
+void PrepareModalPrerequisites(UiLifecycleFixture& fixture)
+{
+    REQUIRE(g_iChatInputType == 1);
+    REQUIRE(g_dwTopWindow == 0);
+    REQUIRE(g_pCryWolfInterface == nullptr);
+    REQUIRE(g_MessageBox->IsEmpty());
+    REQUIRE_FALSE(g_MessageBox->HasPendingEvents());
+    REQUIRE(fixture.PrepareModalPrerequisites());
+    const auto observation = List()["observability"];
+    for (const char* field :
+         {"legacy_popup_active", "message_window_active", "friend_children_active", "picked_item_active",
+          "native_events_pending", "helper_active", "crywolf_event_active", "siegewarfare_child_active"})
+    {
+        CAPTURE(field);
+        REQUIRE(observation[field] == false);
+    }
 }
 
 void RequireUnownedSystem()
@@ -68,6 +103,7 @@ TEST_CASE("Registered Siege child producer serializes empty populated retired an
     const auto unavailable = App::Control::UiObservabilityObject();
     {
         UiLifecycleFixture fixture;
+        PrepareModalPrerequisites(fixture);
         const auto empty = List();
         CHECK(empty["observability"]["siegewarfare_child_active"] == false);
         CHECK(fixture.siege.IsVisible());
@@ -75,17 +111,17 @@ TEST_CASE("Registered Siege child producer serializes empty populated retired an
         const auto populated = List();
         CHECK(populated["observability"]["siegewarfare_child_active"] == true);
         CHECK(fixture.siege.GetBase() != nullptr);
-        RefuseWithoutMutation(empty);
-        RefuseWithoutMutation(populated);
+        RefuseStale(empty);
+        RefuseFresh("active or unknown prerequisite: siegewarfare_child_active");
         fixture.siege.InitMiniMapUI();
         CHECK(fixture.siege.GetBase() == nullptr);
         CHECK(fixture.siege.IsVisible()); // Visibility is still not modal absence.
         CHECK(List()["observability"]["siegewarfare_child_active"] == false);
-        RefuseWithoutMutation(populated);
+        RefuseStale(populated);
         fixture.registry.RemoveUIObj(mu::ui::window::INTERFACE_SIEGEWARFARE);
         const auto retired = List();
         CHECK(retired["observability"]["siegewarfare_child_active"].is_null());
-        RefuseWithoutMutation(retired);
+        RefuseFresh("active or unknown prerequisite: siegewarfare_child_active");
         fixture.registry.AddUIObj(mu::ui::window::INTERFACE_SIEGEWARFARE, &fixture.siege);
         LoadingWorld = 30;
         CHECK(List()["observability"]["siegewarfare_child_active"].is_null());
@@ -98,6 +134,7 @@ TEST_CASE("Registered chat producer distinguishes owned whisper ordinary and unr
 {
     RequireUnownedSystem();
     UiLifecycleFixture fixture;
+    PrepareModalPrerequisites(fixture);
     const auto empty = List();
     for (const bool whisper : {false, true})
     {
@@ -108,10 +145,13 @@ TEST_CASE("Registered chat producer distinguishes owned whisper ordinary and unr
         const auto focused = List();
         CHECK(focused["observability"]["input_focused"] == true);
         CHECK(focused["observability"]["input_focus_owner"] == "chatinputbox");
-        RefuseWithoutMutation(empty);
+        RefuseStale(empty);
+        // Focus on either owned field blocks operations on unrelated panels.
+        RefuseFresh("active or unknown prerequisite: input_focused", "help");
         fixture.registry.RemoveUIObj(mu::ui::window::INTERFACE_CHATINPUTBOX);
         CHECK(List()["observability"]["input_focus_owner"].is_null());
-        RefuseWithoutMutation(focused);
+        RefuseStale(focused);
+        RefuseFresh("active or unknown prerequisite: input_focused");
         fixture.registry.AddUIObj(mu::ui::window::INTERFACE_CHATINPUTBOX, &fixture.chat);
         input.SetState(UISTATE_HIDE);
         CHECK(List()["observability"]["input_focused"] == false);
@@ -122,7 +162,7 @@ TEST_CASE("Registered chat producer distinguishes owned whisper ordinary and unr
     const auto focused = List();
     CHECK(focused["observability"]["input_focused"] == true);
     CHECK(focused["observability"]["input_focus_owner"].is_null());
-    RefuseWithoutMutation(focused);
+    RefuseFresh("active or unknown prerequisite: input_focused");
     unrelated.SetState(UISTATE_HIDE);
 }
 
@@ -148,16 +188,17 @@ TEST_CASE("Registered Friends producer retains delayed message blocker after chi
     const auto child = manager->AddWindow(UIWNDTYPE_EMPTY, 0, 0, L"owned test child", 0, UIADDWND_FORCEPOSITION);
     REQUIRE(child != 0);
     CHECK(List()["observability"]["friend_children_active"] == true);
+    RefuseFresh("active or unknown prerequisite: friend_children_active");
     manager->SendUIMessage(UI_MESSAGE_SELECT, 0, 0);
     manager->RemoveWindow(child);
     const auto delayed = List();
     CHECK(delayed["observability"]["friend_children_active"] == true);
-    RefuseWithoutMutation(empty);
-    RefuseWithoutMutation(delayed);
+    RefuseStale(empty);
+    RefuseFresh("active or unknown prerequisite: friend_children_active");
     friends.reset();
     const auto unavailable = List();
     CHECK(unavailable["observability"]["friend_children_active"].is_null());
-    RefuseWithoutMutation(unavailable);
+    RefuseFresh("active or unknown prerequisite: friend_children_active");
 }
 
 TEST_CASE("Quick producer drift reaches real JSON handler refusal and settlement without command execution "
@@ -213,7 +254,7 @@ TEST_CASE("Quick producer drift reaches real JSON handler refusal and settlement
     g_fWindowMouseX = 100.f;
     g_fWindowMouseY = 100.f;
     gMapManager.WorldActive = WD_0LORENCIA;
-    const auto initial = List();
+    const auto initial = List("quick_command");
     REQUIRE(initial["quick_peer"]["ready"] == true);
     REQUIRE(initial["quick_peer"]["input_idle"] == true);
     // The Act is production code reading production snapshots. Installation is
@@ -221,11 +262,11 @@ TEST_CASE("Quick producer drift reaches real JSON handler refusal and settlement
     for (const char* drift : {"geometry", "index", "peer_index", "context", "held", "edge", "queued", "unavailable"})
     {
         CAPTURE(drift);
-        const auto before = List();
+        const auto before = List("quick_command");
         App::Control::QuickPeerSettleAct act(
             "{}", before.dump(),
             [] { return json::parse(App::Control::QuickPeerObservation(123, "Peer"))["ready"].get<bool>(); },
-            [] { return List().dump(); });
+            [] { return List("quick_command").dump(); });
         std::string response;
         CHECK(act.Tick(response) == App::Control::Act::Status::Running);
         const std::string kind(drift);
@@ -259,14 +300,14 @@ TEST_CASE("Quick producer drift reaches real JSON handler refusal and settlement
             event.type = SDL_EVENT_USER;
             REQUIRE(SDL_PushEvent(&event)); // Never dispatched to a game/input handler.
         }
-        const auto changed = List();
+        const auto changed = List("quick_command");
         CHECK(changed != before);
         if (kind == "held" || kind == "edge" || kind == "queued")
             CHECK(changed["quick_peer"]["input_idle"] == false);
-        RefuseWithoutMutation(before, "quick_command");
+        RefuseStale(before, "quick_command");
         CHECK(act.Tick(response) == App::Control::Act::Status::Finished);
         CHECK(json::parse(response)["error"] == "not_allowed");
-        CHECK(List() == changed);
+        CHECK(List("quick_command") == changed);
         if (kind == "queued")
         {
             CHECK(SDL_HasEvent(SDL_EVENT_USER)); // Observation/guard/settle did not consume it.
@@ -281,6 +322,6 @@ TEST_CASE("Quick producer drift reaches real JSON handler refusal and settlement
         gMapManager.WorldActive = WD_0LORENCIA;
         MouseLButton = false;
         g_pNewKeyInput->SetKeyState(VK_LBUTTON, mu::ui::window::CNewKeyInput::KEY_NONE);
-        CHECK(List() == initial);
+        CHECK(List("quick_command") == initial);
     }
 }

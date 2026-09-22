@@ -5,6 +5,7 @@
 #include "UI/Widgets/UIControls.h"
 #include "Scenes/MainScene.h"
 #include "Core/Time/FrameTimerScheduler.h"
+#include "UI/Dialogs/MessageBox.h"
 
 extern int LoadingWorld;
 
@@ -39,6 +40,12 @@ public:
     {
         chat.m_pChatInputBox->SetState(UISTATE_HIDE);
         chat.m_pWhsprIDInputBox->SetState(UISTATE_HIDE);
+        if (m_modalPrerequisites)
+        {
+            friends.Release();
+            Core::Time::FrameTimerScheduler::Instance().Kill(CHATCONNECT_TIMER);
+            CSystem::GetInstance()->m_pNewCryWolfInterface = nullptr;
+        }
         auto* system = CSystem::GetInstance();
         system->m_pNewUIMng = nullptr;
         system->m_pNewSiegeWarfare = nullptr;
@@ -52,6 +59,17 @@ public:
 
     UiLifecycleFixture(const UiLifecycleFixture&) = delete;
     UiLifecycleFixture& operator=(const UiLifecycleFixture&) = delete;
+
+    bool PrepareModalPrerequisites()
+    {
+        // Real empty owners for predicates preceding Siege/focus in modal policy.
+        // No messagebox/scene asset startup and no Friends main-window request.
+        m_modalPrerequisites = true;
+        CSystem::GetInstance()->m_pNewCryWolfInterface = &cryWolf;
+        registry.AddUIObj(INTERFACE_CRYWOLF, &cryWolf);
+        registry.AddUIObj(INTERFACE_MESSAGEBOX, g_MessageBox);
+        return friends.Create(&registry);
+    }
 
     void PopulateSiege()
     {
@@ -70,8 +88,11 @@ public:
     CChatInputBox chat;
     CQuickCommandWindow quick;
     CHotKey hotkey;
+    CCryWolf cryWolf;
+    CFriendWindow friends;
 
 private:
+    bool m_modalPrerequisites = false;
     EGameScene m_scene;
     int m_loading;
 };
