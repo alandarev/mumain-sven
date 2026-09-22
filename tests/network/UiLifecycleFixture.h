@@ -72,7 +72,7 @@ public:
     CHotKey hotkey;
 
 private:
-    int m_scene;
+    EGameScene m_scene;
     int m_loading;
 };
 } // namespace mu::ui::window

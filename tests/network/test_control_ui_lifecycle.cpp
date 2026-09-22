@@ -131,7 +131,8 @@ TEST_CASE("Registered Friends producer retains delayed message blocker after chi
     };
     std::unique_ptr<mu::ui::window::CFriendWindow, decltype(destroy)> friends(new mu::ui::window::CFriendWindow, destroy);
     REQUIRE(friends->Create(&fixture.registry));
-    auto* manager = friends->GetWindowManager();
+    // Create allocated a mutable manager owned solely by this test window.
+    auto* manager = const_cast<CUIWindowMgr*>(friends->GetWindowManager());
     const auto empty = List();
     CHECK(empty["observability"]["friend_children_active"] == false);
     const auto child = manager->AddWindow(UIWNDTYPE_EMPTY, 0, 0, L"owned test child", 0, UIADDWND_FORCEPOSITION);
