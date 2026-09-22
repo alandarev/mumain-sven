@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "App/Control/ControlUiReplay.h"
+#include "App/Control/ControlUiObservability.h"
 
 #include "json.hpp"
 
@@ -28,10 +29,12 @@ template <std::size_t Size> bool Contains(const std::array<const char*, Size>& n
 
 std::string ModalRefusal(const json& observation, bool allowSystemMenu, bool closingChatInput)
 {
-    if (!observation.is_object() || observation.value("version", 0) != 2)
+    if (!observation.is_object() || !observation.contains("version") || !observation["version"].is_number_integer() ||
+        observation["version"] != App::Control::UiObservabilityVersion)
         return "unsupported UI observability";
-    for (const char* key : {"legacy_popup_active", "message_window_active", "friend_children_active",
-                            "picked_item_active", "native_events_pending", "helper_active"})
+    for (const char* key :
+         {"legacy_popup_active", "message_window_active", "friend_children_active", "picked_item_active",
+          "native_events_pending", "helper_active", "crywolf_event_active", "siegewarfare_child_active"})
     {
         if (!Is(observation, key, false))
             return std::string("active or unknown prerequisite: ") + key;
@@ -72,7 +75,8 @@ std::string WindowRefusal(const json& windows)
         if (!entry["registered"].get<bool>())
             return "visible unregistered window";
         // These mechanisms were checked separately, never inferred from manager visibility.
-        if (name == "messagebox" || name == "generic_menu_dialog" || name == "generic_confirm_dialog")
+        if (name == "messagebox" || name == "generic_menu_dialog" || name == "generic_confirm_dialog" ||
+            name == "crywolf" || name == "siegewarfare")
             continue;
         if (!Contains(OrdinaryPanels, name) && !Contains(PassiveWindows, name))
             return "unsupported visible window: " + name;
