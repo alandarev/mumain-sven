@@ -107,6 +107,11 @@ bool ObservePlacement(json& state)
 
 namespace App::Control
 {
+bool ControlInputIdle()
+{
+    return InputIdle();
+}
+
 int ResolveQuickPeer(std::span<CHARACTER> storage, const CHARACTER* hero, int key, std::string_view id)
 {
     if (storage.empty() || storage.size() > MAX_CHARACTERS_CLIENT || hero == nullptr || key < 0 ||

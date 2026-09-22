@@ -9,6 +9,8 @@ class CHARACTER;
 namespace App::Control
 {
 inline constexpr int QuickPeerObservationVersion = 1;
+// Read-only shared queue/held/edge/synthetic input predicate; never drains events.
+[[nodiscard]] bool ControlInputIdle();
 // Read-only allocation-owner check; rejects the temporary photo-viewer alias.
 [[nodiscard]] std::span<CHARACTER> WorldCharacterStorage();
 // Caller supplies proven storage; never interprets a server key as an array index.
