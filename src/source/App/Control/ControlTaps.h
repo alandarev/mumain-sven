@@ -68,6 +68,14 @@ void RecordPartyChange(const char* change, const wchar_t* name);
 void RecordDisconnected(const char* reason);
 } // namespace App::Control::Events
 
+namespace App::Control::Net
+{
+// Called on the network thread for every received packet before it is
+// queued: true while `net mute` is in effect, in which case the packet is
+// counted and dropped. Lets a script freeze the client's world state.
+[[nodiscard]] bool DropIncoming(const unsigned char* buffer, int size);
+} // namespace App::Control::Net
+
 #else
 
 #include <cstdint>
@@ -90,5 +98,13 @@ inline void RecordViewLeaveKey(int) {}
 inline void RecordPartyChange(const char*, const wchar_t*) {}
 inline void RecordDisconnected(const char*) {}
 } // namespace App::Control::Events
+
+namespace App::Control::Net
+{
+inline bool DropIncoming(const unsigned char*, int)
+{
+    return false;
+}
+} // namespace App::Control::Net
 
 #endif // MU_ENABLE_CONTROL_SOCKET

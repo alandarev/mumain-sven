@@ -192,9 +192,10 @@ const std::vector<std::string>& CommandNames()
     // the whole client into that test. The dispatcher checks itself against
     // this list instead (ControlDispatcher.cpp, CommandTable).
     static const std::vector<std::string> names = {
-        "ping",   "scene", "state",   "nearby", "events",   "wait-for", "screenshot", "login",  "select-char",
-        "logout", "quit",  "move",    "warp",   "teleport", "attack",   "skill",      "pickup", "use",
-        "equip",  "say",   "whisper", "party",  "halt",     "hotkey",   "click-ui",   "type",
+        "ping",        "scene",  "state",  "nearby", "events",  "wait-for", "screenshot", "login",
+        "select-char", "logout", "quit",   "move",   "warp",    "teleport", "attack",     "skill",
+        "pickup",      "use",    "equip",  "say",    "whisper", "party",    "halt",       "hotkey",
+        "click-ui",    "type",   "inject", "net",    "ui",      "window",   "hover",      "render",
     };
     return names;
 }

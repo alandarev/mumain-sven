@@ -15,6 +15,8 @@
 #include <RmlUi/Core/DataModelHandle.h>
 #include <RmlUi/Core/ElementDocument.h>
 #include <RmlUi/Core/Event.h>
+#include <cstdint>
+#include <limits>
 
 namespace mu::ui::window
 {
@@ -73,15 +75,8 @@ void CGenericMenuDialog::BuildRmlUi()
             // proven RmlUi pattern already used by char_make.rml/server_select.rml/
             // my_quest_info.rml/main_frame.rml, not a fixed-slot workaround.
             c.BindEventCallback("gmd_button_click",
-                [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& args)
-                {
-                    if (!m_bActive) return;
-                    const int index = args.empty() ? -1 : args[0].Get<int>(-1);
-                    if (index < 0 || index >= static_cast<int>(m_Active.buttons.size())) return;
-                    if (!m_Active.buttons[index].enabled) return;
-                    m_bButtonClicked = true;
-                    m_iClickedButtonIndex = index;
-                });
+                                [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& args)
+                                { OnButtonClicked(args.empty() ? -1 : args[0].Get<int>(-1)); });
         });
 
     if (modelCreated)
@@ -110,6 +105,9 @@ void CGenericMenuDialog::ReloadRmlTheme()
 
 void CGenericMenuDialog::Release()
 {
+#if MU_ENABLE_CONTROL_SOCKET
+    m_ControlFixtureToken.clear();
+#endif
     if (m_pRmlDoc)
         m_pRmlDoc->Hide();
     m_bActive = false;
@@ -126,6 +124,9 @@ void CGenericMenuDialog::Show(GenericMenuConfig cfg)
         return;
     }
 
+#if MU_ENABLE_CONTROL_SOCKET
+    m_ControlFixtureToken.clear();
+#endif
     m_Active = std::move(cfg);
     m_bActive = true;
     m_bButtonClicked = false;
@@ -138,8 +139,31 @@ void CGenericMenuDialog::Show(GenericMenuConfig cfg)
     }
 }
 
+void CGenericMenuDialog::OnButtonClicked(int index)
+{
+    if (!m_bActive)
+        return;
+    if (index < 0 || index >= static_cast<int>(m_Active.buttons.size()))
+        return;
+    if (!m_Active.buttons[index].enabled)
+        return;
+    m_bButtonClicked = true;
+    m_iClickedButtonIndex = index;
+}
+
+bool CGenericMenuDialog::DismissSystemMenu()
+{
+    if (!IsOnlySystemMenu())
+        return false;
+    Resolve(-1);
+    return true;
+}
+
 void CGenericMenuDialog::ShowNext()
 {
+#if MU_ENABLE_CONTROL_SOCKET
+    m_ControlFixtureToken.clear();
+#endif
     if (m_Queue.empty())
     {
         m_bActive = false;
@@ -160,6 +184,9 @@ void CGenericMenuDialog::ShowNext()
 
 void CGenericMenuDialog::Resolve(int buttonIndex)
 {
+#if MU_ENABLE_CONTROL_SOCKET
+    m_ControlFixtureToken.clear();
+#endif
     GenericMenuConfig cfg = std::move(m_Active);
 
     if (buttonIndex >= 0 && buttonIndex < static_cast<int>(cfg.buttons.size()))
@@ -176,6 +203,40 @@ void CGenericMenuDialog::Resolve(int buttonIndex)
 
     ShowNext();
 }
+
+#if MU_ENABLE_CONTROL_SOCKET
+std::string CGenericMenuDialog::CreateControlFixture(std::string_view nonce)
+{
+    // Per-fixture sequence only, not a generation counter for ordinary UI objects.
+    static std::uint64_t sequence = 0;
+    if (m_bActive || !m_Queue.empty() || m_bButtonClicked || nonce.empty() ||
+        sequence == std::numeric_limits<std::uint64_t>::max())
+        return {};
+    GenericMenuConfig cfg;
+    cfg.title = L"UI comparison fixture";
+    cfg.lines.push_back({L"Local observation test. No game action."});
+    GenericMenuConfig::MenuButton close;
+    close.label = L"Close";
+    cfg.buttons.push_back(std::move(close));
+    Show(std::move(cfg));
+    m_ControlFixtureToken = std::string(nonce) + ":" + std::to_string(++sequence);
+    return m_ControlFixtureToken;
+}
+
+bool CGenericMenuDialog::OwnsControlFixture(std::string_view token) const
+{
+    return m_bActive && !token.empty() && token == m_ControlFixtureToken;
+}
+
+bool CGenericMenuDialog::RetireControlFixture(std::string_view token)
+{
+    if (!OwnsControlFixture(token) || !m_Queue.empty() || m_bButtonClicked)
+        return false;
+    // The private token belongs only to the fixed, callback-free active config.
+    Resolve(-1);
+    return true;
+}
+#endif
 
 bool CGenericMenuDialog::Render()
 {

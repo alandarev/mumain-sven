@@ -20,6 +20,7 @@ namespace mu::ui::window
 
     class CChatInputBox : public CObject
     {
+        friend class UiLifecycleFixture; // Test-owned objects without renderer startup.
     public:
         // It's also the size of the graphics IMAGE_INPUTBOX_BACK.
         enum
@@ -150,6 +151,7 @@ namespace mu::ui::window
 
         // Recreate the internal text-input DCs at the current g_fScreenRate.
         bool HaveFocus();
+        bool OwnsFocusedInput() const;
 
         void AddChatHistory(const type_string& strText);
         void RemoveChatHistory(int index);

@@ -196,6 +196,14 @@ bool mu::ui::window::CChatInputBox::HaveFocus()
     return (m_pChatInputBox->HaveFocus() || m_pWhsprIDInputBox->HaveFocus());
 }
 
+bool mu::ui::window::CChatInputBox::OwnsFocusedInput() const
+{
+    const auto* focused = CUITextInputBox::GetFocusedPortable();
+    return CUITextInputBox::IsAnyInputBoxFocused() &&
+           ((m_pChatInputBox != nullptr && focused == m_pChatInputBox) ||
+            (m_pWhsprIDInputBox != nullptr && focused == m_pWhsprIDInputBox));
+}
+
 void mu::ui::window::CChatInputBox::AddChatHistory(const type_string& strText)
 {
     auto vi = std::find(m_vecChatHistory.begin(), m_vecChatHistory.end(), strText);

@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "App/Control/ControlModalFixture.h"
 #include "App/Control/ControlDispatcher.h"
 
 #include "App/Control/ControlCommands.h"
@@ -56,6 +57,12 @@ const std::vector<CommandEntry>& CommandTable()
         {"whisper", SceneRequirement::World, &Commands::Whisper},
         {"party", SceneRequirement::World, &Commands::Party},
         {"halt", SceneRequirement::Any, &Commands::Halt},
+        {"inject", SceneRequirement::Any, &Commands::Inject},
+        {"net", SceneRequirement::Any, &Commands::Net},
+        {"ui", SceneRequirement::Any, &Commands::Ui},
+        {"window", SceneRequirement::Any, &Commands::Window},
+        {"hover", SceneRequirement::Any, &Commands::Hover},
+        {"render", SceneRequirement::World, &Commands::Render},
     };
 
     // The parser keeps its own list of command names — it is free of the
@@ -204,6 +211,12 @@ void Dispatcher::Handle(const Request& request, std::size_t connection)
     if (request.Command() == HaltCommand)
     {
         InterruptAct("halted");
+    }
+
+    if (m_act && IsModalFixtureMutation(request))
+    {
+        Queue(connection, EncodeError(request.EncodedId(), ErrorCode::NotAllowed, "control action pending"));
+        return;
     }
 
     std::unique_ptr<Act> act;

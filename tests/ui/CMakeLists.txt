@@ -77,3 +77,27 @@ mu_add_test(
         ${CMAKE_SOURCE_DIR}/src/source/UI/Core/WindowGeometry.cpp
     LINK_LIBS MuClient
 )
+
+mu_add_test(
+    NAME generic_menu_dialog_tests
+    SOURCES
+        test_generic_menu_dialog.cpp
+        ${CMAKE_SOURCE_DIR}/src/source/App/Platform/Windows/Winmain.cpp
+    LINK_LIBS MuClient
+)
+
+mu_add_test(
+    NAME friend_window_manager_tests
+    SOURCES
+        test_friend_window_manager.cpp
+        ${CMAKE_SOURCE_DIR}/src/source/App/Platform/Windows/Winmain.cpp
+    LINK_LIBS MuClient
+)
+
+mu_add_test(
+    NAME chat_input_focus_tests
+    SOURCES
+        test_chat_input_focus.cpp
+        ${CMAKE_SOURCE_DIR}/src/source/App/Platform/Windows/Winmain.cpp
+    LINK_LIBS MuClient
+)

@@ -15,6 +15,13 @@ bool RenderMainScene();
 // Release NoEditor build.
 void SetDisableEffects(bool disabled);
 
+// Developer control socket (`render world off`): skip the 3D world (terrain, objects, characters,
+// effects, items) so a frame shows the UI over the clear colour only -- what a screenshot
+// comparison of two UI builds wants to see. Nothing else changes: the scene still updates,
+// the UI still renders and hit-tests as before.
+void SetSkipWorldRender(bool skip);
+bool IsWorldRenderSkipped();
+
 // DXP-23 diagnostic, finer-grained bisection: `$effects off` (above) confirmed effect rendering is
 // the dominant GPU cost during a multi-caster fight, but not WHICH effect system inside it -- these
 // three isolate the three separate object systems SkillCast.cpp/pet-action code can populate.

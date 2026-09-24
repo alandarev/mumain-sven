@@ -428,6 +428,7 @@ void mu::ui::window::CGemIntegrationDisjointMsgBox::RenderButtons()
 void mu::ui::window::ShowSystemMenuDialog()
 {
     GenericMenuConfig cfg;
+    cfg.purpose = GenericMenuConfig::Purpose::SystemMenu;
 
     GenericMenuConfig::MenuButton btnGameOver;
     btnGameOver.label = I18N::Game::ExitGame;

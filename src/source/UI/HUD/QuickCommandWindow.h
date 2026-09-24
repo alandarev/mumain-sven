@@ -48,6 +48,23 @@ namespace mu::ui::window
         void SetID(const wchar_t* strID);
         void SetSelectedCharacterIndex(int iIndex);
 
+        int SelectedCharacterIndex() const
+        {
+            return m_iSelectedCharacterIndex;
+        }
+        int SelectedCommandIndex() const
+        {
+            return m_iSelectedIndex;
+        }
+        const wchar_t* TargetName() const
+        {
+            return m_strID;
+        }
+        POINT Position() const
+        {
+            return m_Pos;
+        }
+
     private:
         void LoadImages();
         void UnloadImages();

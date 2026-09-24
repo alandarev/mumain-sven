@@ -442,6 +442,24 @@ void CUIWindowMgr::HideAllWindowClear()
     m_HideWindowList.clear();
 }
 
+bool CUIWindowMgr::HasReplayBlockingChildren() const
+{
+    if (!m_ForceTopWindowList.empty() || !m_MessageList.empty() || g_dwTopWindow != 0 || g_pFriendMenu == nullptr ||
+        g_pFriendMenu->GetState() != UISTATE_HIDE)
+        return true;
+    // CUIFriendWindow::Init registers only its persistent main-window tabs in
+    // m_WindowFindMap, not independent dialogs. Do not inspect their stale entries.
+    for (const auto* windows : {&m_WindowMap, &m_WindowReadyMap})
+    {
+        for (const auto& [id, window] : *windows)
+        {
+            if (window == nullptr || id != m_dwMainWindowUIID)
+                return true;
+        }
+    }
+    return false;
+}
+
 DWORD CUIWindowMgr::GetTopNotMainWindowUIID()
 {
     if (m_WindowArrangeList.empty() == TRUE) return 0;

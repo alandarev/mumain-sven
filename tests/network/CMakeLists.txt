@@ -18,6 +18,59 @@ mu_add_test(
 # the client (same mechanics as tests/editor's editor_leak).
 if(ENABLE_CONTROL_SOCKET)
     mu_add_test(
+        NAME test_control_ui_lifecycle
+        SOURCES test_control_ui_lifecycle.cpp
+            ${CMAKE_SOURCE_DIR}/src/source/App/Platform/Windows/Winmain.cpp
+        LINK_LIBS MuClient
+    )
+    target_include_directories(test_control_ui_lifecycle PRIVATE ${CMAKE_SOURCE_DIR}/src/ThirdParty)
+
+    mu_add_test(
+        NAME test_quick_peer_settle
+        SOURCES test_quick_peer_settle.cpp
+        LINK_LIBS MuClient
+    )
+    target_include_directories(test_quick_peer_settle PRIVATE ${CMAKE_SOURCE_DIR}/src/ThirdParty)
+
+    mu_add_test(
+        NAME test_control_quick_peer
+        SOURCES test_control_quick_peer.cpp
+            ${CMAKE_SOURCE_DIR}/src/source/App/Platform/Windows/Winmain.cpp
+        LINK_LIBS MuClient
+    )
+    target_include_directories(test_control_quick_peer PRIVATE ${CMAKE_SOURCE_DIR}/src/ThirdParty)
+
+    mu_add_test(
+        NAME test_control_ui_guarded_handler
+        SOURCES
+            test_control_ui_guarded_handler.cpp
+            ${CMAKE_SOURCE_DIR}/src/source/App/Platform/Windows/Winmain.cpp
+        LINK_LIBS MuClient
+    )
+    target_include_directories(test_control_ui_guarded_handler PRIVATE ${CMAKE_SOURCE_DIR}/src/ThirdParty)
+
+    mu_add_test(
+        NAME test_control_modal_fixture
+        SOURCES test_control_modal_fixture.cpp
+            ${CMAKE_SOURCE_DIR}/src/source/App/Platform/Windows/Winmain.cpp
+        LINK_LIBS MuClient
+    )
+    target_include_directories(test_control_modal_fixture PRIVATE ${CMAKE_SOURCE_DIR}/src/ThirdParty)
+
+    mu_add_test(
+        NAME test_control_ui_replay
+        SOURCES test_control_ui_replay.cpp
+        LINK_LIBS MuClient
+    )
+    target_include_directories(test_control_ui_replay PRIVATE ${CMAKE_SOURCE_DIR}/src/ThirdParty)
+
+    mu_add_test(
+        NAME test_control_ui_observability
+        SOURCES
+            test_control_ui_observability.cpp
+    )
+
+    mu_add_test(
         NAME test_control_protocol
         SOURCES
             test_control_protocol.cpp
