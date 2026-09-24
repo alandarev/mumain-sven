@@ -49,6 +49,15 @@ extern bool SelectFlag;
 #include <RmlUi/Core/Event.h>
 #include <cmath>
 
+namespace
+{
+// Text-area widths the original client gave the Set/Socket option tooltips
+// (CSItemOption::RenderSetOptionList() and CSocketItemMgr::RenderToolTipForSocketSetOption() pass
+// RenderTipTextList() a Tab of 120 and 140 reference pixels, doubled into the width).
+constexpr float kSetOptionTooltipWidth = 240.0f;
+constexpr float kSocketOptionTooltipWidth = 280.0f;
+} // namespace
+
 using namespace SEASON3B;
 using namespace mu::ui::window;
 
@@ -1018,6 +1027,7 @@ void CMyInventory::SyncRmlModel()
         config.anchorY = UI::Scaling::PositionY(activeTransform, static_cast<float>(m_Pos.y + 40));
         config.centerHorizontally = true;
         config.textAlign = UI::RmlBridge::Tooltip::Config::TextAlign::Center;
+        config.fixedWidth = model.setOptionHovered ? kSetOptionTooltipWidth : kSocketOptionTooltipWidth;
         // Ownerless (like the item-slot tooltip elsewhere in this class): hovering a Set/Socket
         // label and hovering an equipment slot are mutually exclusive by mouse position, so there's
         // no real simultaneous competitor for the shared tooltip here.
