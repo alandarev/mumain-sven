@@ -213,7 +213,7 @@ void Dispatcher::Handle(const Request& request, std::size_t connection)
         InterruptAct("halted");
     }
 
-    if (m_act && IsModalFixtureMutation(request))
+    if ((m_act || !m_watchers.empty()) && IsModalFixtureMutation(request))
     {
         Queue(connection, EncodeError(request.EncodedId(), ErrorCode::NotAllowed, "control action pending"));
         return;

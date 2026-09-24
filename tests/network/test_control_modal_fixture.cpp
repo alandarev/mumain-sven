@@ -17,7 +17,7 @@ json Call(json request)
     request["cmd"] = "ui";
     App::Control::Dispatcher dispatcher;
     dispatcher.Handle(App::Control::Request::Parse(request.dump()), 1);
-    CHECK_FALSE(dispatcher.HasActInFlight());
+    CHECK_FALSE(dispatcher.OwesAnswer(1));
     const auto replies = dispatcher.TakeResponses();
     REQUIRE(replies.size() == 1);
     return json::parse(replies.front().line);
@@ -82,7 +82,7 @@ TEST_CASE(
             App::Control::Dispatcher dispatcher;
             dispatcher.Handle(
                 App::Control::Request::Parse(R"({"cmd":"ui","action":"show","window":"hotkey","raw":true})"), 1);
-            REQUIRE(dispatcher.HasActInFlight());
+            REQUIRE(dispatcher.OwesAnswer(1));
             const auto before = Inspect();
             auto request = Mutation("fixture_create");
             request["cmd"] = "ui";
@@ -90,7 +90,7 @@ TEST_CASE(
             const auto replies = dispatcher.TakeResponses();
             REQUIRE(replies.size() == 1);
             CHECK(json::parse(replies.front().line)["message"] == "control action pending");
-            CHECK(dispatcher.HasActInFlight());
+            CHECK(dispatcher.OwesAnswer(1));
             CHECK(Inspect() == before);
             dispatcher.AbandonConnection(1);
         }
