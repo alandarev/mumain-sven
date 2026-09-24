@@ -13,8 +13,7 @@
 
 // RmlUi migration -- see this class's header comment.
 #include "Render/RmlUi/RmlUiRuntime.h"
-#include "Render/Text/SDLTtfColorPack.h"
-#include "UI/RmlBridge/RmlPackedColor.h"
+#include "UI/RmlBridge/RmlStyleKeys.h"
 #include "UI/RmlBridge/RmlTheme.h"
 #include "UI/RmlBridge/RmlRootTransform.h"
 #include "UI/Scaling/UITransform.h"
@@ -97,14 +96,14 @@ void CTrade::BuildRmlUi()
                 c.Bind("your_guild_visible", &model.yourGuildVisible);
                 c.Bind("your_guild_name", &model.yourGuildName);
                 c.Bind("your_level_text", &model.yourLevelText);
-                c.Bind("your_level_color", &model.yourLevelColor);
+                c.Bind("your_level_bucket", &model.yourLevelBucket);
                 c.Bind("your_gold_text", &model.yourGoldText);
-                c.Bind("your_gold_color", &model.yourGoldColor);
+                c.Bind("your_gold_tier", &model.yourGoldTier);
                 c.Bind("your_confirm_checked", &model.yourConfirmChecked);
 
                 c.Bind("my_id_text", &model.myIdText);
                 c.Bind("my_gold_text", &model.myGoldText);
-                c.Bind("my_gold_color", &model.myGoldColor);
+                c.Bind("my_gold_tier", &model.myGoldTier);
                 c.Bind("my_confirm_checked", &model.myConfirmChecked);
                 c.Bind("my_confirm_waiting", &model.myConfirmWaiting);
 
@@ -428,38 +427,16 @@ void CTrade::RenderWarningArrow()
     ::DisableAlphaBlend();
 }
 
-void CTrade::ConvertYourLevel(int& rnLevel, DWORD& rdwColor)
+int CTrade::ConvertYourLevel() const
 {
-    if (m_nYourLevel >= 400)
+    constexpr int kLevelBuckets[] = {400, 300, 200, 100, 50};
+    constexpr int kLowestBucket = 10;
+    for (const int bucket : kLevelBuckets)
     {
-        rnLevel = 400;
-        rdwColor = mu::sdlttf::PackColorDWORD(255, 153, 153, 255);
+        if (m_nYourLevel >= bucket)
+            return bucket;
     }
-    else if (m_nYourLevel >= 300)
-    {
-        rnLevel = 300;
-        rdwColor = mu::sdlttf::PackColorDWORD(255, 153, 255, 255);
-    }
-    else if (m_nYourLevel >= 200)
-    {
-        rnLevel = 200;
-        rdwColor = mu::sdlttf::PackColorDWORD(210, 230, 255, 255);
-    }
-    else if (m_nYourLevel >= 100)
-    {
-        rnLevel = 100;
-        rdwColor = mu::sdlttf::PackColorDWORD(0, 201, 24, 255);
-    }
-    else if (m_nYourLevel >= 50)
-    {
-        rnLevel = 50;
-        rdwColor = mu::sdlttf::PackColorDWORD(255, 150, 0, 255);
-    }
-    else							//  빨간색.
-    {
-        rnLevel = 10;
-        rdwColor = mu::sdlttf::PackColorDWORD(255, 0, 0, 255);
-    }
+    return kLowestBucket;
 }
 
 void CTrade::SyncRmlModel()
@@ -511,9 +488,7 @@ void CTrade::SyncRmlModel()
     syncBool(&TradeRmlModel::yourGuildVisible, "your_guild_visible", !guildName.empty());
     syncText(&TradeRmlModel::yourGuildName, "your_guild_name", guildName);
 
-    int nLevel;
-    DWORD dwLevelColor;
-    ConvertYourLevel(nLevel, dwLevelColor);
+    const int nLevel = ConvertYourLevel();
     wchar_t levelValueBuf[128];
     if (nLevel == 400)
         mu_swprintf(levelValueBuf, L"%d", nLevel);
@@ -522,18 +497,22 @@ void CTrade::SyncRmlModel()
     wchar_t levelBuf[160];
     mu_swprintf(levelBuf, L"Lv.%ls", levelValueBuf);
     syncWide(&TradeRmlModel::yourLevelText, "your_level_text", levelBuf);
-    syncText(&TradeRmlModel::yourLevelColor, "your_level_color", UI::RmlBridge::PackedTextColorToCss(dwLevelColor));
+    if (m_RmlBinder.GetModel().yourLevelBucket != nLevel)
+    {
+        m_RmlBinder.GetModel().yourLevelBucket = nLevel;
+        m_RmlBinder.MarkDirty("your_level_bucket");
+    }
 
     wchar_t goldBuf[256];
     ::ConvertGold(m_nYourTradeGold, goldBuf);
     syncWide(&TradeRmlModel::yourGoldText, "your_gold_text", goldBuf);
-    syncText(&TradeRmlModel::yourGoldColor, "your_gold_color",
-             UI::RmlBridge::PackedTextColorToCss(::getGoldColor(m_nYourTradeGold)));
+    syncText(&TradeRmlModel::yourGoldTier, "your_gold_tier",
+             UI::RmlBridge::GoldTierKey(GameLogic::Items::ClassifyGoldAmount(m_nYourTradeGold)));
 
     ::ConvertGold(m_nMyTradeGold, goldBuf);
     syncWide(&TradeRmlModel::myGoldText, "my_gold_text", goldBuf);
-    syncText(&TradeRmlModel::myGoldColor, "my_gold_color",
-             UI::RmlBridge::PackedTextColorToCss(::getGoldColor(m_nMyTradeGold)));
+    syncText(&TradeRmlModel::myGoldTier, "my_gold_tier",
+             UI::RmlBridge::GoldTierKey(GameLogic::Items::ClassifyGoldAmount(m_nMyTradeGold)));
 
     syncWide(&TradeRmlModel::myIdText, "my_id_text", Hero->ID);
 

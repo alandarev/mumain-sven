@@ -38,7 +38,7 @@ extern bool SelectFlag;
 // RmlUi migration -- see this class's header comment.
 #include "Render/RmlUi/RmlUiRuntime.h"
 #include "UI/RmlBridge/RmlTheme.h"
-#include "UI/RmlBridge/RmlPackedColor.h"
+#include "UI/RmlBridge/RmlStyleKeys.h"
 #include "UI/RmlBridge/RmlDraggable.h"
 #include "UI/RmlBridge/RmlRootTransform.h"
 #include "UI/RmlBridge/RmlTooltip.h"
@@ -126,7 +126,7 @@ void CMyInventory::BuildRmlUi()
 
                 c.Bind("title", &model.title);
                 c.Bind("gold_text", &model.goldText);
-                c.Bind("gold_color", &model.goldColor);
+                c.Bind("gold_tier", &model.goldTier);
 
                 c.Bind("repair_visible", &model.repairVisible);
                 c.Bind("repair_tooltip", &model.repairTooltip);
@@ -922,7 +922,8 @@ void CMyInventory::SyncRmlModel()
     ConvertGold(dwZen, goldBuf);
     syncWide(&MyInventoryRmlModel::goldText, "gold_text", goldBuf);
 
-    syncText(&MyInventoryRmlModel::goldColor, "gold_color", UI::RmlBridge::PackedTextColorToCss(getGoldColor(dwZen)));
+    syncText(&MyInventoryRmlModel::goldTier, "gold_tier",
+             UI::RmlBridge::GoldTierKey(GameLogic::Items::ClassifyGoldAmount(dwZen)));
 
     // One flag now covers both visibility and interactivity via RmlUi's data-class-hidden.
     const bool otherWindowOpen = g_pNewUISystem->IsVisible(INTERFACE_NPCSHOP)

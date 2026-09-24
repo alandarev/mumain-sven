@@ -97,7 +97,7 @@ namespace mu::ui::window
 
             Rml::String title;
             Rml::String goldText;
-            Rml::String goldColor; // "rgba(r,g,b,a)" -- mirrors getGoldColor()'s amount-tier color
+            Rml::String goldTier; // UI::RmlBridge::GoldTierKey() of the amount
 
             bool repairVisible = false;
             Rml::String repairTooltip;

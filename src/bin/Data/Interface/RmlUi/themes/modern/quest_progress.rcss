@@ -168,3 +168,11 @@
 .tooltip { top: 365px; }
 .tooltip-exit { left: -24px; }
 #btn_exit:hover ~ .tooltip-exit { display: block; }
+
+/* Requirement/reward rows by kind (UI::Quests::RewardModel::RowStyle; the RML toggles
+   .row-<key>). The original client's colors. */
+.qp-reward-row.row-heading           { color: #b3e64d; }
+.qp-reward-row.row-requirement       { color: #dfbf67; }
+.qp-reward-row.row-requirement-unmet { color: #ff1e1e; }
+.qp-reward-row.row-reward            { color: #dfbf67; }
+.qp-reward-row.row-random-reward     { color: #6767df; }

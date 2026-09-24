@@ -17,7 +17,7 @@
 
 // RmlUi migration -- see this class's header comment.
 #include "Render/RmlUi/RmlUiRuntime.h"
-#include "UI/RmlBridge/RmlPackedColor.h"
+#include "UI/RmlBridge/RmlStyleKeys.h"
 #include "UI/RmlBridge/RmlTheme.h"
 #include "UI/RmlBridge/RmlRootTransform.h"
 #include "UI/Scaling/UITransform.h"
@@ -223,7 +223,7 @@ void CStorageInventory::BuildRmlUi()
                 c.Bind("title_locked", &model.titleLocked);
 
                 c.Bind("zen_text", &model.zenText);
-                c.Bind("zen_color", &model.zenColor);
+                c.Bind("zen_tier", &model.zenTier);
                 c.Bind("fee_label", &model.feeLabel);
                 c.Bind("fee_value", &model.feeValue);
 
@@ -540,7 +540,8 @@ void CStorageInventory::SyncRmlModel()
 
     // Legacy theme only binds this; modern uses a fixed warm-gold color, same reasoning as
     // my_inventory.rml's #gold_text.
-    syncText(&StorageRmlModel::zenColor, "zen_color", UI::RmlBridge::PackedTextColorToCss(getGoldColor(nZen)));
+    syncText(&StorageRmlModel::zenTier, "zen_tier",
+             UI::RmlBridge::GoldTierKey(GameLogic::Items::ClassifyGoldAmount(nZen)));
 
     syncWide(&StorageRmlModel::feeLabel, "fee_label", I18N::Game::StorageFee);
 
