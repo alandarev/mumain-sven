@@ -5,7 +5,7 @@
 #include "UI/RmlBridge/RmlModelBinder.h"
 #include "UI/RmlBridge/RmlTheme.h"
 #include "UI/Scaling/UITransform.h"
-#include "UI/Widgets/UIControls.h"
+#include "Render/Text/CUIRenderTextSDLTtf.h"
 
 #include <RmlUi/Core/Context.h>
 #include <RmlUi/Core/DataModelHandle.h>
@@ -72,19 +72,22 @@ namespace UI::RmlBridge::Tooltip
 
         // Row heights come from the native text renderer itself (MeasureText's logical height,
         // as RenderTipTextList() uses), not from RmlUi's font metrics, which round differently.
-        void ApplyNativeMetrics(TooltipRmlModel& model, float fixedWidth)
+        void ApplyNativeMetrics(TooltipRmlModel& model, const Config& config)
         {
-            const UI::Scaling::Transform transform = UI::Scaling::GetActiveTransform();
-            model.fixedWidthPx = fixedWidth * transform.scaleX;
+            const UI::Scaling::Transform transform = config.transform.value_or(UI::Scaling::GetActiveTransform());
+            model.fixedWidthPx = config.fixedWidth * transform.scaleX;
             model.textPx = UI::Scaling::NativeTextPixelSize(UI::Scaling::FontRole::Normal, transform);
             model.borderPx = kNativeBorderUnits * transform.scaleX;
             model.paddingPx = kNativePaddingUnits * transform.scaleX;
 
-            g_pRenderText->SetFont(g_hFont);
-            const float normalHeight = static_cast<float>(g_pRenderText->MeasureText(L"Q", 1).cy);
-            g_pRenderText->SetFont(g_hFontBold);
-            const float boldHeight = static_cast<float>(g_pRenderText->MeasureText(L"Q", 1).cy);
-            g_pRenderText->SetFont(g_hFont);
+            // The native line height follows the active transform: measure under the chosen one.
+            float normalHeight = 0.0f;
+            float boldHeight = 0.0f;
+            {
+                const UI::Scaling::ScopedActiveTransform measureScope(transform);
+                normalHeight = static_cast<float>(CUIRenderTextSDLTtf::LineHeight(UI::Scaling::FontRole::Normal));
+                boldHeight = static_cast<float>(CUIRenderTextSDLTtf::LineHeight(UI::Scaling::FontRole::Bold));
+            }
 
             for (TooltipLineEntry& line : model.lines)
             {
@@ -210,7 +213,7 @@ namespace UI::RmlBridge::Tooltip
         for (const Line& line : config.lines)
             model.lines.push_back(ToLineEntry(line));
         model.centerText = (config.textAlign == Config::TextAlign::Center);
-        ApplyNativeMetrics(model, config.fixedWidth);
+        ApplyNativeMetrics(model, config);
 
         // First pass: a reasonable guess so layout has something sane to measure. Growing upward
         // needs the real height to place the bottom edge at anchorY, which isn't known yet -- use

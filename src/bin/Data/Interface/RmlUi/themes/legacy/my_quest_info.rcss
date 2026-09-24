@@ -139,8 +139,8 @@
 	color: token(text-info);
 }
 .quest-content-row.bold { font-weight: bold; }
+/* A clickable row keeps its colour on hover, as the original list box does. */
 .quest-content-row.clickable { cursor: pointer; pointer-events: auto; }
-.quest-content-row.clickable:hover { color: token(text-hover); }
 
 /* Open/Give-up only -- Exit is fully shared now (docked_panel_frame.rcss's #btn_exit). */
 .quest-btn {

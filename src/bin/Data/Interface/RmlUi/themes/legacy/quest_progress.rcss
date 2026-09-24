@@ -166,8 +166,8 @@
 	color: token(text-primary);
 }
 .qp-reward-row.bold { font-weight: bold; }
+/* A clickable row keeps its colour on hover, as the original list box does. */
 .qp-reward-row.clickable { cursor: pointer; pointer-events: auto; }
-.qp-reward-row.clickable:hover { color: token(text-hover); }
 
 .qp-btn-complete {
 	position: absolute;
