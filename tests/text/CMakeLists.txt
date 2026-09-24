@@ -4,6 +4,7 @@ mu_add_test(
         test_sdl_ttf_color.cpp
         test_text_line_wrap.cpp
         ${CMAKE_SOURCE_DIR}/src/source/Core/Text/TextLineWrap.cpp
+        ${CMAKE_SOURCE_DIR}/src/source/UI/RmlBridge/RmlPackedColor.cpp
 )
 
 mu_add_test(

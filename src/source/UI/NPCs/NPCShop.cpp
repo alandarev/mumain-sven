@@ -14,6 +14,7 @@
 
 // RmlUi migration -- see this class's header comment.
 #include "Render/RmlUi/RmlUiRuntime.h"
+#include "UI/RmlBridge/RmlPackedColor.h"
 #include "UI/RmlBridge/RmlTheme.h"
 #include "UI/RmlBridge/RmlRootTransform.h"
 #include "UI/Scaling/UITransform.h"
@@ -377,12 +378,8 @@ void mu::ui::window::CNPCShop::SyncRmlModel()
     ConvertGold(AllRepairGold, goldBuf);
     syncWide(&NPCShopRmlModel::repairGoldText, "repair_gold_text", goldBuf);
 
-    // getGoldColor() packs (A<<24)+(R<<16)+(G<<8)+B -- unpack into an rgba() CSS string.
-    const unsigned int goldArgb = getGoldColor(AllRepairGold);
-    char goldColorBuf[32];
-    snprintf(goldColorBuf, sizeof(goldColorBuf), "rgba(%u,%u,%u,%u)",
-        (goldArgb >> 16) & 0xFF, (goldArgb >> 8) & 0xFF, goldArgb & 0xFF, (goldArgb >> 24) & 0xFF);
-    syncText(&NPCShopRmlModel::repairGoldColor, "repair_gold_color", Rml::String(goldColorBuf));
+    syncText(&NPCShopRmlModel::repairGoldColor, "repair_gold_color",
+             UI::RmlBridge::PackedTextColorToCss(getGoldColor(AllRepairGold)));
 }
 
 float mu::ui::window::CNPCShop::GetLayerDepth()

@@ -13,6 +13,8 @@
 
 // RmlUi migration -- see this class's header comment.
 #include "Render/RmlUi/RmlUiRuntime.h"
+#include "Render/Text/SDLTtfColorPack.h"
+#include "UI/RmlBridge/RmlPackedColor.h"
 #include "UI/RmlBridge/RmlTheme.h"
 #include "UI/RmlBridge/RmlRootTransform.h"
 #include "UI/Scaling/UITransform.h"
@@ -431,32 +433,32 @@ void CTrade::ConvertYourLevel(int& rnLevel, DWORD& rdwColor)
     if (m_nYourLevel >= 400)
     {
         rnLevel = 400;
-        rdwColor = (255 << 24) + (153 << 16) + (153 << 8) + (255);
+        rdwColor = mu::sdlttf::PackColorDWORD(255, 153, 153, 255);
     }
     else if (m_nYourLevel >= 300)
     {
         rnLevel = 300;
-        rdwColor = (255 << 24) + (255 << 16) + (153 << 8) + (255);
+        rdwColor = mu::sdlttf::PackColorDWORD(255, 153, 255, 255);
     }
     else if (m_nYourLevel >= 200)
     {
         rnLevel = 200;
-        rdwColor = (255 << 24) + (255 << 16) + (230 << 8) + (210);
+        rdwColor = mu::sdlttf::PackColorDWORD(210, 230, 255, 255);
     }
     else if (m_nYourLevel >= 100)
     {
         rnLevel = 100;
-        rdwColor = (255 << 24) + (24 << 16) + (201 << 8) + (0);
+        rdwColor = mu::sdlttf::PackColorDWORD(0, 201, 24, 255);
     }
     else if (m_nYourLevel >= 50)
     {
         rnLevel = 50;
-        rdwColor = (255 << 24) + (0 << 16) + (150 << 8) + (255);
+        rdwColor = mu::sdlttf::PackColorDWORD(255, 150, 0, 255);
     }
     else							//  빨간색.
     {
         rnLevel = 10;
-        rdwColor = (255 << 24) + (0 << 16) + (0 << 8) + (255);
+        rdwColor = mu::sdlttf::PackColorDWORD(255, 0, 0, 255);
     }
 }
 
@@ -492,13 +494,6 @@ void CTrade::SyncRmlModel()
     {
         syncText(field, boundName, StringUtils::WideToNarrow(text));
     };
-    auto argbToRgba = [](DWORD argb) -> Rml::String
-    {
-        char buf[32];
-        snprintf(buf, sizeof(buf), "rgba(%u,%u,%u,%u)",
-            (argb >> 16) & 0xFF, (argb >> 8) & 0xFF, argb & 0xFF, (argb >> 24) & 0xFF);
-        return Rml::String(buf);
-    };
 
     syncWide(&TradeRmlModel::title, "title", I18N::Game::Trade);
 
@@ -527,16 +522,18 @@ void CTrade::SyncRmlModel()
     wchar_t levelBuf[160];
     mu_swprintf(levelBuf, L"Lv.%ls", levelValueBuf);
     syncWide(&TradeRmlModel::yourLevelText, "your_level_text", levelBuf);
-    syncText(&TradeRmlModel::yourLevelColor, "your_level_color", argbToRgba(dwLevelColor));
+    syncText(&TradeRmlModel::yourLevelColor, "your_level_color", UI::RmlBridge::PackedTextColorToCss(dwLevelColor));
 
     wchar_t goldBuf[256];
     ::ConvertGold(m_nYourTradeGold, goldBuf);
     syncWide(&TradeRmlModel::yourGoldText, "your_gold_text", goldBuf);
-    syncText(&TradeRmlModel::yourGoldColor, "your_gold_color", argbToRgba(::getGoldColor(m_nYourTradeGold)));
+    syncText(&TradeRmlModel::yourGoldColor, "your_gold_color",
+             UI::RmlBridge::PackedTextColorToCss(::getGoldColor(m_nYourTradeGold)));
 
     ::ConvertGold(m_nMyTradeGold, goldBuf);
     syncWide(&TradeRmlModel::myGoldText, "my_gold_text", goldBuf);
-    syncText(&TradeRmlModel::myGoldColor, "my_gold_color", argbToRgba(::getGoldColor(m_nMyTradeGold)));
+    syncText(&TradeRmlModel::myGoldColor, "my_gold_color",
+             UI::RmlBridge::PackedTextColorToCss(::getGoldColor(m_nMyTradeGold)));
 
     syncWide(&TradeRmlModel::myIdText, "my_id_text", Hero->ID);
 

@@ -38,6 +38,7 @@ extern bool SelectFlag;
 // RmlUi migration -- see this class's header comment.
 #include "Render/RmlUi/RmlUiRuntime.h"
 #include "UI/RmlBridge/RmlTheme.h"
+#include "UI/RmlBridge/RmlPackedColor.h"
 #include "UI/RmlBridge/RmlDraggable.h"
 #include "UI/RmlBridge/RmlRootTransform.h"
 #include "UI/RmlBridge/RmlTooltip.h"
@@ -917,12 +918,7 @@ void CMyInventory::SyncRmlModel()
     ConvertGold(dwZen, goldBuf);
     syncWide(&MyInventoryRmlModel::goldText, "gold_text", goldBuf);
 
-    // getGoldColor() packs (A<<24)+(R<<16)+(G<<8)+B -- unpack into an rgba() CSS string.
-    const unsigned int goldArgb = getGoldColor(dwZen);
-    char goldColorBuf[32];
-    snprintf(goldColorBuf, sizeof(goldColorBuf), "rgba(%u,%u,%u,%u)",
-        (goldArgb >> 16) & 0xFF, (goldArgb >> 8) & 0xFF, goldArgb & 0xFF, (goldArgb >> 24) & 0xFF);
-    syncText(&MyInventoryRmlModel::goldColor, "gold_color", Rml::String(goldColorBuf));
+    syncText(&MyInventoryRmlModel::goldColor, "gold_color", UI::RmlBridge::PackedTextColorToCss(getGoldColor(dwZen)));
 
     // One flag now covers both visibility and interactivity via RmlUi's data-class-hidden.
     const bool otherWindowOpen = g_pNewUISystem->IsVisible(INTERFACE_NPCSHOP)
