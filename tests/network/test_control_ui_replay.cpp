@@ -10,7 +10,8 @@ nlohmann::json Snapshot(bool rml = true)
                                  {{{"window", "mainframe"}, {"visible", true}, {"registered", true}},
                                   {{"window", "messagebox"}, {"visible", true}, {"registered", true}}}},
                                 {"observability",
-                                 {{"version", 3},
+                                 {{"version", 4},
+                                  {"input_idle", true},
                                   {"messagebox_active", false},
                                   {"native_events_pending", false},
                                   {"crywolf_event_active", false},
@@ -394,8 +395,8 @@ TEST_CASE("Schema 3 requires inactive event observations even for hidden manager
             state["observability"].erase(key);
             CHECK_FALSE(Check(state).empty());
         }
-        for (const auto& version : {nlohmann::json(2), nlohmann::json(4), nlohmann::json(nullptr), nlohmann::json("3"),
-                                    nlohmann::json(3.0), nlohmann::json(true)})
+        for (const auto& version : {nlohmann::json(2), nlohmann::json(3), nlohmann::json(5), nlohmann::json(nullptr),
+                                    nlohmann::json("4"), nlohmann::json(4.0), nlohmann::json(true)})
         {
             auto state = clean;
             state["observability"]["version"] = version;

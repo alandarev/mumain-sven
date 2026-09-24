@@ -261,6 +261,24 @@ TEST_CASE("Quick producer drift reaches real JSON handler refusal and settlement
     const auto initial = List("quick_command");
     REQUIRE(initial["quick_peer"]["ready"] == true);
     REQUIRE(initial["quick_peer"]["input_idle"] == true);
+    CHECK(initial["observability"]["input_idle"] == true);
+    const auto peerless = List();
+    CHECK(peerless["quick_peer"]["ready"] == false);
+    CHECK(peerless["observability"]["input_idle"] == true);
+    CHECK(peerless["observability"]["pointer"] == json::array({100.f, 100.f, MouseX, MouseY}));
+    const int previousMouseX = MouseX;
+    const int previousMouseY = MouseY;
+    g_fWindowMouseX = 512.f;
+    g_fWindowMouseY = 192.f;
+    MouseX = 320;
+    MouseY = 120;
+    const auto moved = List();
+    CHECK(moved["observability"]["pointer"] == json::array({512.f, 192.f, 320, 120}));
+    CHECK(moved["guard"] != peerless["guard"]);
+    g_fWindowMouseX = 100.f;
+    g_fWindowMouseY = 100.f;
+    MouseX = previousMouseX;
+    MouseY = previousMouseY;
     // The Act is production code reading production snapshots. Installation is
     // explicit, not a successful guarded OpenQuickCommand or renderer-frame test.
     for (const char* drift : {"geometry", "index", "peer_index", "context", "held", "edge", "queued", "unavailable"})
@@ -307,7 +325,11 @@ TEST_CASE("Quick producer drift reaches real JSON handler refusal and settlement
         const auto changed = List("quick_command");
         CHECK(changed != before);
         if (kind == "held" || kind == "edge" || kind == "queued")
+        {
             CHECK(changed["quick_peer"]["input_idle"] == false);
+            CHECK(changed["observability"]["input_idle"] == false);
+            CHECK(json::parse(App::Control::UiObservabilityObject())["input_idle"] == false);
+        }
         RefuseStale(before, "quick_command");
         CHECK(act.Tick(response) == App::Control::Act::Status::Finished);
         CHECK(json::parse(response)["error"] == "not_allowed");

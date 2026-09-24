@@ -38,7 +38,8 @@ TEST_CASE("Real observation producer reports unavailable managers without mutati
     REQUIRE(g_pNewUIMng == nullptr);
     const auto first = App::Control::UiObservabilityObject();
     const auto state = json::parse(first);
-    CHECK(state["version"] == 3);
+    CHECK(state["version"] == 4);
+    CHECK(state["input_idle"].is_null());
     CHECK(state["generic_dialogs_supported"] == true);
     for (const char* key : {"messagebox_active", "native_events_pending", "friend_children_active", "system_menu_only",
                             "generic_confirm_active", "generic_menu_active", "input_focus_owner",

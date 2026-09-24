@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "App/Control/ControlUiObservability.h"
 #include "App/Control/ControlUiObservation.h"
+#include "App/Control/ControlQuickPeer.h"
 #include "GameLogic/Quests/QuestMng.h"
 #include "MUHelper/MuHelper.h"
 #include "Scenes/MainScene.h"
@@ -161,6 +162,12 @@ std::string UiObservabilityObject()
 {
     json result;
     result["version"] = UiObservabilityVersion;
+    const bool worldReady =
+        SceneFlag == MAIN_SCENE && LoadingWorld < 30 && g_pNewUISystem != nullptr && g_pNewKeyInput != nullptr;
+    result["input_idle"] = worldReady ? json(ControlInputIdle()) : json(nullptr);
+    // Window-pixel motion and legacy logical cursor are observed together;
+    // hover acknowledgements alone cannot establish where a captured cursor drew.
+    result["pointer"] = worldReady ? json::array({g_fWindowMouseX, g_fWindowMouseY, MouseX, MouseY}) : json(nullptr);
     result["helper_active"] = MUHelper::g_MuHelper.IsActive();
     result["input_focused"] = CUITextInputBox::IsAnyInputBoxFocused();
     result["input_focus_owner"] = nullptr;

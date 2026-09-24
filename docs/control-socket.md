@@ -165,7 +165,7 @@ every run, on any build that carries them:
 - `ui list` names every main-scene window (`INTERFACE_*` without the prefix,
   lowercased: `inventory`, `character`, `gensranking`, …) with its
   registered/visible flags and, where the build has RmlUi, the active theme.
-  Instrumented builds additionally return `observability.version: 3`, with
+  Instrumented current builds additionally return `observability.version: 4`, with
   `messagebox_active` (native dialog stack, independent of manager visibility),
   `legacy_popup_active`, `generic_confirm_active`/`generic_menu_active`,
   `helper_active`, `input_focused` and `friend_open_allowed`.
@@ -183,11 +183,17 @@ every run, on any build that carries them:
   `IsCreated()` do not establish inactivity. Guarded replay requires both fields
   to be boolean false, whether the managers are visible or hidden. It never hides
   these managers or treats them as unconditionally passive.
-  Consumers must require integer schema 3 and reject older binaries, missing,
-  null or malformed event flags before input. Forward the complete opaque `guard`
+  Schema 4 also reports `pointer: [window_x, window_y, logical_x, logical_y]` independently of quick-peer visibility when the world is ready (otherwise null). The first pair is SDL hover window pixels; the second is the legacy render cursor position after the screen-overlay transform. These units differ and may differ between clients using different transforms. A hover acknowledgement is not evidence that the measured cursor reached its requested position; re-observe and compare both representations. The complete pointer value participates in the opaque UI guard. The protected schema-3 old client exposes these four coordinates only via a valid explicit quick peer.
+  Schema 4 also reports `input_idle` independently of quick-peer visibility:
+  it uses the same physical key/mouse, pending SDL events, key edges and synthetic
+  input predicate as the quick-peer guard. It is null outside a ready world;
+  false or null never proves safe input. The protected original comparison
+  binary still has schema 3 and supplies this idle predicate only through a
+  valid explicit quick peer. Consumers must require the expected integer schema
+  and reject missing, null or malformed safety fields before input. Forward the complete opaque `guard`
   unchanged; both fields participate in that snapshot, so event-state drift
   refuses before the normal synchronous callback. Rebuilding does not update an
-  already-running client: reload verified builds separately before using schema 3.
+  already-running client: reload verified builds separately before using schema 4.
   These read-only observations do not certify that every modal/input mechanism
   is covered. Consumers must also check scene, registry/transaction state and
   any other prerequisites of their operation. Repeating `ui list` does not
@@ -327,7 +333,7 @@ No-target quick menus and physical Alt/right-click behavior are not covered. For
 this route, send `ui list` with integer `peer_key` and string `peer_id` identifying
 the intended live comparison character. Use its fresh opaque guard with
 `guarded_show` or `guarded_hide`, `window: "quick_command"`, and the same two peer
-fields. The version-1 `quick_peer` sub-contract is required; ordinary schema-3
+fields. The version-1 `quick_peer` sub-contract is required; ordinary guarded
 observations and existing unguarded commands retain their semantics. A list without
 peer fields is suitable for other guarded panels, not quick commands.
 
