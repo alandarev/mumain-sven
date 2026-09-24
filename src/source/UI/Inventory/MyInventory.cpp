@@ -120,6 +120,9 @@ void CMyInventory::BuildRmlUi()
                 c.Bind("root_x", &model.rootX);
                 c.Bind("root_y", &model.rootY);
                 c.Bind("root_scale", &model.rootScale);
+                model.textPx =
+                    UI::Scaling::NativeTextPixelSize(UI::Scaling::FontRole::Normal, UI::Scaling::GetActiveTransform());
+                c.Bind("text_px", &model.textPx);
 
                 c.Bind("title", &model.title);
                 c.Bind("gold_text", &model.goldText);
@@ -897,6 +900,7 @@ void CMyInventory::SyncRmlModel()
     if (IsVisible()) m_pRmlDoc->Show(); else m_pRmlDoc->Hide();
 
     UI::RmlBridge::SyncRootTransform(m_RmlBinder, m_Pos);
+    UI::RmlBridge::SyncNativeTextSize(m_RmlBinder);
 
     auto syncBool = [this](bool MyInventoryRmlModel::* field, const char* boundName, bool value)
     {
