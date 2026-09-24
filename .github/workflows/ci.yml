@@ -48,6 +48,10 @@ jobs:
           if [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
             # On main push, diff against the previous commit
             DIFF_BASE=HEAD~1
+          elif [ "${{ github.repository }}" = "alandarev/mumain-sven" ] && [ "${{ github.ref }}" = "refs/heads/preflight-windows-texture-loader" ]; then
+            # Fork-only preflight: origin/main is an older mirror. Check the
+            # contribution against its reviewed upstream base, not inherited changes.
+            DIFF_BASE=141a82be020da9de93d14c3b3a0802cf7a1c9f83
           else
             DIFF_BASE=origin/main
           fi
