@@ -428,6 +428,7 @@ void mu::ui::window::CGemIntegrationDisjointMsgBox::RenderButtons()
 void mu::ui::window::ShowSystemMenuDialog()
 {
     GenericMenuConfig cfg;
+    cfg.nativeFrame = { 100, 5 };
     cfg.purpose = GenericMenuConfig::Purpose::SystemMenu;
 
     GenericMenuConfig::MenuButton btnGameOver;
@@ -852,6 +853,7 @@ void mu::ui::window::ShowChaosMixMenuDialog()
     wchar_t szText[256] = { 0, };
 
     GenericMenuConfig cfg;
+    cfg.nativeFrame = { 60, 13 };
     cfg.title = I18N::Game::SelectMethodOfCombination;
     // No shared summary lines -- native interleaves each recipe's own blurb directly above its
     // button instead of grouping all the body text above the whole list; see MenuButton::lines.
@@ -1338,6 +1340,7 @@ bool mu::ui::window::CCursedTempleProgressMsgBox::CheckHeroAction()
 void mu::ui::window::ShowCherryBlossomMenuDialog()
 {
     GenericMenuConfig cfg;
+    cfg.nativeFrame = { 60, 8 };
 
     wchar_t title[256];
     mu_swprintf(title, L"%ls", MonsterScript[450].Name);
@@ -1376,6 +1379,7 @@ void mu::ui::window::ShowCherryBlossomMenuDialog()
 void mu::ui::window::ShowGemIntegrationMenuDialog()
 {
     GenericMenuConfig cfg;
+    cfg.nativeFrame = { 100, 5 };
     cfg.lines.push_back({ I18N::Game::JewelCombination, true });
     cfg.lines.push_back({ I18N::Game::YouCanCombineOrDissolve, false });
     cfg.lines.push_back({ I18N::Game::VariousJewels, false });
@@ -1726,6 +1730,7 @@ bool mu::ui::window::CCursedTempleHolicItemSaveLayout::SetLayout()
 void mu::ui::window::ShowLuckyTradeMenuDialog()
 {
     GenericMenuConfig cfg;
+    cfg.nativeFrame = { 60, 7 };
     // Hardcoded Korean, no I18N constant -- faithfully carried over from native's own literal.
     cfg.title = L"럭키아이템 교환NPC"; // "LuckyItem Trade NPC"
     cfg.lines.push_back({ L"럭키아이템으로 교환하거나 제련할 수 있습니?", false });
@@ -1757,6 +1762,7 @@ void mu::ui::window::ShowLuckyTradeMenuDialog()
 void mu::ui::window::ShowTrainerMenuDialog()
 {
     GenericMenuConfig cfg;
+    cfg.nativeFrame = { 60, 7 };
     cfg.title = I18N::Game::Trainer;
     cfg.lines.push_back({ I18N::Game::Hi, false });
 
@@ -1792,6 +1798,7 @@ void mu::ui::window::ShowTrainerMenuDialog()
 void mu::ui::window::ShowTrainerRecoverDialog()
 {
     GenericMenuConfig cfg;
+    cfg.nativeFrame = { 60, 7 };
     cfg.title = I18N::Game::Trainer;
     cfg.lines.push_back({ I18N::Game::SelectThePetToRecoverLife, false });
 
@@ -1833,6 +1840,7 @@ void mu::ui::window::ShowTrainerRecoverDialog()
 void mu::ui::window::ShowElpisMenuDialog(int iMessageType)
 {
     GenericMenuConfig cfg;
+    cfg.nativeFrame = { 60, 12 };
     cfg.title = I18N::Game::Elpis;
 
     switch (iMessageType)
@@ -1881,6 +1889,7 @@ void mu::ui::window::ShowElpisMenuDialog(int iMessageType)
 void mu::ui::window::ShowSeedMasterMenuDialog()
 {
     GenericMenuConfig cfg;
+    cfg.nativeFrame = { 60, 7 };
     cfg.title = I18N::Game::SeedMaster;
     cfg.lines.push_back({ I18N::Game::ExtractTheSeedOrTheSeedSphere, false });
     cfg.lines.push_back({ I18N::Game::YouMayAssemblyThemTogether, false });
@@ -1917,6 +1926,7 @@ void mu::ui::window::ShowSeedMasterMenuDialog()
 void mu::ui::window::ShowSeedInvestigatorMenuDialog()
 {
     GenericMenuConfig cfg;
+    cfg.nativeFrame = { 60, 7 };
     cfg.title = I18N::Game::SeedResearcher;
     cfg.lines.push_back({ I18N::Game::EitherApplyTheSeedSphere, false });
     cfg.lines.push_back({ I18N::Game::OrDestroyTheSeedSphereAccordingly, false });
@@ -1953,6 +1963,7 @@ void mu::ui::window::ShowSeedInvestigatorMenuDialog()
 void mu::ui::window::ShowResetCharacterPointDialog()
 {
     GenericMenuConfig cfg;
+    cfg.nativeFrame = { 60, 7 };
     cfg.title = I18N::Game::ReInitializationHelper;
     cfg.lines.push_back({ I18N::Game::ClickOnTheButtonToReinitializeAllStatPoints, false });
 
@@ -2277,6 +2288,7 @@ bool mu::ui::window::CGuild_ToPerson_PositionLayout::SetLayout()
 void mu::ui::window::ShowDelgardoMainMenuDialog()
 {
     GenericMenuConfig cfg;
+    cfg.nativeFrame = { 60, 7 };
     cfg.title = I18N::Game::Delgado;
     cfg.lines.push_back({ I18N::Game::RegisterYourLuckyCoinsOr, false });
     cfg.lines.push_back({ I18N::Game::UseTheLuckyCoinsYouAlreadyHave, false });
