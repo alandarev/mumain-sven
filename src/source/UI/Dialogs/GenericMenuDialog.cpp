@@ -63,6 +63,7 @@ void CGenericMenuDialog::BuildRmlUi()
             c.Bind("buttons", &model.buttons);
 
             c.Bind("has_title", &model.hasTitle);
+            c.Bind("is_system_menu", &model.isSystemMenu);
             c.Bind("title", &model.title);
 
             // window_shell's positioning/dragging extension -- unused here, this dialog stays
@@ -289,6 +290,12 @@ void CGenericMenuDialog::SyncRmlModel()
     {
         model.hasTitle = hasTitle;
         m_RmlBinder.MarkDirty("has_title");
+    }
+    const bool isSystemMenu = m_Active.purpose == GenericMenuConfig::Purpose::SystemMenu;
+    if (model.isSystemMenu != isSystemMenu)
+    {
+        model.isSystemMenu = isSystemMenu;
+        m_RmlBinder.MarkDirty("is_system_menu");
     }
     const std::string title = StringUtils::WideToNarrow(m_Active.title.c_str());
     if (model.title != title)
