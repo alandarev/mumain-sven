@@ -429,6 +429,7 @@ void mu::ui::window::ShowSystemMenuDialog()
 {
     GenericMenuConfig cfg;
     cfg.nativeFrame = { 100, 5 };
+    cfg.systemMenu = true;
     cfg.purpose = GenericMenuConfig::Purpose::SystemMenu;
 
     GenericMenuConfig::MenuButton btnGameOver;

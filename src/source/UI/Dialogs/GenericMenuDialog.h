@@ -96,6 +96,8 @@ namespace mu::ui::window
             int dividerTop = 0;    // y offset of a newui_Message_Line divider (CElpisMsgBox)
         };
         NativeFrame nativeFrame;
+        // The in-game system menu (native CSystemMenuMsgBox): a theme may lay it out like native.
+        bool systemMenu = false;
 
         // Optional, fires on Esc. Decoupled from `buttons` (not "whichever button is last") so a
         // caller can't accidentally rely on button order for cancel semantics.
@@ -192,7 +194,7 @@ namespace mu::ui::window
         struct GenericMenuRmlModel
         {
             bool hasTitle = false;
-            bool isSystemMenu = false; // Purpose::SystemMenu: a theme may place it like native
+            bool isSystemMenu = false; // GenericMenuConfig::systemMenu
             bool highlightTitle = false;
             float nativeTop = 0.f;     // GenericMenuConfig::nativeFrame, in reference pixels
             float nativeHeight = 0.f;
