@@ -162,7 +162,7 @@ C++ hover callback, see `layout-and-scaling.md`'s "Global UI scale" section). Th
 | `CChatCommandWindow` | `CObject`-tier | Not started | TBD | |
 | `CHelpWindow` | `CObject`-tier | Not started | TBD | |
 | `CWindowMenu` | `CObject`-tier | Not started | TBD | |
-| `CCreditWin` | `CObject`-tier | Done | RmlUi-only 2D | Confirmed `LoadThemedDocument` call (`credit_win.rml`); first found unlogged by this audit, now listed in `STATUS.md`'s "What's migrated". |
+| `CCreditWin` | `CObject`-tier | Done | RmlUi-only 2D | Flagged by the 2026-09-16 audit as an apparently-shipped port that had never been logged; **confirmed and recorded in `STATUS.md` 2026-09-26** — `credit_win.rml` plus both themes' `.rcss`, `LoadThemedDocument` + theme-reload registration, and no native `RenderImage`/`RenderText`/`CSprite` calls left. The port was real; only the record was missing. |
 
 ### Excluded from this ledger (infrastructure / reusable widgets, not standalone "components")
 
