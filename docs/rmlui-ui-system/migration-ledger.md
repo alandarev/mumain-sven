@@ -59,8 +59,9 @@ have had no investigation beyond confirming no RmlUi call sites exist, not a sha
 | `CGensRanking` | `CObject`-tier | Not started | TBD | Aliases `CCharacterInfoWindow`'s texture slots (`STATUS.md`) — check for coupling before porting either independently |
 | `CCommandWindow` | `CObject`-tier | Not started | TBD | |
 | `CQuickCommandWindow` | `CObject`-tier | Not started | TBD | |
-| `CMoveCommandWindow` | `CObject`-tier | Not started | TBD | |
-| `CChatLogWindow` / `CSystemLogWindow` | `CObject`-tier | Not started | TBD | Same header, two classes |
+| `CMoveCommandWindow` | `CObject`-tier | Done (2026-09-27) | RmlUi-only 2D | `move_command.rml` + both themes. The left-docked warp list (`/move`), and the **second consumer of `base.rcss`'s `.scroll-pane`** — the one that actually retires a hand-rolled scrollbar: `ThumbYForScrollOffset`/`ScrollOffsetForThumbY`/`UpdateDragState`/`MaximumScrollOffset`/`ClampScrollOffset` and the three-state `MOVECOMMAND_MOUSE_EVENT` drag machine are all deleted, along with their five unit tests and this window's whole `IMAGE_LIST` (it aliased `CChatLogWindow::IMAGE_SCROLL_*`, which is why that enum was kept two commits earlier; it loaded its own `LoadBitmap` copies, so the coupling was compile-time only). `UI::MoveCommand::CalculateLayout()` stays — the window genuinely derives its height from the dock column, that is real intent, not scroll bookkeeping. **The only `LayoutMode::DockLeft` window in the game**, so it has no dock neighbours to match and links no shared frame partial; modern borrows `docked_panel_frame.rcss`'s forged vocabulary at rail scale rather than its 190x429 dialog chrome. First `.scroll-pane` consumer inside a `transform: scale(root_scale)` panel — see `component-catalog.md`'s new counter-scale note for the technique and what it costs. |
+| `CChatLogWindow` | `CObject`-tier | Done (2026-09-27) | RmlUi-only 2D | `chat_log.rml` + both themes. First consumer of `base.rcss`'s `.scroll-pane`, and the first list in this codebase bound with `data-attr-class` (a per-line class composed in the model, instead of nine `data-class-*` attributes). RmlUi owns the fill, the lines, the wheel and the scrollbar; C++ keeps the message vectors, the filters, the 3-line-step resize, and the pointed-line hit test. `AddText()`'s 333 call sites are untouched -- it was always a data API. See `STATUS.md` for the DOM-scroll decision and what it cost. |
+| `CSystemLogWindow` | `CObject`-tier | Done (2026-09-27) | RmlUi-only 2D | `system_log.rml` + both themes. The top-left system/error overlay, ported right after the `CChatLogWindow` it shares a file with, and reusing its `ChatLogLineEntry` line shape. Simpler in three ways that are easy to get wrong by copying its file-mate: it grows DOWNWARD from a fully static origin (`Create()` at (0,80), `m_WndSize.cy` never recomputed, `SetPosition()` never called), it has only two colours (system-blue vs error-red for everything else, not a per-type map), and its row pitch is font-derived (`MeasureText(L"Q").cy * 1.2`) so RCSS's own `line-height` default of 1.2 reproduces it by doing nothing. No scrolling and no interaction at all, so the whole panel is `pointer-events: none`. |
 | `CMiniMap` | `CObject`-tier | Not started | TBD | |
 | `CMasterLevel` | `CObject`-tier | Not started | TBD | Already a `CGenericConfirmDialog` *caller* for one confirm popup — the window's own chrome is still fully native |
 | `CUIMuHelper` (+ `CMuHelperSkillList`, `CMuHelperExt`) | `CObject`-tier | Not started | TBD | The MU Helper bot *configuration* window — distinct from the always-visible `CMuHelperBar`, which is done |
@@ -169,7 +170,12 @@ C++ hover callback, see `layout-and-scaling.md`'s "Global UI scale" section). Th
 `C3DCamera` and `CGroup` (`UI/Core/`) are `CManager` plumbing, not ported windows. `CTextBox`,
 `CSlideWindow`, `CScrollBar`, `CChatInputBox` (`UI/Widgets/Window/`) are low-level composable
 widgets used *by* several windows above, not top-level components with their own migration status —
-they retire implicitly as their host windows port. `CMessageBoxMng` (`UI/Dialogs/MessageBox.h`) is
+they retire implicitly as their host windows port. **`CChatInputBox` was ported directly
+(2026-09-27)** rather than waiting for a host, since it *is* the chat bar: `chat_input.rml` + both
+themes, with the bar art, all ten buttons, the tooltip and both text fields now RmlUi. Its two
+`CUITextInputBox` fields became stock `<input>`s (`.text-field`), and RmlUi's built-in document Tab
+navigation replaced `SetTabTarget()`. C++ keeps the history, the send logic and the keyboard
+handling. See `STATUS.md` for the focus/dispatch detail that makes the keyboard half work at all. `CMessageBoxMng` (`UI/Dialogs/MessageBox.h`) is
 the manager/plumbing class underlying the whole `TMsgBoxLayout<T>` mechanism the Dialog family below
 uses, not a dialog itself.
 
@@ -240,3 +246,8 @@ Before starting a new port: find the component's row, read its Detail pointer fo
 and check the "Checklist for every new port" in `STATUS.md`. After landing a port: update the row's
 Status/Target columns here in the same commit — this file drifting out of sync with reality is worse
 than it not existing, since a stale "Not started" reads as a confident false negative.
+
+**`Done` means ported, not audited.** Every port makes judgement calls that diverge slightly from
+the original, and nothing revisits them once the row flips. `tracked-deferrals.md`'s "audit where
+ports steered away from the original UI" entry is the standing pass for that, with the known
+instances already seeded — read it before treating a `Done` row as settled.

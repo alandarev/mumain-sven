@@ -33,25 +33,6 @@ one of the trigger initiatives on the right.
 | ~~All modern-theme `.rcss` files~~ | **Superseded 2026-09-10**: the entire modern-theme token layer was renamed and revalued a second time (cool-steel → blackened-iron/dark-forged-metal, a real design-system consolidation, not just a value refresh — see `modern-theme-visual-direction.md`'s "Second generation" note). Real duplication was also consolidated: `login.rcss`'s own-copy `.btn`/`.btn-ok`/`.checkbox-box` and `login_main.rcss`/`char_sel_main.rcss`'s independent `.btn-icon` copies were deleted in favor of `base.rcss`'s shared versions. New shared primitives added: `.btn-icon`, structured tooltip BEM classes, `.slot`/`.slot--filled`/`.slot--selected`. HUD gauge colors promoted from literal hex to `resource-hp`/`-mp`/`-sd`/`-ag` tokens (layout unchanged — see the next row). | Resolved — no further action, unless the tokens change again. |
 | HUD circular glass-orb + wrapping arc gauges (reference visual study, not yet built) | The 2026-09-10 iron-palette migration deliberately retinted `main_frame.rcss`'s existing rectangular HP/MP/AG/SD bars rather than rebuilding them as circular orbs/arcs — that's a structural rebuild (new markup, new `CMainFrameWindow` C++ binding shape, new tooltip anchors, interacts with `main_frame_bg.rcss`'s paint-order mechanism and `BottomHudScale()`), not a retint, and touches live combat UI. Two RmlUi-native techniques were confirmed viable for it (`<progress direction="clockwise">` for the arcs via real octant geometry, layered `radial-gradient` for the orb liquid) but not used yet. | A dedicated, focused pass scoped just to this, once explicitly prioritized — see `modern-theme-visual-direction.md`'s "Known follow-up" section. |
 
-## Tracked deferral: `RefreshLogicalAnchorPosition()`'s scale conversion
-
-`UI::RmlBridge::RefreshLogicalAnchorPosition()` (`RmlPanelGeometry.h`) reads an anchor element's
-`GetAbsoluteOffset()` and un-maps it through the window's transform to get a native reference-space
-position. That sum is mixed-space: `root_x`/`root_y` were already pre-multiplied by the scale
-(`SyncRootTransform`), while the anchor's own offset inside `#panel` was not, so un-mapping the whole
-sum wrongly divides the child half. `QuestProgress.cpp` wants `m_Pos.x + 95` and gets
-`m_Pos.x + 95/scale`. Same misconception as the `RefreshLogicalPanelSize()` bug that shrank all 17
-native hit boxes (`layout-and-scaling.md`, "Reading a live RCSS box back into native hit-test
-space"), but a cosmetic symptom rather than a dead click: the quest reward-item popup sits pulled
-toward the panel's top-left at any scale above 1.0.
-
-Not fixed alongside the hit-box bug because the correct form needs a different signature — the
-offset relative to `#panel` (`anchorAbs - panelAbs`, both unscaled), which the caller adds to its own
-`m_Pos` — and it visibly moves the popup in all three callers (`MyQuestInfoWindow`,
-`QuestProgress`, `QuestProgressByEtc`), so it wants its own verification pass at more than one
-resolution. The three call sites still fall back to their historical hardcoded offsets, which are
-correct at scale 1.0.
-
 ## Tracked deferral: C++ adapter classes still on the `mu::ui::window::CObject` tier
 
 Both `mu::ui::window::CObject`-tier pilots (`CMuHelperBar`, `CBuffStrip`) were renamed at port time — class
@@ -191,3 +172,49 @@ future session doesn't mistake the `MUTEX_*` enum for a live, comprehensive poli
 it is vestigial. Not in this retirement checklist's scope (it's not `UIControls.h`), but touches
 the same investigation and the same `g_pUIPopup` dependency as item 3 above.
 
+
+## Tracked deferral: audit where ports steered away from the original UI
+
+Requested 2026-09-27, after `origin/dev/rmlui-ui-system`'s parity pass (PR #644) merged in. Not a
+suspicion that something is broken — it's the recognition that a port makes dozens of small
+judgement calls that never get revisited once it's marked Done, and the only two mechanisms that
+have caught any of them so far are somebody playing the game and somebody else's parity review.
+
+**What to look for.** Not bugs — decisions. A port diverges from the original in four recognisable
+ways, and only the first is self-announcing:
+
+1. **A deliberate, recorded simplification.** These are already written down at the site that made
+   them; the audit's job is to ask whether the reason still holds, not to rediscover them.
+2. **A primitive that generalized past its first consumer.** Extracting a shared class changes
+   every window that adopts it, and the change is invisible in the consumer's own file.
+3. **An RmlUi behaviour standing in for a native one because it was free.** `:hover` for a
+   C++-computed selection flag, `line-height` for a measured row pitch, DOM scrolling for a
+   line-window model. Each is right in isolation and each shifts the rendering slightly.
+4. **A judgement call made with no reference to hand**, i.e. most modern-theme treatments.
+
+**Known instances to seed it with**, so the audit doesn't start from zero:
+
+- **`.scroll-pane` reaching `CGenericConfirmDialog`.** `7dabcf54` moved `.gcd-text-col` off the
+  dialog's own flat 6dp rail onto the shared primitive's 15dp native sprite art, and `2e619ea6`
+  added the 3dp end caps. Both were the right call for the primitive; both changed a legacy dialog
+  that PR #644 was independently tuning for parity, without that branch's knowledge. This one
+  prompted the request.
+- **`.scroll-pane`'s own two legacy simplifications** — the middle slice stretched as one ninepatch
+  rather than repeat-tiled, and native's 7-vs-15 thumb overhang not reproduced (`component-catalog.md`
+  records both and why).
+- **Hover highlights now paint behind their text**, in `CChatLogWindow` and `CMoveCommandWindow`.
+  Native drew the tint quad *after* the row text, so the glyphs sat under it; a `background-color`
+  sits behind them. Reads cleaner, is not what shipped.
+- **`CMoveCommandWindow`'s scrollbar is `dp`-sized** and so doesn't grow with its panel, unlike
+  native's reference-scaled one. Deliberate — its pane's net transform is identity — but it makes
+  this window's scrollbar the one element that tracks the user's scale dial instead of the dock's.
+- **Reward-item preview moved from hover to click** in `CMyQuestInfoWindow`/`CQuestProgress`.
+- **Modern-theme treatments picked without checking dock neighbours** — already its own gap note in
+  `STATUS.md`, which has recurred twice and whose *process* half is still unfixed.
+
+**The precedent worth knowing before starting.** `CCharacterInfoWindow`'s summary box shipped as
+corner brackets plus a flat fill, a recorded and reasonable simplification of `RenderFrame()`'s
+8-piece frame — and #623 later restored the real thing. So at least one entry of exactly this kind
+has already been found worth reverting by someone looking specifically for it. That is the argument
+for the audit, and also the reason to treat "recorded simplification" as a finding rather than a
+resolution.

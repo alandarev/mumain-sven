@@ -158,6 +158,130 @@ genuinely stay in C++ — worth reading before auditing any legacy-theme code ag
 - **`COptionWindow`** — done, both themes, verified live against a real server; grew into a 6-tab
   settings window. Full history in `migration-ledger.md`'s own row rather than repeated here.
 
+- **`CChatLogWindow`**, **`CSystemLogWindow`** and **`CChatInputBox`** — **done, both themes
+  (2026-09-27)**. The whole chat surface is RmlUi now; no native draw call remains in either file.
+
+  `CChatInputBox` is the one to read before porting another window that owns a text field, because
+  two of its problems are invisible until a user types:
+  - **The keyboard only reaches a window that claims the right related-window handle.**
+    `CManager::UpdateKeyEvent()` dispatches only to windows whose `GetRelatedWnd()` matches the
+    focused handle, and reports a focused RmlUi `<input>` as `&RmlUiRuntime::Instance()`. Native
+    claimed the focused `CUITextInputBox`'s own `HWND` for exactly this reason; the port claims
+    RmlUiRuntime's address instead. Without it Enter, Escape and history navigation simply never
+    arrive, while everything looks correct.
+  - **Focus has to be latched, not called.** `CSystem::Show()` runs `OpenningProcess()` *before*
+    `ShowInterface()`, so the window is still invisible there and `Focus()` is dropped; and the
+    focus must also land *after* `SyncDocumentVisibility()`'s `Show()`, which defaults to
+    `FocusFlag::Auto` and re-blurs the field. Arm in `OpenningProcess()`, consume in the sync.
+
+  That makes three one-shot latches across this one surface — scroll pin, scroll request, focus —
+  all the same shape: *do it once, on the frame after the view caught up*. Treat a per-frame
+  `SetScrollTop`/`Focus()` as a bug by default.
+
+  Also worth copying: the button row keeps its hit area and its lit sprite as **separate concerns**.
+  Legacy's background art already contains every button's off state, so an unlit button must still
+  be clickable; collapsing the two into one element makes half the row dead. Modern, having no
+  background art, draws the resting state itself.
+
+  `CSystemLogWindow` was deliberately ported second, and the point of doing it that way is that it
+  is *not* a smaller copy of its file-mate: it grows downward from a fully static origin, has two
+  colours rather than nine, needs no scrolling or interaction at all (so the whole panel is
+  `pointer-events: none`), and takes its row pitch from the font — which RCSS's own `line-height`
+  default of `1.2` already reproduces, so the faithful port sets nothing. Copying the chat log's
+  shape onto it would have been wrong in all four respects. Both share `ChatLogLineEntry`; each
+  `RmlModelBinder` owns its own `DataTypeRegister`, so registering that struct in two models is
+  safe.
+
+  The rest of this entry is about `CChatLogWindow`.
+
+  The decision worth recording is the scroll model. Native kept a line *window* (`m_nShowingLines`
+  plus `m_iCurrentRenderEndLine`) and drew only those lines; RmlUi scrolls DOM content. Going DOM
+  meant putting all 200 lines in the document, which was only defensible once
+  `DataViewFor::Update()` was read rather than assumed: it is **incremental**, creating elements
+  only past the current count and destroying only past the new size, never re-parsing existing
+  ones. An ordinary append is therefore one new element, not a 200-line rebuild. The cost is that
+  a front-removal (the 200-line cap) shifts every index and so re-runs every line's text binding —
+  acceptable, and batchable later if it ever shows up.
+
+  Four behaviours had to be *mapped* rather than copied, each found by testing against the original
+  rather than by reading it:
+  - **Bottom-up stacking.** Native pushed text down by `(showingLines - endLine - 1)` line heights
+    when under-full, so the first message sits on the bottom row. Reproduced with a flex column and
+    `margin-top: auto` on the first line — *not* `justify-content: flex-end`, which keeps pushing
+    once the list overflows and shoves the earliest lines out of the scrollable area.
+  - **Text-width backgrounds.** Native passed no box width to `RenderText()`, so the text renderer
+    fell back to the measured width (`CUIRenderTextSDLTtf.cpp`). Flex defaults to
+    `align-items: stretch`, which turned every line into a full-width bar; `align-items: flex-start`
+    restores the ragged per-line strips.
+  - **Click-through.** `Core::Input::IsMouseOverUI()` gates click-to-move on
+    `Context::IsMouseInteracting()`, which is true for any `pointer-events: auto` element *hovered*,
+    not clicked — so `.scroll-pane`'s own `pointer-events: auto` turned the whole chat area into a
+    wall the player could not walk through. Native passed world clicks straight through (it consumed
+    only on the single hover-transition frame). The well and the lines are now `pointer-events:
+    none`, with the scrollbar opting back in at **every** level, since its generated
+    `slidertrack`/`sliderbar` inherit from the pane.
+  - **Hover highlight and right-click-to-whisper**, which `pointer-events: none` then killed, moved
+    into C++ (`UpdatePointedLine()`) — where native had them anyway. It compares `g_fWindowMouseX/Y`
+    against the line elements' own `GetAbsoluteOffset()`, both already in screen pixels, so no
+    transform conversion enters anywhere; using `MouseX/MouseY` there would have reintroduced the
+    mixed-space bug class `RmlPanelGeometry.h` documents.
+
+  Two self-inflicted bugs worth not repeating: pinning the view to the bottom on *every* frame
+  (rather than as a one-shot latch after the line list changes) silently defeats the user's own
+  scrollbar drag and wheel; and `Scrolling()` kept compiling happily after nothing rendered from
+  `m_iCurrentRenderEndLine` any more, quietly breaking PageUp/PageDown until the dead-member audit
+  caught it. Both now latch through `m_bScrollPending`/`m_bScrollRequest`, and the logical cursor
+  reads back from the live scroll offset so external callers start from where the user actually is.
+
+- **`CMoveCommandWindow`** — **done, both themes (2026-09-27)**. The left-docked warp list (`/move`).
+  Ported for the scrollbar: this is the window that actually *retires* a hand-rolled one rather than
+  decorating a new one. `ThumbYForScrollOffset`/`ScrollOffsetForThumbY`/`UpdateDragState`/
+  `MaximumScrollOffset`/`ClampScrollOffset`, the grab-offset bookkeeping and the three-state
+  `MOVECOMMAND_MOUSE_EVENT` machine are gone, with their five unit tests, replaced by
+  `base.rcss`'s `.scroll-pane`. `UI::MoveCommand::CalculateLayout()` deliberately stays: deriving the
+  window's height from the dock column is real layout intent, not scroll bookkeeping.
+
+  Three things here are worth carrying to the next port:
+
+  - **A `.scroll-pane` inside a `transform: scale()` panel has to counter-scale itself out.** The
+    reason is not cosmetic: the native text renderer's font grows 11pt→16pt while the dock
+    transform grows to 2.25x, so a reference-px `font-size` would be ~55% too large at high
+    resolutions *and* show a third fewer rows than the original. `#list` therefore carries
+    `scale(1 / root_scale)` with its box bound as `value * root_scale` px, which makes the net
+    transform at the pane identity and lays its contents out in real pixels. The trap that follows:
+    rows need an **explicit bound width, not `100%`** — a percentage shrinks by the scrollbar's own
+    width when one appears, shifting every column in the table. Recorded in `component-catalog.md`.
+  - **`MeasureText()` returns logical/reference units, not real pixels** (`CUIRenderTextSDLTtf.cpp`
+    divides the active transform out). Worth knowing before reading any native layout that mixes a
+    measured text height into reference-space coordinates and concluding it is a bug — it isn't, and
+    it is why this window genuinely shows *more* rows at higher resolutions.
+  - **A fourth one-shot latch**, same shape as the chat surface's three: native reset its scroll
+    offset in `OpenningProcess()`, which now has to become "rewind `#list` once, on the first frame
+    the document is actually visible" (`CSystem::Show()` runs `OpenningProcess()` before
+    `ShowInterface()`). Per-frame would be a dead scrollbar, exactly as it was in `CChatLogWindow`.
+
+  Two smaller notes. This is the only `LayoutMode::DockLeft` window in the game, so the
+  dock-neighbour check below has no group to match it against — modern borrows
+  `docked_panel_frame.rcss`'s forged vocabulary at rail scale instead of linking a 190x429 dialog
+  frame. And its `IMAGE_LIST` — which aliased `CChatLogWindow::IMAGE_SCROLL_*`, and was the reason
+  that enum was kept two commits earlier — is deleted; it loaded its own `LoadBitmap` copies, so the
+  coupling was only ever compile-time.
+
+  Verified in-game, both themes, and **at more than one UI scale** — the first entry in
+  `validation-matrix.md`'s results table, which had been empty since it was written. Three defects
+  surfaced only by that testing, all worth knowing because none would have been caught by reading
+  the code:
+  - **A `data-for` `<div>` is inline in this build unless the rule says `display: block`**, so every
+    row landed on one line. `.quest-row`, `.party-row` and `.chat-line` all declare it; this was the
+    one that didn't.
+  - **A full-width row sits underneath the scrollbar and swallows the drag.** Native never did that
+    — rows run to `windowWidth - 22` and the well sits beyond them. The pane is now `windowWidth - 5`
+    wide (the same right inset the close bar uses) with the rows still bound to 208, so the
+    scrollbar gets its own lane.
+  - **`.scroll-pane`'s well had no end caps at all**, in every consumer. Fixed in the primitive —
+    see `component-catalog.md`; the fix and its follow-up are described there rather than here
+    because they are the primitive's behaviour, not this window's.
+
 ## Checklist for every new port (principles §27's workflow, condensed to what to actually check)
 
 1. **Layout intent documented and traceable to the original code's actual computed behavior**,
@@ -515,6 +639,24 @@ for "the full architecture is in place":
   verified against a real build (`RelWithDebInfo`); in-engine smoke test (`$theme modern`/
   `$theme legacy` at the login/character-select screens, no live server needed) still pending —
   the `MAIN_SCENE` HUD tier additionally needs a live server to exercise.
+- **`LayoutMode::Legacy` (`UI/Scaling/UITransform.h`/`.cpp`, applied via
+  `UI::Layout::ForInterface()` in `UILayoutPolicy.cpp`) papers over windows whose own rendering
+  still assumes a fixed resolution, on windows the migration ledger already marks "done."** The
+  mode exists (correctly) to give an identity transform to windows that compute real screen pixels
+  themselves — `CSprite`/`g_pRenderText` calls — so the reference-space rescale doesn't double-
+  transform them and break mouse hit-testing (found live via `COptionWindow`'s history). But its own
+  header comment names `CCreditWin` as an example of *why* it's needed: that window's native
+  rendering "assumes... 800x600." `CCreditWin`, `CLoginMainWin`, `CSysMenuWin`, `COptionWindow`,
+  `CServerSelWin`, `CMsgWin`, `CCharSelMainWin`, `CCharMakeWin`, and `CLoginWin` all use this mode
+  (`UILayoutPolicy.cpp`'s `INTERFACE_CREDITS`/`INTERFACE_LOGIN_MAIN`/etc. case), and several of them
+  are listed as fully-shipped RmlUi ports above — meaning a "done" port can still carry a
+  fixed-resolution native rendering path underneath its RmlUi shell, which is exactly what §4/§23/§28
+  say a properly migrated window shouldn't do. Not a bug in `LayoutMode::Legacy` itself (removing it
+  would reintroduce the double-transform/hit-testing bug it fixes) — the gap is that no windows in
+  this list have been individually audited for which of their native draws are still
+  resolution-fixed, and none of that is tracked per-window today. Auditing `CCreditWin`'s 800x600
+  assumption specifically (and any sibling in this list with the same pattern) is the concrete next
+  step, not a change to the transform system.
 
 ## Pilots to revisit, and tracked deferrals
 
