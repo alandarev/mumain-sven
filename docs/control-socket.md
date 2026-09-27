@@ -73,6 +73,9 @@ Error codes: `bad_request`, `unknown_command`, `wrong_scene`, `busy`,
 | `screenshot` (`out`) | capture the next frame to a path |
 | `hotkey` (`key`) | press one game key for a frame: `esc`, `i`, `home`, `f1`, … |
 | `click-ui` (`x`, `y`, `button`) | click a window pixel (`left` by default) |
+| `type` (`text`, `enter`) | deliver committed UTF-8 to the focused field; optional boolean `enter` submits on a later frame |
+| `wheel` (`notches`, `x`, `y`) | scroll `notches` (-5..5, not 0; positive is away from the user) one per frame, optionally after moving the pointer to a window pixel |
+| `drag` (`from`, `to`, `button`, `steps`) | press at `from` `[x, y]`, move to `to` over `steps` frames (1..30, default 8), release there (`left` by default) |
 | `login` (`account`, `password`, `server`) | server selection, credentials, character list |
 | `select-char` (`name` or `slot`) | enter the world with that character |
 | `logout`, `quit` | back to the character list; close the client |
@@ -115,7 +118,36 @@ locate and click. Key names are case-insensitive: the letters, the digits,
 `delete`, `pageup`, `pagedown`, `up`, `down`, `left`, `right`, `printscreen`
 and `f1`–`f12`; anything else answers `bad_request`. Both answer once the
 release frame has run; a second injection while one is in flight answers
-`busy`. Not covered: typing text (`say` sends chat), key chords, drags.
+`busy`. Not covered: key chords, IME composition.
+
+`type`, `wheel` and `drag` behave exactly as on the current client and share
+the single injection slot with `hotkey` and `click-ui` (`busy`); unlike those
+two they only observe the act slot, so they do not interrupt a walk.
+
+`type` queues the text as an SDL text event, so the focused native text field
+(chat input, the single-line input boxes) receives it exactly as typed
+characters; with `"enter": true` a Return key event is queued on the next
+frame and held for the key scan on the frame after. `text` must be 1–256
+UTF-8 bytes with no NUL, ASCII control character or DEL; `enter` must be
+boolean. The reply reports only the byte count and whether Enter was
+requested, never the text. A successful reply confirms delivery, not that a
+field was focused or accepted the characters.
+
+`wheel` queues one SDL wheel event per rendered frame, so `MouseWheel`
+readers see device-like notches; with `x` and `y` it first queues a motion to
+that window pixel, exactly like `hover`. It answers once the last notch has
+been consumed, with `notches` and the pointer (`x`, `y`) it scrolled at.
+
+`drag` writes the mouse variables like `click-ui`: the pointer arrives at
+`from` and the button goes down, the pointer moves one straight-line step per
+rendered frame for `steps` frames, and the button is released at `to`. It
+answers after the release with `from`, `to`, `steps`, `button` and the final
+pointer (`x`, `y`). A drag that times out, is abandoned by its caller or
+outlives its scene (`failed`) takes its press back without a release edge: no
+button stays held and nothing is dropped behind the caller's back.
+
+Positions of `wheel` and `drag` must lie inside the game window
+(`bad_request` otherwise). An event SDL refuses to queue answers `failed`.
 
 ### Debug-UI: reproducible UI states without a server
 

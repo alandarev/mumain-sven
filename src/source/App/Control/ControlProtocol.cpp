@@ -98,8 +98,19 @@ App::Control::Value FromJson(const json& value)
         }
         return App::Control::Value(std::move(entries));
     }
-    // Arrays and null carry no request field the command set reads; they
-    // arrive as a null value rather than an error, so an unknown extra
+    // A list of numbers is a point such as `drag`'s `from`.
+    if (value.is_array() && !value.empty() &&
+        std::all_of(value.begin(), value.end(), [](const json& entry) { return entry.is_number(); }))
+    {
+        std::vector<double> numbers;
+        for (const auto& entry : value)
+        {
+            numbers.push_back(entry.get<double>());
+        }
+        return App::Control::Value(std::move(numbers));
+    }
+    // Other arrays and null carry no request field the command set reads;
+    // they arrive as a null value rather than an error, so an unknown extra
     // field never fails a valid command.
     return App::Control::Value();
 }
@@ -114,6 +125,8 @@ Value::Value(double value) : m_kind(Kind::Number), m_number(value) {}
 Value::Value(std::string value) : m_kind(Kind::String), m_string(std::move(value)) {}
 
 Value::Value(std::map<std::string, std::string> value) : m_kind(Kind::StringMap), m_map(std::move(value)) {}
+
+Value::Value(std::vector<double> value) : m_kind(Kind::Numbers), m_numbers(std::move(value)) {}
 
 bool Value::AsBool(bool fallback) const
 {
@@ -156,10 +169,10 @@ std::string_view ErrorCodeName(ErrorCode code)
 const std::vector<std::string>& CommandNames()
 {
     static const std::vector<std::string> names = {
-        "ping",        "scene",  "state", "nearby", "events",  "wait-for", "screenshot", "login",
-        "select-char", "logout", "quit",  "move",   "warp",    "teleport", "attack",     "skill",
-        "pickup",      "use",    "equip", "say",    "whisper", "party",    "halt",       "hotkey",
-        "click-ui",    "inject", "net",   "ui",     "window",  "hover",    "render",
+        "ping",   "scene",  "state",   "nearby", "events",   "wait-for", "screenshot", "login",  "select-char",
+        "logout", "quit",   "move",    "warp",   "teleport", "attack",   "skill",      "pickup", "use",
+        "equip",  "say",    "whisper", "party",  "halt",     "hotkey",   "click-ui",   "inject", "net",
+        "ui",     "window", "hover",   "render", "type",     "wheel",    "drag",
     };
     return names;
 }
@@ -230,6 +243,11 @@ bool Request::Has(std::string_view key) const
     return field != m_fields.end() && field->second.GetKind() != Value::Kind::Null;
 }
 
+bool Request::Contains(std::string_view key) const
+{
+    return m_fields.find(key) != m_fields.end();
+}
+
 bool Request::GetString(std::string_view key, std::string& out) const
 {
     const auto field = m_fields.find(key);
@@ -276,6 +294,27 @@ bool Request::GetBool(std::string_view key, bool& out) const
         return false;
     }
     out = field->second.AsBool();
+    return true;
+}
+
+bool Request::GetStrictBool(std::string_view key, bool& out) const
+{
+    const auto field = m_fields.find(key);
+    if (field == m_fields.end() || field->second.GetKind() != Value::Kind::Bool)
+        return false;
+    out = field->second.AsBool();
+    return true;
+}
+
+bool Request::GetPoint(std::string_view key, std::array<double, 2>& out) const
+{
+    const auto field = m_fields.find(key);
+    if (field == m_fields.end() || field->second.GetKind() != Value::Kind::Numbers ||
+        field->second.AsNumbers().size() != 2)
+    {
+        return false;
+    }
+    out = {field->second.AsNumbers()[0], field->second.AsNumbers()[1]};
     return true;
 }
 

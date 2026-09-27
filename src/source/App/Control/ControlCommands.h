@@ -1,6 +1,7 @@
 // The control socket's command implementations, one file per family:
 // Session (login/select-char/logout/quit), World (movement, combat, chat,
-// party), Query (state/nearby/scene/screenshot/hotkey/click-ui) and DebugUi
+// party), Query (state/nearby/scene/screenshot and the synthetic input:
+// hotkey/click-ui/type/wheel/drag) and DebugUi
 // (inject/net/ui/window/hover/render: reproducible UI states for screenshots).
 //
 // Every handler answers with an encoded response line, or takes over the
@@ -32,6 +33,9 @@ std::string WaitFor(const Request& request, std::unique_ptr<Act>& act);
 std::string Screenshot(const Request& request, std::unique_ptr<Act>& act);
 std::string Hotkey(const Request& request, std::unique_ptr<Act>& act);
 std::string ClickUi(const Request& request, std::unique_ptr<Act>& act);
+std::string Type(const Request& request, std::unique_ptr<Act>& act);
+std::string Wheel(const Request& request, std::unique_ptr<Act>& act);
+std::string Drag(const Request& request, std::unique_ptr<Act>& act);
 
 // Session family.
 std::string Login(const Request& request, std::unique_ptr<Act>& act);
