@@ -140,10 +140,12 @@ TEST_CASE("Registered chat producer distinguishes owned whisper ordinary and unr
     const auto empty = List();
     for (const bool whisper : {false, true})
     {
-        auto& input = fixture.Input(whisper);
-        input.SetState(UISTATE_NORMAL);
-        input.GiveFocus();
-        CHECK(CUITextInputBox::GetFocusedPortable() == &input);
+        auto* input = fixture.Input(whisper);
+        REQUIRE(input != nullptr);
+        REQUIRE(input->Focus());
+        fixture.Settle();
+        CHECK(fixture.chat.OwnsFocusedInput());
+        CHECK_FALSE(CUITextInputBox::IsAnyInputBoxFocused()); // Seen only through the chat document.
         const auto focused = List();
         CHECK(focused["observability"]["input_focused"] == true);
         CHECK(focused["observability"]["input_focus_owner"] == "chatinputbox");
@@ -153,9 +155,12 @@ TEST_CASE("Registered chat producer distinguishes owned whisper ordinary and unr
         fixture.registry.RemoveUIObj(mu::ui::window::INTERFACE_CHATINPUTBOX);
         CHECK(List()["observability"]["input_focus_owner"].is_null());
         RefuseStale(focused);
-        RefuseFresh("active or unknown prerequisite: input_focused");
+        // Unowned RmlUi focus is reported live by RmlUiRuntime::IsTextInputActive(), which this
+        // headless fixture does not start; unowned native focus is covered below.
         fixture.registry.AddUIObj(mu::ui::window::INTERFACE_CHATINPUTBOX, &fixture.chat);
-        input.SetState(UISTATE_HIDE);
+        input->Blur();
+        fixture.Settle();
+        CHECK_FALSE(fixture.chat.OwnsFocusedInput());
         CHECK(List()["observability"]["input_focused"] == false);
     }
     CUITextInputBox unrelated;
