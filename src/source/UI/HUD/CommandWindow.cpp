@@ -289,12 +289,14 @@ void mu::ui::window::CCommandWindow::SyncTitle(const UI::Scaling::Transform& tra
 {
     g_pRenderText->SetFont(g_hFontBold);
     const int titleWidth = g_pRenderText->MeasureText(I18N::Game::CommandWindow, lstrlen(I18N::Game::CommandWindow)).cx;
-    SyncField(m_RmlBinder, &CommandWindowRmlModel::titleTextPx, "title_text_px",
-              UI::Scaling::NativeTextPixelSizeInBox(UI::Scaling::FontRole::Bold, transform,
-                                                    static_cast<float>(titleWidth),
-                                                    static_cast<float>(kTitleBoxWidth)));
+    const float titlePx = UI::Scaling::NativeTextPixelSizeInBox(
+        UI::Scaling::FontRole::Bold, transform, static_cast<float>(titleWidth), static_cast<float>(kTitleBoxWidth));
+    // The shrunk text's box shrinks with it: its top stays at y + 12.
+    const float shrink = titlePx / UI::Scaling::NativeTextPixelSize(UI::Scaling::FontRole::Bold, transform);
+    SyncField(m_RmlBinder, &CommandWindowRmlModel::titleTextPx, "title_text_px", titlePx);
     SyncField(m_RmlBinder, &CommandWindowRmlModel::titleLinePx, "title_line_px",
-              static_cast<float>(CUIRenderTextSDLTtf::LineHeight(UI::Scaling::FontRole::Bold)) * transform.scaleY);
+              static_cast<float>(CUIRenderTextSDLTtf::LineHeight(UI::Scaling::FontRole::Bold)) * transform.scaleY *
+                  shrink);
 }
 
 void mu::ui::window::CCommandWindow::SyncButtons(const UI::Scaling::Transform& transform)
