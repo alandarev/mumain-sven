@@ -32,6 +32,7 @@
 // RmlUi migration -- see this class's header comment.
 #include "Render/RmlUi/RmlUiRuntime.h"
 #include "Render/Textures/ZzzOpenglUtil.h"
+#include "UI/RmlBridge/RmlDocumentVisibility.h"
 #include "UI/RmlBridge/RmlTheme.h"
 #include "UI/RmlBridge/RmlTooltip.h"
 #include "Core/Utilities/StringUtils.h"
@@ -117,6 +118,7 @@ void mu::ui::window::CMainFrameWindow::BuildRmlUi()
                 c.Bind("bars_left", &model.barsLeft);
                 c.Bind("bars_top", &model.barsTop);
                 c.Bind("bars_scale", &model.barsScale);
+                c.Bind("hint_px", &model.hintPx);
 
                 c.Bind("hp_fraction", &model.hpFraction);
                 c.Bind("mp_fraction", &model.mpFraction);
@@ -613,6 +615,8 @@ void mu::ui::window::CMainFrameWindow::SyncRmlModel()
         syncFloat(&MainFrameRmlModel::barsLeft, "bars_left", centerTransform.offsetX);
         syncFloat(&MainFrameRmlModel::barsTop, "bars_top", centerTransform.offsetY);
         syncFloat(&MainFrameRmlModel::barsScale, "bars_scale", centerTransform.scaleX);
+        syncFloat(&MainFrameRmlModel::hintPx, "hint_px",
+                  UI::Scaling::NativeTextPixelSize(UI::Scaling::FontRole::Normal, centerTransform));
 
         // Item-hotkey/skill-hotkey band offsets, read from #item_hotkey_anchor/#skill_list_anchor's
         // real screen position and turned into a delta from centerTransform's offsetX; Render3D()
@@ -791,7 +795,8 @@ void mu::ui::window::CMainFrameWindow::SyncRmlModel()
         wchar_t szExp[8] = {};
         mu_swprintf(szExp, L"%d", iExp);
         syncWide(&MainFrameRmlModel::expDigit, "exp_digit", szExp);
-        mu_swprintf(szTip, I18N::Game::EXPI64dI64d, dwExperience, dwNexExperience);
+        mu_swprintf(szTip, I18N::Game::EXPI64dI64d, static_cast<unsigned long long>(dwExperience),
+                    static_cast<unsigned long long>(dwNexExperience));
         syncWide(&MainFrameRmlModel::expTooltip, "exp_tooltip", szTip);
     }
 
@@ -915,6 +920,11 @@ void mu::ui::window::CMainFrameWindow::SyncRmlModel()
             // unconditionally -- AboveLeft matches that; Show()'s own clamping now also covers the
             // horizontal/lower-edge cases that CSS-only transform never did.
             config.anchor = UI::RmlBridge::Tooltip::AnchorPoint::AboveLeft;
+            // QueueTooltip()'s anchor is native's: the icon's centre, 10 above it; lines centred
+            // (RenderTipTextList(..., RT3_SORT_CENTER, ...)).
+            config.centerHorizontally = true;
+            config.textAlign = UI::RmlBridge::Tooltip::Config::TextAlign::Center;
+            config.transform = skillTooltipTransform;
             UI::RmlBridge::Tooltip::Show(config, g_pSkillList);
         }
         else
@@ -2298,6 +2308,15 @@ void mu::ui::window::CSkillList::RebuildGridSnapshot()
     }
 }
 
+// Native CNewUISkillList::RenderSkillInfo() centres the skill tooltip on the icon (slot x + 10 for
+// the current skill and hotkeys, cell x + 15 in the expanded list) and ends it 10 above the icon.
+namespace
+{
+constexpr float kSlotTooltipOffsetX = 10.f;
+constexpr float kGridTooltipOffsetX = 15.f;
+constexpr float kTooltipGapAbove = 10.f;
+} // namespace
+
 void mu::ui::window::CSkillList::QueueTooltip(int iSkillIndex, float x, float y)
 {
     m_bTooltipPending = true;
@@ -2386,8 +2405,9 @@ void mu::ui::window::CSkillList::OnHotkeySlotHover(int iSlotIndex)
     if (SkillAttribute[bySkillType].SkillUseType == SKILL_USE_TYPE_MASTERLEVEL)
         return;
 
-    // Anchor matches RenderCurrentSkillAndHotSkillList()'s x for the same slot (190 + (iSlotIndex+1)*32).
-    QueueTooltip(m_iHotKeySkillType[iIndex], 190.f + (iSlotIndex + 1) * 32.f, 431.f);
+    // Slot x matches RenderCurrentSkillAndHotSkillList() (190 + (iSlotIndex+1)*32, y 431).
+    QueueTooltip(m_iHotKeySkillType[iIndex], 190.f + (iSlotIndex + 1) * 32.f + kSlotTooltipOffsetX,
+                 431.f - kTooltipGapAbove);
 }
 
 void mu::ui::window::CSkillList::OnCurrentSkillClick()
@@ -2398,7 +2418,7 @@ void mu::ui::window::CSkillList::OnCurrentSkillClick()
 
 void mu::ui::window::CSkillList::OnCurrentSkillHover()
 {
-    QueueTooltip(Hero->CurrentSkill, 392.f, 437.f);
+    QueueTooltip(Hero->CurrentSkill, 392.f + kSlotTooltipOffsetX, 437.f - kTooltipGapAbove);
 }
 
 void mu::ui::window::CSkillList::OnGridCellClick(int iSkillIndex)
@@ -2416,7 +2436,7 @@ void mu::ui::window::CSkillList::OnGridCellHover(int iSkillIndex)
     {
         if (entry.skillIndex == iSkillIndex)
         {
-            QueueTooltip(iSkillIndex, entry.left, entry.top);
+            QueueTooltip(iSkillIndex, entry.left + kGridTooltipOffsetX, entry.top - kTooltipGapAbove);
             break;
         }
     }
@@ -2438,7 +2458,7 @@ void mu::ui::window::CSkillList::OnPetCellHover(int iSkillIndex)
     {
         if (entry.skillIndex == iSkillIndex)
         {
-            QueueTooltip(iSkillIndex, entry.left, entry.top);
+            QueueTooltip(iSkillIndex, entry.left + kGridTooltipOffsetX, entry.top - kTooltipGapAbove);
             break;
         }
     }
@@ -2547,16 +2567,10 @@ void mu::ui::window::CMainFrameWindow::SyncDocVisibility(bool sceneAllowsShow)
 {
     const bool show = IsVisible() && sceneAllowsShow;
 
-    if (m_pRmlDoc)
-    {
-        if (show) m_pRmlDoc->Show(); else m_pRmlDoc->Hide();
-    }
+    UI::RmlBridge::SyncDocumentVisibility(m_pRmlDoc, show);
 
     // m_pRmlBgDoc needs the same gate: CManager::Render()'s centralized RenderBackgroundLayer()
     // call replays whatever's Show()n in the shared background context every frame, regardless of
     // whether this window itself is visible.
-    if (m_pRmlBgDoc)
-    {
-        if (show) m_pRmlBgDoc->Show(); else m_pRmlBgDoc->Hide();
-    }
+    UI::RmlBridge::SyncDocumentVisibility(m_pRmlBgDoc, show);
 }

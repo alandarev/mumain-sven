@@ -80,9 +80,43 @@ checklist (`ui-target-architecture.md` item 17's "concrete instance"). Found and
 wouldn't — Friend/Mail (`CUIWindowMgr`/`CUIBaseWindow`, `UI/Party/UIWindows.cpp`) is only one of
 four independent pieces still keeping this file alive:
 
-1. **`CUITextInputBox`** — permanent until RmlUi gets native `<input>`/`<textarea>` (Section E's
-   Type-2 companion; IME composition through RmlUi's DOM is the open design question, no target
-   date). Not part of this checklist's "close it out" scope — this piece stays regardless.
+1. **`CUITextInputBox`** — **transitional now, not permanent.** The old framing ("permanent until
+   RmlUi gets native `<input>`") was wrong on both halves: the vendored RmlUi already ships
+   `<input>`, and the IME question is answered — `RmlUiRuntime` installs the vendored
+   `TextInputMethodEditor_SDL` and `RmlUiSystemInterface::ActivateKeyboard()` drives
+   `SDL_SetTextInputArea`/`SDL_StartTextInput`, so composition and candidate placement are handled
+   centrally. `CMyShopInventory` is migrated (stock `<input>` + shared `.text-field`, see
+   `component-catalog.md`). **Not globally retired** — remaining consumers, each with its own extra
+   requirement beyond My Shop's:
+   - ~~`CGenericConfirmDialog::Mode::Text`~~ — **migrated.** Per-`Show()` configuration lands via
+     `ApplyInputFieldConfig()`; `type` must be set before the value, since changing it rebuilds the
+     element's `InputType` and drops what it held. Its **`Mode::NumericKeypad` remains a separate
+     interaction, not text input** — the shuffled on-screen keypad is deliberate anti-keylogger
+     behaviour and must not become `<input type="number">`.
+   - ~~`CLoginWin`~~ and ~~`CCharMakeWin`~~ — **both migrated.** Login's Tab order needed no code
+     at all (`ElementDocument` handles `KI_TAB` and `WidgetTextInput` lets it bubble, so the
+     reciprocal `SetTabTarget()` pair just went away); select-all-on-error-recovery maps to
+     `ElementFormControlInput::Select()`, reached through `CLoginWin::FocusUsername()`/
+     `FocusPassword()` which replaced the widget-pointer accessors external code used to call.
+   - ~~`CMsgWin`~~ — **migrated.** Its resident-password prompt (`MESSAGE_DELETE_CHARACTER_RESIDENT`)
+     is `#msgwin_input`, a stock `<input type="password">` inside the existing `#input_frame`, so the
+     layout is unchanged. Deliberately *not* folded into `CGenericConfirmDialog` even though that
+     dialog can express the same content (two lines + masked field + OK/Cancel): `CMsgWin`'s panel is
+     352x113dp with its own art against the dialog's 230x160dp, so consolidating would visibly
+     restyle this one prompt and leave it inconsistent with every other message box. Worth revisiting
+     as a deliberate UX decision, not as a port.
+   - Chat (`CUIChatInputBox`), `CGuildMakeWindow`, `CGoldBowmanWindow`, `WindowMuHelper`,
+     `MsgBoxIGSSendGift`, `UIWindows`' friend/mail, `UIGuildMaster` — **migrate each when its own
+     host screen moves to RmlUi, not before.** These are all still-native screens; porting just
+     their text field would mean positioning an RmlUi `<input>` against native sprite coordinates,
+     which is the coupling this whole effort removes. `CUITextInputBox` retires when the last one
+     is gone, and not by a dedicated retirement pass.
+
+     `LoginScene.cpp`'s free `DeleteCharacter()` reads the value through
+     `CMsgWin::GetResidentPasswordInput()` now, but appears to have **no callers** —
+     `CharSelMainWin.cpp:324`'s unqualified call resolves to the member
+     `CCharSelMainWin::DeleteCharacter()`, and `CMsgWin::RequestDeleteCharacter()` is the live path.
+     Suspected dead, not verified to the standard `CWin`/`::CButton`/`CSlider` got before deletion.
 2. **`CUITextListBox<T>`** (~18 subclasses in `UIControls.h`) — no rule named this class before
    2026-09-13 (only `CUIButton` was named), which is exactly why it kept gaining consumers even on
    windows already on `mu::ui::window::CObject`. Confirmed live consumers found this session:
@@ -138,3 +172,49 @@ future session doesn't mistake the `MUTEX_*` enum for a live, comprehensive poli
 it is vestigial. Not in this retirement checklist's scope (it's not `UIControls.h`), but touches
 the same investigation and the same `g_pUIPopup` dependency as item 3 above.
 
+
+## Tracked deferral: audit where ports steered away from the original UI
+
+Requested 2026-09-27, after `origin/dev/rmlui-ui-system`'s parity pass (PR #644) merged in. Not a
+suspicion that something is broken — it's the recognition that a port makes dozens of small
+judgement calls that never get revisited once it's marked Done, and the only two mechanisms that
+have caught any of them so far are somebody playing the game and somebody else's parity review.
+
+**What to look for.** Not bugs — decisions. A port diverges from the original in four recognisable
+ways, and only the first is self-announcing:
+
+1. **A deliberate, recorded simplification.** These are already written down at the site that made
+   them; the audit's job is to ask whether the reason still holds, not to rediscover them.
+2. **A primitive that generalized past its first consumer.** Extracting a shared class changes
+   every window that adopts it, and the change is invisible in the consumer's own file.
+3. **An RmlUi behaviour standing in for a native one because it was free.** `:hover` for a
+   C++-computed selection flag, `line-height` for a measured row pitch, DOM scrolling for a
+   line-window model. Each is right in isolation and each shifts the rendering slightly.
+4. **A judgement call made with no reference to hand**, i.e. most modern-theme treatments.
+
+**Known instances to seed it with**, so the audit doesn't start from zero:
+
+- **`.scroll-pane` reaching `CGenericConfirmDialog`.** `7dabcf54` moved `.gcd-text-col` off the
+  dialog's own flat 6dp rail onto the shared primitive's 15dp native sprite art, and `2e619ea6`
+  added the 3dp end caps. Both were the right call for the primitive; both changed a legacy dialog
+  that PR #644 was independently tuning for parity, without that branch's knowledge. This one
+  prompted the request.
+- **`.scroll-pane`'s own two legacy simplifications** — the middle slice stretched as one ninepatch
+  rather than repeat-tiled, and native's 7-vs-15 thumb overhang not reproduced (`component-catalog.md`
+  records both and why).
+- **Hover highlights now paint behind their text**, in `CChatLogWindow` and `CMoveCommandWindow`.
+  Native drew the tint quad *after* the row text, so the glyphs sat under it; a `background-color`
+  sits behind them. Reads cleaner, is not what shipped.
+- **`CMoveCommandWindow`'s scrollbar is `dp`-sized** and so doesn't grow with its panel, unlike
+  native's reference-scaled one. Deliberate — its pane's net transform is identity — but it makes
+  this window's scrollbar the one element that tracks the user's scale dial instead of the dock's.
+- **Reward-item preview moved from hover to click** in `CMyQuestInfoWindow`/`CQuestProgress`.
+- **Modern-theme treatments picked without checking dock neighbours** — already its own gap note in
+  `STATUS.md`, which has recurred twice and whose *process* half is still unfixed.
+
+**The precedent worth knowing before starting.** `CCharacterInfoWindow`'s summary box shipped as
+corner brackets plus a flat fill, a recorded and reasonable simplification of `RenderFrame()`'s
+8-piece frame — and #623 later restored the real thing. So at least one entry of exactly this kind
+has already been found worth reverting by someone looking specifically for it. That is the argument
+for the audit, and also the reason to treat "recorded simplification" as a finding rather than a
+resolution.

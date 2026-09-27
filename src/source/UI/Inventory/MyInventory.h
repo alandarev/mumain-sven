@@ -59,6 +59,11 @@ namespace mu::ui::window
         };
 
     private:
+        // Pre-layout fallback only -- WindowGeometry's real hit-box comes from #panel's own live
+        // RCSS size (UI::RmlBridge::RefreshLogicalPanelSize(), read at each call site), not these
+        // constants. Used solely to seed that call before RmlUi's first layout pass has run
+        // (Create()/Show(true)/ReloadRmlTheme()'s first frame); never referenced by the native
+        // paperdoll/grid rendering, which has its own separate, still-native offset.
         static constexpr float INVENTORY_WIDTH  = 190.0f;
         static constexpr float INVENTORY_HEIGHT = 429.0f;
 
@@ -93,10 +98,11 @@ namespace mu::ui::window
             // Shared transform group for this document, sourced from UI::Scaling::GetActiveTransform()
             // since this window is movable (SetPos()), not HUD-anchored.
             float rootX = 0.f, rootY = 0.f, rootScale = 1.f;
+            float textPx = 0.f; // UI::RmlBridge::SyncNativeTextSize()
 
             Rml::String title;
             Rml::String goldText;
-            Rml::String goldColor; // "rgba(r,g,b,a)" -- mirrors getGoldColor()'s amount-tier color
+            Rml::String goldTier; // UI::RmlBridge::GoldTierKey() of the amount
 
             bool repairVisible = false;
             Rml::String repairTooltip;

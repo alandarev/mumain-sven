@@ -36,6 +36,11 @@ namespace mu::ui::window
         };
 
     private:
+        // NPCSHOP_WIDTH/HEIGHT below are a pre-layout fallback only -- WindowGeometry's real
+        // hit-box comes from #panel's own live RCSS size (UI::RmlBridge::RefreshLogicalPanelSize(),
+        // read at WindowProcess()'s call site), seeded with these only for the first frame before
+        // RmlUi's layout has run. Never referenced by the native shop-grid rendering, which has its
+        // own separate offset.
         enum
         {
             NPCSHOP_WIDTH = 190,
@@ -63,6 +68,7 @@ namespace mu::ui::window
         struct NPCShopRmlModel
         {
             float rootX = 0.f, rootY = 0.f, rootScale = 1.f;
+            float textPx = 0.f; // native text size in physical px (RmlRootTransform.h)
 
             Rml::String title;
             Rml::String taxRateText;
@@ -75,7 +81,7 @@ namespace mu::ui::window
             // AllRepairGold (the cost to repair everything) instead of the character's own gold.
             Rml::String repairAllLabel;
             Rml::String repairGoldText;
-            Rml::String repairGoldColor; // "rgba(r,g,b,a)" -- mirrors getGoldColor()'s amount-tier color
+            Rml::String repairGoldTier; // UI::RmlBridge::GoldTierKey() of the amount
         };
         RmlModelBinder<NPCShopRmlModel> m_RmlBinder;
         Rml::ElementDocument* m_pRmlDoc = nullptr;

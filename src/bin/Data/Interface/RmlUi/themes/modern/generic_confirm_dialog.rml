@@ -42,7 +42,7 @@
 				<!-- See ../../generic_confirm_dialog.rml's own comment for Portrait2D's Beside
 				     layout -- keep both fork copies' structure in sync. -->
 				<div class="gcd-portrait2d gcd-portrait2d-beside" data-class-hidden="!has_portrait2d_beside"></div>
-				<div class="gcd-text-col">
+				<div class="gcd-text-col scroll-pane">
 					<!-- See ../../generic_confirm_dialog.rml's own comment for what this
 					     reproduces and why it nests inside .gcd-text-col instead of beside it
 					     like #gcd_item3d_anchor -- keep both fork copies' structure in sync. -->
@@ -65,8 +65,12 @@
 							<div class="btn gcd-keypad-btn" data-event-click="gcd_keypad_click(9)">{{keypad_digit_9}}</div>
 							<div class="btn gcd-keypad-delete" data-event-click="gcd_keypad_delete_click">Del</div>
 						</div>
-						<div id="gcd_input_anchor" class="gcd-input-anchor layout-anchor"
-						     data-class-hidden="input_is_keypad"></div>
+						<!-- Text mode: a stock RmlUi <input>. Its type (text/password), maxlength and
+						     seeded value are set per Show() from C++ (ApplyInputFieldConfig()), since
+						     this dialog is shared and reconfigured per caller. Numeric-only filtering
+						     is an application rule, enforced in C++ (DigitOnlyInputFilter). -->
+						<input id="gcd_input" type="text" class="text-field gcd-input-field"
+						       data-value="input_value" data-class-hidden="input_is_keypad"/>
 					</div>
 					<div class="gcd-progress-track" data-class-hidden="!has_progress">
 						<div class="gcd-progress-fill" data-style-width="progress_fraction * 100 + '%'"></div>

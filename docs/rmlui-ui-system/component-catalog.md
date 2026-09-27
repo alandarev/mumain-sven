@@ -83,6 +83,159 @@ each other.
 `.checkbox-row`/`.checkbox-box`/`.checkbox-box.checked`/`.checkbox-label`, both themes' `base.rcss`
 — same shared-contract shape as Button.
 
+## Text field
+
+Use a **stock RmlUi `<input>`**. There is no custom element, no C++ text widget and no wrapper
+framework — the vendored engine already provides the editable buffer, caret, selection, clipboard,
+`maxlength`, tab focus, `change` events and IME composition. Consumers today: `CMyShopInventory`'s
+shop name, `CCharMakeWin`'s character name, `CGenericConfirmDialog`'s `Mode::Text` field, and
+`CLoginWin`'s username/password pair (also proving `type="password"` and Tab navigation),
+`CMsgWin`'s resident-password prompt, and `CChatInputBox`'s chat/whisper-target pair.
+
+**Two things a field inside a window that opens and closes has to get right**, both learned from
+`CChatInputBox`:
+
+1. **Focus after the document is visible, not before.** `CSystem::Show()` runs a window's
+   `OpenningProcess()` *before* `ShowInterface()`, so `IsVisible()` is still false there and
+   `Element::Focus()` lands on a hidden document and is lost. It must also happen after
+   `SyncDocumentVisibility()`'s own `Show()`, which defaults to `FocusFlag::Auto` and would blur the
+   field again. Arm a one-shot latch in `OpenningProcess()`; consume it in the sync, immediately
+   after the visibility call.
+2. **A window whose field is focused must claim `RmlUiRuntime`'s address as its related window.**
+   `CManager::UpdateKeyEvent()` dispatches only to windows whose `GetRelatedWnd()` matches the
+   focused handle, and it reports a focused RmlUi `<input>` as `&RmlUiRuntime::Instance()`. Without
+   `SetRelatedWnd()` matching that, the owning window stops receiving keys the moment the player
+   starts typing — Enter, Escape and history all silently never arrive. This is the exact role the
+   focused `CUITextInputBox`'s `HWND` used to play.
+
+**Two rules that are invisible at compile time and will silently break a field:**
+
+1. **Never call `ElementDocument::Show()` per frame on a document containing an `<input>`.** It
+   defaults to `FocusFlag::Auto`, which focuses the document and blurs the field — one frame after
+   every click, so the field looks focusable but swallows every keystroke. Use
+   `UI::RmlBridge::SyncDocumentVisibility()` (`UI/RmlBridge/RmlDocumentVisibility.h`), which only
+   acts on an actual visibility transition. This caused the original failure *and* a later
+   regression in `CLoginWin::Render()`.
+2. **Declare the field after any frame art that overlaps it.** RmlUi paints siblings in document
+   order, so a field placed where an old zero-size position anchor sat renders *behind* the frame —
+   no visible text or caret, which reads as "can't focus" even though hover and focus are correct.
+
+Division of ownership:
+
+- **RML/RmlUi** owns the edit buffer, focus, caret, selection, IME composition display, text
+  clipping/scrolling and hit testing. Bind the value two-way with `data-value="<model field>"`; do
+  not poll the element each frame.
+- **RCSS** owns appearance. `.text-field` is the shared primitive in both themes' `base.rcss`
+  (`.text-field`, `.error`, `:disabled`, and the `selection` child for the selection range). It
+  deliberately carries **no** position or size — each consumer adds a local class for its own box,
+  the way `.my-shop-title-field` does. There is deliberately **no `:focus` rule**: the native fields
+  these replaced drew no focus outline, so the blinking caret is the only focus cue. `:focus` works
+  if a screen ever wants one, but add it per consumer rather than to the shared class.
+- **C++** owns the semantic value and the rules about it: the length cap (set the `maxlength`
+  attribute from code, as `ApplyShopTitleLimit()` does, so the limit can't drift per theme), any
+  character filtering, and what counts as valid. Surface an invalid value as model state that
+  toggles `.error` — never set a colour from C++.
+
+Notes for later consumers: use `type="password"` for masked input (the same `.text-field` styling
+applies), and set `type` from C++ when one field serves both (see `ApplyInputFieldConfig()` — changing
+`type` rebuilds the element's `InputType` and drops its value, so set type and limit *before* the
+value). `autofocus` makes `ElementDocument::Show()`'s `FocusFlag::Auto` focus the field on open — the
+declarative replacement for a native `GiveFocus()`, but **only for genuinely modal screens**: on an
+ordinary window it swallows every hotkey the moment the window opens, so My Shop deliberately omits
+it and is click-to-focus. Filtering that RmlUi has no equivalent for (digits-only) belongs in C++;
+enforce it by rejecting the keystroke, not by correcting the value afterwards: a capture-phase
+`textinput` listener on the document runs before the focused widget's own listener, and
+`StopPropagation()` there leaves the caret untouched (see `DigitOnlyInputFilter`). Writing a
+filtered value back onto the element instead re-enters `OnValueAttributeChanged()` and resets the
+caret to index 0. Clipboard paste raises no `textinput`, so filter on read as well. SDL3 IME is
+handled once, centrally, by `RmlUiRuntime`'s installed `TextInputMethodEditor_SDL` plus
+`RmlUiSystemInterface::ActivateKeyboard()` — a consumer needs no IME code of its own.
+
+`CUITextInputBox` remains **transitional infrastructure for unmigrated consumers only**
+(`CLoginWin`, `CCharMakeWin`, `CGenericConfirmDialog::Mode::Text`, chat). It is not a permanent
+RmlUi companion primitive and is not globally retired — see `tracked-deferrals.md` for what each
+remaining consumer still needs.
+
+## Scrolling pane
+
+`.scroll-pane` (both themes' `base.rcss`). Put it on whatever element owns scrollable content and
+RmlUi generates the scrollbar itself, as real child elements the theme styles. Consumers:
+`CGenericConfirmDialog`'s `.gcd-text-col` — the case this was generalized from — `CChatLogWindow`'s
+`#lines`, which is where it is actually *visible* (the dialog only scrolls when its content outgrows
+the panel, which is hard to provoke), and `CMoveCommandWindow`'s `#list`, the one that replaced a
+real hand-rolled scrollbar (thumb travel, grab offset, a three-state drag enum) rather than adding a
+new one.
+
+The pane needs a bounded height to scroll within (explicit `height`, `max-height`, or a stretched
+flex child). That stays the consumer's own layout; `.scroll-pane` sets only the two rules below.
+
+**Two requirements it exists to stop you rediscovering.** Both cost a debugging round the first
+time, and both fail silently:
+
+- `overflow: hidden auto` is `overflow-x, overflow-y` in that order. This engine only instantiates
+  a `scrollbarvertical` when **overflow-y** is Auto/Scroll (`Layout/ContainerBox.cpp`). Write
+  `auto hidden` and no scrollbar is ever created, at any content length.
+- `pointer-events: auto` is mandatory. `base.rcss`'s `body { pointer-events: none; }` inherits
+  down, and `slidertrack`/`sliderbar` are children of the pane — without it the scrollbar renders
+  but cannot be dragged.
+
+These are generated elements, not pseudo-elements, so ordinary selectors reach them
+(`scrollbarvertical`, `slidertrack`, `sliderbar`, `sliderarrowdec`/`inc`, `scrollbarhorizontal`).
+
+**Theme chrome.** `legacy` uses native's own art — the track is `newui_scrollbar_m` as a ninepatch
+and the thumb is `newui_scroll_on`, with `filter: brightness(0.7)` on `:active` matching the
+`RGBA(179,179,179)` tint `CChatLogWindow::RenderFrame()` applies while the thumb is held.
+`modern` states the same affordance as a flat rail in its metal-rail palette.
+
+The well's two end caps are native's real 7x3 `newui_scrollbar_up`/`_down` sprites, carried by
+`sliderarrowdec`/`sliderarrowinc` — RmlUi generates an element at each end of a scrollbar and sizes
+`slidertrack` between them, which is exactly native's cap/tile/cap construction. They are
+`pointer-events: none`: native has no arrow buttons, these are the closing ends of the well.
+**Their `width` is `100%`, not a fixed length, on purpose** — a consumer that hides its scrollbar by
+zeroing the `scrollbarvertical`'s own width (`chat_log.rcss` does, for F5) would otherwise be left
+with two floating caps. `WidgetScroll::FormatElements()` builds each arrow's box against the
+scrollbar's own content size, so the percentage tracks whatever that width currently is. `modern`
+needs no caps — its track is a solid fill that already reads closed — so its arrows stay collapsed.
+
+One deliberate simplification remains on the legacy side, the same class as `character_info.rcss`'s
+summary-box frame: the middle slice is one stretched ninepatch rather than a literal repeat-tile,
+because this build has no verified repeat-tiling pattern. Native's thumb overhang (15-wide thumb
+over a 7-wide track) is also not reproduced, because that needs the track narrower than the
+scrollbar element and RmlUi sizes `slidertrack` itself.
+
+**Two traps a consumer has to handle itself**, both found the hard way in `CChatLogWindow`:
+
+- **`pointer-events: auto` on the pane blocks click-to-move.** `Core::Input::IsMouseOverUI()` gates
+  world clicks on `Context::IsMouseInteracting()`, which is true for any auto element *hovered*, not
+  clicked. A pane overlaying the world must set `pointer-events: none` on itself and its content,
+  then opt the scrollbar back in at **every** level (`scrollbarvertical`, `slidertrack`,
+  `sliderbar`) — they inherit from the pane, so one `none` above silently disables the drag.
+  Anything the pane then loses to `none` (hover styling, per-element clicks) has to move to C++.
+- **Never pin the scroll position per frame.** Applying `SetScrollTop` every frame — to follow new
+  content, say — overrides the user's own drag and wheel continuously and reads as a dead
+  scrollbar. Use a one-shot latch consumed on the frame after the content changed.
+
+**Inside a `transform: scale(root_scale)` panel**, the pane has to counter-scale itself out of that
+transform (`transform: scale(1 / root_scale)` with `transform-origin: left top`, its own `width`/
+`height` bound as `value * root_scale` px) — `CMoveCommandWindow`'s `#list` is the reference. Two
+things follow, both non-obvious:
+
+- **The net render transform at the pane is identity**, so its contents are laid out in real
+  pixels. That is the point — text in a dense list must stay at the native renderer's own physical
+  size, which grows 11pt→16pt while the dock transform grows to 2.25x. It also means the scrollbar
+  keeps `.scroll-pane`'s `dp` width rather than needing a reference-px override.
+- **Give rows an explicit bound width, not `100%`.** A percentage resolves against the pane's
+  content box, which shrinks by the scrollbar's width the moment one appears — every column in the
+  row then shifts. Bind the same reference width the pane uses and let `overflow-x: hidden` clip it.
+
+Column positions *inside* such a row are best written as percentages of that bound width: they then
+need no binding of their own and hold at every scale.
+
+**What it does not cover.** RmlUi scrolls *DOM content*, so a window keeping its own line-window
+model in C++ is not a drop-in consumer: it has to put the lines in the DOM and let RmlUi own the
+scroll position. `CChatLogWindow` did exactly that — see `STATUS.md` for why that was safe
+(`DataViewFor::Update()` is incremental) and what it cost.
+
 ## Layout utilities
 
 Not named in §20's own list, but the closest thing to a real cross-window primitive that exists
@@ -96,6 +249,19 @@ identical class names and behavior in each.
 wrapper every migrated window uses: owns the `Model` instance, creates the `Rml::DataModelHandle`
 once, exposes `MarkDirty()` so packet-handler/action-controller code doesn't need to know RmlUi's
 binding API directly.
+
+## Semantic colours
+
+Where a value's colour depends on what it means, C++ binds the meaning and each theme's RCSS holds
+the colour: a `data-class-*` binding toggles a class, and the legacy theme uses the original values.
+Examples:
+- Zen wealth tier: `GameLogic::Items::ClassifyGoldAmount()`, `.gold-*`;
+- trade partner level bucket: `.level-bucket-*`;
+- quest row kind: reported by `CQuestMng::GetRequestRewardText()`, `.row-*`;
+- character-select balloon name status: `.name-*`.
+
+Do not unpack the engine's packed text colours into CSS: they are `A<<24 | B<<16 | G<<8 | R`, and
+reading them as RGB swaps red and blue.
 
 ## Theming
 
@@ -240,6 +406,22 @@ unchanged, only what happens internally moved), the skill-hotkey tooltip (`MainF
 old embedded RmlUi implementation was deleted outright, not left running as a second mechanism),
 and two smaller hover tooltips (`MasterLevel.cpp`, `CursedTempleSystem.cpp`).
 
+**Legacy theme layout (2026-09-24, #623).** The legacy theme overrides `tooltip.rml`
+(`themes/legacy/tooltip.rml`) to follow the original `RenderTipTextList()`:
+- native text size;
+- rows one native text height tall, each starting 1.1 heights below the previous one, so
+  highlight bars keep their gaps;
+- the widest line plus 2 units of side padding;
+- a 1-unit opaque frame around an 80% fill.
+
+RmlUi's own FreeType metrics round to whole pixels, which accumulates over many rows. So
+`Show()` reads the row height from the native text renderer
+(`CUIRenderTextSDLTtf::LineHeight()`), without selecting a font on the shared renderer.
+It measures under `Config::transform` when a caller anchors with a non-ambient transform (the
+skill-hotkey tooltip's `BottomHudCenterTransform`), otherwise under the ambient transform.
+`Config::fixedWidth` keeps a fixed text width where the original had one (the inventory Set and
+Socket option tooltips). The anchor places the inner (padding) box; the frame sits outside it.
+
 `UI::Skills::Tooltip::Render()`/`BuildModelForSlot()`/`ToRmlBridgeLines()`
 (`UI/HUD/Skills/SkillTooltip.h`/`.cpp`) is the shared skill/pet-command tooltip *content* builder —
 deliberately not in `SkillTooltipModel.h`, which is also shared with the standalone MuEditor (ImGui)
@@ -294,7 +476,9 @@ per-window, or entirely unbuilt:
   the closest thing to a "grid" concept in the codebase, and it hasn't been abstracted either (see
   `tracked-deferrals.md`'s pilots-to-revisit entry for why its icon art stayed legacy 2D). **List
   moved out of this bucket 2026-09-13** — see the "List / repeated rows" section above; `data-for`
-  already proves the pattern, it just isn't fully adopted yet.
+  already proves the pattern, it just isn't fully adopted yet. **Text field also moved out of this
+  bucket** — see the "Text field" section above; stock `<input>` plus a shared `.text-field` class
+  is the convention now, proven by `CMyShopInventory`.
 
 ## Tab / TabBar
 

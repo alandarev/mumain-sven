@@ -24,6 +24,10 @@ namespace mu::ui::window
         };
 
     private:
+        // Pre-layout fallback only -- WindowGeometry's real hit-box comes from #panel's own live
+        // RCSS size (UI::RmlBridge::RefreshLogicalPanelSize(), read at the UpdateMouseEvent() call
+        // site), seeded with these only for the first frame before RmlUi's layout has run. Never
+        // referenced by the native mix-grid rendering, which has its own separate offset.
         static constexpr float INVENTORY_WIDTH = 190.0f;
         static constexpr float INVENTORY_HEIGHT = 429.0f;
 
@@ -45,11 +49,22 @@ namespace mu::ui::window
         {
             Rml::String text;
             Rml::String color; // "rgba(r,g,b,a)"
+            // Where native RenderMixDescriptions() drew a description line: its top in reference
+            // px from the window's top (fixed per mix type, with rows skipped between some lines)
+            // and whether it was left-aligned rather than centred. Unused (0/false) for the other
+            // line lists.
+            float top = 0.f;
+            bool alignLeft = false;
+            // Native RenderText() shrinks a line to its box (FontScaleForBounds); this is that
+            // factor for description lines, against a box kept inside the window (measured in the
+            // window's own RmlUi font). 1 = fits.
+            float fit = 1.f;
             bool operator==(const MixLine&) const = default;
         };
         struct MixInventoryRmlModel
         {
             float rootX = 0.f, rootY = 0.f, rootScale = 1.f;
+            float textPx = 0.f; // native text size in physical px (RmlRootTransform.h)
             Rml::String title;
             bool mixVisible = true;
             bool mixLocked = false;
@@ -60,6 +75,7 @@ namespace mu::ui::window
             // field's source condition/color.
             bool showTaxRate = false;
             Rml::String taxRateText;
+            float taxRateFit = 1.f; // MixLine::fit for the tax line (native 160 box)
 
             bool showRecipe = false;
             Rml::String recipeLine1, recipeLine2;

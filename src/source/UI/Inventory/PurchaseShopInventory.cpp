@@ -3,6 +3,7 @@
 #include "UI/Inventory/PurchaseShopInventory.h"
 #include "UI/Core/WindowSystem.h"
 #include "UI/Core/WindowGeometry.h"
+#include "UI/RmlBridge/RmlPanelGeometry.h"
 #include "UI/Dialogs/CustomMessageBox.h"
 #include "UI/Dialogs/GenericConfirmDialog.h"
 #include "UI/Inventory/MyInventory.h"
@@ -15,6 +16,7 @@
 // RmlUi migration -- see this class's header comment.
 #include "Render/RmlUi/RmlUiRuntime.h"
 #include "UI/RmlBridge/RmlTheme.h"
+#include "UI/RmlBridge/RmlDocumentVisibility.h"
 #include "UI/RmlBridge/RmlRootTransform.h"
 #include "Core/Utilities/StringUtils.h"
 #include <RmlUi/Core/ElementDocument.h>
@@ -72,6 +74,7 @@ void mu::ui::window::CPurchaseShopInventory::BuildRmlUi()
                 c.Bind("root_x", &model.rootX);
                 c.Bind("root_y", &model.rootY);
                 c.Bind("root_scale", &model.rootScale);
+                c.Bind("text_px", &model.textPx);
 
                 c.Bind("title", &model.title);
                 c.Bind("shop_owner_text", &model.shopOwnerText);
@@ -225,7 +228,12 @@ bool mu::ui::window::CPurchaseShopInventory::UpdateMouseEvent()
 
 bool mu::ui::window::CPurchaseShopInventory::WindowProcess()
 {
-    if (mu::ui::window::WindowGeometry(m_Pos.x, m_Pos.y, INVENTORY_WIDTH, INVENTORY_HEIGHT).Contains(MouseX, MouseY) == false)
+    // #panel's own live RCSS size is the source of truth -- INVENTORY_WIDTH/HEIGHT only cover the
+    // first frame after Create()/Show(true)/ReloadRmlTheme(), before RmlUi's next layout pass.
+    float panelWidth = INVENTORY_WIDTH;
+    float panelHeight = INVENTORY_HEIGHT;
+    UI::RmlBridge::RefreshLogicalPanelSize(m_pRmlDoc, "panel", panelWidth, panelHeight);
+    if (mu::ui::window::WindowGeometry(m_Pos.x, m_Pos.y, static_cast<int>(panelWidth), static_cast<int>(panelHeight)).Contains(MouseX, MouseY) == false)
     {
         return false;
     }
@@ -300,13 +308,14 @@ void mu::ui::window::CPurchaseShopInventory::SyncRmlModel()
 
         // RenderBackgroundLayer() renders whatever's shown in the shared background context
         // regardless of caller, so this Hide()/Show() is what keeps the bg panel hidden when closed.
-        if (IsVisible()) m_pRmlBgDoc->Show(); else m_pRmlBgDoc->Hide();
+        UI::RmlBridge::SyncDocumentVisibility(m_pRmlBgDoc, IsVisible());
     }
 
     if (!m_pRmlDoc) return;
-    if (IsVisible()) m_pRmlDoc->Show(); else m_pRmlDoc->Hide();
+    UI::RmlBridge::SyncDocumentVisibility(m_pRmlDoc, IsVisible());
 
     UI::RmlBridge::SyncRootTransform(m_RmlBinder, m_Pos);
+    UI::RmlBridge::SyncNativeTextSize(m_RmlBinder);
 
     auto& model = m_RmlBinder.GetModel();
     auto syncWide = [&](Rml::String PurchaseShopRmlModel::* field, const char* boundName, const wchar_t* text)

@@ -25,10 +25,14 @@ namespace mu::ui::window
         void Release();
 
         // Vestigial -- RmlUi/CSS owns this widget's position now (.center-x in buff_strip.rml).
-        // Note: panel-reactive width shrinking (the original's GetScreenWidth() behavior when
-        // side panels docked) isn't reproduced; centering itself still holds at any resolution.
         void SetPos(int x, int y) {}
-        void SetPos(int iScreenWidth) {}
+        // The original places the strip by the screen width its docked panels leave free
+        // (GetScreenWidth(), reference units); this keeps that width so the model can expose the
+        // strip's native left edge (strip_left) for a theme that follows it.
+        void SetPos(int iScreenWidth)
+        {
+            m_iFreeScreenWidth = iScreenWidth;
+        }
 
         bool UpdateMouseEvent();
         bool UpdateKeyEvent();
@@ -62,10 +66,21 @@ namespace mu::ui::window
             // approach; named @spritesheet rects are the working mechanism.
             Rml::String decorator;
             Rml::String tooltip;
+            // The same tooltip split like the original's (RenderBuffTooltip()): the name (blue,
+            // bold), the description lines, and the remaining duration (purple; empty if none).
+            Rml::String tooltipTitle;
+            Rml::String tooltipBody;
+            Rml::String tooltipDuration;
         };
         struct BuffStripRmlModel
         {
             std::vector<BuffEntry> buffs;
+            // Real-pixel x of native's strip left edge: 200-unit rows centred on the free width,
+            // in the strip's own stretched HUD space.
+            float stripLeft = 0.0f;
+            // Native tooltip row advance in real pixels: RenderTipTextList() steps 1.1 text
+            // heights of the native renderer per line.
+            float tooltipLinePx = 0.0f;
         };
         RmlModelBinder<BuffStripRmlModel> m_RmlBinder;
         Rml::ElementDocument* m_pRmlDoc = nullptr;
@@ -73,5 +88,9 @@ namespace mu::ui::window
         CManager* m_pNewUIMng = nullptr;
 
         void SyncRmlModel();
+        void SyncStripLeft();
+        void SyncTooltipLineHeight();
+
+        int m_iFreeScreenWidth = REFERENCE_WIDTH;
     };
 }

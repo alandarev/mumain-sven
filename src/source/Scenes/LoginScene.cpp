@@ -102,32 +102,6 @@ int GetLoginCameraWalkCut() {
 // LoginScene Implementation
 //=============================================================================
 
-void DeleteCharacter()
-{
-    if (SelectedHero < 0 || SelectedHero >= MAX_CHARACTERS_PER_ACCOUNT)
-    {
-        return;
-    }
-
-    int characterToDelete = SelectedHero;
-    SelectedHero = -1;
-
-    if (g_iChatInputType == 1)
-    {
-        g_pSinglePasswdInputBox->GetText(InputText[0]);
-        g_pSinglePasswdInputBox->SetText(NULL);
-        g_pSinglePasswdInputBox->SetState(UISTATE_HIDE);
-    }
-
-    CurrentProtocolState = REQUEST_DELETE_CHARACTER;
-    SocketClient->ToGameServer()->SendDeleteCharacter(MU_C16(CharactersClient[characterToDelete].ID), MU_C16(InputText[0]));
-
-    PlayBuffer(SOUND_MENU01);
-
-    ClearInput();
-    InputEnable = false;
-}
-
 void MoveCharacterCamera(vec3_t Origin, vec3_t Position, vec3_t Angle)
 {
     vec3_t TransformPosition;

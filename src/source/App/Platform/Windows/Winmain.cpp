@@ -1542,7 +1542,14 @@ MSG MainLoop()
                 break;
             }
             case SDL_EVENT_TEXT_EDITING:
-                if (auto* box = CUITextInputBox::GetFocusedPortable())
+                // RmlUi first (whenever an RmlUi <input> is focused -- IsTextInputActive() is
+                // driven by RmlUiSystemInterface::ActivateKeyboard/DeactivateKeyboard, which
+                // WidgetTextInput's own Focus/Blur handling already calls), CUITextInputBox
+                // fallback otherwise -- same precedence SDL_EVENT_TEXT_INPUT already uses via
+                // RouteActionInput()'s Core::Input::RouteToUi()-then-FeedPortableTextInput() order.
+                if (RmlUiRuntime::Instance().IsTextInputActive())
+                    RmlUiRuntime::Instance().ProcessTextEditing(event);
+                else if (auto* box = CUITextInputBox::GetFocusedPortable())
                     box->OnTextEditing(Utf8ToWide(event.edit.text).c_str());
                 break;
             default:
@@ -1558,15 +1565,24 @@ MSG MainLoop()
 
         // Start/stop SDL text input as a portable text field gains or loses
         // focus, so SDL only emits SDL_EVENT_TEXT_INPUT while one is active (#447).
+        //
+        // RmlUi owns SDL's text-input state itself whenever an RmlUi <input> is focused (see
+        // RmlUiSystemInterface::ActivateKeyboard/DeactivateKeyboard) -- this block must not also
+        // call SDL_StartTextInput/StopTextInput in that case, or the two would race the same
+        // frame's transition (RmlUi's own Focus/Blur handling already ran earlier this frame,
+        // inside the SDL_PollEvent loop above). wantTextInput below is false whenever RmlUi
+        // currently owns it, so the Start branch never double-starts; the Stop branch is further
+        // guarded so it never undoes a Start that RmlUi itself just issued this same frame.
         {
             static bool s_textInputActive = false;
             auto* focusedField = CUITextInputBox::GetFocusedPortable();
-            const bool wantTextInput = focusedField != nullptr;
+            const bool rmlOwnsTextInput = RmlUiRuntime::Instance().IsTextInputActive();
+            const bool wantTextInput = !rmlOwnsTextInput && focusedField != nullptr;
             if (wantTextInput != s_textInputActive && g_sdlWindow != nullptr)
             {
                 if (wantTextInput)
                     SDL_StartTextInput(g_sdlWindow);
-                else
+                else if (!rmlOwnsTextInput)
                     SDL_StopTextInput(g_sdlWindow);
                 s_textInputActive = wantTextInput;
             }
@@ -2273,25 +2289,6 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR szCmdLine, int nC
             if (SceneFlag == LOG_IN_SCENE || SceneFlag == CHARACTER_SCENE || SceneFlag == MAIN_SCENE)
             {
                 BeginBitmap();
-                // Also gated on !g_CreditWin.IsVisible()/!g_SysMenuWin.IsVisible() -- these are
-                // raw CUITextInputBox pixels drawn directly, not RmlUi content, so they'd
-                // otherwise paint over both regardless of which one is currently covering the
-                // login dialog (found via user testing; see CLoginWin::Render()'s own,
-                // more detailed comment on this same condition).
-                if (g_LoginWin.IsVisible() && !g_CreditWin.IsVisible() && !g_SysMenuWin.IsVisible())
-                    g_LoginWin.RenderTextOnTop();
-                if (g_CharMakeWin.IsVisible())
-                    g_CharMakeWin.RenderTextOnTop();
-                if (g_MsgWin.IsVisible())
-                    g_MsgWin.RenderTextOnTop();
-                // CGenericConfirmDialog's own Mode::Text widget -- same seam, same reason. Guarded
-                // internally on the dialog's own active state (see RenderTextOnTop()'s own
-                // comment), so calling it unconditionally whenever this scene-gated block runs is
-                // safe and cheap the rest of the time. item3D has no equivalent call here -- it
-                // still renders via the older Render3D()/I3DRenderObj path (see
-                // GenericConfirmDialog.h's class comment for the known gap and why).
-                if (mu::ui::window::g_pGenericConfirmDialog)
-                    mu::ui::window::g_pGenericConfirmDialog->RenderTextOnTop();
                 RenderCursor();
                 EndBitmap();
             }

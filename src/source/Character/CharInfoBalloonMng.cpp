@@ -6,6 +6,7 @@
 #include "Core/Globals/_enum.h"
 #include "Core/Utilities/StringUtils.h"
 #include "Render/RmlUi/RmlUiRuntime.h"
+#include "UI/RmlBridge/RmlDocumentVisibility.h"
 #include "UI/RmlBridge/RmlTheme.h"
 #include "UI/Core/SceneUICoordinator.h"
 #include "UI/Windows/SysMenuWin.h"
@@ -18,19 +19,22 @@ CCharInfoBalloonMng g_CharInfoBalloonMng;
 
 namespace
 {
-    // ARGB(a,r,g,b)-packed DWORD (this engine's convention, UI/Widgets/UIBaseDef.h) -> a CSS hex
-    // color string RmlUi's data-style-color can bind directly. Alpha is dropped -- every color
-    // CCharInfoBalloon::GetNameColor() ever returns is fully opaque (see ResolveNameColor() in
-    // CharInfoBalloon.cpp).
-    Rml::String ColorToCssHex(DWORD color)
+// Key char_info_balloon.rml compares against; the theme's .rcss styles each (.name-<key>).
+const char* NameStatusKey(BalloonNameStatus status)
+{
+    switch (status)
     {
-        char buf[8];
-        std::snprintf(buf, sizeof(buf), "#%02x%02x%02x",
-            (unsigned)((color >> 16) & 0xFF),
-            (unsigned)((color >> 8) & 0xFF),
-            (unsigned)(color & 0xFF));
-        return Rml::String(buf);
+    case BalloonNameStatus::BlockedCharacter:
+        return "blocked-character";
+    case BalloonNameStatus::BlockedItems:
+        return "blocked-items";
+    case BalloonNameStatus::Operator:
+        return "operator";
+    case BalloonNameStatus::Normal:
+        break;
     }
+    return "normal";
+}
 }
 
 CCharInfoBalloonMng::~CCharInfoBalloonMng()
@@ -89,7 +93,7 @@ void CCharInfoBalloonMng::BuildRmlUi()
             entry.RegisterMember("hidden", &BalloonEntry::hidden);
             entry.RegisterMember("screen_x", &BalloonEntry::screenX);
             entry.RegisterMember("screen_y", &BalloonEntry::screenY);
-            entry.RegisterMember("name_color", &BalloonEntry::nameColor);
+            entry.RegisterMember("name_status", &BalloonEntry::nameStatus);
             entry.RegisterMember("name", &BalloonEntry::name);
             entry.RegisterMember("guild", &BalloonEntry::guild);
             entry.RegisterMember("klass", &BalloonEntry::klass);
@@ -162,11 +166,7 @@ bool CCharInfoBalloonMng::Render()
     // permanent explicit toggle is still the only fix (same reasoning as CLoginWin's own
     // credits/sysmenu render-side gates -- see its Render()'s comment).
     const bool shouldHide = g_CharMakeWin.IsVisible() || g_MsgWin.IsVisible() || g_SysMenuWin.IsVisible();
-    if (m_pRmlDoc)
-    {
-        if (shouldHide) m_pRmlDoc->Hide();
-        else            m_pRmlDoc->Show();
-    }
+    UI::RmlBridge::SyncDocumentVisibility(m_pRmlDoc, !shouldHide);
     if (shouldHide)
         return true;
 
@@ -206,7 +206,7 @@ void CCharInfoBalloonMng::SyncRmlModel()
         // off to the upper-left of every character instead of centered above it.
         entry.screenX = balloon.GetXPos();
         entry.screenY = balloon.GetYPos();
-        entry.nameColor = ColorToCssHex(balloon.GetNameColor());
+        entry.nameStatus = NameStatusKey(balloon.GetNameStatus());
         entry.name = StringUtils::WideToNarrow(balloon.GetName());
         entry.guild = StringUtils::WideToNarrow(balloon.GetGuildText());
         entry.klass = StringUtils::WideToNarrow(balloon.GetClassText());

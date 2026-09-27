@@ -11,6 +11,8 @@ genuinely stay in C++ — worth reading before auditing any legacy-theme code ag
 - **Login/character-select scene (`CWin` tier)** — fully migrated, no remaining
   legacy-`CWin`-rendered chrome: `CLoginWin`, `CLoginMainWin`, `CSysMenuWin`,
   `RememberPasswordPrompt`, `CCharSelMainWin`, `CCharMakeWin`, `CCharInfoBalloonMng`, `CMsgWin`.
+  (`CCreditWin` also shipped and appears on these screens, but it derives from
+  `mu::ui::window::CObject`, not `CWin` — it has its own entry below rather than this list.)
   `COptionWin` (the `CWin`-tier options window) was confirmed unreachable in live play — its
   RmlUi port was never wired up, and the class was later deleted outright as confirmed-dead code
   (see `README.md`'s Coexistence patterns); `CSysMenuWin`'s Option button opens
@@ -71,10 +73,12 @@ genuinely stay in C++ — worth reading before auditing any legacy-theme code ag
   `.modern-icon-btn-px` families give every window in this tier the same header/wallet/button
   chrome instead of a one-off per window. This is also the trigger condition the "Known gaps"
   entry below names for generalizing `RenderBackgroundLayer()` — see that entry for what changed.
-  `CMyShopInventory`/`CPurchaseShopInventory` keep their native `CUITextInputBox` subject-line field
-  exactly where `building-new-ui.md` says a Type-2 companion widget belongs — only its decorative
-  background sprite moved to RmlUi (and, after a visual bug, from the fg document to the bg one, so
-  it doesn't cover the real input box). **Update, 2026-09-23**: the remaining ordinary native text
+  `CMyShopInventory`'s shop-name field is a **stock RmlUi `<input>`** now — the first consumer moved
+  off the native `CUITextInputBox` companion, and the proving case for the shared `.text-field`
+  primitive (see `component-catalog.md`'s "Text field"). Its decorative `#edit_bg` strip is gone
+  with it: the field owns its own background in the foreground document, so the fg/bg paint-order
+  workaround that strip existed for no longer applies. `CPurchaseShopInventory` has no text input at
+  all (its shop-owner line is a read-only label), so nothing there to migrate. **Update, 2026-09-23**: the remaining ordinary native text
   blocks in this tier are also ported now — `CMixInventory`'s recipe/success-rate/source/advice/
   per-mixtype description text, `CMyShopInventory`'s static instructional lines (former
   `RenderTextInfo()`), `CLuckyItemWnd`'s result/description text (former `Render_Frame()`'s
@@ -98,12 +102,13 @@ genuinely stay in C++ — worth reading before auditing any legacy-theme code ag
   count for free. `LoadImages()`/`UnloadImages()` are kept even though this window no longer
   renders through the legacy bitmap-atlas system: `CGensRanking` and `CUIMuHelper`'s own hunt/
   pick-range "+" buttons alias their own `IMAGE_LIST` entries onto these same texture slots (same
-  reason `CMyQuestInfoWindow` keeps its own `LoadImages()`). One deliberate simplification: the
-  summary box's original 8-piece pixel-tiled frame (4 corner sprites + a 1px sprite tiled across
-  each edge, nested per-pixel `for` loops) is reproduced as the 4 corner sprites plus a flat
-  translucent fill rather than a literal repeating-tile port — this build has no established,
-  verified pattern for a real 1px-tile repeat (see "Findings" below), and the corners alone already
-  read as "framed." **Modern theme, corrected same day**: the first pass gave this window its own
+  reason `CMyQuestInfoWindow` keeps its own `LoadImages()`). The legacy summary box follows the original `RenderFrame()`: its translucent fill,
+  the 4 corner sprites, each 1px edge sprite stretched across its edge, and the separator line
+  (2026-09-24, #623; the corners-plus-flat-fill simplification it replaced is gone). The same
+  change sizes every legacy text leaf to the native text renderer's physical size
+  (`UI::Scaling::NativeTextPixelSize`, bound as `text_px`, counter-scaled out of the panel
+  transform) and keeps the header's original 190-unit centring box, because RmlUi left-aligns
+  centred text that overflows its box. **Modern theme, corrected same day**: the first pass gave this window its own
   independent `.modern-frame`/`.modern-frame-crimson` redesign (matching `CMyQuestInfoWindow`, the
   nearest *technical-tier* sibling — no `C3DRenderMng`, no live-3D icon, so nothing forced a native
   frame). That was consistent with `CMyQuestInfoWindow` in isolation but visually broke from
@@ -142,6 +147,140 @@ genuinely stay in C++ — worth reading before auditing any legacy-theme code ag
   fix if a future consumer needs an N-per-row button grid — legacy's `.cols-2` needed a
   `ninepatch()` decorator instead of `.btn`'s plain `image()` at the new width (see "Findings"
   below); modern's stays a flat fill/border since its `.btn` has no fixed-pixel sprite to 9-slice.
+
+- **`CCreditWin`** — **done** (`mu::ui::window::CObject` tier, `credit_win.rml` + both themes'
+  `.rcss`). Logged after `migration-ledger.md`'s audit flagged it as an apparently-shipped port
+  that had never been recorded; confirmed by direct inspection — `LoadThemedDocument`, a
+  theme-reload registration, and zero native `RenderImage`/`RenderText`/`CSprite` calls left in
+  `CreditWin.cpp`. Nothing to do, the record was just missing. It renders on the login/character-
+  select screens, so it's easy to file under the `CWin`-tier bullet above by association; its base
+  class is `mu::ui::window::CObject`, which is why it sits here instead.
+- **`COptionWindow`** — done, both themes, verified live against a real server; grew into a 6-tab
+  settings window. Full history in `migration-ledger.md`'s own row rather than repeated here.
+
+- **`CChatLogWindow`**, **`CSystemLogWindow`** and **`CChatInputBox`** — **done, both themes
+  (2026-09-27)**. The whole chat surface is RmlUi now; no native draw call remains in either file.
+
+  `CChatInputBox` is the one to read before porting another window that owns a text field, because
+  two of its problems are invisible until a user types:
+  - **The keyboard only reaches a window that claims the right related-window handle.**
+    `CManager::UpdateKeyEvent()` dispatches only to windows whose `GetRelatedWnd()` matches the
+    focused handle, and reports a focused RmlUi `<input>` as `&RmlUiRuntime::Instance()`. Native
+    claimed the focused `CUITextInputBox`'s own `HWND` for exactly this reason; the port claims
+    RmlUiRuntime's address instead. Without it Enter, Escape and history navigation simply never
+    arrive, while everything looks correct.
+  - **Focus has to be latched, not called.** `CSystem::Show()` runs `OpenningProcess()` *before*
+    `ShowInterface()`, so the window is still invisible there and `Focus()` is dropped; and the
+    focus must also land *after* `SyncDocumentVisibility()`'s `Show()`, which defaults to
+    `FocusFlag::Auto` and re-blurs the field. Arm in `OpenningProcess()`, consume in the sync.
+
+  That makes three one-shot latches across this one surface — scroll pin, scroll request, focus —
+  all the same shape: *do it once, on the frame after the view caught up*. Treat a per-frame
+  `SetScrollTop`/`Focus()` as a bug by default.
+
+  Also worth copying: the button row keeps its hit area and its lit sprite as **separate concerns**.
+  Legacy's background art already contains every button's off state, so an unlit button must still
+  be clickable; collapsing the two into one element makes half the row dead. Modern, having no
+  background art, draws the resting state itself.
+
+  `CSystemLogWindow` was deliberately ported second, and the point of doing it that way is that it
+  is *not* a smaller copy of its file-mate: it grows downward from a fully static origin, has two
+  colours rather than nine, needs no scrolling or interaction at all (so the whole panel is
+  `pointer-events: none`), and takes its row pitch from the font — which RCSS's own `line-height`
+  default of `1.2` already reproduces, so the faithful port sets nothing. Copying the chat log's
+  shape onto it would have been wrong in all four respects. Both share `ChatLogLineEntry`; each
+  `RmlModelBinder` owns its own `DataTypeRegister`, so registering that struct in two models is
+  safe.
+
+  The rest of this entry is about `CChatLogWindow`.
+
+  The decision worth recording is the scroll model. Native kept a line *window* (`m_nShowingLines`
+  plus `m_iCurrentRenderEndLine`) and drew only those lines; RmlUi scrolls DOM content. Going DOM
+  meant putting all 200 lines in the document, which was only defensible once
+  `DataViewFor::Update()` was read rather than assumed: it is **incremental**, creating elements
+  only past the current count and destroying only past the new size, never re-parsing existing
+  ones. An ordinary append is therefore one new element, not a 200-line rebuild. The cost is that
+  a front-removal (the 200-line cap) shifts every index and so re-runs every line's text binding —
+  acceptable, and batchable later if it ever shows up.
+
+  Four behaviours had to be *mapped* rather than copied, each found by testing against the original
+  rather than by reading it:
+  - **Bottom-up stacking.** Native pushed text down by `(showingLines - endLine - 1)` line heights
+    when under-full, so the first message sits on the bottom row. Reproduced with a flex column and
+    `margin-top: auto` on the first line — *not* `justify-content: flex-end`, which keeps pushing
+    once the list overflows and shoves the earliest lines out of the scrollable area.
+  - **Text-width backgrounds.** Native passed no box width to `RenderText()`, so the text renderer
+    fell back to the measured width (`CUIRenderTextSDLTtf.cpp`). Flex defaults to
+    `align-items: stretch`, which turned every line into a full-width bar; `align-items: flex-start`
+    restores the ragged per-line strips.
+  - **Click-through.** `Core::Input::IsMouseOverUI()` gates click-to-move on
+    `Context::IsMouseInteracting()`, which is true for any `pointer-events: auto` element *hovered*,
+    not clicked — so `.scroll-pane`'s own `pointer-events: auto` turned the whole chat area into a
+    wall the player could not walk through. Native passed world clicks straight through (it consumed
+    only on the single hover-transition frame). The well and the lines are now `pointer-events:
+    none`, with the scrollbar opting back in at **every** level, since its generated
+    `slidertrack`/`sliderbar` inherit from the pane.
+  - **Hover highlight and right-click-to-whisper**, which `pointer-events: none` then killed, moved
+    into C++ (`UpdatePointedLine()`) — where native had them anyway. It compares `g_fWindowMouseX/Y`
+    against the line elements' own `GetAbsoluteOffset()`, both already in screen pixels, so no
+    transform conversion enters anywhere; using `MouseX/MouseY` there would have reintroduced the
+    mixed-space bug class `RmlPanelGeometry.h` documents.
+
+  Two self-inflicted bugs worth not repeating: pinning the view to the bottom on *every* frame
+  (rather than as a one-shot latch after the line list changes) silently defeats the user's own
+  scrollbar drag and wheel; and `Scrolling()` kept compiling happily after nothing rendered from
+  `m_iCurrentRenderEndLine` any more, quietly breaking PageUp/PageDown until the dead-member audit
+  caught it. Both now latch through `m_bScrollPending`/`m_bScrollRequest`, and the logical cursor
+  reads back from the live scroll offset so external callers start from where the user actually is.
+
+- **`CMoveCommandWindow`** — **done, both themes (2026-09-27)**. The left-docked warp list (`/move`).
+  Ported for the scrollbar: this is the window that actually *retires* a hand-rolled one rather than
+  decorating a new one. `ThumbYForScrollOffset`/`ScrollOffsetForThumbY`/`UpdateDragState`/
+  `MaximumScrollOffset`/`ClampScrollOffset`, the grab-offset bookkeeping and the three-state
+  `MOVECOMMAND_MOUSE_EVENT` machine are gone, with their five unit tests, replaced by
+  `base.rcss`'s `.scroll-pane`. `UI::MoveCommand::CalculateLayout()` deliberately stays: deriving the
+  window's height from the dock column is real layout intent, not scroll bookkeeping.
+
+  Three things here are worth carrying to the next port:
+
+  - **A `.scroll-pane` inside a `transform: scale()` panel has to counter-scale itself out.** The
+    reason is not cosmetic: the native text renderer's font grows 11pt→16pt while the dock
+    transform grows to 2.25x, so a reference-px `font-size` would be ~55% too large at high
+    resolutions *and* show a third fewer rows than the original. `#list` therefore carries
+    `scale(1 / root_scale)` with its box bound as `value * root_scale` px, which makes the net
+    transform at the pane identity and lays its contents out in real pixels. The trap that follows:
+    rows need an **explicit bound width, not `100%`** — a percentage shrinks by the scrollbar's own
+    width when one appears, shifting every column in the table. Recorded in `component-catalog.md`.
+  - **`MeasureText()` returns logical/reference units, not real pixels** (`CUIRenderTextSDLTtf.cpp`
+    divides the active transform out). Worth knowing before reading any native layout that mixes a
+    measured text height into reference-space coordinates and concluding it is a bug — it isn't, and
+    it is why this window genuinely shows *more* rows at higher resolutions.
+  - **A fourth one-shot latch**, same shape as the chat surface's three: native reset its scroll
+    offset in `OpenningProcess()`, which now has to become "rewind `#list` once, on the first frame
+    the document is actually visible" (`CSystem::Show()` runs `OpenningProcess()` before
+    `ShowInterface()`). Per-frame would be a dead scrollbar, exactly as it was in `CChatLogWindow`.
+
+  Two smaller notes. This is the only `LayoutMode::DockLeft` window in the game, so the
+  dock-neighbour check below has no group to match it against — modern borrows
+  `docked_panel_frame.rcss`'s forged vocabulary at rail scale instead of linking a 190x429 dialog
+  frame. And its `IMAGE_LIST` — which aliased `CChatLogWindow::IMAGE_SCROLL_*`, and was the reason
+  that enum was kept two commits earlier — is deleted; it loaded its own `LoadBitmap` copies, so the
+  coupling was only ever compile-time.
+
+  Verified in-game, both themes, and **at more than one UI scale** — the first entry in
+  `validation-matrix.md`'s results table, which had been empty since it was written. Three defects
+  surfaced only by that testing, all worth knowing because none would have been caught by reading
+  the code:
+  - **A `data-for` `<div>` is inline in this build unless the rule says `display: block`**, so every
+    row landed on one line. `.quest-row`, `.party-row` and `.chat-line` all declare it; this was the
+    one that didn't.
+  - **A full-width row sits underneath the scrollbar and swallows the drag.** Native never did that
+    — rows run to `windowWidth - 22` and the well sits beyond them. The pane is now `windowWidth - 5`
+    wide (the same right inset the close bar uses) with the rows still bound to 208, so the
+    scrollbar gets its own lane.
+  - **`.scroll-pane`'s well had no end caps at all**, in every consumer. Fixed in the primitive —
+    see `component-catalog.md`; the fix and its follow-up are described there rather than here
+    because they are the primitive's behaviour, not this window's.
 
 ## Checklist for every new port (principles §27's workflow, condensed to what to actually check)
 
@@ -205,10 +344,11 @@ for "the full architecture is in place":
   hardcoded directories (`themes/legacy/`, `themes/modern/`) selected by `GameConfig`'s theme
   name — no "user override on top of a theme" layer, no documented precedence order, no tooling
   for a third party to ship a partial theme that inherits the rest from a base theme. Not
-  speculative — §18/§19 have called for this since the governing doc was written, and arbitrary
-  future themes are a real, stated want (see the Custom/Test-theme entry below), not just legacy
-  and modern. Correctly *sequenced* behind other work (nobody's shipping a mod today), but it's a
-  stated requirement waiting on priority, not an open question about whether to build it.
+  speculative — §18/§19 have called for this since the governing doc was written. Note this is
+  about *user-authored* themes/mods, which stay a real want; it is not an argument for a third
+  first-party theme, which was ruled out (see the Custom/Test-theme entry below). Correctly
+  *sequenced* behind other work (nobody's shipping a mod today), but it's a stated requirement
+  waiting on priority, not an open question about whether to build it.
 - ~~No design-token/shared-variable layer for `legacy`; `modern`'s own layer is a naming
   convention, not a real mechanism.~~ **Fixed 2026-09-04 for `modern`.**
   [`modern-theme-visual-direction.md`](modern-theme-visual-direction.md) defines the palette/
@@ -347,15 +487,31 @@ for "the full architecture is in place":
     one themed document. `MainFrameWindow.cpp` now owns two (`main_frame`,
     `main_frame_bg`); fixed by scoping each call to whichever `RmlModelBinder::Create()`/document
     pointer it's textually associated with, not the whole file.
-- **No Custom/Test theme yet.** §25/§28 want a Custom/Test theme that looks substantially
-  different from Legacy, specifically to surface accidental component/presentation coupling.
-  **Legacy and Modern exist to validate that the architecture supports arbitrary themes, not as
-  the intended ceiling** — a third theme is genuinely wanted eventually; it's simply not scheduled
-  ahead of other work today. This is an ordinary sequencing decision, not an open policy conflict
-  — check with the user on *timing*, not on whether it should happen at all.
-- **No systematic resolution × UI-scale × theme × drag-state validation matrix** (§25).
-  Verification so far has been ad hoc per window. No test plan artifact exists that a future
-  session could run through mechanically.
+- **No Custom/Test theme, and none is wanted.** §25/§28 want a Custom/Test theme that looks
+  substantially different from Legacy, specifically to surface accidental component/presentation
+  coupling. **The project owner has since ruled this out: `legacy` and `modern` are the only two
+  themes wanted, and a third is not to be built** — do not propose one, and do not read §25/§28 as
+  a standing request. Earlier revisions of this entry said the opposite ("genuinely wanted
+  eventually... check on *timing*, not on whether"), which sent more than one session looking for a
+  slot to schedule it in.
+  The *underlying* concern §25/§28 raise — that accidental component/presentation coupling goes
+  unnoticed with only two themes — is real and now has to be met another way: `modern` is already
+  structurally divergent enough (forked RML for several windows, its own token layer) to surface
+  most coupling, and the drift checker (`tools/check_rml_rcss_drift.py`) catches the contract half.
+  Treat a third theme as a testing technique that was considered and rejected, not a gap.
+- **Partially addressed 2026-09-26: the UI-scale axis of §25's validation matrix now has a runnable
+  artifact** — [`validation-matrix.md`](validation-matrix.md), a scale-sweep click-through over the
+  17 windows whose native hit boxes are derived from live RCSS. Deliberately narrow: it covers the
+  one axis that has actually shipped bugs, twice. `RefreshLogicalPanelSize()` divided each `#panel`
+  box by the UI scale — exactly correct at 1.0, so every single-scale verification passed, while at
+  the usual capped 2.0 it shrank all 17 hit boxes to a quarter and clicks fell through to the world
+  and walked the character. `RefreshLogicalAnchorPosition()` had the same defect on its own three
+  callers. **The generalizable lesson: a window's native bookkeeping and its RCSS agree trivially at
+  scale 1.0 and can disagree at every other scale**, so verifying at one scale is the check that
+  structurally cannot catch this class. `layout-and-scaling.md`'s `CCharSelMainWin` retrofit is the
+  same bug from a different direction. Resolution, drag-state-across-scale-change, and
+  theme-change-while-open remain uncovered — named in the artifact's own "deliberately not covered"
+  section so the partial isn't mistaken for the whole.
 - **The existing drag system's interaction with theme-default-layout + UI-scale (§10–11) has not
   been explicitly audited for windows other than `CMyInventory` (below)** — does a dragged position
   survive a UI-scale change sensibly on other windows once they gain dragging? A theme change?
@@ -401,7 +557,7 @@ for "the full architecture is in place":
   native and not yet a distinct port target (a real, unrelated visibility bug in it was found and
   fixed along the way, see its own ledger row — not a port). Conversely,
   `CCreditWin` turned out to already be a real, shipped RmlUi port (`credit_win.rml`) that was never
-  logged in this file's own "What's migrated" list above — worth adding there if confirmed.
+  logged in this file's own "What's migrated" list above — now listed there.
 - ~~`MuPlatform::Initialize()`/`CreatePlatformWindow()`/`GetWindow()`/`Shutdown()`/
   `SetFullscreen()`/`SetMouseGrab()`/`GetDisplaySize()`, and the `IPlatformWindow`/`SDLWindow`
   classes they own, show zero external callers.~~ **Investigated and fixed 2026-09-04.** Root
@@ -483,6 +639,24 @@ for "the full architecture is in place":
   verified against a real build (`RelWithDebInfo`); in-engine smoke test (`$theme modern`/
   `$theme legacy` at the login/character-select screens, no live server needed) still pending —
   the `MAIN_SCENE` HUD tier additionally needs a live server to exercise.
+- **`LayoutMode::Legacy` (`UI/Scaling/UITransform.h`/`.cpp`, applied via
+  `UI::Layout::ForInterface()` in `UILayoutPolicy.cpp`) papers over windows whose own rendering
+  still assumes a fixed resolution, on windows the migration ledger already marks "done."** The
+  mode exists (correctly) to give an identity transform to windows that compute real screen pixels
+  themselves — `CSprite`/`g_pRenderText` calls — so the reference-space rescale doesn't double-
+  transform them and break mouse hit-testing (found live via `COptionWindow`'s history). But its own
+  header comment names `CCreditWin` as an example of *why* it's needed: that window's native
+  rendering "assumes... 800x600." `CCreditWin`, `CLoginMainWin`, `CSysMenuWin`, `COptionWindow`,
+  `CServerSelWin`, `CMsgWin`, `CCharSelMainWin`, `CCharMakeWin`, and `CLoginWin` all use this mode
+  (`UILayoutPolicy.cpp`'s `INTERFACE_CREDITS`/`INTERFACE_LOGIN_MAIN`/etc. case), and several of them
+  are listed as fully-shipped RmlUi ports above — meaning a "done" port can still carry a
+  fixed-resolution native rendering path underneath its RmlUi shell, which is exactly what §4/§23/§28
+  say a properly migrated window shouldn't do. Not a bug in `LayoutMode::Legacy` itself (removing it
+  would reintroduce the double-transform/hit-testing bug it fixes) — the gap is that no windows in
+  this list have been individually audited for which of their native draws are still
+  resolution-fixed, and none of that is tracked per-window today. Auditing `CCreditWin`'s 800x600
+  assumption specifically (and any sibling in this list with the same pattern) is the concrete next
+  step, not a change to the transform system.
 
 ## Pilots to revisit, and tracked deferrals
 

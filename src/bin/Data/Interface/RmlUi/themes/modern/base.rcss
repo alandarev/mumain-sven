@@ -475,6 +475,82 @@ body {
 	background-color: rgba(180, 138, 50, 25); /* border-selected's rgb @ 25 alpha wash */
 }
 
+/* Shared editable-text primitive for stock RmlUi <input type="text"/"password"> -- the same tier as
+   .btn/.checkbox-* above. Owns appearance only (typography, fill, border, states); every consumer
+   supplies its own position/size through a local class, since no two fields share a box. Length
+   limits and value validation stay in C++ (the owning window sets maxlength and decides what a
+   valid value is) -- this layer only reflects the outcome, via .error below. */
+.text-field {
+	box-sizing: border-box;
+	cursor: text;
+	pointer-events: auto;
+	text-align: left;
+	color: token(text-primary);
+	background-color: token(metal-dark);
+	decorator: linear-gradient(to bottom, rgba(0, 0, 0, 140), rgba(0, 0, 0, 60));
+	border: 1px token(border-frame);
+	border-radius: token(radius-sm)px;
+	box-shadow: inset 0 1px 3px rgba(0, 0, 0, 200);
+}
+/* No :focus rule on purpose -- the native fields these replaced drew no focus outline, so the blinking
+   caret stays the only focus cue. Add one per consumer if a screen ever wants it. */
+/* Semantic state pushed from the model (data-class-error), never a colour set from C++. */
+.text-field.error {
+	border-color: token(semantic-danger);
+	color: token(semantic-danger);
+}
+.text-field:disabled {
+	pointer-events: none;
+	color: token(text-disabled);
+	background-color: token(surface-recessed);
+	decorator: none;
+}
+/* RmlUi styles the selection range through the widget's own <selection> child element, which reads
+   exactly these two properties (ElementTextSelection::OnPropertyChange). */
+.text-field selection {
+	color: token(metal-dark);
+	background-color: token(accent-gold);
+}
+
+/* Scrolling content pane -- see legacy/base.rcss's copy for the two engine requirements baked in
+   here (the `hidden auto` shorthand order, and why pointer-events must be opted back in). The
+   container half is identical in both themes by design; only the scrollbar chrome below differs.
+
+   The pane needs a bounded height to scroll within (explicit height, max-height, or a stretched
+   flex child) -- the consumer's own layout, deliberately not set here. */
+.scroll-pane {
+	overflow: hidden auto;
+	pointer-events: auto;
+}
+
+/* Flat rail in the metal-rail palette rather than the gold accent, tying the scrollbar to the
+   header hardware -- where legacy uses native's real sprite art, this theme states the same
+   affordance in its own language. */
+.scroll-pane scrollbarvertical {
+	width: 8dp;
+	margin: 0;
+}
+.scroll-pane scrollbarvertical slidertrack {
+	background-color: token(metal-rail-dark);
+}
+.scroll-pane scrollbarvertical sliderbar {
+	background-color: token(metal-edge);
+	border-radius: token(radius-sm)px;
+}
+.scroll-pane scrollbarvertical sliderbar:hover,
+.scroll-pane scrollbarvertical sliderbar:active {
+	background-color: token(metal-highlight);
+}
+/* Drag-only, matching legacy -- native has no arrow buttons on this scrollbar. */
+.scroll-pane scrollbarvertical sliderarrowdec,
+.scroll-pane scrollbarvertical sliderarrowinc {
+	width: 0;
+	height: 0;
+}
+.scroll-pane scrollbarhorizontal {
+	height: 0;
+}
+
 .hidden {
 	display: none;
 }
@@ -925,3 +1001,10 @@ body {
 		inset 0 2dp 7dp rgba(0, 0, 0, 191),
 		inset 0 0 0 1dp rgba(113, 102, 74, 13);
 }
+
+/* Zen amounts by wealth tier (GameLogic::Items::GoldAmountTier; the model binds its key, the RML
+   toggles .gold-<key>). The original client's colors. */
+.gold-amount.gold-base             { color: #ffdc96; }
+.gold-amount.gold-hundred-thousand { color: #00c918; }
+.gold-amount.gold-million          { color: #ff9600; }
+.gold-amount.gold-ten-million      { color: #ff0000; }

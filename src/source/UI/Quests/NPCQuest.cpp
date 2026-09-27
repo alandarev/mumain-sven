@@ -13,12 +13,15 @@
 #include "Character/CharacterManager.h"
 #include "Audio/DSPlaySound.h"
 #include "UI/Scaling/UITransform.h"
+#include "UI/RmlBridge/RmlDocumentVisibility.h"
 #include "UI/RmlBridge/RmlPanelGeometry.h"
 #include "UI/RmlBridge/RmlTheme.h"
 #include "UI/RmlBridge/RmlRootTransform.h"
+#include "UI/RmlBridge/RmlStyleKeys.h"
 #include "Render/RmlUi/RmlUiRuntime.h"
 #include "Core/Utilities/StringUtils.h"
 
+#include <RmlUi/Core/ComputedValues.h>
 #include <RmlUi/Core/DataModelHandle.h>
 #include <RmlUi/Core/Element.h>
 #include <RmlUi/Core/ElementDocument.h>
@@ -80,6 +83,7 @@ void CNPCQuest::BuildRmlUi()
             c.Bind("root_x", &model.rootX);
             c.Bind("root_y", &model.rootY);
             c.Bind("root_scale", &model.rootScale);
+            c.Bind("text_px", &model.textPx);
 
             c.Bind("npc_name", &model.npcName);
             c.Bind("quest_title", &model.questTitle);
@@ -95,7 +99,7 @@ void CNPCQuest::BuildRmlUi()
 
             c.Bind("show_cost", &model.showCost);
             c.Bind("cost_amount", &model.costAmount);
-            c.Bind("cost_color", &model.costColor);
+            c.Bind("cost_tier", &model.costTier);
 
             auto textLine = c.RegisterStruct<NPCQuestTextLine>();
             textLine.RegisterMember("text", &NPCQuestTextLine::text);
@@ -109,6 +113,8 @@ void CNPCQuest::BuildRmlUi()
             c.Bind("answers", &model.answers);
 
             c.Bind("dialogue_top", &model.dialogueTop);
+            c.Bind("message_top", &model.messageTop);
+            c.Bind("answers_top", &model.answersTop);
 
             c.Bind("complete_label", &model.completeLabel);
             c.Bind("cost_label", &model.costLabel);
@@ -297,15 +303,35 @@ void CNPCQuest::RenderItem3D()
                 // Icon sits 22px left / 9px above the row's own text origin -- a native rendering
                 // choice, not theme geometry, so it stays a fixed offset from whatever the anchor's
                 // live position resolves to.
-                const auto offset = conditionsEl->GetAbsoluteOffset();
-                x = UI::Scaling::LogicalX(transform, offset.x) - 22.f;
-                y = UI::Scaling::LogicalY(transform, offset.y) - 9.f;
+                //
+                // Goes through the #content_root delta rather than converting the anchor's raw
+                // GetAbsoluteOffset(): that offset is mixed-space (the root's left/top were
+                // pre-multiplied by the scale, the anchor's own 52/244 inside it were not, and
+                // .sharp-text keeps a layer's POSITION in panel units even though its lengths are
+                // physical), so mapping the whole sum back through the transform divides the child
+                // half -- m_Pos + 52/scale where m_Pos + 52 is wanted.
+                // Only applied on a successful lookup: x/y are pre-seeded with the historical
+                // m_Pos+30/+235, which already has the 22/9 taken off.
+                float anchorX = 0.f, anchorY = 0.f;
+                if (UI::RmlBridge::RefreshLogicalAnchorPosition(m_pRmlDoc, "content_root",
+                                                                "conditions_anchor", m_Pos,
+                                                                anchorX, anchorY))
+                {
+                    x = anchorX - 22.f;
+                    y = anchorY - 9.f;
+                }
 
+                // A row's box height is in the panel's own (logical) units -- a transform does not
+                // change box sizes -- unless a theme lays the rows out in physical pixels inside a
+                // counter-scaled text layer (legacy .sharp-text): then it is divided back. Lengths
+                // genuinely are physical there, unlike the position above.
                 if (Rml::Element* firstRow = conditionsEl->GetChild(0))
                 {
-                    const float rowHeightPx = firstRow->GetBox().GetSize(Rml::BoxArea::Border).y;
-                    if (rowHeightPx > 0.0f)
-                        rowStep = rowHeightPx / transform.scaleY;
+                    float rowHeight = firstRow->GetBox().GetSize(Rml::BoxArea::Border).y;
+                    if (conditionsEl->GetComputedValues().has_local_transform())
+                        rowHeight /= transform.scaleY;
+                    if (rowHeight > 0.0f)
+                        rowStep = rowHeight;
                 }
             }
         }
@@ -478,7 +504,7 @@ void CNPCQuest::SyncRmlModel()
         UI::RmlBridge::SyncRootTransform(m_BgRmlBinder, m_Pos);
         // RenderBackgroundLayer() renders whatever's shown in the shared background context
         // regardless of caller, so this Hide()/Show() is what keeps the bg panel hidden when closed.
-        if (IsVisible()) m_pRmlBgDoc->Show(); else m_pRmlBgDoc->Hide();
+        UI::RmlBridge::SyncDocumentVisibility(m_pRmlBgDoc, IsVisible());
     }
 
     if (!m_pRmlDoc)
@@ -498,6 +524,7 @@ void CNPCQuest::SyncRmlModel()
         m_RmlBinder.MarkDirty("root_y");
         m_RmlBinder.MarkDirty("root_scale");
     }
+    UI::RmlBridge::SyncNativeTextSize(m_RmlBinder);
 
     const BYTE byCurQuestIndex = g_csQuest.GetCurrQuestIndex();
     const BYTE byCurQuestState = g_csQuest.getQuestState2(int(byCurQuestIndex));
@@ -536,24 +563,14 @@ void CNPCQuest::SyncRmlModel()
     m_RmlBinder.MarkDirty("show_cost");
     if (model.showCost)
     {
-        // getGoldColor() returns an SDL_ttf-packed DWORD (A<<24 | B<<16 | G<<8 | R -- see
-        // PackColorDWORD()), not the ARGB layout UI::Quests::RewardModel::ToEntry() unpacks -- these
-        // are two different packed-color conventions in this codebase, not interchangeable.
         wchar_t szTemp[128];
         ::ConvertGold(g_csQuest.GetNeedZen(), szTemp);
         model.costAmount = StringUtils::WideToNarrow(szTemp);
 
-        const DWORD dwColor = ::getGoldColor(g_csQuest.GetNeedZen());
-        const BYTE r = dwColor & 0xFF;
-        const BYTE g = (dwColor >> 8) & 0xFF;
-        const BYTE b = (dwColor >> 16) & 0xFF;
-        const BYTE a = (dwColor >> 24) & 0xFF;
-        char szColor[48];
-        ::sprintf_s(szColor, "rgba(%d,%d,%d,%d)", r, g, b, a);
-        model.costColor = szColor;
+        model.costTier = UI::RmlBridge::GoldTierKey(GameLogic::Items::ClassifyGoldAmount(g_csQuest.GetNeedZen()));
 
         m_RmlBinder.MarkDirty("cost_amount");
-        m_RmlBinder.MarkDirty("cost_color");
+        m_RmlBinder.MarkDirty("cost_tier");
     }
 
     model.messageLines.clear();
@@ -573,14 +590,16 @@ void CNPCQuest::SyncRmlModel()
     // Same vertical-centering formula RenderText() used natively; the QUEST_ING branch depends on
     // how many message+answer lines are present this instance (a real per-instance value), the other
     // branch is a fixed lower anchor (room for the cost banner above it).
-    if (QUEST_ING == byCurQuestState)
-    {
-        const int iTotalLine = g_iNumLineMessageBoxCustom + g_iNumAnswer;
-        model.dialogueTop = 66.f + (NUM_LINE_CMB - iTotalLine) * 18.f / 2.f;
-    }
-    else
-    {
-        model.dialogueTop = 250.f;
-    }
+    constexpr float kLineAdvance = 18.f;
+    constexpr float kAnswersAnchorTop = 250.f;
+    const int iTotalLine = g_iNumLineMessageBoxCustom + g_iNumAnswer;
+    model.messageTop = 66.f + static_cast<float>(NUM_LINE_CMB - iTotalLine) * kLineAdvance / 2.f;
+    const bool questInProgress = QUEST_ING == byCurQuestState;
+    model.answersTop = questInProgress
+                           ? model.messageTop + static_cast<float>(g_iNumLineMessageBoxCustom) * kLineAdvance
+                           : kAnswersAnchorTop;
+    model.dialogueTop = questInProgress ? model.messageTop : kAnswersAnchorTop;
     m_RmlBinder.MarkDirty("dialogue_top");
+    m_RmlBinder.MarkDirty("message_top");
+    m_RmlBinder.MarkDirty("answers_top");
 }

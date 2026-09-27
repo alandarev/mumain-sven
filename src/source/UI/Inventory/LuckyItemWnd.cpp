@@ -21,6 +21,7 @@
 // RmlUi migration -- see this class's header comment.
 #include "Render/RmlUi/RmlUiRuntime.h"
 #include "UI/RmlBridge/RmlTheme.h"
+#include "UI/RmlBridge/RmlDocumentVisibility.h"
 #include "UI/RmlBridge/RmlRootTransform.h"
 #include "Core/Utilities/StringUtils.h"
 #include <RmlUi/Core/ElementDocument.h>
@@ -241,6 +242,7 @@ void CLuckyItemWnd::BuildRmlUi()
                 c.Bind("root_x", &model.rootX);
                 c.Bind("root_y", &model.rootY);
                 c.Bind("root_scale", &model.rootScale);
+                c.Bind("text_px", &model.textPx);
                 c.Bind("root_width", &model.rootWidth);
                 c.Bind("root_height", &model.rootHeight);
                 c.Bind("title", &model.title);
@@ -654,13 +656,14 @@ void CLuckyItemWnd::SyncRmlModel()
 
         // RenderBackgroundLayer() renders whatever's shown in the shared background context
         // regardless of caller, so this Hide()/Show() is what keeps the bg panel hidden when closed.
-        if (IsVisible()) m_pRmlBgDoc->Show(); else m_pRmlBgDoc->Hide();
+        UI::RmlBridge::SyncDocumentVisibility(m_pRmlBgDoc, IsVisible());
     }
 
     if (!m_pRmlDoc) return;
-    if (IsVisible()) m_pRmlDoc->Show(); else m_pRmlDoc->Hide();
+    UI::RmlBridge::SyncDocumentVisibility(m_pRmlDoc, IsVisible());
 
     UI::RmlBridge::SyncRootTransform(m_RmlBinder, m_ptPos);
+    UI::RmlBridge::SyncNativeTextSize(m_RmlBinder);
 
     auto& model = m_RmlBinder.GetModel();
     model.rootWidth = m_fSizeX;

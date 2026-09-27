@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "RmlTheme.h"
+#include "RmlNativeText.h"
 #include "Data/GameConfig/GameConfig.h"
 #include "Core/Platform/WinIni.h"
 #include "Render/RmlUi/RmlUiRuntime.h"
@@ -155,6 +156,18 @@ namespace UI::RmlBridge
             return GetPrivateProfileIntW(L"Capabilities", L"ProvidesOwnIconChrome", 0, WidenAscii(iniPath).c_str()) != 0;
         }
 
+        bool ComputeUsesNativeTextSize(const std::string& themeName)
+        {
+            const std::string iniPath = "Data/Interface/RmlUi/themes/" + themeName + "/theme.ini";
+            return GetPrivateProfileIntW(L"Capabilities", L"NativeTextSize", 0, WidenAscii(iniPath).c_str()) != 0;
+        }
+
+        bool& UsesNativeTextSizeStorage()
+        {
+            static bool usesNativeTextSize = ComputeUsesNativeTextSize(ActiveThemeNameStorage());
+            return usesNativeTextSize;
+        }
+
         bool& ProvidesOwnIconChromeStorage()
         {
             static bool providesOwnIconChrome = ComputeProvidesOwnIconChrome(ActiveThemeNameStorage());
@@ -172,10 +185,16 @@ namespace UI::RmlBridge
         return ProvidesOwnIconChromeStorage();
     }
 
+    bool ThemeUsesNativeTextSize()
+    {
+        return UsesNativeTextSizeStorage();
+    }
+
     void SetActiveThemeName(const std::string& themeName)
     {
         ActiveThemeNameStorage() = ToLower(themeName);
         ProvidesOwnIconChromeStorage() = ComputeProvidesOwnIconChrome(ActiveThemeNameStorage());
+        UsesNativeTextSizeStorage() = ComputeUsesNativeTextSize(ActiveThemeNameStorage());
 
         // Both themes deliberately reuse the same <template name="..."> for a shared concept
         // (e.g. "window_shell_bg") in their own themes/<theme>/ copy. Rml::TemplateCache caches a
@@ -275,6 +294,7 @@ namespace UI::RmlBridge
         const std::string rmlText = InlineTokenizedStylesheet(buffer.str(), sourceUrl);
 
         Rml::ElementDocument* doc = context->LoadDocumentFromMemory(rmlText, sourceUrl);
+        ApplyNativeTextSize(doc);
         if (!doc)
             g_ErrorReport.Write(L"> [RmlTheme] Failed to load '%hs' as theme '%hs' (source url '%hs').\r\n",
                 documentPath, GetActiveThemeName().c_str(), sourceUrl.c_str());
@@ -319,6 +339,24 @@ namespace UI::RmlBridge
 
     void ReloadAllThemedDocuments()
     {
+        // Drop the focus before any document is unloaded. RmlUi clears Context::focus directly in
+        // both UnloadDocument() and OnElementDetach() without dispatching Blur, so a focused
+        // <input> is destroyed without its WidgetTextInput ever calling DeactivateKeyboard() --
+        // and RmlUiSystemInterface's text-input latch then stays set with no field left to clear
+        // it. CManager::UpdateKeyEvent() reads that latch to decide the whole UI is typing, so it
+        // would skip every window from then on: no hotkeys, no Enter-to-chat, until a relaunch.
+        // Blurring here goes through Context::Focus(), which does dispatch the event.
+        //
+        // This is also the right behaviour on its own terms: every document is about to be
+        // rebuilt, so nothing should still be holding focus across the swap.
+        if (Rml::Context* context = RmlUiRuntime::Instance().IsCreated()
+                ? RmlUiRuntime::Instance().GetContext()
+                : nullptr)
+        {
+            if (Rml::Element* focused = context->GetFocusElement())
+                focused->Blur();
+        }
+
         // Copy first -- see this function's own header comment (RmlTheme.h) for why.
         const auto callbacks = ThemeReloadRegistry();
         for (const auto& [owner, callback] : callbacks)

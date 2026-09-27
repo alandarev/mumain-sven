@@ -4,10 +4,12 @@
 
 #include "UI/Core/WindowSystem.h"
 #include "UI/Core/WindowGeometry.h"
+#include "UI/RmlBridge/RmlPanelGeometry.h"
 
 // RmlUi migration -- see this class's header comment.
 #include "Render/RmlUi/RmlUiRuntime.h"
 #include "UI/RmlBridge/RmlTheme.h"
+#include "UI/RmlBridge/RmlDocumentVisibility.h"
 #include "UI/RmlBridge/RmlRootTransform.h"
 #include "UI/Scaling/UITransform.h"
 #include "Core/Utilities/StringUtils.h"
@@ -93,6 +95,7 @@ void CInventoryExtension::BuildRmlUi()
                 c.Bind("root_x", &model.rootX);
                 c.Bind("root_y", &model.rootY);
                 c.Bind("root_scale", &model.rootScale);
+                c.Bind("text_px", &model.textPx);
                 c.Bind("title", &model.title);
                 c.Bind("exit_tooltip", &model.exitTooltip);
                 c.Bind("locked_pages", &model.lockedPages);
@@ -201,7 +204,12 @@ bool CInventoryExtension::UpdateMouseEvent()
         }
     }
 
-    if (mu::ui::window::WindowGeometry(m_Pos.x, m_Pos.y, WIDTH, HEIGHT).Contains(MouseX, MouseY))
+    // #panel's own live RCSS size is the source of truth -- WIDTH/HEIGHT only cover the first
+    // frame after Create()/Show(true)/ReloadRmlTheme(), before RmlUi's next layout pass.
+    float panelWidth = WIDTH;
+    float panelHeight = HEIGHT;
+    UI::RmlBridge::RefreshLogicalPanelSize(m_pRmlDoc, "panel", panelWidth, panelHeight);
+    if (mu::ui::window::WindowGeometry(m_Pos.x, m_Pos.y, static_cast<int>(panelWidth), static_cast<int>(panelHeight)).Contains(MouseX, MouseY))
     {
         if (IsPress(VK_RBUTTON))
         {
@@ -222,7 +230,12 @@ bool CInventoryExtension::UpdateMouseEvent()
 
 bool CInventoryExtension::InventoryProcess()
 {
-    if (!mu::ui::window::WindowGeometry(m_Pos.x, m_Pos.y, WIDTH, HEIGHT).Contains(MouseX, MouseY))
+    // #panel's own live RCSS size is the source of truth -- WIDTH/HEIGHT only cover the first
+    // frame after Create()/Show(true)/ReloadRmlTheme(), before RmlUi's next layout pass.
+    float panelWidth = WIDTH;
+    float panelHeight = HEIGHT;
+    UI::RmlBridge::RefreshLogicalPanelSize(m_pRmlDoc, "panel", panelWidth, panelHeight);
+    if (!mu::ui::window::WindowGeometry(m_Pos.x, m_Pos.y, static_cast<int>(panelWidth), static_cast<int>(panelHeight)).Contains(MouseX, MouseY))
     {
         return false;
     }
@@ -308,13 +321,14 @@ void CInventoryExtension::SyncRmlModel()
 
         // RenderBackgroundLayer() renders whatever's shown in the shared background context
         // regardless of caller, so this Hide()/Show() is what keeps the bg panel hidden when closed.
-        if (IsVisible()) m_pRmlBgDoc->Show(); else m_pRmlBgDoc->Hide();
+        UI::RmlBridge::SyncDocumentVisibility(m_pRmlBgDoc, IsVisible());
     }
 
     if (!m_pRmlDoc) return;
-    if (IsVisible()) m_pRmlDoc->Show(); else m_pRmlDoc->Hide();
+    UI::RmlBridge::SyncDocumentVisibility(m_pRmlDoc, IsVisible());
 
     UI::RmlBridge::SyncRootTransform(m_RmlBinder, m_Pos);
+    UI::RmlBridge::SyncNativeTextSize(m_RmlBinder);
 
     auto& model = m_RmlBinder.GetModel();
     auto syncWide = [&](Rml::String InventoryExtensionRmlModel::* field, const char* boundName, const wchar_t* text)

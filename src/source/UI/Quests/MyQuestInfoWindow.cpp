@@ -15,6 +15,7 @@
 #include "Core/Utilities/StringUtils.h"
 #include "UI/Scaling/UITransform.h"
 #include "Render/RmlUi/RmlUiRuntime.h"
+#include "UI/RmlBridge/RmlRootTransform.h"
 #include "UI/RmlBridge/RmlPanelGeometry.h"
 #include "UI/RmlBridge/RmlTheme.h"
 #include "UI/RmlBridge/RmlTooltip.h"
@@ -86,6 +87,7 @@ void mu::ui::window::CMyQuestInfoWindow::BuildRmlUi()
                 c.Bind("root_x", &model.rootX);
                 c.Bind("root_y", &model.rootY);
                 c.Bind("root_scale", &model.rootScale);
+                c.Bind("text_px", &model.textPx);
 
                 c.Bind("active_tab", &model.activeTab);
                 c.Bind("tab_quest_label", &model.tabQuestLabel);
@@ -116,7 +118,7 @@ void mu::ui::window::CMyQuestInfoWindow::BuildRmlUi()
 
                 auto content = c.RegisterStruct<ContentEntry>();
                 content.RegisterMember("text", &ContentEntry::text);
-                content.RegisterMember("color", &ContentEntry::color);
+                content.RegisterMember("style", &ContentEntry::style);
                 content.RegisterMember("bold", &ContentEntry::bold);
                 content.RegisterMember("index", &ContentEntry::index);
                 content.RegisterMember("clickable", &ContentEntry::clickable);
@@ -277,7 +279,7 @@ bool mu::ui::window::CMyQuestInfoWindow::Render()
         // Pre-converting here too used to double-apply the transform.
         float anchorX = static_cast<float>(m_Pos.x + 95);
         float anchorY = static_cast<float>(m_Pos.y + 230);
-        UI::RmlBridge::RefreshLogicalAnchorPosition(m_pRmlDoc, "reward_popup_anchor", GetLayoutMode(), anchorX, anchorY);
+        UI::RmlBridge::RefreshLogicalAnchorPosition(m_pRmlDoc, "panel", "reward_popup_anchor", m_Pos, anchorX, anchorY);
         ::RenderItemInfo(static_cast<int>(anchorX), static_cast<int>(anchorY), m_pSelectedRewardItem, false, 0, true);
     }
 
@@ -330,12 +332,14 @@ void mu::ui::window::CMyQuestInfoWindow::SetSelQuestSummary()
     if (0 == dwSelQuestIndex)
         return;
 
-    m_ContentRows.push_back({ StringUtils::WideToNarrow(g_QuestMng.GetSubject(dwSelQuestIndex)), 0xff0ab9ff, 0, nullptr });
+    m_ContentRows.push_back({StringUtils::WideToNarrow(g_QuestMng.GetSubject(dwSelQuestIndex)),
+                             UI::Quests::RewardModel::RowStyle::Subject, 0, nullptr});
 
     wchar_t aszSummary[8][64];
     const int nLine = ::DivideStringByPixel(&aszSummary[0][0], 8, 64, g_QuestMng.GetSummary(dwSelQuestIndex), 150);
     for (int i = 0; i < nLine; ++i)
-        m_ContentRows.push_back({ StringUtils::WideToNarrow(aszSummary[i]), 0xffd2e6ff, 0, nullptr });
+        m_ContentRows.push_back(
+            {StringUtils::WideToNarrow(aszSummary[i]), UI::Quests::RewardModel::RowStyle::Summary, 0, nullptr});
 }
 
 void mu::ui::window::CMyQuestInfoWindow::SetSelQuestRequestReward()
@@ -350,7 +354,7 @@ void mu::ui::window::CMyQuestInfoWindow::SetSelQuestRequestReward()
     // This window appends the reward rows after other content already in m_ContentRows (the quest
     // summary, above) -- push the leading spacer here rather than in the shared helper, which
     // CQuestProgress/CQuestProgressByEtc's own reward list (nothing precedes it) don't want.
-    m_ContentRows.push_back({ " ", 0xffffffff, 0, nullptr });
+    m_ContentRows.push_back({" ", UI::Quests::RewardModel::RowStyle::Plain, 0, nullptr});
 
     bool unusedRequestComplete = false;
     std::vector<UI::Quests::RewardModel::RowData> rows =
@@ -521,6 +525,7 @@ void mu::ui::window::CMyQuestInfoWindow::SyncRmlModel()
         m_RmlBinder.MarkDirty("root_y");
         m_RmlBinder.MarkDirty("root_scale");
     }
+    UI::RmlBridge::SyncNativeTextSize(m_RmlBinder);
 
     const bool bEmpty = m_QuestIndices.empty();
     if (model.questListEmpty != bEmpty)
@@ -530,7 +535,11 @@ void mu::ui::window::CMyQuestInfoWindow::SyncRmlModel()
     }
 
     // Small lists, rebuilt and marked dirty unconditionally each sync (same as CreditWin/BuffStrip).
-    model.emptyQuestLines = bEmpty ? BuildTextLines(2825, 140) : std::vector<TextLine>{};
+    // One line, wrapped by the text box (.quest-empty-msg): native's own 140-pixel split measures
+    // with whichever font size was active last, so it breaks the line at some window sizes only.
+    model.emptyQuestLines.clear();
+    if (bEmpty)
+        model.emptyQuestLines.push_back({StringUtils::WideToNarrow(I18N::Game::Lookup(2825))});
     m_RmlBinder.MarkDirty("empty_quest_lines");
 
     model.quests.clear();
@@ -552,7 +561,7 @@ void mu::ui::window::CMyQuestInfoWindow::SyncRmlModel()
     {
         const UI::Quests::RewardModel::Entry entry =
             UI::Quests::RewardModel::ToEntry(m_ContentRows[rowIndex], static_cast<int>(rowIndex));
-        model.contents.push_back({ entry.text, entry.color, entry.bold, entry.index, entry.clickable });
+        model.contents.push_back({entry.text, entry.style, entry.bold, entry.index, entry.clickable});
     }
     m_RmlBinder.MarkDirty("contents");
 

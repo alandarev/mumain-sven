@@ -6,6 +6,7 @@
 #include "Audio/DSPlaySound.h"
 #include "UI/Core/WindowSystem.h"
 #include "UI/Core/WindowGeometry.h"
+#include "UI/RmlBridge/RmlPanelGeometry.h"
 #include "UI/Dialogs/CommonMessageBox.h"
 #include "UI/Dialogs/GenericConfirmDialog.h"
 #include "Engine/Object/ZzzInventory.h"
@@ -14,7 +15,9 @@
 
 // RmlUi migration -- see this class's header comment.
 #include "Render/RmlUi/RmlUiRuntime.h"
+#include "UI/RmlBridge/RmlStyleKeys.h"
 #include "UI/RmlBridge/RmlTheme.h"
+#include "UI/RmlBridge/RmlDocumentVisibility.h"
 #include "UI/RmlBridge/RmlRootTransform.h"
 #include "UI/Scaling/UITransform.h"
 #include "Core/Utilities/StringUtils.h"
@@ -90,6 +93,7 @@ void mu::ui::window::CNPCShop::BuildRmlUi()
                 c.Bind("root_x", &model.rootX);
                 c.Bind("root_y", &model.rootY);
                 c.Bind("root_scale", &model.rootScale);
+                c.Bind("text_px", &model.textPx);
 
                 c.Bind("title", &model.title);
                 c.Bind("tax_rate_text", &model.taxRateText);
@@ -99,7 +103,7 @@ void mu::ui::window::CNPCShop::BuildRmlUi()
                 c.Bind("repair_all_tooltip", &model.repairAllTooltip);
                 c.Bind("repair_all_label", &model.repairAllLabel);
                 c.Bind("repair_gold_text", &model.repairGoldText);
-                c.Bind("repair_gold_color", &model.repairGoldColor);
+                c.Bind("repair_gold_tier", &model.repairGoldTier);
 
                 c.BindEventCallback("npc_shop_repair_click",
                     [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) { ToggleState(); });
@@ -265,7 +269,12 @@ bool mu::ui::window::CNPCShop::UpdateMouseEvent()
 
 bool mu::ui::window::CNPCShop::WindowProcess()
 {
-    return mu::ui::window::WindowGeometry(m_Pos.x, m_Pos.y, NPCSHOP_WIDTH, NPCSHOP_HEIGHT).Contains(MouseX, MouseY);
+    // #panel's own live RCSS size is the source of truth -- NPCSHOP_WIDTH/HEIGHT only cover the
+    // first frame after Create()/Show(true)/ReloadRmlTheme(), before RmlUi's next layout pass.
+    float panelWidth = NPCSHOP_WIDTH;
+    float panelHeight = NPCSHOP_HEIGHT;
+    UI::RmlBridge::RefreshLogicalPanelSize(m_pRmlDoc, "panel", panelWidth, panelHeight);
+    return mu::ui::window::WindowGeometry(m_Pos.x, m_Pos.y, static_cast<int>(panelWidth), static_cast<int>(panelHeight)).Contains(MouseX, MouseY);
 }
 
 bool mu::ui::window::CNPCShop::UpdateKeyEvent()
@@ -340,13 +349,14 @@ void mu::ui::window::CNPCShop::SyncRmlModel()
 
         // RenderBackgroundLayer() renders whatever's shown in the shared background context
         // regardless of caller, so this Hide()/Show() is what keeps the bg panel hidden when closed.
-        if (IsVisible()) m_pRmlBgDoc->Show(); else m_pRmlBgDoc->Hide();
+        UI::RmlBridge::SyncDocumentVisibility(m_pRmlBgDoc, IsVisible());
     }
 
     if (!m_pRmlDoc) return;
-    if (IsVisible()) m_pRmlDoc->Show(); else m_pRmlDoc->Hide();
+    UI::RmlBridge::SyncDocumentVisibility(m_pRmlDoc, IsVisible());
 
     UI::RmlBridge::SyncRootTransform(m_RmlBinder, m_Pos);
+    UI::RmlBridge::SyncNativeTextSize(m_RmlBinder);
 
     auto& model = m_RmlBinder.GetModel();
     auto syncBool = [&](bool NPCShopRmlModel::* field, const char* boundName, bool value)
@@ -377,12 +387,8 @@ void mu::ui::window::CNPCShop::SyncRmlModel()
     ConvertGold(AllRepairGold, goldBuf);
     syncWide(&NPCShopRmlModel::repairGoldText, "repair_gold_text", goldBuf);
 
-    // getGoldColor() packs (A<<24)+(R<<16)+(G<<8)+B -- unpack into an rgba() CSS string.
-    const unsigned int goldArgb = getGoldColor(AllRepairGold);
-    char goldColorBuf[32];
-    snprintf(goldColorBuf, sizeof(goldColorBuf), "rgba(%u,%u,%u,%u)",
-        (goldArgb >> 16) & 0xFF, (goldArgb >> 8) & 0xFF, goldArgb & 0xFF, (goldArgb >> 24) & 0xFF);
-    syncText(&NPCShopRmlModel::repairGoldColor, "repair_gold_color", Rml::String(goldColorBuf));
+    syncText(&NPCShopRmlModel::repairGoldTier, "repair_gold_tier",
+             UI::RmlBridge::GoldTierKey(GameLogic::Items::ClassifyGoldAmount(AllRepairGold)));
 }
 
 float mu::ui::window::CNPCShop::GetLayerDepth()

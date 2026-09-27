@@ -10,6 +10,7 @@
 #include "UI/Core/WindowSystem.h"
 #include "UI/Core/WindowGeometry.h"
 #include "UI/Scaling/UITransform.h"
+#include "UI/RmlBridge/RmlRootTransform.h"
 #include "UI/RmlBridge/RmlPanelGeometry.h"
 #include "UI/RmlBridge/RmlTheme.h"
 #include "UI/RmlBridge/RmlTooltip.h"
@@ -68,6 +69,7 @@ void CQuestProgress::BuildRmlUi()
             c.Bind("root_x", &model.rootX);
             c.Bind("root_y", &model.rootY);
             c.Bind("root_scale", &model.rootScale);
+            c.Bind("text_px", &model.textPx);
 
             c.Bind("subject", &model.subject);
             c.Bind("npc_name", &model.npcName);
@@ -91,7 +93,7 @@ void CQuestProgress::BuildRmlUi()
 
             auto reward = c.RegisterStruct<UI::Quests::RewardModel::Entry>();
             reward.RegisterMember("text", &UI::Quests::RewardModel::Entry::text);
-            reward.RegisterMember("color", &UI::Quests::RewardModel::Entry::color);
+            reward.RegisterMember("style", &UI::Quests::RewardModel::Entry::style);
             reward.RegisterMember("bold", &UI::Quests::RewardModel::Entry::bold);
             reward.RegisterMember("index", &UI::Quests::RewardModel::Entry::index);
             reward.RegisterMember("clickable", &UI::Quests::RewardModel::Entry::clickable);
@@ -235,7 +237,7 @@ bool CQuestProgress::Render()
         // ambient transform (same convention every other caller uses).
         float anchorX = static_cast<float>(m_Pos.x + 95);
         float anchorY = static_cast<float>(m_Pos.y + 360);
-        UI::RmlBridge::RefreshLogicalAnchorPosition(m_pRmlDoc, "reward_popup_anchor", GetLayoutMode(), anchorX, anchorY);
+        UI::RmlBridge::RefreshLogicalAnchorPosition(m_pRmlDoc, "panel", "reward_popup_anchor", m_Pos, anchorX, anchorY);
         ::RenderItemInfo(static_cast<int>(anchorX), static_cast<int>(anchorY), m_pSelectedRewardItem, false, 0, true);
     }
 
@@ -411,6 +413,7 @@ void CQuestProgress::SyncRmlModel()
         m_RmlBinder.MarkDirty("root_y");
         m_RmlBinder.MarkDirty("root_scale");
     }
+    UI::RmlBridge::SyncNativeTextSize(m_RmlBinder);
 
     if (0 == m_dwCurQuestIndex)
         return; // never populated yet (window not yet opened this session) -- nothing else to sync.

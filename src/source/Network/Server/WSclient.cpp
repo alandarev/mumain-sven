@@ -581,7 +581,7 @@ void ReceiveJoinServer(const BYTE* ReceiveBuffer)
             if (!ReconnectManager::Instance().IsActive())
             {
                 g_LoginWin.Show(true);
-                g_LoginWin.GetUsernameInputBox()->GiveFocus();
+                g_LoginWin.FocusUsername();
             }
             HeroKey = ((int)(Data2->NumberH) << 8) + Data2->NumberL;
             CurrentProtocolState = RECEIVE_JOIN_SERVER_SUCCESS;
@@ -6533,9 +6533,9 @@ BOOL ReceiveTalk(const BYTE* ReceiveBuffer, BOOL bEncrypted)
     {
         mu::ui::window::GenericDialogConfig cfg;
         cfg.lines = {
-            { I18N::Game::Warning2223, true },
-            { L" ", false },
-            { I18N::Game::RefineryHasStartedRefineryIsA, true },
+            {I18N::Game::Warning2223, true, RGBA(255, 0, 0, 255)},
+            {L" ", false},
+            {I18N::Game::RefineryHasStartedRefineryIsA, true, RGBA(223, 191, 103, 255)},
         };
         cfg.onPrimary = []
         {

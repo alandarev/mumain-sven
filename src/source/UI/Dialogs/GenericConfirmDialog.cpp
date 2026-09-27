@@ -14,10 +14,12 @@
 #include "UI/Core/WindowCommon.h"
 #include "UI/Core/WindowManager.h"
 #include "UI/Core/WindowSystem.h"       // g_pNewUI3DRenderMng macro resolves through CSystem
+#include "UI/RmlBridge/RmlColor.h"
+#include "UI/RmlBridge/RmlDialogCanvas.h"
 #include "UI/RmlBridge/RmlTheme.h"
 #include "UI/Scaling/UITransform.h"
-#include "UI/Widgets/UIControls.h"      // g_pSingleTextInputBox, InputBoxConfig, SaveIMEStatus
 
+#include <RmlUi/Core/ComputedValues.h>
 #include <RmlUi/Core/DataModelHandle.h>
 #include <RmlUi/Core/ElementDocument.h>
 #include <RmlUi/Core/Event.h>
@@ -25,11 +27,6 @@
 #include <algorithm>
 #include <numeric>
 #include <random>
-
-// Same ad-hoc extern convention every other native window/dialog in this codebase uses for
-// g_iChatInputType. Default is 1 (Winmain.cpp) -- the modern g_pSingleTextInputBox portable
-// widget path, the only one this class implements (see GetInputText()'s own comment).
-extern int g_iChatInputType;
 
 namespace mu::ui::window
 {
@@ -76,14 +73,17 @@ void CGenericConfirmDialog::BuildRmlUi()
             auto line = c.RegisterStruct<LineEntry>();
             line.RegisterMember("text", &LineEntry::text);
             line.RegisterMember("bold", &LineEntry::bold);
+            line.RegisterMember("color", &LineEntry::color);
             c.RegisterArray<std::vector<LineEntry>>();
             c.Bind("lines", &model.lines);
 
             c.Bind("primary_label", &model.primaryLabel);
+            c.Bind("primary_is_stock_ok", &model.primaryIsStockOk);
             c.Bind("has_secondary", &model.hasSecondary);
             c.Bind("secondary_label", &model.secondaryLabel);
             c.Bind("show_cancel", &model.showCancel);
             c.Bind("cancel_label", &model.cancelLabel);
+            c.Bind("cancel_is_stock_cancel", &model.cancelIsStockCancel);
 
             c.Bind("has_title", &model.hasTitle);
             c.Bind("title", &model.title);
@@ -93,6 +93,7 @@ void CGenericConfirmDialog::BuildRmlUi()
             c.Bind("has_input", &model.hasInput);
             c.Bind("input_is_keypad", &model.inputIsKeypad);
             c.Bind("input_text", &model.inputText);
+            c.Bind("input_value", &model.inputValue);
             c.Bind("keypad_digit_0", &model.keypadDigit0);
             c.Bind("keypad_digit_1", &model.keypadDigit1);
             c.Bind("keypad_digit_2", &model.keypadDigit2);
@@ -105,6 +106,7 @@ void CGenericConfirmDialog::BuildRmlUi()
             c.Bind("keypad_digit_9", &model.keypadDigit9);
 
             c.Bind("has_progress", &model.hasProgress);
+            c.Bind("canvas_top", &model.canvasTop);
             c.Bind("progress_fraction", &model.progressFraction);
 
             c.Bind("has_item3d", &model.hasItem3D);
@@ -142,8 +144,15 @@ void CGenericConfirmDialog::BuildRmlUi()
         });
 
     if (modelCreated)
+    {
         m_pRmlDoc = UI::RmlBridge::LoadThemedDocument(RmlUiRuntime::Instance().GetContext(),
             "Data/Interface/RmlUi/generic_confirm_dialog.rml");
+
+        // Capture phase, on the document rather than the field: that's what makes it run before the
+        // focused WidgetTextInput's own textinput listener (see DigitOnlyInputFilter's comment).
+        if (m_pRmlDoc)
+            m_pRmlDoc->AddEventListener(Rml::EventId::Textinput, &m_DigitOnlyFilter, true);
+    }
 
     // Background-context companion -- see the class comment for the mechanism. No RmlModelBinder
     // needed (100% static markup, see generic_confirm_dialog_bg.rml). Starts hidden
@@ -176,6 +185,7 @@ void CGenericConfirmDialog::ReloadRmlTheme()
         SyncRmlModel();
         if (m_pRmlDoc)
             m_pRmlDoc->Show(Rml::ModalFlag::Modal, Rml::FocusFlag::Document);
+            ApplyInputFieldConfig();
         if (m_pRmlBgDoc)
             m_pRmlBgDoc->Show();
     }
@@ -206,14 +216,16 @@ namespace
         return digits;
     }
 
-    void ResetInputWidgetState()
+    Rml::String KeepDigitsOnly(const Rml::String& value)
     {
-        if (g_iChatInputType == 1 && g_pSingleTextInputBox)
+        Rml::String digits;
+        digits.reserve(value.size());
+        for (const char c : value)
         {
-            g_pSingleTextInputBox->SetText(nullptr);
-            SaveIMEStatus();
-            g_pSingleTextInputBox->SetState(UISTATE_HIDE);
+            if (c >= '0' && c <= '9')
+                digits += c;
         }
+        return digits;
     }
 }
 
@@ -241,8 +253,7 @@ void CGenericConfirmDialog::Show(GenericDialogConfig cfg)
         if (m_Active.input->mode == GenericDialogConfig::InputField::Mode::NumericKeypad)
             m_KeypadMapping = ShuffledDigits();
         else
-            m_KeypadBuffer = m_Active.input->initialText; // Mode::Text seeds the native widget in
-                                                           // UpdateTextInputWidget(), not here
+            m_PendingInputSeed = m_Active.input->initialText;
     }
 
     if (m_Active.progress)
@@ -256,6 +267,7 @@ void CGenericConfirmDialog::Show(GenericDialogConfig cfg)
         SyncRmlModel();
         // Modal: blocks the game world/other UI from stealing focus or clicks while this is open.
         m_pRmlDoc->Show(Rml::ModalFlag::Modal, Rml::FocusFlag::Document);
+        ApplyInputFieldConfig();
     }
     if (m_pRmlBgDoc)
     {
@@ -289,7 +301,7 @@ void CGenericConfirmDialog::ShowNext()
         if (m_Active.input->mode == GenericDialogConfig::InputField::Mode::NumericKeypad)
             m_KeypadMapping = ShuffledDigits();
         else
-            m_KeypadBuffer = m_Active.input->initialText;
+            m_PendingInputSeed = m_Active.input->initialText;
     }
 
     if (m_Active.progress)
@@ -302,6 +314,7 @@ void CGenericConfirmDialog::ShowNext()
     {
         SyncRmlModel();
         m_pRmlDoc->Show(Rml::ModalFlag::Modal, Rml::FocusFlag::Document);
+        ApplyInputFieldConfig();
     }
     if (m_pRmlBgDoc)
     {
@@ -339,60 +352,74 @@ void CGenericConfirmDialog::Resolve(ClickResult which)
     if (m_pRmlBgDoc)
         m_pRmlBgDoc->Hide();
 
-    // Release the shared widget/IME state so the next window to use g_pSingleTextInputBox
-    // doesn't inherit it.
+    // Clear the field so a later dialog never inherits this one's typed value. No shared native
+    // widget/IME state to release any more -- #gcd_input is this document's own element, and
+    // m_pRmlDoc->Hide() above already dropped its focus (Context::UnfocusDocument()).
     if (cfg.input && cfg.input->mode == GenericDialogConfig::InputField::Mode::Text)
-        ResetInputWidgetState();
+    {
+        m_RmlBinder.GetModel().inputValue.clear();
+        m_RmlBinder.MarkDirty("input_value");
+    }
 
     ShowNext();
 }
 
 bool CGenericConfirmDialog::Render()
 {
-    // RmlUi's #panel owns this dialog's entire visual, except the Mode::Text input widget --
-    // drawn from RenderTextOnTop() instead: this Render() runs before RmlUi's own main-context
-    // composite, so anything drawn here would get painted over by #panel's opaque background.
-    // item3D still renders via Render3D() below (I3DRenderObj).
+    // RmlUi's #panel owns this dialog's entire 2D visual, the Mode::Text field included (it's a
+    // stock <input> in that same document now). item3D still renders via Render3D() below
+    // (I3DRenderObj).
     SyncRmlModel();
     return true;
 }
 
-void CGenericConfirmDialog::UpdateTextInputWidget()
+void CGenericConfirmDialog::ApplyInputFieldConfig()
 {
-    if (!m_pRmlDoc || g_iChatInputType != 1 || !g_pSingleTextInputBox)
+    if (!m_pRmlDoc || !m_Active.input
+        || m_Active.input->mode != GenericDialogConfig::InputField::Mode::Text)
         return;
 
-    Rml::Element* pAnchor = m_pRmlDoc->GetElementById("gcd_input_anchor");
-    if (!pAnchor)
+    Rml::Element* field = m_pRmlDoc->GetElementById("gcd_input");
+    if (field == nullptr)
         return;
 
-    // Read every frame, not once on Show() -- a same-frame read right after opening the document
-    // can catch RmlUi's layout mid-resolve, self-correcting one frame later.
-    const Rml::Vector2f correction = PanelTranslateCorrection();
-    const Rml::Vector2f rawPos = pAnchor->GetAbsoluteOffset();
-    const Rml::Vector2f pos = { rawPos.x + correction.x, rawPos.y + correction.y };
+    // Order matters: changing "type" makes RmlUi tear down and rebuild the element's InputType
+    // (ElementFormControlInput::OnAttributeChange), dropping whatever value it held -- so the
+    // type/limit go on first and the seeded value last.
+    field->SetAttribute("type", m_Active.input->masked ? "password" : "text");
+    field->SetAttribute("maxlength", m_Active.input->maxLength);
 
-    const auto& field = *m_Active.input;
-    InputBoxConfig config;
-    config.pos = { static_cast<int>(pos.x), static_cast<int>(pos.y) };
-    config.size = { kInputFieldWidth, kInputFieldHeight };
-    config.textLimit = field.maxLength;
-    config.password = field.masked;
-    config.options = field.numericOnly ? UIOPTION_NUMBERONLY : UIOPTION_NULL;
-    // InputBoxConfig's default text color is opaque BLACK -- invisible against this dialog's own
-    // dark panel fill. Also gives the field a visible recessed background so it reads as a
-    // clickable box even before the user types anything.
-    config.textAlpha = 255;
-    config.textR = 255;
-    config.textG = 230;
-    config.textB = 210;
-    config.backAlpha = 255;
-    config.backR = 0x10;
-    config.backG = 0x0c;
-    config.backB = 0x06;
-    g_pSingleTextInputBox->Configure(config);
-    g_pSingleTextInputBox->GiveFocus();
-    g_pSingleTextInputBox->DoAction();
+    m_RmlBinder.GetModel().inputValue = StringUtils::WideToNarrow(m_PendingInputSeed.c_str());
+    m_RmlBinder.MarkDirty("input_value");
+    m_PendingInputSeed.clear();
+
+    // This dialog opens with FocusFlag::Document, so the field needs an explicit focus rather than
+    // an autofocus attribute -- the attribute would also fight the keypad mode, which shares the row.
+    field->Focus();
+}
+
+// Runs in the capture phase on the document, so it sees every textinput before the focused
+// WidgetTextInput's own target-phase listener does; StopPropagation() there means the character is
+// never inserted and the caret never moves. Writing a filtered value back onto the element instead
+// (the obvious approach) re-enters OnValueAttributeChanged() and resets the cursor to index 0.
+void CGenericConfirmDialog::DigitOnlyInputFilter::ProcessEvent(Rml::Event& event)
+{
+    if (m_pOwner == nullptr || !m_pOwner->m_Active.input || !m_pOwner->m_Active.input->numericOnly)
+        return;
+
+    Rml::Element* target = event.GetTargetElement();
+    if (target == nullptr || target->GetId() != "gcd_input")
+        return;
+
+    const Rml::String text = event.GetParameter<Rml::String>("text", Rml::String());
+    for (const char c : text)
+    {
+        if (c < '0' || c > '9')
+        {
+            event.StopPropagation();
+            return;
+        }
+    }
 }
 
 Rml::Vector2f CGenericConfirmDialog::PanelTranslateCorrection() const
@@ -400,8 +427,30 @@ Rml::Vector2f CGenericConfirmDialog::PanelTranslateCorrection() const
     Rml::Element* pPanel = m_pRmlDoc ? m_pRmlDoc->GetElementById("panel") : nullptr;
     if (!pPanel)
         return { 0.f, 0.f };
+    // A theme may place #panel without the centering transform (legacy anchors it like native).
+    if (!pPanel->GetComputedValues().has_local_transform())
+        return {0.f, 0.f};
     const Rml::Vector2f size = pPanel->GetBox().GetSize();
     return { -size.x * 0.5f, -size.y * 0.5f };
+}
+
+void CGenericConfirmDialog::SyncBackgroundPanel()
+{
+    Rml::Element* pPanel = m_pRmlDoc ? m_pRmlDoc->GetElementById("panel") : nullptr;
+    Rml::Element* pBgPanel = m_pRmlBgDoc ? m_pRmlBgDoc->GetElementById("panel") : nullptr;
+    if (!pPanel || !pBgPanel)
+        return;
+
+    const float height = pPanel->GetBox().GetSize(Rml::BoxArea::Border).y;
+    if (height > 0.f && height != pBgPanel->GetBox().GetSize(Rml::BoxArea::Border).y)
+        pBgPanel->SetProperty(Rml::PropertyId::Height, Rml::Property(height, Rml::Unit::PX));
+
+    // Only a panel placed without the centering transform reports its real top edge.
+    if (pPanel->GetComputedValues().has_local_transform())
+        return;
+    const float top = pPanel->GetAbsoluteOffset(Rml::BoxArea::Border).y;
+    if (top != pBgPanel->GetAbsoluteOffset(Rml::BoxArea::Border).y)
+        pBgPanel->SetProperty(Rml::PropertyId::Top, Rml::Property(top, Rml::Unit::PX));
 }
 
 void CGenericConfirmDialog::UpdateProgress()
@@ -435,14 +484,14 @@ bool CGenericConfirmDialog::Update()
     if (!m_bActive)
         return true;
 
+    SyncCanvasTop();
+    SyncBackgroundPanel();
+
     if (m_Active.progress)
     {
         UpdateProgress();
         return true; // progress dialogs have no buttons to poll
     }
-
-    if (m_Active.input && m_Active.input->mode == GenericDialogConfig::InputField::Mode::Text)
-        UpdateTextInputWidget();
 
     if (m_bPrimaryClicked)
     {
@@ -497,22 +546,6 @@ bool CGenericConfirmDialog::UpdateKeyEvent()
     return !IsVisible();
 }
 
-void CGenericConfirmDialog::RenderTextOnTop()
-{
-    if (!m_bActive || !m_Active.input || m_Active.input->mode != GenericDialogConfig::InputField::Mode::Text)
-        return;
-    if (g_iChatInputType != 1 || !g_pSingleTextInputBox)
-        return;
-
-    // Forces an identity-like transform to match UpdateTextInputWidget()'s real-pixel
-    // GetAbsoluteOffset() position -- this runs from Winmain.cpp's post-RmlUi callback, entirely
-    // outside CManager::Render()'s per-object loop, so whatever transform was last active would
-    // otherwise leak in unpredictably.
-    const auto transform = UI::Scaling::TransformForLayout(UI::Scaling::LayoutMode::Legacy, WindowWidth, WindowHeight);
-    UI::Scaling::ScopedActiveTransform identity(transform);
-    g_pSingleTextInputBox->Render();
-}
-
 void CGenericConfirmDialog::Render3D()
 {
     // Guarded here, not by staying unregistered -- see Create()'s own comment.
@@ -559,32 +592,40 @@ std::wstring CGenericConfirmDialog::GetInputText() const
     if (m_Active.input->mode == GenericDialogConfig::InputField::Mode::NumericKeypad)
         return m_KeypadBuffer;
 
-    // Mode::Text -- only the g_iChatInputType == 1 path (the actual runtime default and the one
-    // every modern text field uses). The older g_iChatInputType == 0 raw-global-buffer path is a
-    // deliberate gap -- not wired here.
-    if (g_iChatInputType == 1 && g_pSingleTextInputBox)
-    {
-        wchar_t buffer[1024] = {};
-        g_pSingleTextInputBox->GetText(buffer, 1024);
-        return buffer;
-    }
-    return L"";
+    // Mode::Text -- RmlUi owns the edit buffer; the model holds the committed value. Filtered again
+    // here because DigitOnlyInputFilter only covers typed input: a clipboard paste reaches
+    // WidgetTextInput without a textinput event, so this is what makes the rule hold either way.
+    const Rml::String& value = m_RmlBinder.GetModel().inputValue;
+    return StringUtils::NarrowToWide(m_Active.input->numericOnly ? KeepDigitsOnly(value) : value);
+}
+
+void CGenericConfirmDialog::SyncCanvasTop()
+{
+    auto& model = m_RmlBinder.GetModel();
+    const float canvasTop = UI::RmlBridge::DialogCanvasTop(RmlUiRuntime::Instance().GetContext());
+    if (model.canvasTop == canvasTop)
+        return;
+    model.canvasTop = canvasTop;
+    m_RmlBinder.MarkDirty("canvas_top");
 }
 
 void CGenericConfirmDialog::SyncRmlModel()
 {
     if (!m_pRmlDoc) return;
 
+    SyncCanvasTop();
     auto& model = m_RmlBinder.GetModel();
 
     std::vector<LineEntry> newLines;
     newLines.reserve(m_Active.lines.size());
     for (const auto& line : m_Active.lines)
-        newLines.push_back({ StringUtils::WideToNarrow(line.text.c_str()), line.bold });
+        newLines.push_back(
+            {StringUtils::WideToNarrow(line.text.c_str()), line.bold, UI::RmlBridge::RgbaToCss(line.color)});
 
     bool linesChanged = newLines.size() != model.lines.size();
     for (size_t i = 0; i < newLines.size() && !linesChanged; ++i)
-        linesChanged = newLines[i].text != model.lines[i].text || newLines[i].bold != model.lines[i].bold;
+        linesChanged = newLines[i].text != model.lines[i].text || newLines[i].bold != model.lines[i].bold ||
+                       newLines[i].color != model.lines[i].color;
     if (linesChanged)
     {
         model.lines = std::move(newLines);
@@ -596,6 +637,12 @@ void CGenericConfirmDialog::SyncRmlModel()
     {
         model.primaryLabel = primaryLabel;
         m_RmlBinder.MarkDirty("primary_label");
+    }
+    const bool primaryIsStockOk = m_Active.primaryLabel == GenericDialogConfig{}.primaryLabel;
+    if (model.primaryIsStockOk != primaryIsStockOk)
+    {
+        model.primaryIsStockOk = primaryIsStockOk;
+        m_RmlBinder.MarkDirty("primary_is_stock_ok");
     }
 
     const bool hasSecondary = m_Active.secondaryLabel.has_value();
@@ -622,6 +669,12 @@ void CGenericConfirmDialog::SyncRmlModel()
     {
         model.cancelLabel = cancelLabel;
         m_RmlBinder.MarkDirty("cancel_label");
+    }
+    const bool cancelIsStockCancel = m_Active.cancelLabel == GenericDialogConfig{}.cancelLabel;
+    if (model.cancelIsStockCancel != cancelIsStockCancel)
+    {
+        model.cancelIsStockCancel = cancelIsStockCancel;
+        m_RmlBinder.MarkDirty("cancel_is_stock_cancel");
     }
 
     const bool hasTitle = !m_Active.title.empty();

@@ -5,10 +5,12 @@
 #include "RmlUiSystemInterface.h"
 
 #include <RmlUi/Core/Core.h>
+#include <RmlUi/Core/Element.h>
 #include <RmlUi_Platform_SDL.h> // ThirdParty/RmlUi/Backends -- see the CMakeLists.txt addition
 #include "Render/Renderer/MuRenderer.h"
 #include "Data/GameConfig/GameConfig.h"
 #include "UI/Scaling/UITransform.h"
+#include "UI/RmlBridge/RmlNativeText.h"
 #include "Core/Utilities/FrameProfiler.h"
 
 namespace
@@ -39,6 +41,7 @@ namespace
         const float autoFit =
             UI::Scaling::ViewportFitScale(windowWidth, windowHeight, UI::Scaling::MaximumPanelScale);
         context->SetDensityIndependentPixelRatio((static_cast<float>(percent) / 100.0f) * autoFit);
+        UI::RmlBridge::ApplyNativeTextSize(context);
     }
 }
 
@@ -67,7 +70,7 @@ void RmlUiRuntime::Create(int windowWidth, int windowHeight)
     }
 
     m_RenderInterface = std::make_unique<RmlUiRenderInterface>(device, window);
-    m_SystemInterface = std::make_unique<RmlUiSystemInterface>();
+    m_SystemInterface = std::make_unique<RmlUiSystemInterface>(window);
 
     Rml::SetRenderInterface(m_RenderInterface.get());
     Rml::SetSystemInterface(m_SystemInterface.get());
@@ -78,6 +81,12 @@ void RmlUiRuntime::Create(int windowWidth, int windowHeight)
         m_SystemInterface.reset();
         return;
     }
+
+    // See m_TextInputMethodEditor's own header comment -- installs RmlUi's own vendored SDL IME
+    // bridge globally, once, for the lifetime of this runtime. Must run after Rml::Initialise()
+    // (matches every vendored sample backend's own ordering).
+    m_TextInputMethodEditor = std::make_unique<TextInputMethodEditor_SDL>();
+    Rml::SetTextInputHandler(m_TextInputMethodEditor.get());
 
     // Reuses the same bundled fonts this engine already ships for its portable text shim
     // (fonts/LiberationSans-*.ttf, copied next to the exe by the same asset-copy step as
@@ -138,6 +147,15 @@ void RmlUiRuntime::Destroy()
     Core::Input::SetUiInputConsumer(nullptr);
     mu::GetRenderer().SetPreSubmitCallback(nullptr);
 
+    // Clears RmlUi's global registration before Shutdown() tears down contexts/documents/elements
+    // -- matches the vendored Win32 backends' own teardown guard (RmlUi_Backend_Win32_*.cpp:
+    // "if (Rml::GetTextInputHandler() == &data->text_input_method_editor) SetTextInputHandler
+    // (nullptr)"). A live WidgetTextInputContext already holds its own captured handler pointer
+    // from focus time, not a live lookup, so this alone doesn't protect m_TextInputMethodEditor
+    // from being called during Shutdown() -- it must still stay alive until after that call
+    // returns (see below), same as m_RenderInterface/m_SystemInterface.
+    Rml::SetTextInputHandler(nullptr);
+
     // Rml::Shutdown() releases every context it owns, including m_Context -- do not call
     // Rml::RemoveContext/delete it separately first. It also releases every outstanding
     // compiled-geometry/texture handle via RmlUiRenderInterface, which must still be able to
@@ -150,9 +168,12 @@ void RmlUiRuntime::Destroy()
 
     // Per RenderInterface.h/SystemInterface.h's own contract: the application must keep these
     // alive until after Rml::Shutdown() and destroy them itself afterward -- RmlUi never takes
-    // ownership.
+    // ownership. Same contract applies to m_TextInputMethodEditor (TextInputHandler.h has no
+    // explicit statement of this, but WidgetTextInputContext's teardown path calls back into it
+    // during element/document destruction, i.e. during the Shutdown() call above).
     m_RenderInterface.reset();
     m_SystemInterface.reset();
+    m_TextInputMethodEditor.reset();
 }
 
 void RmlUiRuntime::OnResize(int windowWidth, int windowHeight)
@@ -231,6 +252,34 @@ void RmlUiRuntime::CancelSyntheticMousePress(unsigned char button, SDL_Window* w
 bool RmlUiRuntime::IsMouseOverUI() const
 {
     return m_Context && m_Context->IsMouseInteracting();
+}
+
+bool RmlUiRuntime::IsTextInputActive() const
+{
+    if (!m_SystemInterface || !m_SystemInterface->IsTextInputActive())
+        return false;
+
+    // The flag above is a latch, set by ActivateKeyboard/DeactivateKeyboard, and RmlUi can drop a
+    // focused element WITHOUT a matching Blur: Context::UnloadDocument() and
+    // Context::OnElementDetach() both clear Context::focus by assignment, and ~WidgetTextInput()
+    // doesn't deactivate either. The latch then outlives the field that set it, and since
+    // CManager::UpdateKeyEvent() treats it as "the user is typing, suspend every window's keys,"
+    // a stale one silently kills every hotkey for the rest of the session.
+    //
+    // So confirm it against the live focus. Only a text-entry widget ever activates the keyboard,
+    // so requiring the focused element to still be one cannot produce a false negative.
+    Rml::Element* focused = m_Context ? m_Context->GetFocusElement() : nullptr;
+    if (!focused)
+        return false;
+
+    const Rml::String& tag = focused->GetTagName();
+    return tag == "input" || tag == "textarea";
+}
+
+void RmlUiRuntime::ProcessTextEditing(const SDL_Event& event)
+{
+    if (m_TextInputMethodEditor)
+        m_TextInputMethodEditor->HandleEdit(event.edit);
 }
 
 void RmlUiRuntime::Render()

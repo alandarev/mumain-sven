@@ -28,6 +28,11 @@ namespace mu::ui::window
         };
 
     private:
+        // TRADE_WIDTH/HEIGHT below are a pre-layout fallback only -- WindowGeometry's real hit-box
+        // comes from #panel's own live RCSS size (UI::RmlBridge::RefreshLogicalPanelSize(), read at
+        // its UpdateMouseEvent() call site), seeded with these only for the first frame before
+        // RmlUi's layout has run. Never referenced by the native trade-grid rendering, which has
+        // its own separate, still-native offset.
         enum
         {
             TRADE_WIDTH = 190,
@@ -67,6 +72,7 @@ namespace mu::ui::window
         struct TradeRmlModel
         {
             float rootX = 0.f, rootY = 0.f, rootScale = 1.f;
+            float textPx = 0.f; // native text size in physical px (RmlRootTransform.h)
 
             Rml::String title;
 
@@ -74,14 +80,14 @@ namespace mu::ui::window
             bool yourGuildVisible = false;
             Rml::String yourGuildName;
             Rml::String yourLevelText;
-            Rml::String yourLevelColor;
+            int yourLevelBucket = 0; // ConvertYourLevel() -- the theme colors each bucket
             Rml::String yourGoldText;
-            Rml::String yourGoldColor;
+            Rml::String yourGoldTier; // UI::RmlBridge::GoldTierKey() of the amount
             bool yourConfirmChecked = false;
 
             Rml::String myIdText;
             Rml::String myGoldText;
-            Rml::String myGoldColor;
+            Rml::String myGoldTier;
             bool myConfirmChecked = false;
             bool myConfirmWaiting = false;
 
@@ -188,7 +194,8 @@ namespace mu::ui::window
         void ProcessMyInvenCtrl();
         bool ProcessBtns();
 
-        void ConvertYourLevel(int& rnLevel, DWORD& rdwColor);
+        // The trade partner's level rounded down to the bucket the original client showed ("about N").
+        int ConvertYourLevel() const;
 
         void InitTradeInfo();
         void InitYourInvenBackUp();

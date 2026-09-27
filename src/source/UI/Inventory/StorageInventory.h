@@ -19,6 +19,10 @@ namespace mu::ui::window
     class CStorageInventory : public CObject
     {
     private:
+        // Pre-layout fallback only -- WindowGeometry's real hit-box comes from #panel's own live
+        // RCSS size (UI::RmlBridge::RefreshLogicalPanelSize(), read at the UpdateMouseEvent() call
+        // site), seeded with these only for the first frame before RmlUi's layout has run. Never
+        // referenced by the native storage-grid rendering, which has its own separate offset.
         static constexpr float STORAGE_WIDTH = 190.0f;
         static constexpr float STORAGE_HEIGHT = 429.0f;
 
@@ -43,12 +47,13 @@ namespace mu::ui::window
         struct StorageRmlModel
         {
             float rootX = 0.f, rootY = 0.f, rootScale = 1.f;
+            float textPx = 0.f; // native text size in physical px (RmlRootTransform.h)
 
             Rml::String title;
             bool titleLocked = false; // legacy-only red/gray title color toggle -- see SyncRmlModel()
 
             Rml::String zenText;
-            Rml::String zenColor; // "rgba(r,g,b,a)" -- mirrors getGoldColor()'s amount-tier color, legacy only
+            Rml::String zenTier; // UI::RmlBridge::GoldTierKey() of the amount, legacy only
             Rml::String feeLabel;
             Rml::String feeValue;
 

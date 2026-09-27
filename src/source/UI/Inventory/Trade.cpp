@@ -5,6 +5,7 @@
 #include "UI/Inventory/Trade.h"
 #include "UI/Core/WindowSystem.h"
 #include "UI/Core/WindowGeometry.h"
+#include "UI/RmlBridge/RmlPanelGeometry.h"
 #include "UI/Dialogs/CustomMessageBox.h"
 #include "UI/Dialogs/GenericConfirmDialog.h"
 
@@ -13,7 +14,9 @@
 
 // RmlUi migration -- see this class's header comment.
 #include "Render/RmlUi/RmlUiRuntime.h"
+#include "UI/RmlBridge/RmlStyleKeys.h"
 #include "UI/RmlBridge/RmlTheme.h"
+#include "UI/RmlBridge/RmlDocumentVisibility.h"
 #include "UI/RmlBridge/RmlRootTransform.h"
 #include "UI/Scaling/UITransform.h"
 #include "Core/Utilities/StringUtils.h"
@@ -88,6 +91,7 @@ void CTrade::BuildRmlUi()
                 c.Bind("root_x", &model.rootX);
                 c.Bind("root_y", &model.rootY);
                 c.Bind("root_scale", &model.rootScale);
+                c.Bind("text_px", &model.textPx);
 
                 c.Bind("title", &model.title);
 
@@ -95,14 +99,14 @@ void CTrade::BuildRmlUi()
                 c.Bind("your_guild_visible", &model.yourGuildVisible);
                 c.Bind("your_guild_name", &model.yourGuildName);
                 c.Bind("your_level_text", &model.yourLevelText);
-                c.Bind("your_level_color", &model.yourLevelColor);
+                c.Bind("your_level_bucket", &model.yourLevelBucket);
                 c.Bind("your_gold_text", &model.yourGoldText);
-                c.Bind("your_gold_color", &model.yourGoldColor);
+                c.Bind("your_gold_tier", &model.yourGoldTier);
                 c.Bind("your_confirm_checked", &model.yourConfirmChecked);
 
                 c.Bind("my_id_text", &model.myIdText);
                 c.Bind("my_gold_text", &model.myGoldText);
-                c.Bind("my_gold_color", &model.myGoldColor);
+                c.Bind("my_gold_tier", &model.myGoldTier);
                 c.Bind("my_confirm_checked", &model.myConfirmChecked);
                 c.Bind("my_confirm_waiting", &model.myConfirmWaiting);
 
@@ -296,7 +300,12 @@ bool CTrade::UpdateMouseEvent()
     if (ProcessBtns())
         return false;
 
-    if (mu::ui::window::WindowGeometry(m_Pos.x, m_Pos.y, TRADE_WIDTH, TRADE_HEIGHT).Contains(MouseX, MouseY))
+    // #panel's own live RCSS size is the source of truth -- TRADE_WIDTH/HEIGHT only cover the
+    // first frame after Create()/Show(true)/ReloadRmlTheme(), before RmlUi's next layout pass.
+    float panelWidth = TRADE_WIDTH;
+    float panelHeight = TRADE_HEIGHT;
+    UI::RmlBridge::RefreshLogicalPanelSize(m_pRmlDoc, "panel", panelWidth, panelHeight);
+    if (mu::ui::window::WindowGeometry(m_Pos.x, m_Pos.y, static_cast<int>(panelWidth), static_cast<int>(panelHeight)).Contains(MouseX, MouseY))
     {
         if (mu::ui::window::IsPress(VK_RBUTTON))
         {
@@ -426,38 +435,16 @@ void CTrade::RenderWarningArrow()
     ::DisableAlphaBlend();
 }
 
-void CTrade::ConvertYourLevel(int& rnLevel, DWORD& rdwColor)
+int CTrade::ConvertYourLevel() const
 {
-    if (m_nYourLevel >= 400)
+    constexpr int kLevelBuckets[] = {400, 300, 200, 100, 50};
+    constexpr int kLowestBucket = 10;
+    for (const int bucket : kLevelBuckets)
     {
-        rnLevel = 400;
-        rdwColor = (255 << 24) + (153 << 16) + (153 << 8) + (255);
+        if (m_nYourLevel >= bucket)
+            return bucket;
     }
-    else if (m_nYourLevel >= 300)
-    {
-        rnLevel = 300;
-        rdwColor = (255 << 24) + (255 << 16) + (153 << 8) + (255);
-    }
-    else if (m_nYourLevel >= 200)
-    {
-        rnLevel = 200;
-        rdwColor = (255 << 24) + (255 << 16) + (230 << 8) + (210);
-    }
-    else if (m_nYourLevel >= 100)
-    {
-        rnLevel = 100;
-        rdwColor = (255 << 24) + (24 << 16) + (201 << 8) + (0);
-    }
-    else if (m_nYourLevel >= 50)
-    {
-        rnLevel = 50;
-        rdwColor = (255 << 24) + (0 << 16) + (150 << 8) + (255);
-    }
-    else							//  빨간색.
-    {
-        rnLevel = 10;
-        rdwColor = (255 << 24) + (0 << 16) + (0 << 8) + (255);
-    }
+    return kLowestBucket;
 }
 
 void CTrade::SyncRmlModel()
@@ -468,13 +455,14 @@ void CTrade::SyncRmlModel()
 
         // RenderBackgroundLayer() renders whatever's shown in the shared background context
         // regardless of caller, so this Hide()/Show() is what keeps the bg panel hidden when closed.
-        if (IsVisible()) m_pRmlBgDoc->Show(); else m_pRmlBgDoc->Hide();
+        UI::RmlBridge::SyncDocumentVisibility(m_pRmlBgDoc, IsVisible());
     }
 
     if (!m_pRmlDoc) return;
-    if (IsVisible()) m_pRmlDoc->Show(); else m_pRmlDoc->Hide();
+    UI::RmlBridge::SyncDocumentVisibility(m_pRmlDoc, IsVisible());
 
     UI::RmlBridge::SyncRootTransform(m_RmlBinder, m_Pos);
+    UI::RmlBridge::SyncNativeTextSize(m_RmlBinder);
 
     auto syncBool = [this](bool TradeRmlModel::* field, const char* boundName, bool value)
     {
@@ -491,13 +479,6 @@ void CTrade::SyncRmlModel()
     auto syncWide = [&](Rml::String TradeRmlModel::* field, const char* boundName, const wchar_t* text)
     {
         syncText(field, boundName, StringUtils::WideToNarrow(text));
-    };
-    auto argbToRgba = [](DWORD argb) -> Rml::String
-    {
-        char buf[32];
-        snprintf(buf, sizeof(buf), "rgba(%u,%u,%u,%u)",
-            (argb >> 16) & 0xFF, (argb >> 8) & 0xFF, argb & 0xFF, (argb >> 24) & 0xFF);
-        return Rml::String(buf);
     };
 
     syncWide(&TradeRmlModel::title, "title", I18N::Game::Trade);
@@ -516,9 +497,7 @@ void CTrade::SyncRmlModel()
     syncBool(&TradeRmlModel::yourGuildVisible, "your_guild_visible", !guildName.empty());
     syncText(&TradeRmlModel::yourGuildName, "your_guild_name", guildName);
 
-    int nLevel;
-    DWORD dwLevelColor;
-    ConvertYourLevel(nLevel, dwLevelColor);
+    const int nLevel = ConvertYourLevel();
     wchar_t levelValueBuf[128];
     if (nLevel == 400)
         mu_swprintf(levelValueBuf, L"%d", nLevel);
@@ -527,16 +506,22 @@ void CTrade::SyncRmlModel()
     wchar_t levelBuf[160];
     mu_swprintf(levelBuf, L"Lv.%ls", levelValueBuf);
     syncWide(&TradeRmlModel::yourLevelText, "your_level_text", levelBuf);
-    syncText(&TradeRmlModel::yourLevelColor, "your_level_color", argbToRgba(dwLevelColor));
+    if (m_RmlBinder.GetModel().yourLevelBucket != nLevel)
+    {
+        m_RmlBinder.GetModel().yourLevelBucket = nLevel;
+        m_RmlBinder.MarkDirty("your_level_bucket");
+    }
 
     wchar_t goldBuf[256];
     ::ConvertGold(m_nYourTradeGold, goldBuf);
     syncWide(&TradeRmlModel::yourGoldText, "your_gold_text", goldBuf);
-    syncText(&TradeRmlModel::yourGoldColor, "your_gold_color", argbToRgba(::getGoldColor(m_nYourTradeGold)));
+    syncText(&TradeRmlModel::yourGoldTier, "your_gold_tier",
+             UI::RmlBridge::GoldTierKey(GameLogic::Items::ClassifyGoldAmount(m_nYourTradeGold)));
 
     ::ConvertGold(m_nMyTradeGold, goldBuf);
     syncWide(&TradeRmlModel::myGoldText, "my_gold_text", goldBuf);
-    syncText(&TradeRmlModel::myGoldColor, "my_gold_color", argbToRgba(::getGoldColor(m_nMyTradeGold)));
+    syncText(&TradeRmlModel::myGoldTier, "my_gold_tier",
+             UI::RmlBridge::GoldTierKey(GameLogic::Items::ClassifyGoldAmount(m_nMyTradeGold)));
 
     syncWide(&TradeRmlModel::myIdText, "my_id_text", Hero->ID);
 

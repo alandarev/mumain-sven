@@ -27,6 +27,7 @@ namespace mu::ui::window
         float rootX = 0.f;
         float rootY = 0.f;
         float rootScale = 1.f;
+        float textPx = 0.f; // native text size in physical px (RmlRootTransform.h)
 
         Rml::String npcName;
         Rml::String questTitle;
@@ -38,7 +39,7 @@ namespace mu::ui::window
 
         bool showCost = false; // QUEST_NO
         Rml::String costAmount;
-        Rml::String costColor; // "rgba(r,g,b,a)", from getGoldColor() -- see SyncRmlModel()'s comment
+        Rml::String costTier; // UI::RmlBridge::GoldTierKey() of the cost
 
         std::vector<NPCQuestTextLine> messageLines; // g_lpszMessageBoxCustom
         std::vector<NPCQuestAnswerEntry> answers;    // g_lpszDialogAnswer (NUM_LINE_DA == 1 in this
@@ -49,6 +50,12 @@ namespace mu::ui::window
         // lines are present this instance), not a static CSS number. See SyncRmlModel()'s own comment
         // for the exact formula (mirrors the native `yPos` computation byte-for-byte).
         float dialogueTop = 66.f;
+
+        // The same formula split the way native draws it: the message lines always start at the
+        // centred messageTop, and only the answers move -- right below the messages while a quest
+        // is in progress, otherwise to the fixed answersTop anchor (reference px, like above).
+        float messageTop = 66.f;
+        float answersTop = 250.f;
 
         // Set once at BuildRmlUi() time (I18N::Game::ProceedWithQuest/Cost/Close388).
         Rml::String completeLabel;

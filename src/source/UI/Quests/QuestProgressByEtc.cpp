@@ -10,6 +10,7 @@
 #include "UI/Core/WindowSystem.h"
 #include "UI/Core/WindowGeometry.h"
 #include "UI/Scaling/UITransform.h"
+#include "UI/RmlBridge/RmlRootTransform.h"
 #include "UI/RmlBridge/RmlPanelGeometry.h"
 #include "UI/RmlBridge/RmlTheme.h"
 #include "UI/RmlBridge/RmlTooltip.h"
@@ -68,6 +69,7 @@ void CQuestProgressByEtc::BuildRmlUi()
             c.Bind("root_x", &model.rootX);
             c.Bind("root_y", &model.rootY);
             c.Bind("root_scale", &model.rootScale);
+            c.Bind("text_px", &model.textPx);
 
             c.Bind("subject", &model.subject);
             // No npc_name/player_name/player_words_text binding here -- quest_progress_etc.rml has
@@ -91,7 +93,7 @@ void CQuestProgressByEtc::BuildRmlUi()
 
             auto reward = c.RegisterStruct<UI::Quests::RewardModel::Entry>();
             reward.RegisterMember("text", &UI::Quests::RewardModel::Entry::text);
-            reward.RegisterMember("color", &UI::Quests::RewardModel::Entry::color);
+            reward.RegisterMember("style", &UI::Quests::RewardModel::Entry::style);
             reward.RegisterMember("bold", &UI::Quests::RewardModel::Entry::bold);
             reward.RegisterMember("index", &UI::Quests::RewardModel::Entry::index);
             reward.RegisterMember("clickable", &UI::Quests::RewardModel::Entry::clickable);
@@ -226,7 +228,7 @@ bool CQuestProgressByEtc::Render()
         // reading it live means a theme can reposition the reward list without a C++ edit.
         float anchorX = static_cast<float>(m_Pos.x + 95);
         float anchorY = static_cast<float>(m_Pos.y + 360);
-        UI::RmlBridge::RefreshLogicalAnchorPosition(m_pRmlDoc, "reward_popup_anchor", GetLayoutMode(), anchorX, anchorY);
+        UI::RmlBridge::RefreshLogicalAnchorPosition(m_pRmlDoc, "panel", "reward_popup_anchor", m_Pos, anchorX, anchorY);
         ::RenderItemInfo(static_cast<int>(anchorX), static_cast<int>(anchorY), m_pSelectedRewardItem, false, 0, true);
     }
 
@@ -401,6 +403,7 @@ void CQuestProgressByEtc::SyncRmlModel()
         m_RmlBinder.MarkDirty("root_y");
         m_RmlBinder.MarkDirty("root_scale");
     }
+    UI::RmlBridge::SyncNativeTextSize(m_RmlBinder);
 
     if (0 == m_dwCurQuestIndex)
         return;

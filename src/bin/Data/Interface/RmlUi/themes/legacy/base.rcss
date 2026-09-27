@@ -124,6 +124,147 @@ body {
 	cursor: default;
 }
 
+/* Shared editable-text primitive for stock RmlUi <input type="text"/"password"> -- the same tier as
+   .btn/.checkbox-* above. Owns appearance only (typography, fill, border, states); every consumer
+   supplies its own position/size through a local class, since no two fields share a box. Length
+   limits and value validation stay in C++ (the owning window sets maxlength and decides what a
+   valid value is) -- this layer only reflects the outcome, via .error below. */
+.text-field {
+	box-sizing: border-box;
+	cursor: text;
+	pointer-events: auto;
+	text-align: left;
+	color: token(text-input);
+	background-color: token(surface-control);
+	border: 1px token(border-control);
+	border-radius: token(radius-sm)px;
+}
+/* No :focus rule on purpose -- the native fields these replaced drew no focus outline, so the blinking
+   caret stays the only focus cue. Add one per consumer if a screen ever wants it. */
+/* Semantic state pushed from the model (data-class-error), never a colour set from C++. */
+.text-field.error {
+	border-color: token(semantic-danger);
+	color: token(semantic-danger);
+}
+.text-field:disabled {
+	pointer-events: none;
+	color: token(text-disabled);
+	background-color: token(surface-recessed);
+}
+/* RmlUi styles the selection range through the widget's own <selection> child element, which reads
+   exactly these two properties (ElementTextSelection::OnPropertyChange). */
+.text-field selection {
+	color: token(surface-control);
+	background-color: token(text-selected);
+}
+
+/* Text drawn sharp inside a panel scaled by transform: scale(root_scale): a .sharp-text layer is
+   laid out in physical pixels (font-size text_px; its own width, height and line height multiplied
+   by root_scale -- all bound in the window's RML) and scaled back by 1 / root_scale around its
+   top-left corner, so its glyphs are rasterised at the size they are shown instead of a small
+   raster stretched by the panel's scale. Its position stays in the panel's units; lengths inside
+   it are physical. RmlUi rasterises text at the computed font-size and ignores transforms. */
+.sharp-text { transform-origin: left top; }
+/* A layer anchored by its right edge (right: N, auto width) scales back around that edge. */
+.sharp-text.sharp-right { transform-origin: right top; }
+
+/* Scrolling content pane. Apply to whatever element owns the scrollable content; RmlUi then
+   generates the scrollbar itself as real child elements, styled below.
+
+   Two non-obvious requirements, both learned the hard way in generic_confirm_dialog.rcss and
+   folded in here so no consumer has to rediscover them:
+
+   - `overflow: hidden auto` is `overflow-x, overflow-y` in that order, and this engine only ever
+     instantiates a scrollbarvertical when overflow-Y is Auto/Scroll (Layout/ContainerBox.cpp).
+     Writing `auto hidden` silently produces no scrollbar at all, at any content length.
+   - `pointer-events: auto` is mandatory. base.rcss's own `body { pointer-events: none; }` inherits
+     down, and the generated slidertrack/sliderbar are children of THIS element, so without it the
+     scrollbar renders but cannot be dragged.
+
+   The pane needs a bounded height to scroll within (an explicit height, max-height, or a stretched
+   flex child) -- that part is the consumer's own layout, deliberately not set here. */
+.scroll-pane {
+	overflow: hidden auto;
+	pointer-events: auto;
+}
+
+/* Native's own scrollbar art. Track is a 3-slice well (newui_scrollbar_up/m/down, 7x3 / 7x15 /
+   7x3) and the thumb is a separate fixed 15x30 sprite (newui_scroll_on) that overhangs it --
+   see CChatLogWindow::RenderFrame(), which draws exactly this.
+
+   The well is native's real 3-slice construction: the two 7x3 caps are separate files, so drawing
+   only a ninepatch of the middle slice left both ends OPEN -- the rails read as two parallel lines
+   clipped off at top and bottom. RmlUi already generates an element at each end of a scrollbar
+   (sliderarrowdec/inc) and sizes slidertrack between them, which is exactly native's cap/tile/cap
+   shape, so the caps live there. They are pointer-events:none: native has no arrow buttons, these
+   are the closing ends of the well, not controls.
+
+   One deliberate simplification remains, same class as character_info.rcss's summary-box frame:
+   the middle slice is one stretched ninepatch rather than a literal repeat-tile, since this build
+   has no verified repeat-tiling pattern. The thumb's native 7-vs-15 overhang is also not
+   reproduced -- that needs the track narrower than the scrollbar element, and RmlUi sizes
+   slidertrack itself. */
+@spritesheet legacy-scroll-track-sheet
+{
+	src: "../../../newui_scrollbar_m.tga";
+	legacy-scroll-track: 0px 0px 7px 15px;
+	/* 1px-tall middle band: caps stay crisp, only the band stretches. */
+	legacy-scroll-track-inner: 0px 7px 7px 1px;
+}
+
+@spritesheet legacy-scroll-thumb-sheet
+{
+	src: "../../../newui_scroll_on.tga";
+	legacy-scroll-thumb: 0px 0px 15px 30px;
+	legacy-scroll-thumb-inner: 0px 14px 15px 2px;
+}
+
+@spritesheet legacy-scroll-cap-top-sheet
+{
+	src: "../../../newui_scrollbar_up.tga";
+	legacy-scroll-cap-top: 0px 0px 7px 3px;
+}
+
+@spritesheet legacy-scroll-cap-bottom-sheet
+{
+	src: "../../../newui_scrollbar_down.tga";
+	legacy-scroll-cap-bottom: 0px 0px 7px 3px;
+}
+
+.scroll-pane scrollbarvertical {
+	width: 15dp;
+	margin: 0;
+}
+.scroll-pane scrollbarvertical slidertrack {
+	decorator: ninepatch(legacy-scroll-track, legacy-scroll-track-inner);
+}
+.scroll-pane scrollbarvertical sliderbar {
+	decorator: ninepatch(legacy-scroll-thumb, legacy-scroll-thumb-inner);
+}
+/* Native tints the thumb down while it's held (RGBA(179,179,179) in RenderFrame()); brightness()
+   is the one filter family this render interface implements -- see engine-findings.md. */
+.scroll-pane scrollbarvertical sliderbar:active {
+	filter: brightness(0.7);
+}
+/* The well's two closing caps, not arrow buttons -- native's scrollbar is drag-only.
+
+   width is 100%, not 15dp, so a cap collapses with the scrollbar it belongs to: a consumer that
+   hides its scrollbar by zeroing the scrollbarvertical's own width (chat_log.rcss does exactly
+   that for F5, deliberately, so the wheel still works with the frame hidden) would otherwise be
+   left with two floating caps. WidgetScroll::FormatElements() builds each arrow's box against the
+   scrollbar's own content size, so the percentage resolves to whatever that width currently is. */
+.scroll-pane scrollbarvertical sliderarrowdec,
+.scroll-pane scrollbarvertical sliderarrowinc {
+	width: 100%;
+	height: 3dp;
+	pointer-events: none;
+}
+.scroll-pane scrollbarvertical sliderarrowdec { decorator: image(legacy-scroll-cap-top); }
+.scroll-pane scrollbarvertical sliderarrowinc { decorator: image(legacy-scroll-cap-bottom); }
+.scroll-pane scrollbarhorizontal {
+	height: 0;
+}
+
 .hidden {
 	display: none;
 }
@@ -199,3 +340,10 @@ body {
 	height: 0;
 	pointer-events: none;
 }
+
+/* Zen amounts by wealth tier (GameLogic::Items::GoldAmountTier; the model binds its key, the RML
+   toggles .gold-<key>). The original client's colors. */
+.gold-amount.gold-base             { color: #ffdc96; }
+.gold-amount.gold-hundred-thousand { color: #00c918; }
+.gold-amount.gold-million          { color: #ff9600; }
+.gold-amount.gold-ten-million      { color: #ff0000; }

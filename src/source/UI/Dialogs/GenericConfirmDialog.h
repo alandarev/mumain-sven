@@ -7,6 +7,7 @@
 #include "UI/Core/Window3DRenderMng.h"
 #include "UI/RmlBridge/RmlModelBinder.h"
 
+#include <RmlUi/Core/EventListener.h>
 #include <RmlUi/Core/Types.h>
 
 #include <deque>
@@ -46,7 +47,14 @@ namespace mu::ui::window
         bool showCancel = false;
         std::wstring cancelLabel = L"Cancel";
 
-        struct Line { std::wstring text; bool bold = false; };
+        struct Line
+        {
+            std::wstring text;
+            bool bold = false;
+            // The native message box's per-line colour (RGBA(), as AddMsg() took it); 0 = the
+            // theme's own line colour.
+            unsigned long color = 0;
+        };
         std::vector<Line> lines;
 
         // Optional bold title row above `lines`, fixed position/font, never wrapped. Empty = no
@@ -64,8 +72,8 @@ namespace mu::ui::window
         struct InputField
         {
             // NumericKeypad: shuffled on-screen digit pad (anti-keylogger PIN entry), pure RmlUi
-            // buttons. Text: a real keyboard field hosted via the shared g_pSingleTextInputBox
-            // portable widget, positioned from an RmlUi anchor element.
+            // buttons -- deliberately NOT an <input type="number">, the shuffling is the point.
+            // Text: a stock RmlUi <input> in the dialog's own document (#gcd_input).
             enum class Mode { Text, NumericKeypad };
             Mode mode = Mode::Text;
             int maxLength = 20;
@@ -156,7 +164,6 @@ namespace mu::ui::window
         // Called from Winmain.cpp's SetPostRmlUiCallback, after RmlUi's main context composites --
         // NOT from the normal CManager-driven Render() below (that always runs before RmlUi's own
         // composite, so anything drawn there gets painted over by #panel's opaque background).
-        void RenderTextOnTop(); // Mode::Text's g_pSingleTextInputBox widget
 
         bool Render() override;
         bool Update() override;
@@ -195,7 +202,23 @@ namespace mu::ui::window
         void Resolve(ClickResult which); // hides the document, invokes the chosen callback, then ShowNext()
 
         void UpdateProgress();      // advances the progress-bar fraction, auto-resolves on elapse
-        void UpdateTextInputWidget();  // per-frame Configure()/GiveFocus()/DoAction() for Mode::Text
+        // Pushes this invocation's Mode::Text settings onto #gcd_input (type/maxlength) and seeds
+        // its value -- this dialog is shared, so the field is reconfigured on every Show().
+        void ApplyInputFieldConfig();
+        // Rejects non-digit keystrokes in the capture phase, before WidgetTextInput can insert
+        // them -- the only way to enforce numericOnly without disturbing the caret (writing a
+        // filtered value back onto the element resets the cursor to index 0). Paste bypasses
+        // textinput, so GetInputText() filters on read as well.
+        class DigitOnlyInputFilter final : public Rml::EventListener
+        {
+        public:
+            explicit DigitOnlyInputFilter(CGenericConfirmDialog* owner) : m_pOwner(owner) {}
+            void ProcessEvent(Rml::Event& event) override;
+
+        private:
+            CGenericConfirmDialog* m_pOwner = nullptr;
+        };
+        DigitOnlyInputFilter m_DigitOnlyFilter{ this };
 
         // #panel is centered via `.center-both` (`left:50%; top:50%; transform:translate(-50%,-50%)`,
         // base.rcss) -- GetAbsoluteOffset() walks the ancestor chain summing offsets but does NOT
@@ -205,17 +228,32 @@ namespace mu::ui::window
         // #panel can't be found.
         Rml::Vector2f PanelTranslateCorrection() const;
 
-        struct LineEntry { Rml::String text; bool bold = false; };
+        // The bg document paints the frame the fg document's text sits in; a theme may size the fg
+        // #panel by its content (legacy grows it per line, like native), so the bg #panel follows
+        // the fg one's laid-out height (and, for an untransformed panel, its top edge) every frame
+        // the dialog is open.
+        void SyncBackgroundPanel();
+        void SyncCanvasTop();
+
+        struct LineEntry
+        {
+            Rml::String text;
+            bool bold = false;
+            Rml::String color; // CSS colour of Line::color, empty for the theme's own
+        };
         struct GenericDialogRmlModel
         {
             std::vector<LineEntry> lines;
             Rml::String primaryLabel;
+            // The label is the stock "OK"/"Cancel": a theme may draw native's lettered button art.
+            bool primaryIsStockOk = false;
 
             bool hasSecondary = false;
             Rml::String secondaryLabel;
 
             bool showCancel = false;
             Rml::String cancelLabel;
+            bool cancelIsStockCancel = false;
 
             bool hasTitle = false;
             Rml::String title;
@@ -224,14 +262,20 @@ namespace mu::ui::window
 
             bool hasInput = false;
             bool inputIsKeypad = false;
-            Rml::String inputText; // display text (already masked, if applicable) for NumericKeypad;
-                                   // unused for Mode::Text, which renders via the native widget
+            Rml::String inputText; // NumericKeypad's masked display text only (its buffer is C++-side,
+                                   // m_KeypadBuffer) -- Mode::Text uses inputValue below instead
+            // Mode::Text's editable value, two-way bound to #gcd_input's data-value. RmlUi owns the
+            // buffer/caret/selection/IME; type (text vs password) and maxlength are pushed per
+            // Show() by ApplyInputFieldConfig(), and numeric-only filtering is applied in C++ on
+            // change (no RmlUi equivalent for it, and it is an application rule).
+            Rml::String inputValue;
             // Individually-bound, not a data-for loop over an array -- click handlers need each
             // row's own index (`gcd_keypad_click(i)`), so 10 fixed slots are bound instead.
             int keypadDigit0 = 0, keypadDigit1 = 0, keypadDigit2 = 0, keypadDigit3 = 0, keypadDigit4 = 0;
             int keypadDigit5 = 0, keypadDigit6 = 0, keypadDigit7 = 0, keypadDigit8 = 0, keypadDigit9 = 0;
 
             bool hasProgress = false;
+            float canvasTop = 0.f; // UI::RmlBridge::DialogCanvasTop, in dp
             float progressFraction = 0.f;
 
             // Toggles #gcd_item3d_anchor's own hidden/shown state and .gcd-body's icon-left/text-
@@ -277,6 +321,9 @@ namespace mu::ui::window
         // NumericKeypad's own click-accumulated digit buffer (never the real keyboard focus) --
         // shuffled mapping gives anti-shoulder-surfing behavior.
         std::wstring m_KeypadBuffer;
+        // Mode::Text's InputField::initialText, held between Show() and the ApplyInputFieldConfig()
+        // that seeds #gcd_input -- the element only exists once the document has been shown.
+        std::wstring m_PendingInputSeed;
         std::vector<int> m_KeypadMapping; // 10 entries, shuffled per Show()
 
         DWORD m_dwProgressStartTime = 0;
