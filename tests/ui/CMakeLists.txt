@@ -11,6 +11,12 @@ mu_add_test(
 )
 
 mu_add_test(
+    NAME help_pages_tests
+    SOURCES test_help_pages.cpp
+    LINK_LIBS MuClient
+)
+
+mu_add_test(
     NAME text_search_tests
     SOURCES
         test_text_search.cpp
