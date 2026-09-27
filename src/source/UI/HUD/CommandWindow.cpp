@@ -36,10 +36,9 @@ constexpr int kButtonHeight = 29;
 
 // The button labels, in COMMAND_TYPE order.
 const wchar_t* const* const kCommandLabels[COMMAND_END] = {
-    &I18N::Game::Trade,    &I18N::Game::Buy1124,        &I18N::Game::Party,
-    &I18N::Game::Whisper,  &I18N::Game::Guild,          &I18N::Game::Alliance,
-    &I18N::Game::HostilityGuild, &I18N::Game::SuspendHostilities, &I18N::Game::AddFriend,
-    &I18N::Game::Follow,   &I18N::Game::Duel,           &I18N::Game::SpecialCommands,
+    &I18N::Game::Trade,     &I18N::Game::Buy1124,  &I18N::Game::Party,          &I18N::Game::Whisper,
+    &I18N::Game::Guild,     &I18N::Game::Alliance, &I18N::Game::HostilityGuild, &I18N::Game::SuspendHostilities,
+    &I18N::Game::AddFriend, &I18N::Game::Follow,   &I18N::Game::Duel,           &I18N::Game::SpecialCommands,
 };
 
 template <typename Model, typename Value>

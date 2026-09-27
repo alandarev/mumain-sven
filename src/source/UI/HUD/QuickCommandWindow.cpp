@@ -222,23 +222,22 @@ void mu::ui::window::CQuickCommandWindow::BuildRmlUi()
     if (m_pRmlDoc || !RmlUiRuntime::Instance().IsCreated())
         return;
 
-    const bool modelCreated = m_RmlBinder.Create(
-        RmlUiRuntime::Instance().GetContext(), "quick_command",
-        [](Rml::DataModelConstructor& c, QuickCommandRmlModel& model)
-        {
-            c.Bind("root_x", &model.rootX);
-            c.Bind("root_y", &model.rootY);
-            c.Bind("root_scale", &model.rootScale);
-            c.Bind("text_px", &model.textPx);
-            c.Bind("bold_text_px", &model.boldTextPx);
-            c.Bind("target_name", &model.targetName);
+    const bool modelCreated = m_RmlBinder.Create(RmlUiRuntime::Instance().GetContext(), "quick_command",
+                                                 [](Rml::DataModelConstructor& c, QuickCommandRmlModel& model)
+                                                 {
+                                                     c.Bind("root_x", &model.rootX);
+                                                     c.Bind("root_y", &model.rootY);
+                                                     c.Bind("root_scale", &model.rootScale);
+                                                     c.Bind("text_px", &model.textPx);
+                                                     c.Bind("bold_text_px", &model.boldTextPx);
+                                                     c.Bind("target_name", &model.targetName);
 
-            auto row = c.RegisterStruct<QuickCommandRowEntry>();
-            row.RegisterMember("label", &QuickCommandRowEntry::label);
-            row.RegisterMember("selected", &QuickCommandRowEntry::selected);
-            c.RegisterArray<std::vector<QuickCommandRowEntry>>();
-            c.Bind("rows", &model.rows);
-        });
+                                                     auto row = c.RegisterStruct<QuickCommandRowEntry>();
+                                                     row.RegisterMember("label", &QuickCommandRowEntry::label);
+                                                     row.RegisterMember("selected", &QuickCommandRowEntry::selected);
+                                                     c.RegisterArray<std::vector<QuickCommandRowEntry>>();
+                                                     c.Bind("rows", &model.rows);
+                                                 });
 
     if (!modelCreated)
         return;

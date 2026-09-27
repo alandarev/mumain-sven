@@ -301,21 +301,22 @@ void CPartyListWindow::SyncCards(const UI::Scaling::Transform& transform)
 
         const float nameBox = static_cast<float>(card.leader ? LeaderNameBoxWidth : MemberNameBoxWidth);
         const float nameWidth = static_cast<float>(g_pRenderText->MeasureText(member.Name, lstrlen(member.Name)).cx);
-        card.nameTextPx = UI::Scaling::NativeTextPixelSizeInBox(UI::Scaling::FontRole::Normal, transform, nameWidth, nameBox);
+        card.nameTextPx =
+            UI::Scaling::NativeTextPixelSizeInBox(UI::Scaling::FontRole::Normal, transform, nameWidth, nameBox);
 
         cards.push_back(std::move(card));
     }
 
     PartyListRmlModel& model = m_RmlBinder.GetModel();
-    const bool changed =
-        cards.size() != model.cards.size() ||
-        !std::equal(cards.begin(), cards.end(), model.cards.begin(),
-                    [](const PartyListCardEntry& a, const PartyListCardEntry& b)
-                    {
-                        return a.name == b.name && a.nameTextPx == b.nameTextPx && a.absent == b.absent &&
-                               a.defenseBuff == b.defenseBuff && a.selected == b.selected &&
-                               a.showLeave == b.showLeave && a.healthLength == b.healthLength;
-                    });
+    const bool changed = cards.size() != model.cards.size() ||
+                         !std::equal(cards.begin(), cards.end(), model.cards.begin(),
+                                     [](const PartyListCardEntry& a, const PartyListCardEntry& b)
+                                     {
+                                         return a.name == b.name && a.nameTextPx == b.nameTextPx &&
+                                                a.absent == b.absent && a.defenseBuff == b.defenseBuff &&
+                                                a.selected == b.selected && a.showLeave == b.showLeave &&
+                                                a.healthLength == b.healthLength;
+                                     });
     if (!changed)
         return;
 

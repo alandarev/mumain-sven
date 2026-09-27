@@ -13,7 +13,7 @@
 
 namespace Rml
 {
-    class ElementDocument;
+class ElementDocument;
 }
 
 namespace mu::ui::window
@@ -44,7 +44,7 @@ namespace mu::ui::window
         Rml::ElementDocument* m_pRmlDoc = nullptr;
         // A button press, queued by RmlUi's click and run from Update(), outside RmlUi's own
         // event dispatch (Special opens another window).
-        int							m_PendingCommand = COMMAND_NONE;
+        int m_PendingCommand = COMMAND_NONE;
 
     public:
         CCommandWindow();

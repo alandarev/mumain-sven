@@ -12,7 +12,7 @@
 
 namespace Rml
 {
-    class ElementDocument;
+class ElementDocument;
 }
 
 namespace mu::ui::window
