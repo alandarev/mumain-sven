@@ -118,10 +118,20 @@ App::Control::Value FromJson(const json& value)
     }
     if (value.is_array())
     {
-        // No argument takes an array, and a caller that sends one means
-        // something by it: the command answers `bad_request` rather than
-        // running with the default the field would otherwise keep.
-        return App::Control::Value::OfUnsupportedKind();
+        // Only a list of numbers is an argument (a point such as `drag`'s
+        // `from`). Any other array means something the protocol does not
+        // take: the command answers `bad_request` rather than running with
+        // the default the field would otherwise keep.
+        std::vector<double> numbers;
+        for (const auto& entry : value)
+        {
+            if (!entry.is_number())
+            {
+                return App::Control::Value::OfUnsupportedKind();
+            }
+            numbers.push_back(entry.get<double>());
+        }
+        return App::Control::Value(std::move(numbers));
     }
     // An explicit null reads as "not supplied", which is what a caller that
     // fills a template with an empty field means by it.
@@ -145,6 +155,8 @@ Value::Value(double value) : m_kind(Kind::Number), m_number(value) {}
 Value::Value(std::string value) : m_kind(Kind::String), m_string(std::move(value)) {}
 
 Value::Value(std::map<std::string, std::string> value) : m_kind(Kind::StringMap), m_map(std::move(value)) {}
+
+Value::Value(std::vector<double> value) : m_kind(Kind::Numbers), m_numbers(std::move(value)) {}
 
 bool Value::AsBool(bool fallback) const
 {
@@ -192,10 +204,10 @@ const std::vector<std::string>& CommandNames()
     // the whole client into that test. The dispatcher checks itself against
     // this list instead (ControlDispatcher.cpp, CommandTable).
     static const std::vector<std::string> names = {
-        "ping",        "scene",  "state",  "nearby", "events",  "wait-for", "screenshot", "login",
-        "select-char", "logout", "quit",   "move",   "warp",    "teleport", "attack",     "skill",
-        "pickup",      "use",    "equip",  "say",    "whisper", "party",    "halt",       "hotkey",
-        "click-ui",    "type",   "inject", "net",    "ui",      "window",   "hover",      "render",
+        "ping",   "scene", "state",   "nearby", "events",   "wait-for", "screenshot", "login",  "select-char",
+        "logout", "quit",  "move",    "warp",   "teleport", "attack",   "skill",      "pickup", "use",
+        "equip",  "say",   "whisper", "party",  "halt",     "hotkey",   "click-ui",   "type",   "inject",
+        "net",    "ui",    "window",  "hover",  "render",   "wheel",    "drag",
     };
     return names;
 }
@@ -346,6 +358,18 @@ bool Request::GetStrictBool(std::string_view key, bool& out) const
     if (field == m_fields.end() || field->second.GetKind() != Value::Kind::Bool)
         return false;
     out = field->second.AsBool();
+    return true;
+}
+
+bool Request::GetPoint(std::string_view key, std::array<double, 2>& out) const
+{
+    const auto field = m_fields.find(key);
+    if (field == m_fields.end() || field->second.GetKind() != Value::Kind::Numbers ||
+        field->second.AsNumbers().size() != 2)
+    {
+        return false;
+    }
+    out = {field->second.AsNumbers()[0], field->second.AsNumbers()[1]};
     return true;
 }
 

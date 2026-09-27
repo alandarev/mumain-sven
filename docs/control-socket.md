@@ -74,6 +74,8 @@ Error codes: `bad_request`, `unknown_command`, `wrong_scene`, `busy`,
 | `hotkey` (`key`) | press one game key for a frame: `esc`, `i`, `home`, `f1`, … |
 | `click-ui` (`x`, `y`, `button`) | click a window pixel (`left` by default) |
 | `type` (`text`, `enter`) | deliver committed UTF-8 to the focused field; optional boolean `enter` submits on a later frame |
+| `wheel` (`notches`, `x`, `y`) | scroll `notches` (-5..5, not 0; positive is away from the user) one per frame, optionally after moving the pointer to a window pixel |
+| `drag` (`from`, `to`, `button`, `steps`) | press at `from` `[x, y]`, move to `to` over `steps` frames (1..30, default 8), release there (`left` by default) |
 | `login` (`account`, `password`, `server`) | server selection, credentials, character list |
 | `select-char` (`name` or `slot`) | enter the world with that character |
 | `logout`, `quit` | back to the character list; close the client |
@@ -125,7 +127,29 @@ Focus a text field with a supported UI click or keyboard navigation before
 `enter` must be boolean. A successful reply confirms delivery, **not** that a
 field accepted the characters or a login succeeded. Its result reports only
 byte count and whether Enter was requested, never the text (which may be a
-password). No IME composition, key chords or drag operation is synthesized.
+password). No IME composition or key chords are synthesized.
+
+`wheel` queues one SDL wheel event per rendered frame through the main loop's
+ordinary event queue, so RmlUi and the legacy `MouseWheel` readers both see
+device-like notches; with `x` and `y` it first queues a motion to that window
+pixel, exactly like `hover`. It answers once the last notch has been consumed,
+with `notches` and the pointer (`x`, `y`) it scrolled at.
+`{"cmd":"wheel","notches":-3,"x":400,"y":300}` scrolls three notches towards
+the user over the pixel (400, 300).
+
+`drag` is one atomic injection routed like `click-ui`: the pointer arrives at
+`from` and the button goes down, the pointer moves one straight-line step per
+rendered frame for `steps` frames, and the button is released at `to`. It
+answers after the release with `from`, `to`, `steps`, `button` and the final
+pointer (`x`, `y`). `{"cmd":"drag","from":[100,200],"to":[300,200],"steps":8}`
+drags ten frames in all. A drag that times out, is cancelled by a physical
+press of the same button, loses its delivery target or outlives its scene
+(`failed`) takes its press back without a release edge, like an abandoned
+click: no button stays held and nothing is dropped behind the caller's back.
+
+Positions of `wheel` and `drag` must lie inside the game window
+(`bad_request` otherwise). Both share the single injection slot with
+`hotkey`, `click-ui` and `type` (`busy`).
 
 Only one injection runs at a time; another answers `busy`. Injection commands
 are observational and do not interrupt an ongoing world act. They answer after

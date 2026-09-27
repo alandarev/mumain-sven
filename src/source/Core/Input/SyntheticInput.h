@@ -1,6 +1,8 @@
 // Scripted input is synchronously routed through the game window's UI-first
 // event path once per rendered frame. UI-consumed input does not enter the
-// legacy key/button readers; no SDL queue or OS pointer is changed.
+// legacy key/button readers; no SDL queue or OS pointer is changed. Wheel
+// notches are the exception: they are queued like `hover`'s motion, because
+// the main loop's queue is the only place the legacy wheel reader is fed.
 #pragma once
 
 #include <cstdint>
@@ -41,6 +43,34 @@ enum class MouseButton : std::uint8_t
 [[nodiscard]] bool TypeText(std::string_view text, bool enter);
 [[nodiscard]] bool ValidText(std::string_view text);
 
+// A position in window pixels, as in a screenshot.
+struct WindowPoint
+{
+    float x = 0.0f;
+    float y = 0.0f;
+};
+
+// Wheel notches one request may scroll, in either direction (positive scrolls
+// away from the user, like SDL's own wheel `y`).
+inline constexpr int MaxWheelNotches = 5;
+[[nodiscard]] bool ValidWheelNotches(int notches);
+
+// Queues one SDL wheel event per rendered frame through the ordinary event
+// queue, so the UI and the legacy `MouseWheel` reader both see device-like
+// notches; `pointer`, when given, is first queued as a motion like `hover`.
+[[nodiscard]] bool Wheel(int notches, std::optional<WindowPoint> pointer);
+
+// Frames a drag spends moving between its press and its release.
+inline constexpr int MinDragSteps = 1;
+inline constexpr int MaxDragSteps = 30;
+inline constexpr int DefaultDragSteps = 8;
+[[nodiscard]] bool ValidDragSteps(int steps);
+
+// Presses at `from`, moves to `to` over `steps` rendered frames and releases
+// at `to`, through the same routing as `Click`. Abandoning it (`Reset`) takes
+// the press back without a release edge, so no button stays held.
+[[nodiscard]] bool Drag(WindowPoint from, WindowPoint to, MouseButton button, int steps);
+
 // Main-loop delivery target. Events are delivered synchronously on the rendered
 // frame; setting nullptr retracts pending work before the window is destroyed.
 using EventDelivery = bool (*)(SDL_Event&, bool& propagates);
@@ -60,7 +90,7 @@ void CancelForPhysicalButton(unsigned char button);
 // answers once this turns true again.
 [[nodiscard]] bool IsIdle();
 
-// Identifies the injection most recently accepted: every key, click or text
+// Identifies the injection most recently accepted: every key, click, text, wheel or drag
 // schedule that returns true gets a value of its own. A command reads it when
 // its injection is scheduled and compares later, so it can tell its own
 // injection from the next caller's.

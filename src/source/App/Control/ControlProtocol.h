@@ -6,6 +6,7 @@
 // not pay for json.hpp; the parser lives in the App/Control translation units.
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <map>
 #include <string>
@@ -51,7 +52,8 @@ public:
     enum class Kind : std::uint8_t
     {
         Null,
-        // A shape no argument of the protocol takes (an array). Kept apart
+        // A shape no argument of the protocol takes (an array of anything
+        // but numbers). Kept apart
         // from Null so `Has()` still sees the field and its command answers
         // `bad_request` instead of running with a default.
         Unsupported,
@@ -59,6 +61,8 @@ public:
         Number,
         String,
         StringMap,
+        // A list of numbers, such as a window point `[x, y]`.
+        Numbers,
     };
 
     Value() = default;
@@ -67,6 +71,7 @@ public:
     explicit Value(double value);
     explicit Value(std::string value);
     explicit Value(std::map<std::string, std::string> value);
+    explicit Value(std::vector<double> value);
 
     [[nodiscard]] Kind GetKind() const
     {
@@ -82,6 +87,10 @@ public:
     {
         return m_map;
     }
+    [[nodiscard]] const std::vector<double>& AsNumbers() const
+    {
+        return m_numbers;
+    }
 
 private:
     Kind m_kind = Kind::Null;
@@ -89,6 +98,7 @@ private:
     double m_number = 0.0;
     std::string m_string;
     std::map<std::string, std::string> m_map;
+    std::vector<double> m_numbers;
 };
 
 // One decoded request line.
@@ -136,6 +146,8 @@ public:
     [[nodiscard]] bool GetBool(std::string_view key, bool& out) const;
     [[nodiscard]] bool GetStrictBool(std::string_view key, bool& out) const;
     [[nodiscard]] bool GetStringMap(std::string_view key, std::map<std::string, std::string>& out) const;
+    // A two-number list `[x, y]`; false for any other shape or length.
+    [[nodiscard]] bool GetPoint(std::string_view key, std::array<double, 2>& out) const;
 
 private:
     bool m_empty = false;
