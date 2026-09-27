@@ -249,8 +249,21 @@ genuinely stay in C++ — worth reading before auditing any legacy-theme code ag
   depth (the hit targets already did). The skill textures stay loaded for `CUIMuHelper`.
 - **Event, duel and map windows** — **done, both themes (2026-09-27)**: `CMiniMap`, `CDuelWindow`,
   `CBattleSoccerScore`, `CDuelWatchWindow`, `CEnterBloodCastle`, `CEnterDevilSquare`,
-  `CCursedTempleEnter`, `CUnitedMarketPlaceWindow`. Legacy matches the original at the eight common
-  sizes (paired comparison replays). Worth carrying to the next port:
+  `CCursedTempleEnter`, `CCursedTempleResult`, `CDoppelGangerWindow`, `CEmpireGuardianNPC`,
+  `CUnitedMarketPlaceWindow`, `CChatCommandWindow`; then `CServerMsgWin` (character list). Legacy
+  matches the original at the eight common sizes (paired comparison replays). Worth carrying to the
+  next port:
+
+  - **A window with a live 3D preview** (Doppelganger, Imperial Guardian) puts its frame in a
+    background-context document, painted before the native 3D pass, and its texts and buttons in a
+    main-context one (`UI/Events/EventItemEntryView`).
+  - **A native text box can become an RmlUi `<input>`** in the window's own document (the chat
+    command list's value field): claim RmlUi's text-input identity through `SetRelatedWnd()` while
+    it has focus so the window's key handling still runs; filter a numeric field's value in C++.
+  - **A fading sprite drawn under the native alpha test (0.25)** stays invisible for the first
+    moments of its fade; RmlUi blends it from the start (the Illusion Temple result banner). Compare
+    settled frames.
+  - **Fixed-width text** (`g_hFixFont`) is the Cousine face, registered with RmlUi for it.
 
   - **RmlUi blends premultiplied**; textures loaded from game files are premultiplied on load now
     (`RmlUiRenderInterface::LoadTexture`). A straight-alpha texture with coloured transparent
@@ -605,9 +618,9 @@ for "the full architecture is in place":
   (the live in-game Options window, opened by `CSysMenuWin`'s Option button per the "Coexistence
   patterns" note in `README.md`) had zero RmlUi call sites at the time despite reading as though it
   might already be replaced — **since ported and shipped (2026-09-19), see `migration-ledger.md`'s
-  own row** — and `CServerMsgWin` (sibling of the already-done `CMsgWin`) is likewise still fully
-  native and not yet a distinct port target (a real, unrelated visibility bug in it was found and
-  fixed along the way, see its own ledger row — not a port). Conversely,
+  own row** — and `CServerMsgWin` (sibling of the already-done `CMsgWin`) was likewise still fully
+  native (a real, unrelated visibility bug in it was found and fixed along the way) — **since ported
+  (2026-09-27), see its ledger row**. Conversely,
   `CCreditWin` turned out to already be a real, shipped RmlUi port (`credit_win.rml`) that was never
   logged in this file's own "What's migrated" list above — now listed there.
 - ~~`MuPlatform::Initialize()`/`CreatePlatformWindow()`/`GetWindow()`/`Shutdown()`/
