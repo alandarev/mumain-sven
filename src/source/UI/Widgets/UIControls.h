@@ -356,6 +356,20 @@ public:
         return m_iSelectLineNum;
     }
 
+    // The lines Render() draws, in its order: visit(line, item, selected) with line 0 the first
+    // drawn. For windows that draw the list elsewhere (RmlUi) and keep this control for its data,
+    // scrolling and line clicks.
+    template <typename Visit> void ForEachRenderLine(Visit&& visit)
+    {
+        MoveRenderLine();
+        for (int i = 0; i < m_iNumRenderLine; ++i, ++m_TextListIter)
+        {
+            if (m_TextListIter == m_TextList.end())
+                break;
+            visit(i, *m_TextListIter, SLGetSelectLineNum() == m_iCurrentRenderEndLine + i + 1);
+        }
+    }
+
 protected:
     virtual BOOL DoMouseAction();
     virtual void RemoveText();
@@ -630,11 +644,13 @@ public:
         return (SLGetSelectLine() == m_TextList.end() ? NULL : &(*SLGetSelectLine()));
     }
 
+    // The y (reference px) Render() draws line `iLineNumber` at.
+    virtual int GetRenderLinePos_y(int iLineNumber);
+
 protected:
     virtual void RenderInterface();
     virtual BOOL RenderDataLine(int iLineNumber);
     virtual BOOL DoLineMouseAction(int iLineNumber);
-    virtual int GetRenderLinePos_y(int iLineNumber);
 };
 
 class CUINewGuildMemberListBox : public CUITextListBox<GUILDLIST_TEXT>
@@ -651,11 +667,13 @@ public:
         return (SLGetSelectLine() == m_TextList.end() ? NULL : &(*SLGetSelectLine()));
     }
 
+    // The y (reference px) Render() draws line `iLineNumber` at.
+    virtual int GetRenderLinePos_y(int iLineNumber);
+
 protected:
     virtual void RenderInterface();
     virtual BOOL RenderDataLine(int iLineNumber);
     virtual BOOL DoLineMouseAction(int iLineNumber);
-    virtual int GetRenderLinePos_y(int iLineNumber);
 
 protected:
     BOOL m_bIsGuildMaster;
@@ -677,11 +695,13 @@ public:
         return (SLGetSelectLine() == m_TextList.end() ? NULL : &(*SLGetSelectLine()));
     }
 
+    // The y (reference px) Render() draws line `iLineNumber` at.
+    virtual int GetRenderLinePos_y(int iLineNumber);
+
 protected:
     virtual void RenderInterface();
     virtual BOOL RenderDataLine(int iLineNumber);
     virtual BOOL DoLineMouseAction(int iLineNumber);
-    virtual int GetRenderLinePos_y(int iLineNumber);
 };
 
 class CUIExtraItemListBox : public CUITextListBox<FILTERLIST_TEXT>
