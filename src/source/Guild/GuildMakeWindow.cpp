@@ -23,6 +23,7 @@
 #include <RmlUi/Core/ElementDocument.h>
 
 #include <cstdio>
+#include <iterator>
 
 extern MARK_t		GuildMark[MAX_MARKS];
 extern int			SelectMarkColor;
@@ -95,9 +96,9 @@ namespace
     // original's own look, kept. Index 0 is the black cell with a grey cross.
     mu::ui::window::GuildMakeCellEntry EditorCell(int index)
     {
-        if (index <= 0 || index >= Guild::MarkPalette::ColorCount)
+        if (index <= 0 || static_cast<std::size_t>(index) >= std::size(MarkColor))
             return {"#000000ff", true};
-        const unsigned int argb = MarkColor[index];
+        const unsigned int argb = MarkColor[static_cast<std::size_t>(index)];
         char color[16] = {};
         std::snprintf(color, sizeof(color), "#%02x%02x%02x%02x", (argb >> 16) & 0xFFu, (argb >> 8) & 0xFFu,
                       argb & 0xFFu, (argb >> 24) & 0xFFu);
