@@ -12,6 +12,7 @@
 
 #if __has_include("UI/Core/WindowSystem.h")
 #define MU_OBSERVABILITY_RMLUI 1
+#include "Render/RmlUi/RmlUiRuntime.h"
 #include "UI/Core/UIManager.h"
 #include "UI/Core/WindowSystem.h"
 #include "UI/Dialogs/GenericMenuDialog.h"
@@ -169,12 +170,18 @@ std::string UiObservabilityObject()
     // hover acknowledgements alone cannot establish where a captured cursor drew.
     result["pointer"] = worldReady ? json::array({g_fWindowMouseX, g_fWindowMouseY, MouseX, MouseY}) : json(nullptr);
     result["helper_active"] = MUHelper::g_MuHelper.IsActive();
-    result["input_focused"] = CUITextInputBox::IsAnyInputBoxFocused();
+    bool inputFocused = CUITextInputBox::IsAnyInputBoxFocused();
     result["input_focus_owner"] = nullptr;
 #if MU_OBSERVABILITY_RMLUI
+    // Ported windows type into RmlUi <input>s, which the native focus above does not see.
+    inputFocused = inputFocused || RmlUiRuntime::Instance().IsTextInputActive();
     if (Registered(Windows::INTERFACE_CHATINPUTBOX, g_pChatInputBox) && g_pChatInputBox->OwnsFocusedInput())
+    {
+        inputFocused = true;
         result["input_focus_owner"] = "chatinputbox";
+    }
 #endif
+    result["input_focused"] = inputFocused;
     constexpr int FriendsMinimumLevel = 6;
     result["friend_open_allowed"] =
         CharacterAttribute != nullptr ? json(CharacterAttribute->Level >= FriendsMinimumLevel) : json(nullptr);

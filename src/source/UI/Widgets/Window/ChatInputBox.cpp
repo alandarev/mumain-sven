@@ -126,10 +126,9 @@ bool mu::ui::window::CChatInputBox::HaveFocus()
 
 bool mu::ui::window::CChatInputBox::OwnsFocusedInput() const
 {
-    const auto* focused = CUITextInputBox::GetFocusedPortable();
-    return CUITextInputBox::IsAnyInputBoxFocused() &&
-           ((m_pChatInputBox != nullptr && focused == m_pChatInputBox) ||
-            (m_pWhsprIDInputBox != nullptr && focused == m_pWhsprIDInputBox));
+    // The chat and whisper fields are RmlUi <input>s in this window's own document; a field
+    // elsewhere (another document or a native CUITextInputBox) is never this window's.
+    return IsFieldFocused("chat_field") || IsFieldFocused("whisper_field");
 }
 
 void mu::ui::window::CChatInputBox::AddChatHistory(const type_string& strText)
