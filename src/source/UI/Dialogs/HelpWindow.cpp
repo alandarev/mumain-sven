@@ -8,6 +8,7 @@
 #include "Core/Utilities/StringUtils.h"
 #include "Render/RmlUi/RmlUiRuntime.h"
 #include "Render/Text/CUIRenderTextSDLTtf.h"
+#include "UI/RmlBridge/RmlDocumentVisibility.h"
 #include "UI/RmlBridge/RmlTheme.h"
 
 #include <RmlUi/Core/ElementDocument.h>
@@ -189,21 +190,9 @@ void mu::ui::window::CHelpWindow::SyncRmlModel()
     if (!m_pRmlDoc)
         return;
 
+    // The original drew this page over the location bar and the chat and system logs.
     const bool visible = IsVisible();
-    if (m_pRmlDoc->IsVisible() != visible)
-    {
-        if (!visible)
-        {
-            m_pRmlDoc->Hide();
-            return;
-        }
-
-        // Unfocused, so an open chat field keeps its focus, and pulled to the front: the original
-        // drew this page over the location bar and the chat and system logs.
-        m_pRmlDoc->Show(Rml::ModalFlag::None, Rml::FocusFlag::None);
-        m_pRmlDoc->PullToFront();
-    }
-
+    UI::RmlBridge::SyncDocumentVisibilityInFront(m_pRmlDoc, visible);
     if (!visible)
         return;
 

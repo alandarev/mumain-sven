@@ -5,7 +5,7 @@
 #pragma once
 
 #include "UI/Core/WindowManager.h"
-#include "UI/Dialogs/WindowMenu.h"
+#include "UI/Dialogs/MessageBox.h"
 #include "Render/Models/ZzzBMD.h"
 #include "Engine/Object/ZzzCharacter.h"
 
@@ -16,11 +16,12 @@ namespace mu::ui::window
         enum IMAGE_LIST
         {
             IMAGE_QUICKCOMMAND_BACK = CMessageBoxMng::IMAGE_MSGBOX_BACK,
-            IMAGE_QUICKCOMMAND_FRAME_MIDDLE = CWindowMenu::IMAGE_WINDOW_MENU_FRAME_MIDDLE,
-            IMAGE_QUICKCOMMAND_FRAME_DOWN = CWindowMenu::IMAGE_WINDOW_MENU_FRAME_DOWN,
-            IMAGE_QUICKCOMMAND_LINE = CWindowMenu::IMAGE_WINDOW_MENU_LINE,
-            IMAGE_QUICKCOMMAND_ARROWL = CWindowMenu::IMAGE_WINDOW_MENU_ARROWL,
-            IMAGE_QUICKCOMMAND_ARROWR = CWindowMenu::IMAGE_WINDOW_MENU_ARROWR,
+            // The window menu's slots: it drew the same frame, line and arrows before its port.
+            IMAGE_QUICKCOMMAND_FRAME_MIDDLE = BITMAP_WINDOW_MENU_BEGIN + 1,
+            IMAGE_QUICKCOMMAND_FRAME_DOWN,
+            IMAGE_QUICKCOMMAND_LINE,
+            IMAGE_QUICKCOMMAND_ARROWL,
+            IMAGE_QUICKCOMMAND_ARROWR,
             IMAGE_QUICKCOMMAND_FRAME_UP = BITMAP_QUICKCOMMAND_BEGIN,
         };
 
