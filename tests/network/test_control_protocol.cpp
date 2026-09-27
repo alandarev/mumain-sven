@@ -9,6 +9,7 @@
 #include "App/Control/ControlProtocol.h"
 #include "Network/Server/WSclient.h"
 
+#include <array>
 #include <cctype>
 #include <string>
 #include <vector>
@@ -83,10 +84,10 @@ TEST_CASE("Control protocol treats a blank line as no request [network][control-
 TEST_CASE("Control protocol serves the documented command vocabulary [network][control-protocol]")
 {
     const std::vector<std::string> expected = {
-        "ping",     "scene",  "state",  "nearby", "events",  "wait-for", "screenshot", "login",
-        "select-char", "logout", "quit", "move",   "warp",    "teleport", "attack",     "skill",
-        "pickup",   "use",    "equip",  "say",    "whisper", "party",    "halt",       "hotkey",
-        "click-ui", "type",   "inject", "net",    "ui",      "window",   "hover",      "render",
+        "ping",   "scene", "state",   "nearby", "events",   "wait-for", "screenshot", "login",  "select-char",
+        "logout", "quit",  "move",    "warp",   "teleport", "attack",   "skill",      "pickup", "use",
+        "equip",  "say",   "whisper", "party",  "halt",     "hotkey",   "click-ui",   "type",   "inject",
+        "net",    "ui",    "window",  "hover",  "render",   "wheel",    "drag",
     };
 
     for (const std::string& command : expected)
@@ -203,4 +204,26 @@ TEST_CASE("Type request requires a strict optional boolean [network][control-pro
     request = Request::Parse(R"({"cmd":"type","text":"hello","enter":null})");
     CHECK(request.Contains("enter"));
     CHECK_FALSE(request.GetStrictBool("enter", enter));
+}
+
+TEST_CASE("Drag points are two-number lists and nothing else [network][control-protocol]")
+{
+    const Request request =
+        Request::Parse(R"({"cmd":"drag","from":[10,20.5],"to":[30,40],"one":[1],"three":[1,2,3],"mixed":[1,"2"]})");
+    REQUIRE(request.IsValid());
+    std::array<double, 2> point{};
+    REQUIRE(request.GetPoint("from", point));
+    CHECK(point[0] == 10.0);
+    CHECK(point[1] == 20.5);
+    REQUIRE(request.GetPoint("to", point));
+    CHECK(point[0] == 30.0);
+    CHECK(point[1] == 40.0);
+    CHECK_FALSE(request.GetPoint("one", point));
+    CHECK_FALSE(request.GetPoint("three", point));
+    // Any other array is still a present field a command must refuse.
+    CHECK_FALSE(request.GetPoint("mixed", point));
+    CHECK(request.Has("mixed"));
+    CHECK_FALSE(request.GetPoint("missing", point));
+    double number = 0.0;
+    CHECK_FALSE(request.GetDouble("from", number));
 }

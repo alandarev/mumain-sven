@@ -12,6 +12,7 @@
 #include "json.hpp"
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
@@ -21,6 +22,12 @@
 #include <optional>
 #include <utility>
 #include <vector>
+
+// The window size and the pointer, in the window pixels a caller names.
+extern unsigned int WindowWidth;
+extern unsigned int WindowHeight;
+extern float g_fWindowMouseX;
+extern float g_fWindowMouseY;
 
 namespace
 {
@@ -53,6 +60,8 @@ constexpr double MaxWindowPixel = 100000.0;
 // An injected key or click spans three rendered frames; the allowance
 // covers a client that renders slowly without letting a caller hang.
 constexpr std::chrono::milliseconds SyntheticInputDeadline{5000};
+// A drag spans up to `MaxDragSteps` + 3 rendered frames.
+constexpr std::chrono::milliseconds DragDeadline{15000};
 
 // One recorded event as the protocol reports it.
 json EventObject(const App::Control::Events::Record& record)
@@ -310,9 +319,11 @@ private:
 class SyntheticInputAct : public Act
 {
 public:
-    SyntheticInputAct(std::string_view name, std::string encodedResult)
+    SyntheticInputAct(std::string_view name, std::string encodedResult,
+                      std::chrono::milliseconds deadline = SyntheticInputDeadline, bool abandonOnSceneChange = false)
         : m_name(name), m_encodedResult(std::move(encodedResult)),
-          m_generation(Core::Input::Synthetic::CurrentGeneration())
+          m_generation(Core::Input::Synthetic::CurrentGeneration()), m_deadline(deadline),
+          m_abandonOnSceneChange(abandonOnSceneChange), m_scene(SceneFlag)
     {
     }
 
@@ -343,11 +354,18 @@ public:
 
     [[nodiscard]] std::optional<std::chrono::milliseconds> Deadline() const override
     {
-        return SyntheticInputDeadline;
+        return m_deadline;
     }
 
     [[nodiscard]] Status Tick(std::string& response) override
     {
+        if (IsAbandonedByScene())
+        {
+            Core::Input::Synthetic::Reset();
+            response = App::Control::EncodeError(EncodedId(), ErrorCode::Failed,
+                                                 "the scene changed during the injection; its press was taken back");
+            return Status::Finished;
+        }
         // A failed owner can be superseded before this reader ticks. Its outcome
         // survives newer schedules until this act retires.
         const auto failure = Core::Input::Synthetic::FailureFor(m_generation);
@@ -371,10 +389,53 @@ private:
         return Core::Input::Synthetic::CurrentGeneration() == m_generation;
     }
 
+    // A drag spans many frames; one that outlives its scene must not carry a
+    // held button into the next one.
+    [[nodiscard]] bool IsAbandonedByScene() const
+    {
+        return m_abandonOnSceneChange && SceneFlag != m_scene && IsStillMine() && !Core::Input::Synthetic::IsIdle();
+    }
+
     std::string_view m_name;
     std::string m_encodedResult;
     std::uint64_t m_generation;
+    std::chrono::milliseconds m_deadline;
+    bool m_abandonOnSceneChange;
+    EGameScene m_scene;
 };
+
+// `button` of click-ui and drag: `left` unless given. Answers the error
+// response when the field names no button, empty otherwise.
+std::string ReadMouseButton(const Request& request, std::string& name, Core::Input::Synthetic::MouseButton& button)
+{
+    name = "left";
+    if (request.Has("button") && !request.GetString("button", name))
+    {
+        return App::Control::EncodeError(request.EncodedId(), ErrorCode::BadRequest, "`button` is `left` or `right`");
+    }
+    const std::optional<Core::Input::Synthetic::MouseButton> named = Core::Input::Synthetic::MouseButtonFromName(name);
+    if (!named)
+    {
+        return App::Control::EncodeError(request.EncodedId(), ErrorCode::BadRequest,
+                                         "unknown button `" + name + "`; known: left, right");
+    }
+    button = *named;
+    return {};
+}
+
+// A wheel or drag position must be a pixel of the game window.
+bool IsInsideWindow(double windowX, double windowY)
+{
+    return windowX >= 0.0 && windowY >= 0.0 && windowX < static_cast<double>(WindowWidth) &&
+           windowY < static_cast<double>(WindowHeight);
+}
+
+std::string OutsideWindowError(const Request& request)
+{
+    return App::Control::EncodeError(request.EncodedId(), ErrorCode::BadRequest,
+                                     "the position is outside the game window (" + std::to_string(WindowWidth) + "x" +
+                                         std::to_string(WindowHeight) + " window pixels)");
+}
 
 } // namespace
 
@@ -605,20 +666,14 @@ std::string ClickUi(const Request& request, std::unique_ptr<Act>& act)
                                std::to_string(static_cast<int>(MaxWindowPixel)) + " from the origin");
     }
 
-    std::string buttonName = "left";
-    if (request.Has("button") && !request.GetString("button", buttonName))
+    std::string buttonName;
+    Core::Input::Synthetic::MouseButton button = Core::Input::Synthetic::MouseButton::Left;
+    if (std::string error = ReadMouseButton(request, buttonName, button); !error.empty())
     {
-        return EncodeError(request.EncodedId(), ErrorCode::BadRequest, "`button` is `left` or `right`");
-    }
-    const std::optional<Core::Input::Synthetic::MouseButton> button =
-        Core::Input::Synthetic::MouseButtonFromName(buttonName);
-    if (!button)
-    {
-        return EncodeError(request.EncodedId(), ErrorCode::BadRequest,
-                           "unknown button `" + buttonName + "`; known: left, right");
+        return error;
     }
 
-    if (!Core::Input::Synthetic::Click(static_cast<float>(windowX), static_cast<float>(windowY), *button))
+    if (!Core::Input::Synthetic::Click(static_cast<float>(windowX), static_cast<float>(windowY), button))
     {
         return EncodeError(request.EncodedId(), ErrorCode::Busy, "another input is still being injected");
     }
@@ -648,6 +703,93 @@ std::string Type(const Request& request, std::unique_ptr<Act>& act)
     result["bytes"] = text.size();
     result["enter"] = enter;
     act = std::make_unique<SyntheticInputAct>("type", result.dump());
+    return {};
+}
+
+std::string Wheel(const Request& request, std::unique_ptr<Act>& act)
+{
+    int notches = 0;
+    if (!request.GetInt("notches", notches) || !Core::Input::Synthetic::ValidWheelNotches(notches))
+    {
+        return EncodeError(request.EncodedId(), ErrorCode::BadRequest,
+                           "`wheel` needs `notches`: a whole number from -" +
+                               std::to_string(Core::Input::Synthetic::MaxWheelNotches) + " to " +
+                               std::to_string(Core::Input::Synthetic::MaxWheelNotches) + ", not 0");
+    }
+
+    std::optional<Core::Input::Synthetic::WindowPoint> pointer;
+    if (request.Has("x") || request.Has("y"))
+    {
+        double windowX = 0.0;
+        double windowY = 0.0;
+        if (!request.GetDouble("x", windowX) || !request.GetDouble("y", windowY))
+        {
+            return EncodeError(request.EncodedId(), ErrorCode::BadRequest, "`x` and `y` go together, as window pixels");
+        }
+        if (!IsInsideWindow(windowX, windowY))
+        {
+            return OutsideWindowError(request);
+        }
+        pointer = Core::Input::Synthetic::WindowPoint{static_cast<float>(windowX), static_cast<float>(windowY)};
+    }
+
+    if (!Core::Input::Synthetic::Wheel(notches, pointer))
+    {
+        return EncodeError(request.EncodedId(), ErrorCode::Busy, "another input is still being injected");
+    }
+
+    json result;
+    result["notches"] = notches;
+    result["x"] = pointer ? pointer->x : g_fWindowMouseX;
+    result["y"] = pointer ? pointer->y : g_fWindowMouseY;
+    act = std::make_unique<SyntheticInputAct>("wheel", result.dump());
+    return {};
+}
+
+std::string Drag(const Request& request, std::unique_ptr<Act>& act)
+{
+    std::array<double, 2> from{};
+    std::array<double, 2> to{};
+    if (!request.GetPoint("from", from) || !request.GetPoint("to", to))
+    {
+        return EncodeError(request.EncodedId(), ErrorCode::BadRequest,
+                           "`drag` needs `from` and `to` as [x, y] window pixels");
+    }
+    if (!IsInsideWindow(from[0], from[1]) || !IsInsideWindow(to[0], to[1]))
+    {
+        return OutsideWindowError(request);
+    }
+
+    std::string buttonName;
+    Core::Input::Synthetic::MouseButton button = Core::Input::Synthetic::MouseButton::Left;
+    if (std::string error = ReadMouseButton(request, buttonName, button); !error.empty())
+    {
+        return error;
+    }
+
+    int steps = Core::Input::Synthetic::DefaultDragSteps;
+    if (request.Has("steps") && (!request.GetInt("steps", steps) || !Core::Input::Synthetic::ValidDragSteps(steps)))
+    {
+        return EncodeError(request.EncodedId(), ErrorCode::BadRequest,
+                           "`steps` is a whole number from " + std::to_string(Core::Input::Synthetic::MinDragSteps) +
+                               " to " + std::to_string(Core::Input::Synthetic::MaxDragSteps));
+    }
+
+    const Core::Input::Synthetic::WindowPoint start{static_cast<float>(from[0]), static_cast<float>(from[1])};
+    const Core::Input::Synthetic::WindowPoint end{static_cast<float>(to[0]), static_cast<float>(to[1])};
+    if (!Core::Input::Synthetic::Drag(start, end, button, steps))
+    {
+        return EncodeError(request.EncodedId(), ErrorCode::Busy, "another input is still being injected");
+    }
+
+    json result;
+    result["from"] = from;
+    result["to"] = to;
+    result["steps"] = steps;
+    result["button"] = buttonName;
+    result["x"] = to[0];
+    result["y"] = to[1];
+    act = std::make_unique<SyntheticInputAct>("drag", result.dump(), DragDeadline, true);
     return {};
 }
 } // namespace App::Control::Commands

@@ -42,6 +42,8 @@ enum class Kind : std::uint8_t
     Key,
     Click,
     Text,
+    Wheel,
+    Drag,
 };
 
 // Frames of the sequence. A key is down for the first frame only, which is
@@ -65,6 +67,14 @@ struct Injection
     Core::Input::Synthetic::MouseButton button = Core::Input::Synthetic::MouseButton::Left;
     std::string text;
     bool enter = false;
+    // Wheel: notches still to queue, and whether a motion precedes them.
+    int notches = 0;
+    bool positioned = false;
+    // Drag: the path from the press (`from`) to the release (`to`).
+    Core::Input::Synthetic::WindowPoint from;
+    Core::Input::Synthetic::WindowPoint to;
+    int steps = 0;
+    int moved = 0;
     bool legacyDown = false;
     bool uiDown = false;
     SDL_Window* window = nullptr;
@@ -196,11 +206,18 @@ void RetractButton()
     MouseRButtonPop = false;
 }
 
+// The window and UI consumer the injection was scheduled for are still the
+// ones input is delivered to.
+bool TargetUnchanged()
+{
+    return g_delivery && g_window == g_injection.window &&
+           (!g_injection.window || SDL_GetWindowFromID(g_injection.windowId) == g_window) &&
+           Core::Input::ActiveUiInputConsumer() == g_injection.consumer;
+}
+
 bool Deliver(SDL_Event& event, bool& propagates)
 {
-    if (!g_delivery || g_window != g_injection.window ||
-        (g_injection.window && SDL_GetWindowFromID(g_injection.windowId) != g_window) ||
-        Core::Input::ActiveUiInputConsumer() != g_injection.consumer)
+    if (!TargetUnchanged())
         return false;
     const auto generation = g_generation;
     const auto owner = g_injection.consumer;
@@ -242,10 +259,51 @@ bool DeliverButton(bool down, bool& propagates)
     return Deliver(event, propagates);
 }
 
+// Queued, not delivered: the main loop feeds the motion to the UI and the
+// legacy pointer exactly as `hover` does.
+bool QueueMotion()
+{
+    SDL_Event event{};
+    event.type = SDL_EVENT_MOUSE_MOTION;
+    event.motion.timestamp = SDL_GetTicksNS();
+    event.motion.windowID = g_injection.windowId;
+    event.motion.x = g_injection.windowX;
+    event.motion.y = g_injection.windowY;
+    return SDL_PushEvent(&event);
+}
+
+bool QueueWheelNotch()
+{
+    const int notch = g_injection.notches > 0 ? 1 : -1;
+    SDL_Event event{};
+    event.type = SDL_EVENT_MOUSE_WHEEL;
+    event.wheel.timestamp = SDL_GetTicksNS();
+    event.wheel.windowID = g_injection.windowId;
+    event.wheel.direction = SDL_MOUSEWHEEL_NORMAL;
+    event.wheel.y = static_cast<float>(notch);
+    event.wheel.integer_y = notch;
+    event.wheel.mouse_x = g_injection.windowX;
+    event.wheel.mouse_y = g_injection.windowY;
+    if (!SDL_PushEvent(&event))
+        return false;
+    g_injection.notches -= notch;
+    return true;
+}
+
 void Fail(Core::Input::Synthetic::DeliveryFailure reason)
 {
     g_failures.emplace(g_generation, reason);
     Core::Input::Synthetic::Reset();
+}
+
+void BeginInjection(Kind kind)
+{
+    g_injection = {};
+    ++g_generation;
+    g_injection.kind = kind;
+    g_injection.window = g_window;
+    g_injection.windowId = g_window ? SDL_GetWindowID(g_window) : 0;
+    g_injection.consumer = Core::Input::ActiveUiInputConsumer();
 }
 
 } // namespace
@@ -304,13 +362,8 @@ bool PressKey(int virtualKey)
     {
         return false;
     }
-    g_injection = {};
-    ++g_generation;
-    g_injection.kind = Kind::Key;
+    BeginInjection(Kind::Key);
     g_injection.virtualKey = virtualKey;
-    g_injection.window = g_window;
-    g_injection.windowId = g_window ? SDL_GetWindowID(g_window) : 0;
-    g_injection.consumer = Core::Input::ActiveUiInputConsumer();
     return true;
 }
 
@@ -320,15 +373,10 @@ bool Click(float windowX, float windowY, MouseButton button)
     {
         return false;
     }
-    g_injection = {};
-    ++g_generation;
-    g_injection.kind = Kind::Click;
+    BeginInjection(Kind::Click);
     g_injection.windowX = windowX;
     g_injection.windowY = windowY;
     g_injection.button = button;
-    g_injection.window = g_window;
-    g_injection.windowId = g_window ? SDL_GetWindowID(g_window) : 0;
-    g_injection.consumer = Core::Input::ActiveUiInputConsumer();
     return true;
 }
 
@@ -371,14 +419,45 @@ bool TypeText(std::string_view text, bool enter)
 {
     if (!ValidText(text) || !IsIdle())
         return false;
-    g_injection = {};
-    ++g_generation;
-    g_injection.kind = Kind::Text;
+    BeginInjection(Kind::Text);
     g_injection.text = text;
     g_injection.enter = enter;
-    g_injection.window = g_window;
-    g_injection.windowId = g_window ? SDL_GetWindowID(g_window) : 0;
-    g_injection.consumer = Core::Input::ActiveUiInputConsumer();
+    return true;
+}
+
+bool ValidWheelNotches(int notches)
+{
+    return notches != 0 && notches >= -MaxWheelNotches && notches <= MaxWheelNotches;
+}
+
+bool Wheel(int notches, std::optional<WindowPoint> pointer)
+{
+    if (!ValidWheelNotches(notches) || !IsIdle())
+        return false;
+    BeginInjection(Kind::Wheel);
+    g_injection.notches = notches;
+    g_injection.positioned = pointer.has_value();
+    g_injection.windowX = pointer ? pointer->x : g_fWindowMouseX;
+    g_injection.windowY = pointer ? pointer->y : g_fWindowMouseY;
+    return true;
+}
+
+bool ValidDragSteps(int steps)
+{
+    return steps >= MinDragSteps && steps <= MaxDragSteps;
+}
+
+bool Drag(WindowPoint from, WindowPoint to, MouseButton button, int steps)
+{
+    if (!ValidDragSteps(steps) || !IsIdle())
+        return false;
+    BeginInjection(Kind::Drag);
+    g_injection.from = from;
+    g_injection.to = to;
+    g_injection.steps = steps;
+    g_injection.windowX = from.x;
+    g_injection.windowY = from.y;
+    g_injection.button = button;
     return true;
 }
 
@@ -409,7 +488,7 @@ void CancelDelivery()
 
 void CancelForPhysicalButton(unsigned char button)
 {
-    if (g_injection.kind == Kind::Click &&
+    if ((g_injection.kind == Kind::Click || g_injection.kind == Kind::Drag) &&
         button == (g_injection.button == MouseButton::Left ? SDL_BUTTON_LEFT : SDL_BUTTON_RIGHT))
         Fail(DeliveryFailure::PhysicalOverlap);
 }
@@ -436,7 +515,8 @@ bool IsKeyHeld(int virtualKey)
     {
         return virtualKey == g_injection.virtualKey;
     }
-    return (g_injection.kind == Kind::Click && virtualKey == VirtualKeyForButton(g_injection.button)) ||
+    const bool holdsButton = g_injection.kind == Kind::Click || g_injection.kind == Kind::Drag;
+    return (holdsButton && virtualKey == VirtualKeyForButton(g_injection.button)) ||
            (g_injection.kind == Kind::Text && g_injection.stage == Stage::Held && virtualKey == VK_RETURN);
 }
 
@@ -469,60 +549,123 @@ void AdvanceKey()
         g_injection = {};
 }
 
-void AdvanceClick()
+// Press, move and release shared by click and drag: the pointer arrives at the
+// injection's position before the button changes, and only input the UI did
+// not consume reaches the legacy mouse globals.
+void PressAtPointer()
 {
     bool propagates = true;
+    const unsigned char button = g_injection.button == MouseButton::Left ? SDL_BUTTON_LEFT : SDL_BUTTON_RIGHT;
+    if ((SDL_GetMouseState(nullptr, nullptr) & SDL_BUTTON_MASK(button)) != 0)
+    {
+        Fail(DeliveryFailure::PhysicalOverlap);
+        return;
+    }
+    if (!DeliverMotion() || !DeliverButton(true, propagates))
+    {
+        Fail(DeliveryFailure::TargetLost);
+        return;
+    }
+    g_injection.uiDown = !propagates;
+    g_injection.legacyDown = propagates;
+    if (propagates)
+    {
+        ApplyPointerPosition();
+        ApplyButtonDown();
+    }
+    g_injection.stage = Stage::Pressed;
+}
+
+void MoveWhilePressed()
+{
+    if (!DeliverMotion())
+    {
+        Fail(DeliveryFailure::TargetLost);
+        return;
+    }
+    if (g_injection.legacyDown)
+        ApplyPointerPosition();
+    g_injection.stage = Stage::Held;
+}
+
+void ReleaseAtPointer()
+{
+    bool propagates = true;
+    if (!DeliverMotion() || !DeliverButton(false, propagates))
+    {
+        Fail(DeliveryFailure::TargetLost);
+        return;
+    }
+    if (g_injection.legacyDown)
+    {
+        ApplyPointerPosition();
+        ApplyButtonUp();
+    }
+    g_injection.legacyDown = false;
+    g_injection.uiDown = false;
+    g_injection.stage = Stage::Released;
+}
+
+void AdvanceClick()
+{
     if (g_injection.stage == Stage::Idle)
-    {
-        const unsigned char button = g_injection.button == MouseButton::Left ? SDL_BUTTON_LEFT : SDL_BUTTON_RIGHT;
-        if ((SDL_GetMouseState(nullptr, nullptr) & SDL_BUTTON_MASK(button)) != 0)
-        {
-            Fail(DeliveryFailure::PhysicalOverlap);
-            return;
-        }
-        if (!DeliverMotion() || !DeliverButton(true, propagates))
-        {
-            Fail(DeliveryFailure::TargetLost);
-            return;
-        }
-        g_injection.uiDown = !propagates;
-        g_injection.legacyDown = propagates;
-        if (propagates)
-        {
-            ApplyPointerPosition();
-            ApplyButtonDown();
-        }
-        g_injection.stage = Stage::Pressed;
-    }
+        PressAtPointer();
     else if (g_injection.stage == Stage::Pressed)
-    {
-        if (!DeliverMotion())
-        {
-            Fail(DeliveryFailure::TargetLost);
-            return;
-        }
-        if (g_injection.legacyDown)
-            ApplyPointerPosition();
-        g_injection.stage = Stage::Held;
-    }
+        MoveWhilePressed();
     else if (g_injection.stage == Stage::Held)
-    {
-        if (!DeliverMotion() || !DeliverButton(false, propagates))
-        {
-            Fail(DeliveryFailure::TargetLost);
-            return;
-        }
-        if (g_injection.legacyDown)
-        {
-            ApplyPointerPosition();
-            ApplyButtonUp();
-        }
-        g_injection.legacyDown = false;
-        g_injection.uiDown = false;
-        g_injection.stage = Stage::Released;
-    }
+        ReleaseAtPointer();
     else
         g_injection = {};
+}
+
+// One step along the straight path; the last step lands exactly on `to`.
+void StepDragPointer()
+{
+    ++g_injection.moved;
+    if (g_injection.moved >= g_injection.steps)
+    {
+        g_injection.windowX = g_injection.to.x;
+        g_injection.windowY = g_injection.to.y;
+        return;
+    }
+    const float progress = static_cast<float>(g_injection.moved) / static_cast<float>(g_injection.steps);
+    g_injection.windowX = g_injection.from.x + (g_injection.to.x - g_injection.from.x) * progress;
+    g_injection.windowY = g_injection.from.y + (g_injection.to.y - g_injection.from.y) * progress;
+}
+
+// Press at `from`, one move per frame for `steps` frames, release at `to`.
+void AdvanceDrag()
+{
+    if (g_injection.stage == Stage::Idle)
+        PressAtPointer();
+    else if (g_injection.stage == Stage::Released)
+        g_injection = {};
+    else if (g_injection.moved < g_injection.steps)
+    {
+        StepDragPointer();
+        MoveWhilePressed();
+    }
+    else
+        ReleaseAtPointer();
+}
+
+// One queued notch per rendered frame: the legacy reader keeps only the last
+// wheel event of a frame, so notches queued together would collapse into one.
+// The frame after the last one is queued has consumed it.
+void AdvanceWheel()
+{
+    if (g_injection.notches == 0)
+    {
+        g_injection = {};
+        return;
+    }
+    const bool motionDue = g_injection.stage == Stage::Idle && g_injection.positioned;
+    if (!TargetUnchanged() || (motionDue && !QueueMotion()) || !QueueWheelNotch())
+    {
+        Fail(DeliveryFailure::TargetLost);
+        return;
+    }
+    g_injection.stage = Stage::Held;
 }
 
 void AdvanceText()
@@ -580,6 +723,12 @@ void BeginFrame()
     case Kind::Text:
         AdvanceText();
         return;
+    case Kind::Wheel:
+        AdvanceWheel();
+        return;
+    case Kind::Drag:
+        AdvanceDrag();
+        return;
     case Kind::None:
         return;
     }
@@ -587,11 +736,12 @@ void BeginFrame()
 
 void Reset()
 {
-    // A click that is dropped mid-sequence has already written the button
+    // A click or drag that is dropped mid-sequence has already written the button
     // down; take that back, or the game keeps seeing a button held by a frame
     // that will never come. A key needs nothing: `IsKeyHeld` reads the stage,
     // which goes away with the injection.
-    const bool holdingButton = g_injection.kind == Kind::Click && g_injection.legacyDown;
+    const bool holdingButton =
+        (g_injection.kind == Kind::Click || g_injection.kind == Kind::Drag) && g_injection.legacyDown;
     if (g_injection.uiDown)
         Core::Input::CancelSyntheticMousePress(
             g_injection.consumer, g_injection.button == MouseButton::Left ? SDL_BUTTON_LEFT : SDL_BUTTON_RIGHT,

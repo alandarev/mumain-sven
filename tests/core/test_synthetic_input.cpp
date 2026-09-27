@@ -10,8 +10,11 @@
 #include "Core/Input/SyntheticInput.h"
 #include "Core/Input/UiInputRouter.h"
 #include "Core/Platform/WinCompat.h"
+#include "Core/Globals/_define.h"
 
 #include <cstdint>
+#include <memory>
+#include <optional>
 #include <SDL3/SDL.h>
 #include <RmlUi/Core.h>
 #include <RmlUi/Core/EventListener.h>
@@ -27,6 +30,7 @@ extern bool MouseLButtonPush;
 extern bool MouseLButtonPop;
 extern unsigned int WindowWidth;
 extern unsigned int WindowHeight;
+extern EGameScene SceneFlag;
 
 using namespace Core::Input::Synthetic;
 
@@ -597,4 +601,286 @@ TEST_CASE("Type handler rejects invalid arguments before scheduling and refuses 
         App::Control::Request::Parse(R"({"cmd":"type","text":"x"})"), act);
     CHECK(response.find(R"("error":"busy")") != std::string::npos);
     CHECK(act == nullptr);
+}
+
+namespace
+{
+std::vector<SDL_Event> QueuedEvents()
+{
+    std::vector<SDL_Event> events(16);
+    const int count =
+        SDL_PeepEvents(events.data(), static_cast<int>(events.size()), SDL_GETEVENT, SDL_EVENT_FIRST, SDL_EVENT_LAST);
+    events.resize(count > 0 ? static_cast<std::size_t>(count) : 0);
+    return events;
+}
+
+struct EventQueue
+{
+    EventQueue()
+    {
+        REQUIRE(SDL_InitSubSystem(SDL_INIT_EVENTS));
+        SDL_FlushEvents(SDL_EVENT_FIRST, SDL_EVENT_LAST);
+    }
+    ~EventQueue()
+    {
+        SDL_FlushEvents(SDL_EVENT_FIRST, SDL_EVENT_LAST);
+        SDL_QuitSubSystem(SDL_INIT_EVENTS);
+    }
+};
+
+std::string Respond(std::unique_ptr<App::Control::Act>& act)
+{
+    std::string response;
+    CHECK(act->Tick(response) == App::Control::Act::Status::Finished);
+    return response;
+}
+} // namespace
+
+TEST_CASE("Wheel queues a positioned motion, then one notch per frame [core][synthetic-input]")
+{
+    ResetInjector guard;
+    EventQueue queue;
+    CHECK_FALSE(ValidWheelNotches(0));
+    CHECK_FALSE(ValidWheelNotches(MaxWheelNotches + 1));
+    CHECK_FALSE(ValidWheelNotches(-MaxWheelNotches - 1));
+    CHECK(ValidWheelNotches(-MaxWheelNotches));
+    CHECK_FALSE(Wheel(0, std::nullopt));
+
+    REQUIRE(Wheel(-2, WindowPoint{30.0f, 40.0f}));
+    CHECK_FALSE(Click(1.0f, 1.0f, MouseButton::Left));
+    BeginFrame();
+    auto events = QueuedEvents();
+    REQUIRE(events.size() == 2);
+    CHECK(events[0].type == SDL_EVENT_MOUSE_MOTION);
+    CHECK(events[0].motion.x == 30.0f);
+    CHECK(events[0].motion.y == 40.0f);
+    CHECK(events[1].type == SDL_EVENT_MOUSE_WHEEL);
+    CHECK(events[1].wheel.y == -1.0f);
+    CHECK(events[1].wheel.integer_y == -1);
+    CHECK(events[1].wheel.direction == SDL_MOUSEWHEEL_NORMAL);
+    CHECK(events[1].wheel.mouse_x == 30.0f);
+
+    BeginFrame();
+    events = QueuedEvents();
+    REQUIRE(events.size() == 1);
+    CHECK(events[0].type == SDL_EVENT_MOUSE_WHEEL);
+    CHECK(events[0].wheel.y == -1.0f);
+    CHECK_FALSE(IsIdle());
+
+    // The frame after the last notch is queued has consumed it.
+    BeginFrame();
+    CHECK(QueuedEvents().empty());
+    CHECK(IsIdle());
+    // Wheel input never enters the synchronous button/key delivery.
+    CHECK(delivered.empty());
+    CHECK_FALSE(IsKeyHeld(VK_LBUTTON));
+}
+
+TEST_CASE("Unpositioned wheel leaves the pointer where it is [core][synthetic-input]")
+{
+    ResetInjector guard;
+    EventQueue queue;
+    g_fWindowMouseX = 11.0f;
+    g_fWindowMouseY = 12.0f;
+    REQUIRE(Wheel(1, std::nullopt));
+    BeginFrame();
+    const auto events = QueuedEvents();
+    REQUIRE(events.size() == 1);
+    CHECK(events[0].type == SDL_EVENT_MOUSE_WHEEL);
+    CHECK(events[0].wheel.y == 1.0f);
+    CHECK(events[0].wheel.mouse_x == 11.0f);
+    CHECK(events[0].wheel.mouse_y == 12.0f);
+    BeginFrame();
+    CHECK(IsIdle());
+}
+
+TEST_CASE("Wheel fails instead of queueing for a lost target [core][synthetic-input]")
+{
+    ResetInjector guard;
+    EventQueue queue;
+    REQUIRE(Wheel(3, std::nullopt));
+    SetEventDelivery(nullptr, nullptr);
+    BeginFrame();
+    CHECK(IsIdle());
+    CHECK(FailureFor(CurrentGeneration()) == DeliveryFailure::TargetLost);
+    CHECK(QueuedEvents().empty());
+}
+
+TEST_CASE("A drag presses, moves one step per frame and releases at its end [core][synthetic-input]")
+{
+    ResetInjector guard;
+    WindowWidth = 1280;
+    WindowHeight = 960;
+    MouseLButton = false;
+    MouseLButtonPush = false;
+    MouseLButtonPop = false;
+    CHECK_FALSE(ValidDragSteps(MinDragSteps - 1));
+    CHECK_FALSE(ValidDragSteps(MaxDragSteps + 1));
+    CHECK_FALSE(Drag({100.0f, 200.0f}, {300.0f, 400.0f}, MouseButton::Left, 0));
+
+    REQUIRE(Drag({100.0f, 200.0f}, {300.0f, 400.0f}, MouseButton::Left, 2));
+    CHECK_FALSE(PressKey(VK_HOME));
+
+    BeginFrame();
+    CHECK(delivered == std::vector<SDL_EventType>{SDL_EVENT_MOUSE_MOTION, SDL_EVENT_MOUSE_BUTTON_DOWN});
+    CHECK(g_fWindowMouseX == 100.0f);
+    CHECK(g_fWindowMouseY == 200.0f);
+    CHECK(MouseLButton);
+    CHECK(MouseLButtonPush);
+    CHECK(IsKeyHeld(VK_LBUTTON));
+    MouseLButtonPush = false;
+
+    BeginFrame();
+    CHECK(g_fWindowMouseX == 200.0f);
+    CHECK(g_fWindowMouseY == 300.0f);
+    CHECK(MouseX == 100);
+    CHECK(MouseY == 150);
+    CHECK(MouseLButton);
+    CHECK(IsKeyHeld(VK_LBUTTON));
+
+    BeginFrame();
+    CHECK(g_fWindowMouseX == 300.0f);
+    CHECK(g_fWindowMouseY == 400.0f);
+    CHECK(MouseLButton);
+    CHECK_FALSE(MouseLButtonPop);
+
+    BeginFrame();
+    CHECK_FALSE(MouseLButton);
+    CHECK(MouseLButtonPop);
+    CHECK(g_fWindowMouseX == 300.0f);
+    CHECK_FALSE(IsKeyHeld(VK_LBUTTON));
+    CHECK_FALSE(IsIdle());
+
+    BeginFrame();
+    CHECK(IsIdle());
+    CHECK(delivered == std::vector<SDL_EventType>{SDL_EVENT_MOUSE_MOTION, SDL_EVENT_MOUSE_BUTTON_DOWN,
+                                                  SDL_EVENT_MOUSE_MOTION, SDL_EVENT_MOUSE_MOTION,
+                                                  SDL_EVENT_MOUSE_MOTION, SDL_EVENT_MOUSE_BUTTON_UP});
+}
+
+TEST_CASE("An abandoned drag never leaves a button held [core][synthetic-input]")
+{
+    ResetInjector guard;
+    FakeConsumer consumer;
+    Core::Input::SetUiInputConsumer(&consumer);
+    SetEventDelivery(&UiDelivery, nullptr);
+    WindowWidth = 1280;
+    WindowHeight = 960;
+    REQUIRE(Drag({10.0f, 10.0f}, {50.0f, 50.0f}, MouseButton::Left, 4));
+    BeginFrame();
+    BeginFrame();
+    REQUIRE(consumer.pressed);
+    Reset();
+    CHECK_FALSE(consumer.pressed);
+    CHECK(consumer.cancellations == 1);
+    CHECK(IsIdle());
+    Core::Input::SetUiInputConsumer(nullptr);
+    SetEventDelivery(&FakeDelivery, nullptr);
+
+    MouseLButton = false;
+    MouseLButtonPop = false;
+    REQUIRE(Drag({10.0f, 10.0f}, {50.0f, 50.0f}, MouseButton::Left, 4));
+    BeginFrame();
+    BeginFrame();
+    REQUIRE(MouseLButton);
+    Reset();
+    CHECK_FALSE(MouseLButton);
+    CHECK_FALSE(MouseLButtonPop);
+    CHECK_FALSE(IsKeyHeld(VK_LBUTTON));
+
+    REQUIRE(Drag({10.0f, 10.0f}, {50.0f, 50.0f}, MouseButton::Left, 4));
+    BeginFrame();
+    CancelForPhysicalButton(SDL_BUTTON_LEFT);
+    CHECK(IsIdle());
+    CHECK(FailureFor(CurrentGeneration()) == DeliveryFailure::PhysicalOverlap);
+    CHECK_FALSE(MouseLButton);
+}
+
+TEST_CASE("Wheel and drag handlers validate before scheduling [core][synthetic-input]")
+{
+    ResetInjector guard;
+    WindowWidth = 800;
+    WindowHeight = 600;
+    std::unique_ptr<App::Control::Act> act;
+    const auto generation = CurrentGeneration();
+    for (const auto* raw : {R"({"cmd":"wheel"})", R"({"cmd":"wheel","notches":0})", R"({"cmd":"wheel","notches":6})",
+                            R"({"cmd":"wheel","notches":-6})", R"({"cmd":"wheel","notches":1.5})",
+                            R"({"cmd":"wheel","notches":1,"x":10})", R"({"cmd":"wheel","notches":1,"x":800,"y":10})",
+                            R"({"cmd":"wheel","notches":1,"x":-1,"y":10})"})
+    {
+        CAPTURE(raw);
+        const auto response = App::Control::Commands::Wheel(App::Control::Request::Parse(raw), act);
+        CHECK(response.find(R"("error":"bad_request")") != std::string::npos);
+        CHECK(act == nullptr);
+    }
+    for (const auto* raw :
+         {R"({"cmd":"drag","from":[1,2]})", R"({"cmd":"drag","from":[1],"to":[3,4]})",
+          R"({"cmd":"drag","from":[1,2],"to":[3,600]})", R"({"cmd":"drag","from":[1,2],"to":[3,4],"steps":0})",
+          R"({"cmd":"drag","from":[1,2],"to":[3,4],"steps":31})",
+          R"({"cmd":"drag","from":[1,2],"to":[3,4],"steps":2.5})",
+          R"({"cmd":"drag","from":[1,2],"to":[3,4],"button":"middle"})"})
+    {
+        CAPTURE(raw);
+        const auto response = App::Control::Commands::Drag(App::Control::Request::Parse(raw), act);
+        CHECK(response.find(R"("error":"bad_request")") != std::string::npos);
+        CHECK(act == nullptr);
+    }
+    CHECK(CurrentGeneration() == generation);
+
+    REQUIRE(PressKey(VK_HOME));
+    CHECK(App::Control::Commands::Wheel(App::Control::Request::Parse(R"({"cmd":"wheel","notches":1})"), act)
+              .find(R"("error":"busy")") != std::string::npos);
+    CHECK(App::Control::Commands::Drag(App::Control::Request::Parse(R"({"cmd":"drag","from":[1,2],"to":[3,4]})"), act)
+              .find(R"("error":"busy")") != std::string::npos);
+    CHECK(act == nullptr);
+}
+
+TEST_CASE("Drag answers after its release with the final pointer [core][synthetic-input]")
+{
+    ResetInjector guard;
+    WindowWidth = 800;
+    WindowHeight = 600;
+    std::unique_ptr<App::Control::Act> act;
+    const auto request =
+        App::Control::Request::Parse(R"({"cmd":"drag","id":5,"from":[10,20],"to":[110,220],"steps":1})");
+    REQUIRE(App::Control::Commands::Drag(request, act).empty());
+    REQUIRE(act != nullptr);
+    act->SetEncodedId(request.EncodedId());
+    std::string response;
+    for (int frame = 0; frame < 3; ++frame)
+    {
+        BeginFrame();
+        CHECK(act->Tick(response) == App::Control::Act::Status::Running);
+    }
+    CHECK_FALSE(MouseLButton);
+    BeginFrame();
+    response = Respond(act);
+    CHECK(response.find(R"("ok":true)") != std::string::npos);
+    CHECK(response.find(R"("x":110.0)") != std::string::npos);
+    CHECK(response.find(R"("y":220.0)") != std::string::npos);
+    CHECK(response.find(R"("steps":1)") != std::string::npos);
+}
+
+TEST_CASE("A scene change abandons a drag and takes its press back [core][synthetic-input]")
+{
+    ResetInjector guard;
+    WindowWidth = 800;
+    WindowHeight = 600;
+    const EGameScene scene = SceneFlag;
+    SceneFlag = MAIN_SCENE;
+    std::unique_ptr<App::Control::Act> act;
+    REQUIRE(App::Control::Commands::Drag(
+                App::Control::Request::Parse(R"({"cmd":"drag","from":[10,20],"to":[110,220]})"), act)
+                .empty());
+    REQUIRE(act != nullptr);
+    BeginFrame();
+    REQUIRE(MouseLButton);
+    SceneFlag = CHARACTER_SCENE;
+    const auto response = Respond(act);
+    CHECK(response.find(R"("error":"failed")") != std::string::npos);
+    CHECK(response.find("scene changed") != std::string::npos);
+    CHECK(IsIdle());
+    CHECK_FALSE(MouseLButton);
+    CHECK_FALSE(IsKeyHeld(VK_LBUTTON));
+    SceneFlag = scene;
 }
