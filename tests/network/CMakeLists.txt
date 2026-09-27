@@ -79,6 +79,14 @@ if(ENABLE_CONTROL_SOCKET)
     target_include_directories(test_control_character_scene PRIVATE ${CMAKE_SOURCE_DIR}/src/ThirdParty)
 
     mu_add_test(
+        NAME test_control_login_scene
+        SOURCES
+            test_control_login_scene.cpp
+            ${CMAKE_SOURCE_DIR}/src/source/App/Control/ControlLoginSceneReport.cpp
+    )
+    target_include_directories(test_control_login_scene PRIVATE ${CMAKE_SOURCE_DIR}/src/ThirdParty)
+
+    mu_add_test(
         NAME test_control_protocol
         SOURCES
             test_control_protocol.cpp

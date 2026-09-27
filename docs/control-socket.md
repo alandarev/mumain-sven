@@ -79,6 +79,9 @@ Error codes: `bad_request`, `unknown_command`, `wrong_scene`, `busy`,
 | `login` (`account`, `password`, `server`) | server selection, credentials, character list |
 | `select-char` (`name` or `slot`) | enter the world with that character |
 | `logout`, `quit` | back to the character list; close the client |
+| `select-slot` (`slot`) | on the character list, select that character as a single click on it does (Connect/Delete enabled); sends nothing, never enters the world |
+| `server-list` | on the character list, the system menu's Server Select (a logout back to server selection); answers once the server list is shown |
+| `select-server` (`server`) | on the server list, the `login` server selection up to the login form, then stops: no credentials |
 | `move` (`x`, `y`) | walk there with the client's own path finder |
 | `warp` (`gate`) | use a warp-list entry by name |
 | `teleport` (`x`, `y`, `map`) | the game master's own move command |
@@ -215,6 +218,19 @@ every run, on any build that carries them:
   `pointer: [window_x, window_y, logical_x, logical_y]`, plus `theme` and
   `ui_scale_percent`. It has no `guard`: nothing on that scene is guarded,
   and every other `ui` action keeps its world-only behaviour.
+- `ui list` on the login scene (server list and login form) answers that
+  scene's own read-only report the same way: `version: 1`, `scene: "login"`,
+  `server_groups` (groups in the connect server's list), `login_form_ready`
+  (the game server accepted the join), `windows` (`server_select`, `login`,
+  `message`, `system_menu`, `option`, `credit`, `generic_confirm`,
+  `generic_menu`: boolean or null), `login_form` (`account`: the account
+  field's text, `password_empty`: whether the password field is empty — its
+  text is never reported — and `focused_field`: `account`, `password` or
+  null), `input_focused`, `input_idle`, `pointer`, `theme`, `ui_scale_percent`.
+- `select-slot`, `server-list` and `select-server` exist because the login and
+  character scenes read mouse buttons through `CInput`, which drops every
+  button while the window has no keyboard focus: a parked, unfocused client
+  cannot be clicked there. Each calls the code the click would have run.
 - `window resize <w> <h>` resizes the (windowed) game window through the
   same path as the options dialog and answers with the size the window
   really got — a tiling compositor may decide otherwise. `window status`

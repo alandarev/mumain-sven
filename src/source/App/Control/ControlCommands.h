@@ -41,6 +41,9 @@ std::string Drag(const Request& request, std::unique_ptr<Act>& act);
 std::string Login(const Request& request, std::unique_ptr<Act>& act);
 std::string SelectCharacter(const Request& request, std::unique_ptr<Act>& act);
 std::string Logout(const Request& request, std::unique_ptr<Act>& act);
+std::string SelectSlot(const Request& request, std::unique_ptr<Act>& act);
+std::string ServerList(const Request& request, std::unique_ptr<Act>& act);
+std::string SelectServer(const Request& request, std::unique_ptr<Act>& act);
 std::string Quit(const Request& request, std::unique_ptr<Act>& act);
 
 // World family.

@@ -18,6 +18,7 @@
 #include "App/Control/ControlCommands.h"
 
 #include "App/Control/ControlCharacterScene.h"
+#include "App/Control/ControlLoginScene.h"
 #include "App/Control/ControlTaps.h"
 #include "App/Control/ControlUiObservability.h"
 #include "App/Control/ControlUiReplay.h"
@@ -451,6 +452,20 @@ std::string CharacterSceneList(const Request& request)
     return App::Control::EncodeResult(request.EncodedId(), result.dump());
 }
 
+// On the login scene (server list, login form) there is no main-scene
+// registry either: report that scene's own windows (read-only).
+std::string LoginSceneList(const Request& request)
+{
+    json result = json::parse(App::Control::LoginSceneObject(App::Control::ObserveLoginScene()));
+#if MU_DEBUG_UI_RMLUI
+    result["theme"] = UI::RmlBridge::GetActiveThemeName();
+#else
+    result["theme"] = nullptr;
+#endif
+    result["ui_scale_percent"] = WindowGeometry()["ui_scale_percent"];
+    return App::Control::EncodeResult(request.EncodedId(), result.dump());
+}
+
 std::string UiList(const Request& request)
 {
     int peerKey = -1;
@@ -767,6 +782,10 @@ std::string Ui(const Request& request, std::unique_ptr<Act>& act)
     if (action == "list" && SceneFlag == CHARACTER_SCENE)
     {
         return CharacterSceneList(request);
+    }
+    if (action == "list" && SceneFlag == LOG_IN_SCENE)
+    {
+        return LoginSceneList(request);
     }
     if (!WindowSystemReady())
     {
