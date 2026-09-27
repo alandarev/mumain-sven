@@ -24,6 +24,13 @@ mu_add_test(
 )
 
 mu_add_test(
+    NAME mini_map_layout_tests
+    SOURCES
+        test_mini_map_layout.cpp
+        ${CMAKE_SOURCE_DIR}/src/source/UI/HUD/MiniMapLayout.cpp
+)
+
+mu_add_test(
     NAME party_list_layout_tests
     SOURCES
         test_party_list_layout.cpp
