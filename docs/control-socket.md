@@ -229,6 +229,17 @@ every run, on any build that carries them:
   `ui scale <percent>` sets `UIScalePercent` for the session and re-applies
   the current window size. `ui` needs the world for everything but
   `theme`/`scale`.
+- `ui list` on the character list answers that scene's own read-only report
+  instead of the (stale) main-scene registry: `version: 1`,
+  `scene: "character_list"`, `roster_received`, `selected_slot` (1-based or
+  null), `server_message` (`visible`, `lines` 0..5 and their `texts`, both null
+  when the stored count is impossible), `windows` (`character_select`,
+  `character_make`, `message`, `system_menu`, `option`, `generic_confirm`,
+  `generic_menu`: boolean, or null where the build has no such window),
+  `input_focused`, `input_idle` (the quick-peer guard's idle predicate),
+  `pointer: [window_x, window_y, logical_x, logical_y]`, plus `theme` and
+  `ui_scale_percent`. It has no `guard`: nothing on that scene is guarded,
+  and every other `ui` action keeps its world-only behaviour.
 - `window resize <w> <h>` resizes the (windowed) game window through the
   same path as the options dialog and answers with the size the window
   really got — a tiling compositor may decide otherwise. `window status`
