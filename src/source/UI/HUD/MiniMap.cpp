@@ -304,6 +304,8 @@ void mu::ui::window::CMiniMap::BuildRmlUi()
             clip.RegisterMember("top", &MiniMapClipEntry::top);
             clip.RegisterMember("width", &MiniMapClipEntry::width);
             clip.RegisterMember("height", &MiniMapClipEntry::height);
+            clip.RegisterMember("world_left", &MiniMapClipEntry::worldLeft);
+            clip.RegisterMember("world_top", &MiniMapClipEntry::worldTop);
             c.RegisterArray<std::vector<MiniMapClipEntry>>();
             c.Bind("clips", &model.clips);
 
@@ -422,11 +424,11 @@ void mu::ui::window::CMiniMap::SyncClips()
     const float bandRight = std::clamp(hud.offsetX + REFERENCE_WIDTH * hud.scaleX, 0.f, width);
 
     std::vector<MiniMapClipEntry> clips;
-    clips.push_back({0.f, 0.f, width, bandTop});
+    clips.push_back({0.f, 0.f, width, bandTop, 0.f, 0.f});
     if (bandLeft > 0.f && bandTop < height)
-        clips.push_back({0.f, bandTop, bandLeft, height - bandTop});
+        clips.push_back({0.f, bandTop, bandLeft, height - bandTop, 0.f, -bandTop});
     if (bandRight < width && bandTop < height)
-        clips.push_back({bandRight, bandTop, width - bandRight, height - bandTop});
+        clips.push_back({bandRight, bandTop, width - bandRight, height - bandTop, -bandRight, -bandTop});
 
     MiniMapRmlModel& model = m_RmlBinder.GetModel();
     const bool same =

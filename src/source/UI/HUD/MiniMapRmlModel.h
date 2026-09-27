@@ -11,6 +11,9 @@ namespace mu::ui::window
 struct MiniMapClipEntry
 {
     float left = 0.f, top = 0.f, width = 0.f, height = 0.f;
+    // -left / -top: .world's offset back to window coordinates (the data expressions have no
+    // unary minus).
+    float worldLeft = 0.f, worldTop = 0.f;
 };
 
 struct MiniMapMarkerEntry

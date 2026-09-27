@@ -17,7 +17,7 @@
 	     offset back to window coordinates by .world. -->
 	<div class="clip" data-for="clip : clips" data-style-left="clip.left + 'px'" data-style-top="clip.top + 'px'"
 	     data-style-width="clip.width + 'px'" data-style-height="clip.height + 'px'">
-		<div class="world" data-style-left="(-clip.left) + 'px'" data-style-top="(-clip.top) + 'px'">
+		<div class="world" data-style-left="clip.world_left + 'px'" data-style-top="clip.world_top + 'px'">
 			<div class="screen" data-style-transform="'scale(' + scale_x + ', ' + scale_y + ')'">
 				<div class="dim"></div>
 			</div>
