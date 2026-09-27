@@ -247,6 +247,29 @@ genuinely stay in C++ — worth reading before auditing any legacy-theme code ag
   box back from RmlUi, and the hint ends below its anchor like the native one. Paint order is
   RmlUi's: the icons now follow `main_frame.rml`'s document order instead of the native layer
   depth (the hit targets already did). The skill textures stay loaded for `CUIMuHelper`.
+- **Event, duel and map windows** — **done, both themes (2026-09-27)**: `CMiniMap`, `CDuelWindow`,
+  `CBattleSoccerScore`, `CDuelWatchWindow`, `CEnterBloodCastle`, `CEnterDevilSquare`,
+  `CCursedTempleEnter`, `CUnitedMarketPlaceWindow`. Legacy matches the original at the eight common
+  sizes (paired comparison replays). Worth carrying to the next port:
+
+  - **RmlUi blends premultiplied**; textures loaded from game files are premultiplied on load now
+    (`RmlUiRenderInterface::LoadTexture`). A straight-alpha texture with coloured transparent
+    pixels drew as a solid box (the mini map's markers) and every semi-transparent edge was too
+    bright.
+  - **A quad the original turned in physical pixels** (`RenderBitRotate`/`RenderPointRotate`/
+    `RenderBitmapRotate`, non-uniform Hud stretch) is reproduced exactly with a CSS `matrix()`
+    built from three of its corners (`UI/HUD/MiniMapLayout`).
+  - **RmlUi does not clip transformed content that does not overflow in layout terms**; an
+    untransformed clipping box needs `clip: always` (then it is a scissor rectangle).
+  - **Data expressions have no unary minus**: bind `-x` from C++.
+  - **A window the original drew under every panel** (duel and battle-soccer boards) lives in the
+    background context, behind its other documents: a docked panel's frame is painted there, so
+    a main-context document would draw over it however far back it is pushed.
+  - **An overlay the original drew under the bottom HUD** (the mini map) pulls the main frame's
+    document back in front of it (`CMainFrameWindow::PullRmlDocumentToFront()`) and must not
+    paint over the still-native left/centre HUD art.
+  - **RenderText() shrinks a text wider than its box** (player names, event lines): use
+    `NativeTextPixelSizeInBox()` per text, not only for titles.
 - **HUD menus and the party list** — **done, both themes (2026-09-27)**: `CHelpWindow`,
   `CWindowMenu`, `CCommandWindow`, `CQuickCommandWindow`, `CPartyListWindow`. Legacy matches the
   original at the eight common sizes (paired comparison replays). Worth carrying to the next port:
