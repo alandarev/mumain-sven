@@ -27,16 +27,16 @@
 			<div class="docked-rail-accent"></div>
 		</div>
 
-		<span class="sharp-text" id="title" data-style-font-size="bold_text_px + 'px'"
-		      data-style-width="(72 * root_scale) + 'px'"
+		<span class="sharp-text" id="title" data-style-font-size="title_text_px + 'px'"
+		      data-style-line-height="title_line_px + 'px'" data-style-width="(72 * root_scale) + 'px'"
 		      data-style-transform="'scale(' + (1 / root_scale) + ')'">{{title_text}}</span>
 
 		<div id="buttons">
 			<div class="cmd-btn" data-for="b : buttons" data-class-selected="b.selected"
 			     data-event-click="command_press(b.index)">
-				<span class="sharp-text cmd-label"
-				      data-style-font-size="(b.selected ? bold_text_px : text_px) + 'px'"
-				      data-style-width="(108 * root_scale) + 'px'" data-style-line-height="(29 * root_scale) + 'px'"
+				<span class="sharp-text cmd-label" data-style-top="b.label_top + 'px'"
+				      data-style-font-size="b.label_text_px + 'px'" data-style-line-height="b.label_line_px + 'px'"
+				      data-style-width="(108 * root_scale) + 'px'"
 				      data-style-transform="'scale(' + (1 / root_scale) + ')'">{{b.label}}</span>
 			</div>
 		</div>

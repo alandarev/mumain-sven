@@ -86,7 +86,8 @@ namespace mu::ui::window
     private:
         void BuildRmlUi();
         void SyncRmlModel();
-        void SyncButtons();
+        void SyncTitle(const UI::Scaling::Transform& transform);
+        void SyncButtons(const UI::Scaling::Transform& transform);
         void SyncTarget();
         void PressCommandButton(int command);
         void RunCommand();

@@ -17,6 +17,7 @@
 
 #include "Core/Utilities/StringUtils.h"
 #include "Render/RmlUi/RmlUiRuntime.h"
+#include "Render/Text/CUIRenderTextSDLTtf.h"
 #include "UI/RmlBridge/RmlDocumentVisibility.h"
 #include "UI/RmlBridge/RmlRootTransform.h"
 #include "UI/RmlBridge/RmlTheme.h"
@@ -30,6 +31,8 @@ namespace
 {
 // The target box the original drew 5 units right of and below the pointer (newui_cursorid_wnd).
 constexpr int kTargetBoxOffset = 5;
+constexpr int kTitleBoxWidth = 72;
+constexpr int kButtonHeight = 29;
 
 // The button labels, in COMMAND_TYPE order.
 const wchar_t* const* const kCommandLabels[COMMAND_END] = {
@@ -196,8 +199,9 @@ void mu::ui::window::CCommandWindow::BuildRmlUi()
             c.Bind("root_y", &model.rootY);
             c.Bind("root_scale", &model.rootScale);
             c.Bind("text_px", &model.textPx);
-            c.Bind("bold_text_px", &model.boldTextPx);
             c.Bind("big_text_px", &model.bigTextPx);
+            c.Bind("title_text_px", &model.titleTextPx);
+            c.Bind("title_line_px", &model.titleLinePx);
             c.Bind("title_text", &model.titleText);
             c.Bind("exit_tooltip", &model.exitTooltip);
 
@@ -205,6 +209,9 @@ void mu::ui::window::CCommandWindow::BuildRmlUi()
             button.RegisterMember("label", &CommandButtonEntry::label);
             button.RegisterMember("index", &CommandButtonEntry::index);
             button.RegisterMember("selected", &CommandButtonEntry::selected);
+            button.RegisterMember("label_top", &CommandButtonEntry::labelTop);
+            button.RegisterMember("label_line_px", &CommandButtonEntry::labelLinePx);
+            button.RegisterMember("label_text_px", &CommandButtonEntry::labelTextPx);
             c.RegisterArray<std::vector<CommandButtonEntry>>();
             c.Bind("buttons", &model.buttons);
 
@@ -238,7 +245,7 @@ void mu::ui::window::CCommandWindow::BuildRmlUi()
     model.exitTooltip = StringUtils::WideToNarrow(exitText);
     model.buttons.clear();
     for (int i = COMMAND_TRADE; i < COMMAND_END; ++i)
-        model.buttons.push_back({StringUtils::WideToNarrow(*kCommandLabels[i]), i, false});
+        model.buttons.push_back({StringUtils::WideToNarrow(*kCommandLabels[i]), i});
 
     m_pRmlDoc = UI::RmlBridge::LoadThemedDocument(RmlUiRuntime::Instance().GetContext(),
                                                   "Data/Interface/RmlUi/command_window.rml");
@@ -270,24 +277,48 @@ void mu::ui::window::CCommandWindow::SyncRmlModel()
     UI::RmlBridge::SyncRootTransform(m_RmlBinder, m_Pos);
     UI::RmlBridge::SyncNativeTextSize(m_RmlBinder);
     const UI::Scaling::Transform transform = UI::Scaling::GetActiveTransform();
-    SyncField(m_RmlBinder, &CommandWindowRmlModel::boldTextPx, "bold_text_px",
-              UI::Scaling::NativeTextPixelSize(UI::Scaling::FontRole::Bold, transform));
     SyncField(m_RmlBinder, &CommandWindowRmlModel::bigTextPx, "big_text_px",
               UI::Scaling::NativeTextPixelSize(UI::Scaling::FontRole::Big, transform));
+    SyncTitle(transform);
 
-    SyncButtons();
+    SyncButtons(transform);
     SyncTarget();
 }
 
-void mu::ui::window::CCommandWindow::SyncButtons()
+void mu::ui::window::CCommandWindow::SyncTitle(const UI::Scaling::Transform& transform)
 {
+    g_pRenderText->SetFont(g_hFontBold);
+    const int titleWidth = g_pRenderText->MeasureText(I18N::Game::CommandWindow, lstrlen(I18N::Game::CommandWindow)).cx;
+    SyncField(m_RmlBinder, &CommandWindowRmlModel::titleTextPx, "title_text_px",
+              UI::Scaling::NativeTextPixelSizeInBox(UI::Scaling::FontRole::Bold, transform,
+                                                    static_cast<float>(titleWidth),
+                                                    static_cast<float>(kTitleBoxWidth)));
+    SyncField(m_RmlBinder, &CommandWindowRmlModel::titleLinePx, "title_line_px",
+              static_cast<float>(CUIRenderTextSDLTtf::LineHeight(UI::Scaling::FontRole::Bold)) * transform.scaleY);
+}
+
+void mu::ui::window::CCommandWindow::SyncButtons(const UI::Scaling::Transform& transform)
+{
+    // CButton::Render(): y + (29 / 2 - textHeight / 2), in whole units.
+    const int normalHeight = CUIRenderTextSDLTtf::LineHeight(UI::Scaling::FontRole::Normal);
+    const int boldHeight = CUIRenderTextSDLTtf::LineHeight(UI::Scaling::FontRole::Bold);
+    const float normalPx = UI::Scaling::NativeTextPixelSize(UI::Scaling::FontRole::Normal, transform);
+    const float boldPx = UI::Scaling::NativeTextPixelSize(UI::Scaling::FontRole::Bold, transform);
+
     CommandWindowRmlModel& model = m_RmlBinder.GetModel();
     bool changed = false;
     for (CommandButtonEntry& button : model.buttons)
     {
-        const bool selected = button.index == m_iCurSelectCommand;
-        changed = changed || button.selected != selected;
-        button.selected = selected;
+        CommandButtonEntry updated = button;
+        updated.selected = button.index == m_iCurSelectCommand;
+        const int textHeight = updated.selected ? boldHeight : normalHeight;
+        updated.labelTop = static_cast<float>(kButtonHeight / 2 - textHeight / 2);
+        updated.labelLinePx = static_cast<float>(textHeight) * transform.scaleY;
+        updated.labelTextPx = updated.selected ? boldPx : normalPx;
+
+        changed = changed || updated.selected != button.selected || updated.labelTop != button.labelTop ||
+                  updated.labelLinePx != button.labelLinePx || updated.labelTextPx != button.labelTextPx;
+        button = updated;
     }
     if (changed)
         m_RmlBinder.MarkDirty("buttons");

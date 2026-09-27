@@ -13,6 +13,11 @@ struct CommandButtonEntry
     Rml::String label;
     int index = 0; // COMMAND_TYPE
     bool selected = false;
+    // CButton::Render() centred the label on the button with the native text's own height:
+    // its top in reference px, its line box and size in physical px.
+    float labelTop = 0.f;
+    float labelLinePx = 0.f;
+    float labelTextPx = 0.f;
 };
 
 struct CommandWindowRmlModel
@@ -20,8 +25,10 @@ struct CommandWindowRmlModel
     // Right-docked window -- UI::Scaling::GetActiveTransform() while CManager runs it.
     float rootX = 0.f, rootY = 0.f, rootScale = 1.f;
     float textPx = 0.f;     // native normal text size in physical px (RmlRootTransform.h)
-    float boldTextPx = 0.f; // native bold text size (title, armed button)
     float bigTextPx = 0.f;  // native big text size (the target name at the pointer)
+    // The title, bold, shrunk to its 72-unit box like the original's, on the native line height.
+    float titleTextPx = 0.f;
+    float titleLinePx = 0.f;
 
     Rml::String titleText;
     Rml::String exitTooltip;
