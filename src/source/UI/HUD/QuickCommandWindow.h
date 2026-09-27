@@ -5,26 +5,20 @@
 #pragma once
 
 #include "UI/Core/WindowManager.h"
-#include "UI/Dialogs/MessageBox.h"
+#include "UI/HUD/QuickCommandRmlModel.h"
+#include "UI/RmlBridge/RmlModelBinder.h"
 #include "Render/Models/ZzzBMD.h"
 #include "Engine/Object/ZzzCharacter.h"
+
+namespace Rml
+{
+    class ElementDocument;
+}
 
 namespace mu::ui::window
 {
     class CQuickCommandWindow : public CObject
     {
-        enum IMAGE_LIST
-        {
-            IMAGE_QUICKCOMMAND_BACK = CMessageBoxMng::IMAGE_MSGBOX_BACK,
-            // The window menu's slots: it drew the same frame, line and arrows before its port.
-            IMAGE_QUICKCOMMAND_FRAME_MIDDLE = BITMAP_WINDOW_MENU_BEGIN + 1,
-            IMAGE_QUICKCOMMAND_FRAME_DOWN,
-            IMAGE_QUICKCOMMAND_LINE,
-            IMAGE_QUICKCOMMAND_ARROWL,
-            IMAGE_QUICKCOMMAND_ARROWR,
-            IMAGE_QUICKCOMMAND_FRAME_UP = BITMAP_QUICKCOMMAND_BEGIN,
-        };
-
     public:
         CQuickCommandWindow();
         virtual ~CQuickCommandWindow();
@@ -48,6 +42,7 @@ namespace mu::ui::window
         void CloseQuickCommand();
         void SetID(const wchar_t* strID);
         void SetSelectedCharacterIndex(int iIndex);
+        void ReloadRmlTheme();
 
         int SelectedCharacterIndex() const
         {
@@ -67,12 +62,9 @@ namespace mu::ui::window
         }
 
     private:
-        void LoadImages();
-        void UnloadImages();
-
-        void RenderFrame();
-        void RenderContents();
-        void RenderArrow();
+        void BuildRmlUi();
+        void SyncRmlModel();
+        void SyncRows();
 
     private:
         CManager* m_pNewUIMng;
@@ -81,6 +73,9 @@ namespace mu::ui::window
         int m_iSelectedIndex;
         wchar_t m_strID[32];
         int m_iSelectedCharacterIndex;
+
+        RmlModelBinder<QuickCommandRmlModel> m_RmlBinder;
+        Rml::ElementDocument* m_pRmlDoc = nullptr;
     };
 }
 
