@@ -17,6 +17,16 @@ using namespace mu::ui::window;
 
 namespace
 {
+// The original drew this board under every panel (layer depth 1.1 / 1.8), and a docked panel's
+// frame is painted in the background context before the native windows (my_inventory_bg.rml...):
+// only a document in that same context, behind the others, stays under it. Like the original, the
+// location bar, the logs and every native window then draw over the board.
+Rml::Context* BoardContext()
+{
+    Rml::Context* context = RmlUiRuntime::Instance().GetBackgroundContext();
+    return context != nullptr ? context : RmlUiRuntime::Instance().GetContext();
+}
+
 template <typename Model, typename T>
 void Sync(RmlModelBinder<Model>& binder, T Model::* field, const char* name, T value)
 {
@@ -107,7 +117,7 @@ void mu::ui::window::CDuelWindow::BuildRmlUi()
     if (m_pRmlDoc || !RmlUiRuntime::Instance().IsCreated())
         return;
 
-    const bool modelCreated = m_RmlBinder.Create(RmlUiRuntime::Instance().GetContext(), "duel_window",
+    const bool modelCreated = m_RmlBinder.Create(BoardContext(), "duel_window",
                                                  [](Rml::DataModelConstructor& c, DuelWindowRmlModel& model)
                                                  {
                                                      c.Bind("scale_x", &model.scaleX);
@@ -124,15 +134,14 @@ void mu::ui::window::CDuelWindow::BuildRmlUi()
                                                  });
 
     if (modelCreated)
-        m_pRmlDoc = UI::RmlBridge::LoadThemedDocument(RmlUiRuntime::Instance().GetContext(),
-                                                      "Data/Interface/RmlUi/duel_window.rml");
+        m_pRmlDoc = UI::RmlBridge::LoadThemedDocument(BoardContext(), "Data/Interface/RmlUi/duel_window.rml");
 }
 
 void mu::ui::window::CDuelWindow::ReloadRmlTheme()
 {
     if (!m_pRmlDoc)
         return;
-    Rml::Context* context = RmlUiRuntime::Instance().GetContext();
+    Rml::Context* context = BoardContext();
     m_RmlBinder.Destroy(context);
     context->UnloadDocument(m_pRmlDoc);
     m_pRmlDoc = nullptr;
@@ -146,7 +155,7 @@ void mu::ui::window::CDuelWindow::SyncRmlModel()
     if (!m_pRmlDoc)
         return;
 
-    // Layer depth 1.1: the original drew it under the HUD's logs, the location bar and every panel.
+    // Layer depth 1.1: behind every other document of the background context (see BoardContext()).
     UI::RmlBridge::SyncDocumentVisibilityBehind(m_pRmlDoc, IsVisible());
     if (!IsVisible())
         return;
