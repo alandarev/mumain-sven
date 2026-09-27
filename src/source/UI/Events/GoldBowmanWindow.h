@@ -22,7 +22,7 @@ namespace mu::ui::window
             IMAGE_GB_EXCHANGEBTN = CMessageBoxMng::IMAGE_MSGBOX_BTN_EMPTY,
             IMAGE_GB_BTN_SERIAL = CMessageBoxMng::IMAGE_MSGBOX_BTN_EMPTY,
             IMAGE_GB_BTN_EXIT = CMyInventory::IMAGE_INVENTORY_EXIT_BTN,
-            IMAGE_GB_EDITBOX = CGuildMakeWindow::IMAGE_GUILDMAKE_EDITBOX,
+            IMAGE_GB_EDITBOX = BITMAP_GUILDMAKE_BEGIN, // newui_guildmakeeditbox, loaded here too
         };
 
     private:
