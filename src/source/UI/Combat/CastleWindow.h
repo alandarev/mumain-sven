@@ -21,7 +21,7 @@ namespace mu::ui::window
     public:
         enum IMAGE_LIST
         {
-            IMAGE_CASTLEWINDOW_BACK = CMessageBoxMng::IMAGE_MSGBOX_BACK,	// Reference
+            IMAGE_CASTLEWINDOW_BACK = CMessageBoxMng::IMAGE_MSGBOX_BACK, // Reference
             IMAGE_CASTLEWINDOW_TOP = CMyInventory::IMAGE_INVENTORY_BACK_TOP,
             IMAGE_CASTLEWINDOW_LEFT = CMyInventory::IMAGE_INVENTORY_BACK_LEFT,
             IMAGE_CASTLEWINDOW_RIGHT = CMyInventory::IMAGE_INVENTORY_BACK_RIGHT,
@@ -30,14 +30,22 @@ namespace mu::ui::window
             IMAGE_CASTLEWINDOW_TAB_BTN = BITMAP_GUILDINFO_BEGIN,
             IMAGE_CASTLEWINDOW_LINE = CMyQuestInfoWindow::IMAGE_MYQUEST_LINE,
             IMAGE_CASTLEWINDOW_BUTTON = CMessageBoxMng::IMAGE_MSGBOX_BTN_EMPTY_VERY_SMALL,
-            IMAGE_CASTLEWINDOW_TABLE_TOP_LEFT = CInventoryCtrl::IMAGE_ITEM_TABLE_TOP_LEFT,	//. newui_item_table01(L).tga (14,14)
-            IMAGE_CASTLEWINDOW_TABLE_TOP_RIGHT = CInventoryCtrl::IMAGE_ITEM_TABLE_TOP_RIGHT,	//. newui_item_table01(R).tga (14,14)
-            IMAGE_CASTLEWINDOW_TABLE_BOTTOM_LEFT = CInventoryCtrl::IMAGE_ITEM_TABLE_BOTTOM_LEFT,	//. newui_item_table02(L).tga (14,14)
-            IMAGE_CASTLEWINDOW_TABLE_BOTTOM_RIGHT = CInventoryCtrl::IMAGE_ITEM_TABLE_BOTTOM_RIGHT,	//. newui_item_table02(R).tga (14,14)
-            IMAGE_CASTLEWINDOW_TABLE_TOP_PIXEL = CInventoryCtrl::IMAGE_ITEM_TABLE_TOP_PIXEL,			//. newui_item_table03(up).tga (1, 14)
-            IMAGE_CASTLEWINDOW_TABLE_BOTTOM_PIXEL = CInventoryCtrl::IMAGE_ITEM_TABLE_BOTTOM_PIXEL,	//. newui_item_table03(dw).tga (1,14)
-            IMAGE_CASTLEWINDOW_TABLE_LEFT_PIXEL = CInventoryCtrl::IMAGE_ITEM_TABLE_LEFT_PIXEL,		//. newui_item_table03(L).tga (14,1)
-            IMAGE_CASTLEWINDOW_TABLE_RIGHT_PIXEL = CInventoryCtrl::IMAGE_ITEM_TABLE_RIGHT_PIXEL,		//. newui_item_table03(R).tga (14,1)
+            IMAGE_CASTLEWINDOW_TABLE_TOP_LEFT =
+                CInventoryCtrl::IMAGE_ITEM_TABLE_TOP_LEFT, //. newui_item_table01(L).tga (14,14)
+            IMAGE_CASTLEWINDOW_TABLE_TOP_RIGHT =
+                CInventoryCtrl::IMAGE_ITEM_TABLE_TOP_RIGHT, //. newui_item_table01(R).tga (14,14)
+            IMAGE_CASTLEWINDOW_TABLE_BOTTOM_LEFT =
+                CInventoryCtrl::IMAGE_ITEM_TABLE_BOTTOM_LEFT, //. newui_item_table02(L).tga (14,14)
+            IMAGE_CASTLEWINDOW_TABLE_BOTTOM_RIGHT =
+                CInventoryCtrl::IMAGE_ITEM_TABLE_BOTTOM_RIGHT, //. newui_item_table02(R).tga (14,14)
+            IMAGE_CASTLEWINDOW_TABLE_TOP_PIXEL =
+                CInventoryCtrl::IMAGE_ITEM_TABLE_TOP_PIXEL, //. newui_item_table03(up).tga (1, 14)
+            IMAGE_CASTLEWINDOW_TABLE_BOTTOM_PIXEL =
+                CInventoryCtrl::IMAGE_ITEM_TABLE_BOTTOM_PIXEL, //. newui_item_table03(dw).tga (1,14)
+            IMAGE_CASTLEWINDOW_TABLE_LEFT_PIXEL =
+                CInventoryCtrl::IMAGE_ITEM_TABLE_LEFT_PIXEL, //. newui_item_table03(L).tga (14,1)
+            IMAGE_CASTLEWINDOW_TABLE_RIGHT_PIXEL =
+                CInventoryCtrl::IMAGE_ITEM_TABLE_RIGHT_PIXEL, //. newui_item_table03(R).tga (14,1)
             IMAGE_CASTLEWINDOW_MONEY = CNPCShop::IMAGE_NPCSHOP_REPAIR_MONEY,
             IMAGE_CASTLEWINDOW_SCROLL_UP_BTN = BITMAP_INTERFACE_NEW_CASTLE_WINDOW_BEGIN,
             IMAGE_CASTLEWINDOW_SCROLL_DOWN_BTN,

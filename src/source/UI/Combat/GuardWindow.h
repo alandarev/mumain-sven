@@ -134,7 +134,6 @@ public:
     void ReloadRmlTheme();
 
 private:
-
     void LoadScrollBarImages();
     void UnloadScrollBarImages();
     bool BtnProcess();
