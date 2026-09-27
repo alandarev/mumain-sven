@@ -17,6 +17,13 @@ mu_add_test(
 )
 
 mu_add_test(
+    NAME party_list_layout_tests
+    SOURCES
+        test_party_list_layout.cpp
+        ${CMAKE_SOURCE_DIR}/src/source/UI/Party/PartyListLayout.cpp
+)
+
+mu_add_test(
     NAME text_search_tests
     SOURCES
         test_text_search.cpp
