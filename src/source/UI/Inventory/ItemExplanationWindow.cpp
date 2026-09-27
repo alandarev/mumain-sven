@@ -84,15 +84,11 @@ bool mu::ui::window::CItemExplanationWindow::UpdateKeyEvent()
 
 bool mu::ui::window::CItemExplanationWindow::Update()
 {
-    // The original drew the table in Render(); its RenderTipTextList() calls now record it
-    // (g_pTipTextListRecord) for the document.
+    // The original drew the table in Render(); it is laid out here (UI::TipTextList) for the
+    // document.
     TipTextListRecord record;
     if (IsVisible())
-    {
-        g_pTipTextListRecord = &record;
-        RecordTable();
-        g_pTipTextListRecord = nullptr;
-    }
+        RecordTable(record);
     m_View.Sync(IsVisible(), record);
     return true;
 }
@@ -103,7 +99,7 @@ bool mu::ui::window::CItemExplanationWindow::Render()
     return true;
 }
 
-void mu::ui::window::CItemExplanationWindow::RecordTable()
+void mu::ui::window::CItemExplanationWindow::RecordTable(TipTextListRecord& record)
 {
 
     extern int ItemHelp;
@@ -298,21 +294,21 @@ void mu::ui::window::CItemExplanationWindow::RecordTable()
     RequireClass(p);
     mu_swprintf(TextList[TextNum], L"\n");
     TextNum++;
-    RenderTipTextList(1, 1, TextNum, iInfoWidth, RT3_SORT_CENTER);
+    UI::TipTextList::Record(record, 1, 1, TextNum, iInfoWidth, RT3_SORT_CENTER, STRP_NONE, true);
 
     TextNum = 0;
 
     if (iType != 5)
     {
-        RenderHelpCategory(_COLUMN_TYPE_LEVEL, TabSpace, iLabelHeight);
-        RenderHelpLine(_COLUMN_TYPE_LEVEL, L"+%d", TabSpace, L"000000", iDataHeight, iType);
+        UI::TipTextList::RecordHelpCategory(record, _COLUMN_TYPE_LEVEL, TabSpace, iLabelHeight);
+        UI::TipTextList::RecordHelpLine(record, _COLUMN_TYPE_LEVEL, L"+%d", TabSpace, L"000000", iDataHeight, iType);
     }
 
     if (g_iItemInfo[0][_COLUMN_TYPE_REQNLV] > 0)
     {
         TabSpace += 2;
-        RenderHelpCategory(_COLUMN_TYPE_REQNLV, TabSpace, iLabelHeight);
-        RenderHelpLine(_COLUMN_TYPE_REQNLV, L"%3d", TabSpace, L"00000", iDataHeight, iType);
+        UI::TipTextList::RecordHelpCategory(record, _COLUMN_TYPE_REQNLV, TabSpace, iLabelHeight);
+        UI::TipTextList::RecordHelpLine(record, _COLUMN_TYPE_REQNLV, L"%3d", TabSpace, L"00000", iDataHeight, iType);
         TabSpace += 14;
     }
 
@@ -321,10 +317,10 @@ void mu::ui::window::CItemExplanationWindow::RecordTable()
     }
     else
     {
-        RenderHelpLine(_COLUMN_TYPE_ATTMIN, L"%3d", TabSpace, L"00 ", iDataHeight);
-        RenderHelpCategory(_COLUMN_TYPE_ATTMIN, TabSpace, iLabelHeight);
+        UI::TipTextList::RecordHelpLine(record, _COLUMN_TYPE_ATTMIN, L"%3d", TabSpace, L"00 ", iDataHeight);
+        UI::TipTextList::RecordHelpCategory(record, _COLUMN_TYPE_ATTMIN, TabSpace, iLabelHeight);
         TabSpace += 2;
-        RenderHelpLine(_COLUMN_TYPE_LEVEL, L"~", TabSpace, L" 00", iDataHeight);
+        UI::TipTextList::RecordHelpLine(record, _COLUMN_TYPE_LEVEL, L"~", TabSpace, L" 00", iDataHeight);
     }
 
     if (g_iItemInfo[0][_COLUMN_TYPE_ATTMAX] <= 0 || (ItemHelp >= ITEM_ETC && ItemHelp < ITEM_ETC + MAX_ITEM_INDEX))
@@ -332,67 +328,67 @@ void mu::ui::window::CItemExplanationWindow::RecordTable()
     }
     else
     {
-        RenderHelpLine(_COLUMN_TYPE_ATTMAX, L"%3d", TabSpace, L"00000", iDataHeight);
+        UI::TipTextList::RecordHelpLine(record, _COLUMN_TYPE_ATTMAX, L"%3d", TabSpace, L"00000", iDataHeight);
     }
 
     if (g_iItemInfo[0][_COLUMN_TYPE_MAGIC] > 0)
     {
-        RenderHelpCategory(_COLUMN_TYPE_MAGIC, TabSpace, iLabelHeight);
-        RenderHelpLine(_COLUMN_TYPE_MAGIC, L"%2d%%", TabSpace, L"00000", iDataHeight);
+        UI::TipTextList::RecordHelpCategory(record, _COLUMN_TYPE_MAGIC, TabSpace, iLabelHeight);
+        UI::TipTextList::RecordHelpLine(record, _COLUMN_TYPE_MAGIC, L"%2d%%", TabSpace, L"00000", iDataHeight);
     }
 
     if (g_iItemInfo[0][_COLUMN_TYPE_CURSE] > 0)
     {
-        RenderHelpCategory(_COLUMN_TYPE_CURSE, TabSpace, iLabelHeight);
-        RenderHelpLine(_COLUMN_TYPE_CURSE, L"%2d", TabSpace, L"00000", iDataHeight, iType);
+        UI::TipTextList::RecordHelpCategory(record, _COLUMN_TYPE_CURSE, TabSpace, iLabelHeight);
+        UI::TipTextList::RecordHelpLine(record, _COLUMN_TYPE_CURSE, L"%2d", TabSpace, L"00000", iDataHeight, iType);
     }
 
     if (g_iItemInfo[0][_COLUMN_TYPE_PET_ATTACK] > 0)
     {
-        RenderHelpCategory(_COLUMN_TYPE_PET_ATTACK, TabSpace, iLabelHeight);
-        RenderHelpLine(_COLUMN_TYPE_PET_ATTACK, L"%2d%%", TabSpace, L"00000", iDataHeight);
+        UI::TipTextList::RecordHelpCategory(record, _COLUMN_TYPE_PET_ATTACK, TabSpace, iLabelHeight);
+        UI::TipTextList::RecordHelpLine(record, _COLUMN_TYPE_PET_ATTACK, L"%2d%%", TabSpace, L"00000", iDataHeight);
     }
 
     if (g_iItemInfo[0][_COLUMN_TYPE_DEFENCE] > 0)
     {
-        RenderHelpCategory(_COLUMN_TYPE_DEFENCE, TabSpace, iLabelHeight);
-        RenderHelpLine(_COLUMN_TYPE_DEFENCE, L"%3d", TabSpace, L"000000", iDataHeight);
+        UI::TipTextList::RecordHelpCategory(record, _COLUMN_TYPE_DEFENCE, TabSpace, iLabelHeight);
+        UI::TipTextList::RecordHelpLine(record, _COLUMN_TYPE_DEFENCE, L"%3d", TabSpace, L"000000", iDataHeight);
     }
 
     if (g_iItemInfo[0][_COLUMN_TYPE_DEFRATE] > 0)
     {
-        RenderHelpCategory(_COLUMN_TYPE_DEFRATE, TabSpace, iLabelHeight);
-        RenderHelpLine(_COLUMN_TYPE_DEFRATE, L"%3d", TabSpace, L"000000", iDataHeight);
+        UI::TipTextList::RecordHelpCategory(record, _COLUMN_TYPE_DEFRATE, TabSpace, iLabelHeight);
+        UI::TipTextList::RecordHelpLine(record, _COLUMN_TYPE_DEFRATE, L"%3d", TabSpace, L"000000", iDataHeight);
     }
 
     if (g_iItemInfo[0][_COLUMN_TYPE_REQSTR] > 0)
     {
-        RenderHelpCategory(_COLUMN_TYPE_REQSTR, TabSpace, iLabelHeight);
-        RenderHelpLine(_COLUMN_TYPE_REQSTR, L"%3d", TabSpace, L"00000", iDataHeight);
+        UI::TipTextList::RecordHelpCategory(record, _COLUMN_TYPE_REQSTR, TabSpace, iLabelHeight);
+        UI::TipTextList::RecordHelpLine(record, _COLUMN_TYPE_REQSTR, L"%3d", TabSpace, L"00000", iDataHeight);
     }
 
     if (g_iItemInfo[0][_COLUMN_TYPE_REQDEX] > 0 || ItemHelp < ITEM_ETC)
     {
-        RenderHelpCategory(_COLUMN_TYPE_REQDEX, TabSpace, iLabelHeight);
-        RenderHelpLine(_COLUMN_TYPE_REQDEX, L"%3d", TabSpace, L"00000", iDataHeight);
+        UI::TipTextList::RecordHelpCategory(record, _COLUMN_TYPE_REQDEX, TabSpace, iLabelHeight);
+        UI::TipTextList::RecordHelpLine(record, _COLUMN_TYPE_REQDEX, L"%3d", TabSpace, L"00000", iDataHeight);
     }
 
     if (g_iItemInfo[0][_COLUMN_TYPE_REQVIT] > 0)
     {
-        RenderHelpCategory(_COLUMN_TYPE_REQVIT, TabSpace, iLabelHeight);
-        RenderHelpLine(_COLUMN_TYPE_REQVIT, L"%3d", TabSpace, L"00000", iDataHeight);
+        UI::TipTextList::RecordHelpCategory(record, _COLUMN_TYPE_REQVIT, TabSpace, iLabelHeight);
+        UI::TipTextList::RecordHelpLine(record, _COLUMN_TYPE_REQVIT, L"%3d", TabSpace, L"00000", iDataHeight);
     }
 
     if (g_iItemInfo[0][_COLUMN_TYPE_REQENG] > 0)
     {
-        RenderHelpCategory(_COLUMN_TYPE_REQENG, TabSpace, iLabelHeight);
-        RenderHelpLine(_COLUMN_TYPE_REQENG, L"%3d", TabSpace, L"00000", iDataHeight, iType);
+        UI::TipTextList::RecordHelpCategory(record, _COLUMN_TYPE_REQENG, TabSpace, iLabelHeight);
+        UI::TipTextList::RecordHelpLine(record, _COLUMN_TYPE_REQENG, L"%3d", TabSpace, L"00000", iDataHeight, iType);
     }
 
     if (g_iItemInfo[0][_COLUMN_TYPE_REQCHA] > 0)
     {
-        RenderHelpCategory(_COLUMN_TYPE_REQCHA, TabSpace, iLabelHeight);
-        RenderHelpLine(_COLUMN_TYPE_REQCHA, L"%3d", TabSpace, L"00000", iDataHeight);
+        UI::TipTextList::RecordHelpCategory(record, _COLUMN_TYPE_REQCHA, TabSpace, iLabelHeight);
+        UI::TipTextList::RecordHelpLine(record, _COLUMN_TYPE_REQCHA, L"%3d", TabSpace, L"00000", iDataHeight);
     }
 }
 
