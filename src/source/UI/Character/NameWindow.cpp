@@ -16,6 +16,7 @@
 #include "Camera/CameraState.h"
 #include "UI/Combat/MonsterHealthBar.h"
 #include "World/GameMaps/GMBattleCastle.h"
+#include "World/GameMaps/GMHellas.h"
 #include "World/GameMaps/GM_Kanturu_3rd.h"
 
 // DevEditor forward declarations (must be at global scope)
@@ -167,8 +168,10 @@ void mu::ui::window::CNameWindow::PrepareBackgroundLayer()
     m_labelLayer.BeginFrame();
     {
         Render::Renderer::Overlay2DRecordScope record(&m_labelLayer);
-        // RenderInterface()'s overlays first, in its order: the original drew them from there (top
-        // view off only), before this window's labels.
+        // The main scene's overlays first, in its order: the original drew the Kalima object
+        // labels and then RenderInterface()'s overlays (top view off only) before this window's
+        // labels.
+        RenderObjectDescription();
         if (g_Camera.TopViewEnable == false)
         {
             RenderPartyHP();
