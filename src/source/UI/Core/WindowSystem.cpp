@@ -1770,6 +1770,8 @@ void CSystem::SyncMainSceneHudVisibility()
         m_pMuHelperBar->SyncDocVisibility(sceneAllowsShow);
     if (m_pBuffStrip)
         m_pBuffStrip->SyncDocVisibility(sceneAllowsShow);
+    if (m_pNewItemEnduranceInfo)
+        m_pNewItemEnduranceInfo->SyncDocVisibility(sceneAllowsShow);
     if (m_pNewMainFrameWindow)
         m_pNewMainFrameWindow->SyncDocVisibility(sceneAllowsShow);
 }
