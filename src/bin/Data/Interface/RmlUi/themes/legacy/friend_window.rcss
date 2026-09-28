@@ -84,3 +84,13 @@
 .fw-text.bold { font-weight: bold; }
 .fw-text.centred { text-align: center; }
 .fw-text.clip { overflow: hidden; }
+
+/* CUITextInputBox: UIOPTION_PAINTBACK's black box, and the field drawn over it -- its text in the
+   field's own colour (set from C++) with no box of its own; the selection box in the fields' select
+   colour (150, 150, 150) under the unchanged (white) text. */
+.field-back { background-color: rgb(0, 0, 0); }
+.fw-field { display: none; position: absolute; padding: 0; border-width: 0; background-color: transparent;
+	pointer-events: none; text-align: left; white-space: pre; font-family: "token(font-body)"; }
+.fw-field.shown { display: block; }
+.fw-field selection { color: rgb(255, 255, 255); background-color: rgb(150, 150, 150); }
+.fw-field-multiline { white-space: pre-wrap; overflow-y: auto; }

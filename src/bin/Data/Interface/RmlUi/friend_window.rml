@@ -11,7 +11,8 @@
 	     the data-model name). The parts are what the native Render() drew, in its order, placed in
 	     reference px from the window's top-left corner and named by what they are (the class list
 	     in `role`); the theme gives them their look. The native window keeps every hit test, drag,
-	     resize and button, so the document leaves the pointer alone. Text is .sharp-text at the
+	     resize and button, so the document leaves the pointer alone (the text fields below too: a
+	     click on one focuses the native field, which hands the keyboard to its input). Text is .sharp-text at the
 	     native size, counter-scaled out of the window's scale. -->
 	<div id="window" data-model="friend_window" data-style-left="root_x + 'px'" data-style-top="root_y + 'px'"
 	     data-style-transform="'scale(' + root_scale + ')'">
@@ -27,5 +28,11 @@
 			      data-style-transform="'scale(' + (1 / root_scale) + ')'">{{p.text}}</span>
 		</div>
 	</div>
+	<!-- The window's text fields (CUIBaseWindow::GetRmlTextField()), placed and sized from C++ in
+	     physical px (FriendWindowView::PlaceField()): the native field keeps the value, the
+	     focus requests and Enter / Tab; the input only takes the keyboard. -->
+	<input id="field-0" type="text" class="fw-field"/>
+	<input id="field-1" type="text" class="fw-field"/>
+	<textarea id="field-2" class="fw-field fw-field-multiline"></textarea>
 </body>
 </rml>

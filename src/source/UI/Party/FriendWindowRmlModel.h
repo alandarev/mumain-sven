@@ -2,6 +2,7 @@
 
 #include <RmlUi/Core/Types.h>
 
+#include <string>
 #include <vector>
 
 // The RmlUi model of one window of the friends family (CUIWindowMgr's windows): the parts its
@@ -28,7 +29,10 @@ struct FriendWindowPart
     bool bold = false;
     Rml::String color;
 
-    bool operator==(const FriendWindowPart&) const = default;
+    // Not bound: what `text` and `color` were formatted from, so a frame that draws the same text
+    // in the same colour formats (and allocates) nothing.
+    std::wstring sourceText;
+    unsigned int sourceColor = 0;
 };
 
 struct FriendWindowRmlModel

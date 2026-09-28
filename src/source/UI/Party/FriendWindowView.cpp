@@ -4,6 +4,7 @@
 
 #include "Render/RmlUi/RmlUiRuntime.h"
 #include "UI/Party/UIWindows.h"
+#include "UI/Core/WindowSystem.h"
 #include "UI/RmlBridge/RmlColor.h"
 #include "UI/RmlBridge/RmlDocumentVisibility.h"
 #include "UI/RmlBridge/RmlTheme.h"
@@ -11,6 +12,10 @@
 
 #include <RmlUi/Core/Context.h>
 #include <RmlUi/Core/ElementDocument.h>
+#include <RmlUi/Core/Elements/ElementFormControlInput.h>
+#include <RmlUi/Core/Elements/ElementFormControlTextArea.h>
+#include <RmlUi/Core/EventListener.h>
+#include <RmlUi/Core/Input.h>
 
 namespace
 {
@@ -18,37 +23,67 @@ constexpr const char* DocumentPath = "Data/Interface/RmlUi/friend_window.rml";
 constexpr const char* ModelPlaceholder = "data-model=\"friend_window\"";
 } // namespace
 
-FriendWindowRmlBuilder::FriendWindowRmlBuilder(int originX, int originY)
-    : m_OriginX(originX), m_OriginY(originY), m_Transform(UI::Scaling::GetActiveTransform())
+FriendWindowRmlBuilder::FriendWindowRmlBuilder(int originX, int originY, std::vector<FriendWindowPart>& parts)
+    : m_OriginX(originX), m_OriginY(originY), m_Transform(UI::Scaling::GetActiveTransform()), m_Parts(parts)
 {
+}
+
+namespace
+{
+template <typename T, typename U> void Assign(T& field, const U& value, bool& changed)
+{
+    if (field != value)
+    {
+        field = value;
+        changed = true;
+    }
+}
+} // namespace
+
+FriendWindowPart& FriendWindowRmlBuilder::NextPart(int kind, const char* role, double x, double y, double width,
+                                                   double height)
+{
+    if (m_Count == m_Parts.size())
+    {
+        m_Parts.emplace_back();
+        m_Changed = true;
+    }
+    FriendWindowPart& part = m_Parts[m_Count++];
+    Assign(part.kind, kind, m_Changed);
+    if (part.role != role)
+    {
+        part.role = role;
+        m_Changed = true;
+    }
+    Assign(part.left, static_cast<float>(x - m_OriginX), m_Changed);
+    Assign(part.top, static_cast<float>(y - m_OriginY), m_Changed);
+    Assign(part.width, static_cast<float>(width), m_Changed);
+    Assign(part.height, static_cast<float>(height), m_Changed);
+    return part;
+}
+
+bool FriendWindowRmlBuilder::Finish()
+{
+    if (m_Count < m_Parts.size())
+    {
+        m_Parts.resize(m_Count);
+        m_Changed = true;
+    }
+    return m_Changed;
 }
 
 void FriendWindowRmlBuilder::Fill(const char* role, double x, double y, double width, double height)
 {
     if (width <= 0.0 || height <= 0.0)
         return;
-    FriendWindowPart part;
-    part.kind = FriendWindowPart::Fill;
-    part.role = role;
-    part.left = static_cast<float>(x - m_OriginX);
-    part.top = static_cast<float>(y - m_OriginY);
-    part.width = static_cast<float>(width);
-    part.height = static_cast<float>(height);
-    m_Parts.push_back(std::move(part));
+    NextPart(FriendWindowPart::Fill, role, x, y, width, height);
 }
 
 void FriendWindowRmlBuilder::Sprite(const char* role, double x, double y, double width, double height)
 {
     if (width <= 0.0 || height <= 0.0)
         return;
-    FriendWindowPart part;
-    part.kind = FriendWindowPart::Sprite;
-    part.role = role;
-    part.left = static_cast<float>(x - m_OriginX);
-    part.top = static_cast<float>(y - m_OriginY);
-    part.width = static_cast<float>(width);
-    part.height = static_cast<float>(height);
-    m_Parts.push_back(std::move(part));
+    NextPart(FriendWindowPart::Sprite, role, x, y, width, height);
 }
 
 void FriendWindowRmlBuilder::Text(const wchar_t* text, double x, double y, DWORD color, bool bold, double boxWidth,
@@ -56,20 +91,49 @@ void FriendWindowRmlBuilder::Text(const wchar_t* text, double x, double y, DWORD
 {
     if (text == nullptr || text[0] == L'\0')
         return;
-    FriendWindowPart part;
-    part.kind = FriendWindowPart::Text;
-    part.role = "text";
     // RenderText() takes whole units.
-    part.left = static_cast<float>(static_cast<int>(x) - m_OriginX);
-    part.top = static_cast<float>(static_cast<int>(y) - m_OriginY);
-    part.width = static_cast<float>(boxWidth);
-    part.text = StringUtils::WideToNarrow(text);
-    part.textPx = UI::Scaling::NativeTextPixelSize(bold ? UI::Scaling::FontRole::Bold : UI::Scaling::FontRole::Normal,
-                                                   m_Transform);
-    part.align = align;
-    part.bold = bold;
-    part.color = UI::RmlBridge::RgbaToCss(color);
-    m_Parts.push_back(std::move(part));
+    FriendWindowPart& part =
+        NextPart(FriendWindowPart::Text, "text", static_cast<int>(x), static_cast<int>(y), boxWidth, 0.0);
+    if (part.sourceText != text || part.text.empty())
+    {
+        part.sourceText = text;
+        part.text = StringUtils::WideToNarrow(text);
+        m_Changed = true;
+    }
+    Assign(part.textPx,
+           UI::Scaling::NativeTextPixelSize(bold ? UI::Scaling::FontRole::Bold : UI::Scaling::FontRole::Normal,
+                                            m_Transform),
+           m_Changed);
+    Assign(part.align, align, m_Changed);
+    Assign(part.bold, bold, m_Changed);
+    if (part.sourceColor != color || part.color.empty())
+    {
+        part.sourceColor = color;
+        part.color = UI::RmlBridge::RgbaToCss(color);
+        m_Changed = true;
+    }
+}
+
+void FriendWindowRmlBuilder::Field(int slot, CUITextInputBox& box)
+{
+    if (slot < 0 || slot >= FriendWindowFieldLayout::SlotCount || box.GetState() == UISTATE_HIDE)
+        return;
+    const auto x = static_cast<double>(box.GetPosition_x());
+    const auto y = static_cast<double>(box.GetPosition_y());
+    const auto w = static_cast<double>(box.GetWidth());
+    const auto h = static_cast<double>(box.GetHeight());
+    // RenderPortable()'s background: UIOPTION_PAINTBACK paints it black (the family's fields set
+    // no other back colour).
+    if (box.CheckOption(UIOPTION_PAINTBACK))
+        Fill("field-back", x, y, w, h);
+
+    FriendWindowFieldLayout& field = m_Fields[slot];
+    field.shown = true;
+    field.left = static_cast<float>(x - m_OriginX);
+    field.top = static_cast<float>(y - m_OriginY);
+    field.width = static_cast<float>(w);
+    field.height = static_cast<float>(h);
+    field.color = box.GetTextColor();
 }
 
 void FriendWindowRmlBuilder::Button(CUIButton& button)
@@ -147,6 +211,41 @@ template void FriendWindowRmlBuilder::ListScrollBar<CUIChatPalListBox>(CUIChatPa
 template void FriendWindowRmlBuilder::ListScrollBar<CUIWindowListBox>(CUIWindowListBox&);
 template void FriendWindowRmlBuilder::ListScrollBar<CUILetterListBox>(CUILetterListBox&);
 
+namespace
+{
+// Forwards a field's edits and keys to its view.
+class FriendWindowFieldListener : public Rml::EventListener
+{
+public:
+    FriendWindowFieldListener(FriendWindowView& view, int slot) : m_View(view), m_Slot(slot) {}
+
+    void ProcessEvent(Rml::Event& event) override
+    {
+        if (event.GetId() == Rml::EventId::Change)
+        {
+            m_View.OnFieldEdited(m_Slot);
+        }
+        else if (event.GetId() == Rml::EventId::Keydown)
+        {
+            if (m_View.OnFieldKey(m_Slot, event.GetParameter<int>("key_identifier", 0)))
+                event.StopPropagation();
+        }
+    }
+
+private:
+    FriendWindowView& m_View;
+    int m_Slot;
+};
+
+const char* const FieldIds[FriendWindowFieldLayout::SlotCount] = {"field-0", "field-1", "field-2"};
+
+// Character (code point) index -> RmlUi selection index; wchar_t holds code points here.
+int ToSelectionIndex(int index)
+{
+    return index < 0 ? 0 : index;
+}
+} // namespace
+
 FriendWindowView::FriendWindowView(DWORD windowUIID)
     : m_WindowUIID(windowUIID), m_ModelName("friend_window_" + std::to_string(windowUIID))
 {
@@ -188,14 +287,41 @@ void FriendWindowView::Build()
         return;
     m_pDoc = UI::RmlBridge::LoadThemedDocument(RmlUiRuntime::Instance().GetContext(), DocumentPath, ModelPlaceholder,
                                                "data-model=\"" + m_ModelName + "\"");
+    if (!m_pDoc)
+        return;
+    for (int slot = 0; slot < FriendWindowFieldLayout::SlotCount; ++slot)
+    {
+        Field& field = m_Fields[slot];
+        field = Field{};
+        field.element = m_pDoc->GetElementById(FieldIds[slot]);
+        if (!field.element)
+            continue;
+        field.listener = std::make_unique<FriendWindowFieldListener>(*this, slot);
+        field.element->AddEventListener(Rml::EventId::Change, field.listener.get());
+        field.element->AddEventListener(Rml::EventId::Keydown, field.listener.get());
+    }
 }
 
 void FriendWindowView::Unload()
 {
     if (!RmlUiRuntime::Instance().IsCreated())
     {
+        // The context and its documents are gone already.
         m_pDoc = nullptr;
+        for (Field& field : m_Fields)
+            field = Field{};
         return;
+    }
+    for (Field& field : m_Fields)
+    {
+        if (field.element && field.listener)
+        {
+            if (field.element->IsPseudoClassSet("focus"))
+                field.element->Blur();
+            field.element->RemoveEventListener(Rml::EventId::Change, field.listener.get());
+            field.element->RemoveEventListener(Rml::EventId::Keydown, field.listener.get());
+        }
+        field = Field{};
     }
     Rml::Context* context = RmlUiRuntime::Instance().GetContext();
     if (m_pDoc)
@@ -219,6 +345,11 @@ bool FriendWindowView::Sync(CUIBaseWindow* window, bool shown)
 {
     if (window == nullptr || !shown)
     {
+        for (Field& field : m_Fields)
+        {
+            if (field.element && field.element->IsPseudoClassSet("focus"))
+                field.element->Blur();
+        }
         UI::RmlBridge::SyncDocumentVisibility(m_pDoc, false);
         return false;
     }
@@ -241,18 +372,148 @@ bool FriendWindowView::Sync(CUIBaseWindow* window, bool shown)
         // Text sizes follow the scale; the parts carry them.
     }
 
-    FriendWindowRmlBuilder builder(window->GetPosition_x(), window->GetPosition_y());
+    FriendWindowRmlBuilder builder(window->GetPosition_x(), window->GetPosition_y(), model.parts);
     window->CollectRmlView(builder);
-    std::vector<FriendWindowPart> parts = builder.TakeParts();
-    if (parts != model.parts)
-    {
-        model.parts = std::move(parts);
+    if (builder.Finish())
         m_Binder.MarkDirty("parts");
-    }
 
     const bool wasVisible = m_pDoc->IsVisible();
     UI::RmlBridge::SyncDocumentVisibility(m_pDoc, true);
+    SyncFields(*window, builder, g_pWindowMgr->GetTopWindowUIID() == m_WindowUIID);
     return !wasVisible;
+}
+
+void FriendWindowView::PlaceField(Field& field, const FriendWindowFieldLayout& layout,
+                                  const UI::Scaling::Transform& transform)
+{
+    // Physical px in the document, from the window's corner (so a moved window moves it too):
+    // sharp text at the native size, the box scaled like the window.
+    const FriendWindowRmlModel& model = m_Binder.GetModel();
+    if (field.layout == layout && field.scale == model.rootScale && field.rootX == model.rootX &&
+        field.rootY == model.rootY)
+        return;
+    field.layout = layout;
+    field.scale = model.rootScale;
+    field.rootX = model.rootX;
+    field.rootY = model.rootY;
+    if (!layout.shown)
+    {
+        field.element->SetClass("shown", false);
+        return;
+    }
+    const float scale = model.rootScale;
+    field.element->SetClass("shown", true);
+    field.element->SetProperty("left", Rml::ToString(model.rootX + layout.left * scale) + "px");
+    field.element->SetProperty("top", Rml::ToString(model.rootY + layout.top * scale) + "px");
+    field.element->SetProperty("width", Rml::ToString(layout.width * scale) + "px");
+    field.element->SetProperty("height", Rml::ToString(layout.height * scale) + "px");
+    field.element->SetProperty(
+        "font-size", Rml::ToString(UI::Scaling::NativeTextPixelSize(UI::Scaling::FontRole::Normal, transform)) + "px");
+    field.element->SetProperty("color", UI::RmlBridge::RgbaToCss(layout.color));
+}
+
+void FriendWindowView::PushFieldValue(Field& field, CUITextInputBox& box)
+{
+    field.syncedValue = box.GetValue();
+    field.element->SetAttribute("value", StringUtils::WideToNarrow(field.syncedValue.c_str()));
+    field.edited = false;
+}
+
+void FriendWindowView::SyncFields(CUIBaseWindow& window, const FriendWindowRmlBuilder& builder, bool topWindow)
+{
+    const UI::Scaling::Transform transform = UI::Scaling::GetActiveTransform();
+    for (int slot = 0; slot < FriendWindowFieldLayout::SlotCount; ++slot)
+    {
+        Field& field = m_Fields[slot];
+        CUITextInputBox* box = window.GetRmlTextField(slot);
+        if (!field.element)
+            continue;
+        FriendWindowFieldLayout layout = builder.GetFields()[slot];
+        if (box == nullptr)
+            layout.shown = false;
+        PlaceField(field, layout, transform);
+        if (!layout.shown)
+        {
+            if (field.element->IsPseudoClassSet("focus"))
+                field.element->Blur();
+            continue;
+        }
+
+        const int maxLength = box->GetTextLimit() > 0 ? box->GetTextLimit() : MAX_TEXT_LENGTH;
+        if (field.maxLength != maxLength)
+        {
+            field.maxLength = maxLength;
+            field.element->SetAttribute("maxlength", maxLength);
+        }
+
+        // The value: what the player typed goes to the native field; a value the window set (a
+        // reply's receiver, a cleared line after Enter) goes to the input.
+        if (field.edited)
+        {
+            field.edited = false;
+            const std::wstring typed = StringUtils::NarrowToWide(field.element->GetAttribute<Rml::String>("value", ""));
+            if (typed != field.syncedValue)
+            {
+                box->SetValueFromField(typed);
+                field.syncedValue = box->GetValue();
+                if (field.syncedValue != typed)
+                    PushFieldValue(field, *box);
+            }
+        }
+        else if (box->GetValue() != field.syncedValue)
+        {
+            PushFieldValue(field, *box);
+        }
+
+        // The keyboard: a native GiveFocus() (a click on the field, Tab, the window selected) moves
+        // it to the input with the native caret and selection, once the input is laid out (RmlUi
+        // drops the focus of a field nobody can see); the input gives it up with the window.
+        if (CUITextInputBox::GetFocusedPortable() == box && field.element->IsVisible(true))
+        {
+            field.element->Focus();
+            if (field.element->IsPseudoClassSet("focus"))
+            {
+                if (auto* input = rmlui_dynamic_cast<Rml::ElementFormControlInput*>(field.element))
+                    input->SetSelectionRange(ToSelectionIndex(box->GetSelectionAnchor()),
+                                             ToSelectionIndex(box->GetCaret()));
+                else if (auto* area = rmlui_dynamic_cast<Rml::ElementFormControlTextArea*>(field.element))
+                    area->SetSelectionRange(ToSelectionIndex(box->GetSelectionAnchor()),
+                                            ToSelectionIndex(box->GetCaret()));
+                CUITextInputBox::ReleaseFocus();
+            }
+        }
+        else if (!topWindow && field.element->IsPseudoClassSet("focus"))
+        {
+            field.element->Blur();
+        }
+    }
+}
+
+bool FriendWindowView::OnFieldKey(int slot, int keyIdentifier)
+{
+    const bool enter = keyIdentifier == Rml::Input::KI_RETURN || keyIdentifier == Rml::Input::KI_NUMPADENTER;
+    const bool tab = keyIdentifier == Rml::Input::KI_TAB;
+    if (!enter && !tab)
+        return false;
+    if (enter && slot == FriendWindowFieldLayout::MultilineSlot)
+        return false; // a new line, typed into the <textarea>
+    CUIBaseWindow* window = g_pWindowMgr->GetWindow(m_WindowUIID);
+    CUITextInputBox* box = window ? window->GetRmlTextField(slot) : nullptr;
+    Field& field = m_Fields[slot];
+    if (box == nullptr || field.element == nullptr)
+        return false;
+
+    // The native field gets the value typed so far, then the key it handled itself (Enter
+    // confirms to its window, Tab gives its tab target the focus -- moved to that input next frame).
+    const std::wstring typed = StringUtils::NarrowToWide(field.element->GetAttribute<Rml::String>("value", ""));
+    if (typed != field.syncedValue)
+    {
+        box->SetValueFromField(typed);
+        field.syncedValue = box->GetValue();
+    }
+    field.edited = false;
+    box->OnEditKey(enter ? VK_RETURN : VK_TAB, false, false);
+    return true;
 }
 
 void FriendWindowView::PullToFront()

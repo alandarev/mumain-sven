@@ -1142,6 +1142,39 @@ public:
     // Caret rect in reference pixels for positioning the IME candidate window; false if not the focused field or not yet rendered.
     bool GetCaretArea(int& x, int& y, int& w, int& h) const;
 
+    // For a window that shows this field as an RmlUi <input> (UI/Party/FriendWindowView.h): the
+    // value, caret and look it would render, and the value typed there (cut to the text limit,
+    // caret at its end; unlike SetText() also longer than MAX_TEXT_LENGTH, as typing allows).
+    const std::wstring& GetValue() const
+    {
+        return m_portableText;
+    }
+    void SetValueFromField(const std::wstring& value);
+    int GetCaret() const
+    {
+        return m_iCaret;
+    }
+    int GetSelectionAnchor() const
+    {
+        return m_iSelAnchor;
+    }
+    int GetTextLimit() const
+    {
+        return m_iMaxLength;
+    }
+    DWORD GetTextColor() const
+    {
+        return m_dwTextColor;
+    }
+    DWORD GetBackColor() const
+    {
+        return m_dwBackColor;
+    }
+    DWORD GetSelectBackColor() const
+    {
+        return m_dwSelectBackColor;
+    }
+
 protected:
     virtual BOOL DoMouseAction();
 

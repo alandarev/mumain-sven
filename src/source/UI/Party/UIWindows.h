@@ -130,6 +130,13 @@ public:
         return false;
     }
     void CollectRmlView(FriendWindowRmlBuilder& view);
+    // The text field the RmlUi view shows in the given field slot (FriendWindowFieldLayout), or
+    // nullptr; the native field keeps the value, the focus requests and the Enter / Tab handling.
+    virtual CUITextInputBox* GetRmlTextField(int slot)
+    {
+        (void)slot;
+        return nullptr;
+    }
 
 protected:
     BOOL DoMouseAction();
@@ -699,9 +706,18 @@ public:
         m_TextInputBox.SetText(pszText);
         m_TextInputBox.GiveFocus(TRUE);
     }
+    bool HasRmlView() const override
+    {
+        return true;
+    }
+    CUITextInputBox* GetRmlTextField(int slot) override
+    {
+        return slot == 0 ? &m_TextInputBox : nullptr;
+    }
 
 protected:
     void InitControls() override;
+    void CollectRmlContent(FriendWindowRmlBuilder& view) override;
     virtual void RenderSub();
     virtual BOOL HandleMessage();
     virtual void DoActionSub(BOOL bMessageOnly);
@@ -727,9 +743,14 @@ public:
     virtual void Refresh();
 
     void SaveID(const wchar_t* pszText);
+    bool HasRmlView() const override
+    {
+        return true;
+    }
 
 protected:
     virtual void InitControls() {}
+    void CollectRmlContent(FriendWindowRmlBuilder& view) override;
     virtual void RenderSub();
     virtual BOOL HandleMessage();
     virtual void DoActionSub(BOOL bMessageOnly);

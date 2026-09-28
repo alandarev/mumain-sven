@@ -10,6 +10,7 @@
 #include "UI/RmlBridge/RmlModelBinder.h"
 #include "UI/Scaling/UITransform.h"
 
+#include <array>
 #include <list>
 #include <map>
 #include <memory>
@@ -17,18 +18,40 @@
 
 namespace Rml
 {
+class Element;
 class ElementDocument;
-}
+class EventListener;
+} // namespace Rml
 
 class CUIBaseWindow;
 class CUIButton;
+class CUITextInputBox;
+
+// A text field of a window (CUIBaseWindow::GetRmlTextField()), shown as an RmlUi <input> (slots
+// 0 and 1) or <textarea> (slot 2) over the window: its box in native reference px relative to the
+// window's top-left corner, and its text colour (native RGBA()).
+struct FriendWindowFieldLayout
+{
+    static constexpr int SlotCount = 3;
+    static constexpr int MultilineSlot = 2;
+
+    bool shown = false;
+    float left = 0.f;
+    float top = 0.f;
+    float width = 0.f;
+    float height = 0.f;
+    unsigned long color = 0;
+
+    bool operator==(const FriendWindowFieldLayout&) const = default;
+};
 
 // Collects the parts of one window, in native (FloatingWorkspace reference) coordinates, relative
-// to the window's top-left corner.
+// to the window's top-left corner, into the parts of the previous frame: a part that did not
+// change is not touched, and its text and colour are not formatted again.
 class FriendWindowRmlBuilder
 {
 public:
-    FriendWindowRmlBuilder(int originX, int originY);
+    FriendWindowRmlBuilder(int originX, int originY, std::vector<FriendWindowPart>& parts);
 
     void Fill(const char* role, double x, double y, double width, double height);
     void Sprite(const char* role, double x, double y, double width, double height);
@@ -42,17 +65,26 @@ public:
     void CheckBox(double x, double y, bool checked);
     // The old-style list scroll bar the friends family's list boxes draw (their RenderInterface()).
     template <typename List> void ListScrollBar(List& list);
+    // CUITextInputBox::Render(): its background as a part, the field itself as the slot's input.
+    void Field(int slot, CUITextInputBox& box);
 
-    std::vector<FriendWindowPart> TakeParts()
+    // Drops the parts past the last one collected; true if any part changed this frame.
+    bool Finish();
+    const std::array<FriendWindowFieldLayout, FriendWindowFieldLayout::SlotCount>& GetFields() const
     {
-        return std::move(m_Parts);
+        return m_Fields;
     }
 
 private:
+    FriendWindowPart& NextPart(int kind, const char* role, double x, double y, double width, double height);
+
     double m_OriginX;
     double m_OriginY;
     UI::Scaling::Transform m_Transform;
-    std::vector<FriendWindowPart> m_Parts;
+    std::vector<FriendWindowPart>& m_Parts;
+    size_t m_Count = 0;
+    bool m_Changed = false;
+    std::array<FriendWindowFieldLayout, FriendWindowFieldLayout::SlotCount> m_Fields{};
 };
 
 // One window's document.
@@ -70,14 +102,41 @@ public:
     void PullToFront();
     void ReloadTheme();
 
+    // A key pressed in the slot's field (its keydown listener): Enter and Tab go to the native
+    // field, as they did when it had the keyboard. Returns true if the key was used.
+    bool OnFieldKey(int slot, int keyIdentifier);
+    void OnFieldEdited(int slot)
+    {
+        m_Fields[slot].edited = true;
+    }
+
 private:
+    // RmlUi presentation of one text field: its element, where it was last placed, the value both
+    // sides last agreed on, and whether the player edited it since.
+    struct Field
+    {
+        Rml::Element* element = nullptr;
+        std::unique_ptr<Rml::EventListener> listener;
+        FriendWindowFieldLayout layout; // where it was last placed, and under which window corner / scale
+        float rootX = 0.f;
+        float rootY = 0.f;
+        float scale = 0.f;
+        int maxLength = -1;
+        std::wstring syncedValue;
+        bool edited = false;
+    };
+
     void Build();
     void Unload();
+    void SyncFields(CUIBaseWindow& window, const FriendWindowRmlBuilder& builder, bool topWindow);
+    void PlaceField(Field& field, const FriendWindowFieldLayout& layout, const UI::Scaling::Transform& transform);
+    void PushFieldValue(Field& field, CUITextInputBox& box);
 
     DWORD m_WindowUIID;
     std::string m_ModelName;
     Rml::ElementDocument* m_pDoc = nullptr;
     RmlModelBinder<FriendWindowRmlModel> m_Binder;
+    std::array<Field, FriendWindowFieldLayout::SlotCount> m_Fields;
 };
 
 // The documents of every window of the manager with an RmlUi view.

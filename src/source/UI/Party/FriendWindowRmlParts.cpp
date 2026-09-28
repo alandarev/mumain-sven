@@ -315,3 +315,39 @@ void CUILetterBoxTabWindow::CollectRmlContent(FriendWindowRmlBuilder& view)
     view.Button(m_ReplyButton);
     view.Button(m_DeleteButton);
 }
+
+// CUITextInputWindow::RenderSub(): the add-friend dialog.
+void CUITextInputWindow::CollectRmlContent(FriendWindowRmlBuilder& view)
+{
+    if (GetState() == UISTATE_MOVE || GetState() == UISTATE_RESIZE)
+    {
+        m_AddButton.SendUIMessageDirect(UI_MESSAGE_P_MOVE, 0, 0);
+        m_CancelButton.SendUIMessageDirect(UI_MESSAGE_P_MOVE, 0, 0);
+        m_TextInputBox.SendUIMessageDirect(UI_MESSAGE_P_MOVE, 0, 0);
+    }
+
+    view.Button(m_AddButton);
+    view.Button(m_CancelButton);
+    view.Field(0, m_TextInputBox);
+}
+
+// CUIQuestionWindow::RenderSub(): a yes / no or OK question.
+void CUIQuestionWindow::CollectRmlContent(FriendWindowRmlBuilder& view)
+{
+    if (GetState() == UISTATE_MOVE || GetState() == UISTATE_RESIZE)
+    {
+        m_AddButton.SendUIMessageDirect(UI_MESSAGE_P_MOVE, 0, 0);
+        m_CancelButton.SendUIMessageDirect(UI_MESSAGE_P_MOVE, 0, 0);
+    }
+
+    view.Text(m_szCaption[0], RPos_x(5), RPos_y(8), TextHighlight);
+    if (m_szCaption[1][0] != L'\0')
+    {
+        const float firstLineHeight = m_szCaption[0][0] != L'\0' ? TextHeight(m_szCaption[0]) : 0.f;
+        view.Text(m_szCaption[1], RPos_x(5), RPos_y(8) + firstLineHeight, TextHighlight);
+    }
+
+    view.Button(m_AddButton);
+    if (m_iDialogType == 0)
+        view.Button(m_CancelButton);
+}
