@@ -28,6 +28,24 @@ std::uint32_t AbgrFromArgb(std::uint32_t argb)
     return (argb & 0xFF00FF00u) | ((argb >> 16) & 0xFFu) | ((argb & 0xFFu) << 16);
 }
 
+// A box fill under `blend`: its colour (ABGR, 0 for none) and, for an additive fill, the decorator
+// that adds it to what is behind it (Render::RmlUi::RegisterAdditiveFillDecorator).
+std::uint32_t BlendedFill(std::uint32_t abgr, Render::Renderer::RecordedBlend blend, std::string& decorator)
+{
+    decorator.clear();
+    if (blend == Render::Renderer::RecordedBlend::Additive)
+    {
+        char fill[40];
+        std::snprintf(fill, sizeof(fill), "additive-fill(#%02x%02x%02x)", abgr & 0xFFu, (abgr >> 8) & 0xFFu,
+                      (abgr >> 16) & 0xFFu);
+        decorator = fill;
+        return 0u;
+    }
+    if (blend == Render::Renderer::RecordedBlend::Opaque)
+        return abgr | 0xFF000000u;
+    return abgr;
+}
+
 void SetPx(Rml::Element* element, Rml::PropertyId id, float& cached, float value)
 {
     if (cached == value)
@@ -206,10 +224,13 @@ void UI::Character::WorldLabelLayer::SetBox(Slot& slot, const Rect& rect, std::u
 void UI::Character::WorldLabelLayer::RecordText(const Render::Renderer::RecordedText& text)
 {
     Slot& slot = NextSlot(SlotKind::Text);
-    // The native renderer draws no box for a fully transparent background colour.
-    SetBox(slot, {text.boxX, text.boxY, text.boxWidth, text.boxHeight},
-           (text.backColor >> 24) == 0 ? 0u : text.backColor);
-    SetDecorator(slot, {});
+    // The native renderer draws no box for a fully transparent background colour; a box keeps the
+    // blend state it was drawn under (opaque after the F8 health bars' DisableAlphaBlend()).
+    std::string decorator;
+    const std::uint32_t abgr =
+        (text.backColor >> 24) == 0 ? 0u : BlendedFill(text.backColor, text.backBlend, decorator);
+    SetBox(slot, {text.boxX, text.boxY, text.boxWidth, text.boxHeight}, abgr);
+    SetDecorator(slot, decorator);
     SetPx(slot.text, Rml::PropertyId::Left, slot.textOffset, text.textX - text.boxX);
     SetPx(slot.text, Rml::PropertyId::FontSize, slot.textPixelSize, text.textPixelSize);
     SetPx(slot.text, Rml::PropertyId::LineHeight, slot.lineHeight, text.lineHeight);
@@ -234,21 +255,8 @@ void UI::Character::WorldLabelLayer::RecordText(const Render::Renderer::Recorded
 void UI::Character::WorldLabelLayer::RecordQuad(const Render::Renderer::RecordedQuad& quad)
 {
     Slot& slot = NextSlot(SlotKind::Quad);
-    std::uint32_t abgr = AbgrFromArgb(quad.argb);
     std::string decorator;
-    if (quad.blend == Render::Renderer::RecordedBlend::Additive)
-    {
-        // Added to what is behind it (Render::RmlUi::RegisterAdditiveFillDecorator), no plain fill.
-        char fill[40];
-        std::snprintf(fill, sizeof(fill), "additive-fill(#%02x%02x%02x)", abgr & 0xFFu, (abgr >> 8) & 0xFFu,
-                      (abgr >> 16) & 0xFFu);
-        decorator = fill;
-        abgr = 0;
-    }
-    else if (quad.blend == Render::Renderer::RecordedBlend::Opaque)
-    {
-        abgr |= 0xFF000000u;
-    }
+    const std::uint32_t abgr = BlendedFill(AbgrFromArgb(quad.argb), quad.blend, decorator);
     SetBox(slot, {quad.x, quad.y, quad.width, quad.height}, abgr);
     SetDecorator(slot, decorator);
 }
