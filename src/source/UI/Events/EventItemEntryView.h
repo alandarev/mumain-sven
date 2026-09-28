@@ -18,7 +18,8 @@ namespace mu::ui::window
 // background-context document, painted before the native 3D pass so the item draws over them as
 // it did over the original's frame; the texts and the buttons are a main-context document. Each
 // window owns one, with its own documents and data models; the window keeps its data, its 3D
-// preview and its requests.
+// preview and its requests. The lucky coin windows (CRegistrationLuckyCoin, CExchangeLuckyCoin)
+// share it for their other button kinds.
 class EventItemEntryView
 {
 public:
@@ -38,6 +39,10 @@ public:
         float left = 0.f;
         float top = 0.f;
         bool locked = false;
+        float width = 53.f; // newui_btn_empty_very_small
+        float height = 23.f;
+        bool bold = false;
+        std::string style; // the window's own button kind, for its theme
     };
 
     EventItemEntryView(const char* modelName, const char* documentPath, const char* bgModelName,
@@ -57,6 +62,7 @@ public:
 
 private:
     void SyncTexts();
+    void SyncButtons();
 
     const char* m_ModelName;
     const char* m_DocumentPath;
