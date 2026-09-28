@@ -3696,7 +3696,9 @@ void RenderInterface(bool Render)
     g_pRenderText->SetTextColor(255, 255, 255, 255);
 
     RenderOutSides();
-    RenderPartyHP();
+    // Recorded into the world-label layer instead when it is available (CNameWindow).
+    if (g_pNameWindow == nullptr || !g_pNameWindow->RecordsPartyHealthBars())
+        RenderPartyHP();
 
     RenderSwichState();
     battleCastle::RenderBuildTimes();

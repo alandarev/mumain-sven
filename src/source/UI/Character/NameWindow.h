@@ -28,6 +28,11 @@ namespace mu::ui::window
         void PrepareBackgroundLayer() override;
         void Show(bool bShow) override;
 
+        // True when the world-label layer draws the party members' HP bars over their heads
+        // (RenderPartyHP(), recorded under the name labels as the original drew it before them);
+        // RenderInterface() then leaves them out.
+        bool RecordsPartyHealthBars() const;
+
         float GetLayerDepth();		// 1.0f
 
     private:

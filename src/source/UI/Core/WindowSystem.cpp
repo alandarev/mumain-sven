@@ -2390,6 +2390,11 @@ CItemEnduranceInfo* CSystem::GetUI_NewItemEnduranceInfo() const
     return m_pNewItemEnduranceInfo;
 }
 
+CNameWindow* CSystem::GetUI_NewNameWindow() const
+{
+    return m_pNewNameWindow;
+}
+
 CBuffStrip* CSystem::GetUI_BuffStrip() const
 {
     return m_pBuffStrip;

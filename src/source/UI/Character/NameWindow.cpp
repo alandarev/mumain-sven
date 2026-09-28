@@ -165,9 +165,18 @@ void mu::ui::window::CNameWindow::PrepareBackgroundLayer()
     m_labelLayer.BeginFrame();
     {
         Render::Renderer::Overlay2DRecordScope record(&m_labelLayer);
+        // The party HP bars first: the original drew them from RenderInterface() (top view off
+        // only), before this window's labels.
+        if (g_Camera.TopViewEnable == false)
+            RenderPartyHP();
         RenderLabels();
     }
     m_labelLayer.EndFrame();
+}
+
+bool mu::ui::window::CNameWindow::RecordsPartyHealthBars() const
+{
+    return IsVisible() && m_labelLayer.IsAvailable();
 }
 
 bool mu::ui::window::CNameWindow::Render()
