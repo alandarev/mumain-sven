@@ -1,7 +1,7 @@
 #pragma once
 
 #include <cstdint>
-#include <string>
+#include <string_view>
 
 // A scoped seam that turns the native 2D primitives' draws into records: while an
 // Overlay2DRecordScope is active, CUIRenderTextSDLTtf::RenderText(), RenderColorQuadARGB() and
@@ -34,7 +34,7 @@ struct RecordedText
     float lineHeight = 0.0f;
     bool bold = false;
     std::uint32_t textColor = 0; // ABGR
-    std::string utf8;
+    std::string_view utf8;       // borrowed: valid only during the RecordText() call
 };
 
 struct RecordedQuad
