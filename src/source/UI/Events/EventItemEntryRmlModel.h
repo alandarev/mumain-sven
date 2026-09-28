@@ -16,7 +16,7 @@ struct EventItemEntryTextEntry
     float width = 0.f;  // box width, reference px
     float textPx = 0.f; // physical px
     bool bold = false;
-    Rml::String color; // CSS colour of the native text colour
+    Rml::String color;        // CSS colour of the native text colour
     bool leftAligned = false; // RT3_SORT_LEFT: from the box's left edge
 };
 

@@ -108,58 +108,59 @@ private:
     bool m_PendingClose = false;
 };
 
-    // The Kanturu boss-battle HUD. kanturu_info.rml draws it; C++ keeps the counts, the time and
-    // when it is shown.
-    class CKanturuInfoWindow : public CObject
+// The Kanturu boss-battle HUD. kanturu_info.rml draws it; C++ keeps the counts, the time and
+// when it is shown.
+class CKanturuInfoWindow : public CObject
+{
+public:
+    enum IMAGE_LIST
     {
-    public:
-        enum IMAGE_LIST
-        {
-            IMAGE_KANTURUINFO_WINDOW = BITMAP_KANTURU_INFO_BEGIN,
-        };
-        enum
-        {
-            KANTURUINFO_WINDOW_WIDTH = 99,
-            KANTURUINFO_WINDOW_HEIGHT = 78,
-        };
-    public:
-        CKanturuInfoWindow();
-        virtual ~CKanturuInfoWindow();
-
-        bool Create(CManager* pNewUIMng, int x, int y);
-        void Release();
-
-        void SetPos(int x, int y);
-
-        bool UpdateMouseEvent();
-        bool UpdateKeyEvent();
-        bool Update();
-        bool Render();
-
-        float GetLayerDepth();	//. 1.92f
-        float GetKeyEventOrder();	//. 9.1f
-
-        void SetTime(int iTimeLimit);
-
-        void ReloadRmlTheme();
-
-    private:
-        void BuildRmlUi();
-        void SyncView();
-
-    private:
-        CManager* m_pNewUIMng;
-        POINT m_Pos;
-
-        int m_iMinute;
-        int m_iSecond;
-        DWORD m_dwSyncTime;
-
-        DWORD m_dwColonTime = 0; // the colon's last blink
-        bool m_bColonVisible = true;
-        RmlModelBinder<KanturuInfoRmlModel> m_RmlBinder;
-        Rml::ElementDocument* m_pRmlDoc = nullptr;
+        IMAGE_KANTURUINFO_WINDOW = BITMAP_KANTURU_INFO_BEGIN,
     };
-}
+    enum
+    {
+        KANTURUINFO_WINDOW_WIDTH = 99,
+        KANTURUINFO_WINDOW_HEIGHT = 78,
+    };
+
+public:
+    CKanturuInfoWindow();
+    virtual ~CKanturuInfoWindow();
+
+    bool Create(CManager* pNewUIMng, int x, int y);
+    void Release();
+
+    void SetPos(int x, int y);
+
+    bool UpdateMouseEvent();
+    bool UpdateKeyEvent();
+    bool Update();
+    bool Render();
+
+    float GetLayerDepth();    //. 1.92f
+    float GetKeyEventOrder(); //. 9.1f
+
+    void SetTime(int iTimeLimit);
+
+    void ReloadRmlTheme();
+
+private:
+    void BuildRmlUi();
+    void SyncView();
+
+private:
+    CManager* m_pNewUIMng;
+    POINT m_Pos;
+
+    int m_iMinute;
+    int m_iSecond;
+    DWORD m_dwSyncTime;
+
+    DWORD m_dwColonTime = 0; // the colon's last blink
+    bool m_bColonVisible = true;
+    RmlModelBinder<KanturuInfoRmlModel> m_RmlBinder;
+    Rml::ElementDocument* m_pRmlDoc = nullptr;
+};
+} // namespace mu::ui::window
 
 #endif // !defined(AFX_NEWUIKANTURU2NDENTERNPC_H__4CDE30B6_3570_47BA_9401_0EA282BA1949__INCLUDED_)

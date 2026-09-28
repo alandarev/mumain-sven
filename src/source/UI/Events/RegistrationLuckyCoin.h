@@ -11,62 +11,77 @@
 
 namespace mu::ui::window
 {
-    // Delgado's lucky coin registration window. lucky_coin_registration.rml draws it (the frame in
-    // the background context, under the native 3D coin); C++ keeps the count, the Register lock,
-    // the coin preview and every request it sends.
-    class CRegistrationLuckyCoin : public CObject
+// Delgado's lucky coin registration window. lucky_coin_registration.rml draws it (the frame in
+// the background context, under the native 3D coin); C++ keeps the count, the Register lock,
+// the coin preview and every request it sends.
+class CRegistrationLuckyCoin : public CObject
+{
+private:
+    static constexpr float LUCKYCOIN_REG_WIDTH = 190.0f;
+    static constexpr float LUCKYCOIN_REG_HEIGHT = 429.0f;
+
+public:
+    CRegistrationLuckyCoin();
+    virtual ~CRegistrationLuckyCoin();
+
+    bool Create(CManager* pNewUIMng, int x, int y);
+
+    void SetPos(int x, int y);
+    const POINT& GetPos()
     {
-    private:
-        static constexpr float LUCKYCOIN_REG_WIDTH = 190.0f;
-        static constexpr float LUCKYCOIN_REG_HEIGHT = 429.0f;
+        return m_Pos;
+    }
 
-    public:
-        CRegistrationLuckyCoin();
-        virtual ~CRegistrationLuckyCoin();
+    bool Render();
+    bool Update();
+    bool UpdateMouseEvent();
+    bool UpdateKeyEvent();
+    bool BtnProcess();
 
-        bool Create(CManager* pNewUIMng, int x, int y);
+    float GetLayerDepth()
+    {
+        return 4.2f;
+    }
 
-        void SetPos(int x, int y);
-        const POINT& GetPos() { return m_Pos; }
+    const int& GetRegistCount()
+    {
+        return m_RegistCount;
+    }
 
-        bool Render();
-        bool Update();
-        bool UpdateMouseEvent();
-        bool UpdateKeyEvent();
-        bool BtnProcess();
+    void SetRegistCount(int nRegistCount)
+    {
+        m_RegistCount = nRegistCount;
+    }
 
-        float GetLayerDepth()
-        {
-            return 4.2f;
-        }
+    bool GetItemRotation()
+    {
+        return m_ItemAngle;
+    }
+    void SetItemRotation(bool _bInput)
+    {
+        m_ItemAngle = _bInput;
+    }
 
-        const int& GetRegistCount() { return m_RegistCount; }
+    void LockLuckyCoinRegBtn();
+    void UnLockLuckyCoinRegBtn();
 
-        void SetRegistCount(int nRegistCount) { m_RegistCount = nRegistCount; }
+    void OpeningProcess();
+    void ClosingProcess();
 
-        bool GetItemRotation() { return m_ItemAngle; }
-        void SetItemRotation(bool _bInput) { m_ItemAngle = _bInput; }
+    void Release();
 
-        void LockLuckyCoinRegBtn();
-        void UnLockLuckyCoinRegBtn();
+private:
+    void SyncView();
+    void RenderLuckyCoin();
 
-        void OpeningProcess();
-        void ClosingProcess();
-
-        void Release();
-
-    private:
-        void SyncView();
-        void RenderLuckyCoin();
-
-    private:
-        CManager* m_pNewUIMng;
-        POINT m_Pos;
-        ITEM* m_CoinItem;
-        bool m_ItemAngle;
-        int m_RegistCount;
-        bool m_RegisterLocked = false;
-        EventItemEntryView m_View{"lucky_coin_registration", "Data/Interface/RmlUi/lucky_coin_registration.rml",
-                                  "lucky_coin_registration_bg", "Data/Interface/RmlUi/lucky_coin_registration_bg.rml"};
-    };
+private:
+    CManager* m_pNewUIMng;
+    POINT m_Pos;
+    ITEM* m_CoinItem;
+    bool m_ItemAngle;
+    int m_RegistCount;
+    bool m_RegisterLocked = false;
+    EventItemEntryView m_View{"lucky_coin_registration", "Data/Interface/RmlUi/lucky_coin_registration.rml",
+                              "lucky_coin_registration_bg", "Data/Interface/RmlUi/lucky_coin_registration_bg.rml"};
+};
 }

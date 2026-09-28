@@ -27,10 +27,10 @@ struct RecordedText
     float boxY = 0.0f;
     float boxWidth = 0.0f;
     float boxHeight = 0.0f;
-    std::uint32_t backColor = 0; // ABGR (mu::sdlttf::PackColorDWORD); alpha 0 draws no box
+    std::uint32_t backColor = 0;                    // ABGR (mu::sdlttf::PackColorDWORD); alpha 0 draws no box
     RecordedBlend backBlend = RecordedBlend::Alpha; // the blend state the box was drawn under
-    float textX = 0.0f;          // the text's left edge (alignment applied); its top is boxY
-    float textPixelSize = 0.0f;  // font pixel size, shrink-to-box included
+    float textX = 0.0f;                             // the text's left edge (alignment applied); its top is boxY
+    float textPixelSize = 0.0f;                     // font pixel size, shrink-to-box included
     float lineHeight = 0.0f;
     bool bold = false;
     std::uint32_t textColor = 0; // ABGR
