@@ -566,7 +566,8 @@ void CUIWindowMgr::HandleMessage()
             m_WindowArrangeListIter = m_WindowArrangeList.end();
             --m_WindowArrangeListIter;
 
-            const bool inputOwnsSelection = CUITextInputBox::IsFocusedForParent(m_WorkMessage.m_iParam1);
+            const bool inputOwnsSelection = CUITextInputBox::IsFocusedForParent(m_WorkMessage.m_iParam1) ||
+                                            RmlFieldHasFocus(m_WorkMessage.m_iParam1);
             if ((int)(*m_WindowArrangeListIter) != m_WorkMessage.m_iParam1
                 || (GetFocus() == g_hWnd && !inputOwnsSelection))
             {

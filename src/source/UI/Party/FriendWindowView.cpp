@@ -350,6 +350,7 @@ void FriendWindowView::Build()
 
 void FriendWindowView::Unload()
 {
+    m_KeyboardSlot = -1;
     if (!RmlUiRuntime::Instance().IsCreated())
     {
         // The context and its documents are gone already.
@@ -400,6 +401,7 @@ bool FriendWindowView::Sync(CUIBaseWindow* window, bool shown)
 {
     if (window == nullptr || !shown)
     {
+        m_KeyboardSlot = -1;
         for (Field& field : m_Fields)
         {
             if (field.element && field.element->IsPseudoClassSet("focus"))
@@ -442,7 +444,12 @@ bool FriendWindowView::Sync(CUIBaseWindow* window, bool shown)
 
     const bool wasVisible = m_pDoc->IsVisible();
     UI::RmlBridge::SyncDocumentVisibility(m_pDoc, true);
-    SyncFields(*window, builder, g_pWindowMgr->GetTopWindowUIID() == m_WindowUIID);
+    // The window keeps its field's keyboard under its own question (the letter's quit question),
+    // as the native field kept its focus there.
+    const DWORD topUIID = g_pWindowMgr->GetTopWindowUIID();
+    const auto* question = dynamic_cast<const CUIQuestionWindow*>(g_pWindowMgr->GetWindow(topUIID));
+    SyncFields(*window, builder,
+               topUIID == m_WindowUIID || (question != nullptr && question->GetReturnWindowUIID() == m_WindowUIID));
     return !wasVisible;
 }
 
@@ -499,6 +506,8 @@ void FriendWindowView::SyncFields(CUIBaseWindow& window, const FriendWindowRmlBu
         {
             if (field.element->IsPseudoClassSet("focus"))
                 field.element->Blur();
+            if (m_KeyboardSlot == slot)
+                m_KeyboardSlot = -1;
             continue;
         }
 
@@ -543,11 +552,25 @@ void FriendWindowView::SyncFields(CUIBaseWindow& window, const FriendWindowRmlBu
                     area->SetSelectionRange(ToSelectionIndex(box->GetSelectionAnchor()),
                                             ToSelectionIndex(box->GetCaret()));
                 CUITextInputBox::ReleaseFocus();
+                m_KeyboardSlot = slot;
             }
         }
-        else if (!topWindow && field.element->IsPseudoClassSet("focus"))
+        else if (!topWindow)
         {
-            field.element->Blur();
+            if (field.element->IsPseudoClassSet("focus"))
+                field.element->Blur();
+            if (m_KeyboardSlot == slot)
+                m_KeyboardSlot = -1;
+        }
+        else if (m_KeyboardSlot == slot && !field.element->IsPseudoClassSet("focus"))
+        {
+            // A click elsewhere moved the RmlUi focus away: the native field kept it, so take it
+            // back -- unless another field (native, or an RmlUi input such as the chat line) took
+            // the keyboard, which released it.
+            if (CUITextInputBox::GetFocusedPortable() == nullptr && !RmlUiRuntime::Instance().IsTextInputActive())
+                field.element->Focus();
+            else
+                m_KeyboardSlot = -1;
         }
     }
 }
@@ -624,6 +647,17 @@ void FriendWindowViews::Sync(const std::list<CUIBaseWindow*>& windows, bool fami
             m_Views[uiid]->PullToFront();
         m_Order = std::move(order);
     }
+}
+
+bool FriendWindowViews::HasFieldFocus(DWORD windowUIID) const
+{
+    const auto it = m_Views.find(windowUIID);
+    return it != m_Views.end() && it->second && it->second->HasFieldFocus();
+}
+
+bool CUIWindowMgr::RmlFieldHasFocus(DWORD dwUIID) const
+{
+    return m_pRmlViews && m_pRmlViews->HasFieldFocus(dwUIID);
 }
 
 void CUIWindowMgr::SyncRmlViews(bool familyShown)
