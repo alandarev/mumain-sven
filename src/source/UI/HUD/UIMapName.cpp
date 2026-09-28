@@ -326,7 +326,8 @@ void CUIMapName::SyncView()
     SyncMapNameField(m_RmlBinder, &MapNameRmlModel::left, "left", UI::MapName::PhysicalLeft(WindowWidth));
     SyncMapNameField(m_RmlBinder, &MapNameRmlModel::top, "top", kImageTop * g_fScreenRate_y);
     SyncMapNameField(m_RmlBinder, &MapNameRmlModel::alpha, "alpha", std::clamp(m_fAlpha, 0.0f, 1.0f));
-    SyncMapNameField(m_RmlBinder, &MapNameRmlModel::imageSource, "image_source", BitmapSource(BITMAP_INTERFACE_EX + 45));
+    SyncMapNameField(m_RmlBinder, &MapNameRmlModel::imageSource, "image_source",
+                     BitmapSource(BITMAP_INTERFACE_EX + 45));
 #ifdef ASG_ADD_GENS_SYSTEM
     SyncMapNameField(m_RmlBinder, &MapNameRmlModel::strife, "strife", m_bStrife);
     SyncMapNameField(m_RmlBinder, &MapNameRmlModel::strifeSource, "strife_source",

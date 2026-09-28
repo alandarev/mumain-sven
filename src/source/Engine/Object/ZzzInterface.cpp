@@ -2499,7 +2499,7 @@ bool CheckCommand(wchar_t* Text, bool bMacroText)
                     return  false;
                 }
 
-                int iTextSize = 0;
+                int iTextSize = 3; // a bare "/n" clears the macro instead of writing before the row
                 for (int j = 3; j <= (int)wcslen(Text); j++)
                 {
                     MacroText[i][j - 3] = Text[j];

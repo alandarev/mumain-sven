@@ -221,6 +221,7 @@ public:
     {
         return m_dwParentUIID;
     }
+    // cppcheck-suppress virtualCallInConstructor ; called from the constructor, static binding intended
     virtual void SetState(int iState);
     int GetState();
     void SetOption(int iOption)
@@ -243,6 +244,7 @@ public:
     {
         return m_iPos_y;
     }
+    // cppcheck-suppress virtualCallInConstructor ; called from the constructor, static binding intended
     virtual void SetSize(int iWidth, int iHeight);
     int GetWidth()
     {
@@ -252,7 +254,9 @@ public:
     {
         return m_iHeight;
     }
+    // cppcheck-suppress virtualCallInConstructor ; called from the constructor, static binding intended
     virtual void SetArrangeType(int iArrangeType = 0, int iRelativePos_x = 0, int iRelativePos_y = 0);
+    // cppcheck-suppress virtualCallInConstructor ; called from the constructor, static binding intended
     virtual void SetResizeType(int iResizeType = 0, int iRelativeWidth = 0, int iRelativeHeight = 0);
     virtual void Render() {}
     virtual BOOL DoAction(BOOL bMessageOnly = FALSE);
@@ -333,6 +337,7 @@ public:
     CUITextListBox();
     virtual ~CUITextListBox();
 
+    // cppcheck-suppress virtualCallInConstructor ; called from the constructor/destructor, static binding intended
     virtual void Clear();
     virtual void AddText() {}
 
@@ -362,6 +367,7 @@ public:
         return (m_bUseMultiline == TRUE ? m_RenderTextList.size() : m_TextList.size());
     }
 
+    // cppcheck-suppress virtualCallInConstructor ; called from the constructor/destructor, static binding intended
     virtual void SLSetSelectLine(int iLineNum);
     virtual void SLSelectPrevLine(int iLineNum = 1);
     virtual void SLSelectNextLine(int iLineNum = 1);

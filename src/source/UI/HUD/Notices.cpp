@@ -115,125 +115,123 @@ namespace UI::Notices
 
     namespace
     {
-        Rml::Context* NoticesContext()
+    Rml::Context* NoticesContext()
+    {
+        return RmlUiRuntime::Instance().GetContext();
+    }
+
+    void BuildView();
+
+    void ReloadTheme()
+    {
+        if (s_document == nullptr)
+            return;
+        s_binder.Destroy(NoticesContext());
+        NoticesContext()->UnloadDocument(s_document);
+        s_document = nullptr;
+        BuildView();
+    }
+
+    void BuildView()
+    {
+        if (s_document != nullptr || !RmlUiRuntime::Instance().IsCreated() || NoticesContext() == nullptr)
+            return;
+
+        const bool modelCreated = s_binder.Create(NoticesContext(), "notices",
+                                                  [](Rml::DataModelConstructor& c, NoticesRmlModel& model)
+                                                  {
+                                                      c.Bind("row_width", &model.rowWidth);
+                                                      c.Bind("text_px", &model.textPx);
+                                                      c.Bind("line_height_px", &model.lineHeightPx);
+                                                      auto line = c.RegisterStruct<NoticeLineEntry>();
+                                                      line.RegisterMember("text", &NoticeLineEntry::text);
+                                                      line.RegisterMember("kind", &NoticeLineEntry::kind);
+                                                      line.RegisterMember("top", &NoticeLineEntry::top);
+                                                      c.RegisterArray<std::vector<NoticeLineEntry>>();
+                                                      c.Bind("lines", &model.lines);
+                                                  });
+        if (modelCreated)
+            s_document = UI::RmlBridge::LoadThemedDocument(NoticesContext(), "Data/Interface/RmlUi/notices.rml");
+        if (s_document != nullptr && !s_themeReloadRegistered)
         {
-            return RmlUiRuntime::Instance().GetContext();
+            UI::RmlBridge::RegisterForThemeReload(&s_themeReloadOwner, [] { ReloadTheme(); });
+            s_themeReloadRegistered = true;
         }
+    }
 
-        void BuildView();
+    template <typename T> void SyncField(T NoticesRmlModel::* field, const char* name, T value)
+    {
+        auto& model = s_binder.GetModel();
+        if (model.*field == value)
+            return;
+        model.*field = std::move(value);
+        s_binder.MarkDirty(name);
+    }
 
-        void ReloadTheme()
+    // The original's per-line draw: RenderText(320, 300 + i * 13) centred, bold, on a
+    // half-transparent black box sized to the text; empty lines draw nothing.
+    void SyncView(bool visible)
+    {
+        UI::RmlBridge::SyncDocumentVisibility(s_document, visible);
+        if (!visible)
+            return;
+
+        const UI::Scaling::Transform transform = UI::Scaling::GetActiveTransform();
+        g_pRenderText->SetFont(g_hFontBold);
+        const SIZE lineSize = g_pRenderText->MeasureText(L"Q", 1);
+        SyncField(&NoticesRmlModel::rowWidth, "row_width", 2.f * UI::Scaling::PositionX(transform, 320.f));
+        SyncField(&NoticesRmlModel::textPx, "text_px",
+                  UI::Scaling::NativeTextPixelSize(UI::Scaling::FontRole::Bold, transform));
+        SyncField(&NoticesRmlModel::lineHeightPx, "line_height_px", static_cast<float>(lineSize.cy) * transform.scaleY);
+
+        std::vector<NoticeLineEntry> lines;
+        for (int i = 0; i < MAX_NOTICE; i++)
         {
-            if (s_document == nullptr)
-                return;
-            s_binder.Destroy(NoticesContext());
-            NoticesContext()->UnloadDocument(s_document);
-            s_document = nullptr;
-            BuildView();
+            const Notice& n = s_notices[i];
+            if (n.Text[0] == L'\0')
+                continue;
+            NoticeLineEntry line;
+            line.text = StringUtils::WideToNarrow(n.Text);
+            if (n.Color == 0)
+                line.kind = (int)s_blinkPhase % 10 < 5 ? "gold-dim" : "gold";
+            else
+                line.kind = "green";
+            line.top = UI::Scaling::PositionY(transform, static_cast<float>(300 + i * 13));
+            lines.push_back(std::move(line));
         }
+        SyncField(&NoticesRmlModel::lines, "lines", std::move(lines));
+    }
 
-        void BuildView()
+    void RenderNative()
+    {
+        EnableAlphaTest();
+
+        g_pRenderText->SetFont(g_hFontBold);
+
+        for (int i = 0; i < MAX_NOTICE; i++)
         {
-            if (s_document != nullptr || !RmlUiRuntime::Instance().IsCreated() || NoticesContext() == nullptr)
-                return;
-
-            const bool modelCreated =
-                s_binder.Create(NoticesContext(), "notices",
-                                [](Rml::DataModelConstructor& c, NoticesRmlModel& model)
-                                {
-                                    c.Bind("row_width", &model.rowWidth);
-                                    c.Bind("text_px", &model.textPx);
-                                    c.Bind("line_height_px", &model.lineHeightPx);
-                                    auto line = c.RegisterStruct<NoticeLineEntry>();
-                                    line.RegisterMember("text", &NoticeLineEntry::text);
-                                    line.RegisterMember("kind", &NoticeLineEntry::kind);
-                                    line.RegisterMember("top", &NoticeLineEntry::top);
-                                    c.RegisterArray<std::vector<NoticeLineEntry>>();
-                                    c.Bind("lines", &model.lines);
-                                });
-            if (modelCreated)
-                s_document = UI::RmlBridge::LoadThemedDocument(NoticesContext(), "Data/Interface/RmlUi/notices.rml");
-            if (s_document != nullptr && !s_themeReloadRegistered)
+            Notice* n = &s_notices[i];
+            if (n->Color == 0)
             {
-                UI::RmlBridge::RegisterForThemeReload(&s_themeReloadOwner, [] { ReloadTheme(); });
-                s_themeReloadRegistered = true;
-            }
-        }
-
-        template <typename T> void SyncField(T NoticesRmlModel::* field, const char* name, T value)
-        {
-            auto& model = s_binder.GetModel();
-            if (model.*field == value)
-                return;
-            model.*field = std::move(value);
-            s_binder.MarkDirty(name);
-        }
-
-        // The original's per-line draw: RenderText(320, 300 + i * 13) centred, bold, on a
-        // half-transparent black box sized to the text; empty lines draw nothing.
-        void SyncView(bool visible)
-        {
-            UI::RmlBridge::SyncDocumentVisibility(s_document, visible);
-            if (!visible)
-                return;
-
-            const UI::Scaling::Transform transform = UI::Scaling::GetActiveTransform();
-            g_pRenderText->SetFont(g_hFontBold);
-            const SIZE lineSize = g_pRenderText->MeasureText(L"Q", 1);
-            SyncField(&NoticesRmlModel::rowWidth, "row_width", 2.f * UI::Scaling::PositionX(transform, 320.f));
-            SyncField(&NoticesRmlModel::textPx, "text_px",
-                      UI::Scaling::NativeTextPixelSize(UI::Scaling::FontRole::Bold, transform));
-            SyncField(&NoticesRmlModel::lineHeightPx, "line_height_px",
-                      static_cast<float>(lineSize.cy) * transform.scaleY);
-
-            std::vector<NoticeLineEntry> lines;
-            for (int i = 0; i < MAX_NOTICE; i++)
-            {
-                const Notice& n = s_notices[i];
-                if (n.Text[0] == L'\0')
-                    continue;
-                NoticeLineEntry line;
-                line.text = StringUtils::WideToNarrow(n.Text);
-                if (n.Color == 0)
-                    line.kind = (int)s_blinkPhase % 10 < 5 ? "gold-dim" : "gold";
-                else
-                    line.kind = "green";
-                line.top = UI::Scaling::PositionY(transform, static_cast<float>(300 + i * 13));
-                lines.push_back(std::move(line));
-            }
-            SyncField(&NoticesRmlModel::lines, "lines", std::move(lines));
-        }
-
-        void RenderNative()
-        {
-            EnableAlphaTest();
-
-            g_pRenderText->SetFont(g_hFontBold);
-
-            for (int i = 0; i < MAX_NOTICE; i++)
-            {
-                Notice* n = &s_notices[i];
-                if (n->Color == 0)
+                g_pRenderText->SetBgColor(0, 0, 0, 128);
+                if ((int)s_blinkPhase % 10 < 5)
                 {
-                    g_pRenderText->SetBgColor(0, 0, 0, 128);
-                    if ((int)s_blinkPhase % 10 < 5)
-                    {
-                        g_pRenderText->SetTextColor(255, 200, 80, 128);
-                    }
-                    else
-                    {
-                        g_pRenderText->SetTextColor(255, 200, 80, 255);
-                    }
+                    g_pRenderText->SetTextColor(255, 200, 80, 128);
                 }
                 else
                 {
-                    g_pRenderText->SetTextColor(100, 255, 200, 255);
-                    g_pRenderText->SetBgColor(0, 0, 0, 128);
+                    g_pRenderText->SetTextColor(255, 200, 80, 255);
                 }
-
-                g_pRenderText->RenderText(320, 300 + i * 13, n->Text, 0, 0, RT3_WRITE_CENTER);
             }
+            else
+            {
+                g_pRenderText->SetTextColor(100, 255, 200, 255);
+                g_pRenderText->SetBgColor(0, 0, 0, 128);
+            }
+
+            g_pRenderText->RenderText(320, 300 + i * 13, n->Text, 0, 0, RT3_WRITE_CENTER);
         }
+    }
     } // namespace
 
     void Render()
