@@ -97,6 +97,34 @@ void SyncMatchResultView(MessageBoxView& view, const POINT& pos, CMessageBoxButt
     view.Sync(pos, lines, {button});
 }
 
+// A progress notice's MessageBoxView (CProgressMsgBox, CCursedTempleProgressMsgBox): their
+// RenderFrame() -- a middle strip per line past two, the back 10 units short --, RenderTexts() --
+// each line centred on the box from y 35, one line height + 4 apart -- and RenderProgress() -- the
+// elapsed fraction, 50 units above the box's bottom.
+void SyncProgressView(MessageBoxView& view, const POINT& pos, const SIZE& size, const type_vector_msgdata& messages,
+                      DWORD startTime, DWORD elapseTime)
+{
+    const int middles = messages.size() > 2 ? static_cast<int>(messages.size()) - 2 : 0;
+    view.SetFrame(middles, static_cast<float>(size.cy) - MSGBOX_BACK_BLANK_HEIGHT);
+
+    std::vector<MessageBoxView::Line> lines;
+    int y = static_cast<int>(MSGBOX_TEXT_TOP_BLANK);
+    for (const MSGBOX_TEXTDATA* message : messages)
+    {
+        const bool bold = message->byFontType == MSGBOX_FONT_BOLD;
+        g_pRenderText->SetFont(bold ? g_hFontBold : g_hFont);
+        const SIZE textSize =
+            g_pRenderText->MeasureText(message->strMsg.c_str(), static_cast<int>(message->strMsg.size()));
+        const int x = static_cast<int>(MSGBOX_WIDTH / 2) - static_cast<int>(textSize.cx / 2);
+        lines.push_back({message->strMsg, static_cast<float>(x), static_cast<float>(y), bold, message->dwColor});
+        y += static_cast<int>(textSize.cy) + 4;
+    }
+
+    const float fraction = static_cast<float>(timeGetTime() - startTime) / static_cast<float>(elapseTime);
+    view.SetProgress(static_cast<float>(size.cy) - 50.f, fraction);
+    view.Sync(pos, lines, {});
+}
+
 // A click on the OK button RmlUi reported, sent as the box's OK event.
 bool TakeMatchResultOk(MessageBoxView& view, CMessageBoxBase* box)
 {
@@ -1221,27 +1249,7 @@ bool mu::ui::window::CProgressMsgBox::Render()
 
 void mu::ui::window::CProgressMsgBox::SyncView()
 {
-    // The original's RenderFrame(): a middle strip per line past two, the back 10 units short.
-    const int middles = m_MsgDataList.size() > 2 ? static_cast<int>(m_MsgDataList.size()) - 2 : 0;
-    m_View.SetFrame(middles, static_cast<float>(GetSize().cy) - MSGBOX_BACK_BLANK_HEIGHT);
-
-    // RenderTexts(): each line centred on the box from y 35, one line height + 4 apart.
-    std::vector<MessageBoxView::Line> lines;
-    int y = static_cast<int>(MSGBOX_TEXT_TOP_BLANK);
-    for (const MSGBOX_TEXTDATA* message : m_MsgDataList)
-    {
-        const bool bold = message->byFontType == MSGBOX_FONT_BOLD;
-        g_pRenderText->SetFont(bold ? g_hFontBold : g_hFont);
-        const SIZE size = g_pRenderText->MeasureText(message->strMsg.c_str(), static_cast<int>(message->strMsg.size()));
-        const int x = static_cast<int>(MSGBOX_WIDTH / 2) - static_cast<int>(size.cx / 2);
-        lines.push_back({message->strMsg, static_cast<float>(x), static_cast<float>(y), bold, message->dwColor});
-        y += static_cast<int>(size.cy) + 4;
-    }
-
-    // RenderProgress(): the elapsed fraction, 50 units above the box's bottom.
-    const float fraction = static_cast<float>(timeGetTime() - m_dwStartTime) / static_cast<float>(m_dwElapseTime);
-    m_View.SetProgress(static_cast<float>(GetSize().cy) - 50.f, fraction);
-    m_View.Sync(GetPos(), lines, {});
+    SyncProgressView(m_View, GetPos(), GetSize(), m_MsgDataList, m_dwStartTime, m_dwElapseTime);
 }
 
 CALLBACK_RESULT mu::ui::window::CProgressMsgBox::ClosingProcess(class CMessageBoxBase* pOwner, const leaf::xstreambuf& xParam)
@@ -1276,6 +1284,7 @@ bool mu::ui::window::CCursedTempleProgressMsgBox::Create(DWORD dwElapseTime, flo
     CMessageBoxBase::Create(x, y, width, height, fPriority);
 
     SetAddCallbackFunc();
+    m_View.Create(0, static_cast<float>(height) - MSGBOX_BACK_BLANK_HEIGHT);
 
     m_dwElapseTime = dwElapseTime;
     m_dwStartTime = timeGetTime();
@@ -1288,6 +1297,7 @@ bool mu::ui::window::CCursedTempleProgressMsgBox::Create(DWORD dwElapseTime, flo
 
 void mu::ui::window::CCursedTempleProgressMsgBox::Release()
 {
+    m_View.Destroy();
 }
 
 void mu::ui::window::CCursedTempleProgressMsgBox::SetAddCallbackFunc()
@@ -1344,7 +1354,14 @@ bool mu::ui::window::CCursedTempleProgressMsgBox::Update()
         g_MessageBox->SendEvent(this, MSGBOX_EVENT_USER_CUSTOM_PROGRESS_CLOSINGPROCESS);
     }
 
+    if (m_View.IsShown())
+        SyncView();
     return true;
+}
+
+void mu::ui::window::CCursedTempleProgressMsgBox::SyncView()
+{
+    SyncProgressView(m_View, GetPos(), GetSize(), m_MsgDataList, m_dwStartTime, m_dwElapseTime);
 }
 
 void mu::ui::window::CCursedTempleProgressMsgBox::SetNpcIndex(DWORD dwIndex)
@@ -1383,6 +1400,10 @@ CALLBACK_RESULT mu::ui::window::CCursedTempleProgressMsgBox::CompleteProcess(cla
 
 bool mu::ui::window::CCursedTempleProgressMsgBox::Render()
 {
+    // MessageBoxView draws the box (SyncView()); natively only without its document.
+    if (m_View.IsShown())
+        return true;
+
     EnableAlphaTest();
     RenderFrame();
     RenderTexts();

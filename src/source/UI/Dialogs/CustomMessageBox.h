@@ -197,6 +197,7 @@ private:
         void RenderProgress();
 
         bool CheckHeroAction();
+        void SyncView();
 
     private:
         type_vector_msgdata m_MsgDataList;
@@ -206,6 +207,7 @@ private:
         DWORD m_dwElapseTime;
 
         DWORD m_dwNpcIndex;
+        MessageBoxView m_View; // draws the box (as CProgressMsgBox's); native only without it
     };
 
     // CDuelMsgBox/CDuelResultMsgBox are now CGenericConfirmDialog's portrait2D field.
