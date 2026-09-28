@@ -40,6 +40,30 @@ public:
         bool enabled = true;
     };
 
+    // A text list inside the box (CUIUnmixgemList), in the box's reference px: rows' tops are
+    // their 13 px boxes, the scroll parts as CUITextListBox's old-style scroll bar lays them out.
+    struct List
+    {
+        struct Row
+        {
+            std::wstring text;
+            float top = 0.f;
+            bool selected = false;
+        };
+        float left = 0.f;
+        float top = 0.f;
+        float width = 0.f;
+        float height = 0.f;
+        std::vector<Row> rows;
+        bool upPressed = false;
+        bool downPressed = false;
+        float trackTop = 0.f;
+        float trackHeight = 0.f;
+        float thumbTop = 0.f;
+        float thumbHeight = 0.f;
+        float thumbBottomTop = 0.f; // the thumb's 1 px bottom cap
+    };
+
     MessageBoxView() = default;
     ~MessageBoxView();
     MessageBoxView(const MessageBoxView&) = delete;
@@ -54,6 +78,14 @@ public:
 
     // Per frame, inside the message box manager's transform scope.
     void Sync(const POINT& pos, const std::vector<Line>& lines, const std::vector<Button>& buttons);
+    // The box's list, or none (nullptr); call with Sync().
+    void SyncList(const List* list);
+
+    // The document is loaded: the box draws nothing natively.
+    bool IsShown() const
+    {
+        return m_pRmlDoc != nullptr;
+    }
 
     int TakePressedButton();
 

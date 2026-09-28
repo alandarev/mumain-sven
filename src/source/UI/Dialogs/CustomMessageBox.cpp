@@ -89,11 +89,14 @@ bool mu::ui::window::CGemIntegrationDisjointMsgBox::Create(float fPriority)
     AddMsg(L" ", RGBA(255, 128, 0, 255), MSGBOX_FONT_BOLD);
     AddMsg(I18N::Game::SelectAJewelToDissolve, CLRDW_YELLOW, MSGBOX_FONT_BOLD);
 
+    m_View.Create(m_iMiddleFrameCount, static_cast<float>(GetSize().cy) - MSGBOX_BACK_BLANK_HEIGHT);
+
     return true;
 }
 
 void mu::ui::window::CGemIntegrationDisjointMsgBox::Release()
 {
+    m_View.Destroy();
     CMessageBoxBase::Release();
 
     auto vi = m_MsgDataList.begin();
@@ -106,10 +109,33 @@ void mu::ui::window::CGemIntegrationDisjointMsgBox::Release()
 
 bool mu::ui::window::CGemIntegrationDisjointMsgBox::Update()
 {
+    if (m_View.IsShown())
+    {
+        // A button RmlUi reported (the original's LButtonUp() checks, which skip a disabled
+        // button), sent as the box's event.
+        CMessageBoxButton* const buttons[] = {&m_BtnCancel, &m_BtnDisjoint};
+        static constexpr DWORD kButtonEvents[] = {MSGBOX_EVENT_USER_COMMON_CANCEL,
+                                                  MSGBOX_EVENT_USER_CUSTOM_GEM_DISJOINT_DISJOINT};
+        const int pressed = m_View.TakePressedButton();
+        if (pressed >= 0 && pressed < static_cast<int>(std::size(buttons)) && buttons[pressed]->IsEnabled())
+        {
+            g_MessageBox->SendEvent(this, kButtonEvents[pressed]);
+            return true;
+        }
+    }
+
     m_BtnCancel.Update();
 
     if (true)
     {
+        if (m_View.IsShown())
+        {
+            // RenderGemList() placed the list before the next frame's MoveUnMixList(); without
+            // the native render it is placed here, at the same point.
+            const int x = GetPos().x + (GetSize().cx / 2) - (COMGEM::m_UnmixTarList.GetWidth() / 2);
+            const int y = GetPos().y + 80;
+            COMGEM::m_UnmixTarList.SetPosition(x, y + 40 + COMGEM::m_UnmixTarList.GetHeight() / 2.0f);
+        }
         COMGEM::MoveUnMixList();
 
         UNMIX_TEXT* pUT = COMGEM::m_UnmixTarList.GetSelectedText();
@@ -120,11 +146,89 @@ bool mu::ui::window::CGemIntegrationDisjointMsgBox::Update()
         }
     }
 
+    if (m_View.IsShown())
+        SyncView();
+
     return true;
+}
+
+void mu::ui::window::CGemIntegrationDisjointMsgBox::SyncView()
+{
+    m_View.SetFrame(m_iMiddleFrameCount, static_cast<float>(GetSize().cy) - MSGBOX_BACK_BLANK_HEIGHT);
+
+    // RenderTexts(): each line centred in its font from y MSGBOX_TEXT_TOP_BLANK / 2, one text
+    // height + 4 apart.
+    std::vector<MessageBoxView::Line> lines;
+    int y = MSGBOX_TEXT_TOP_BLANK / 2;
+    for (const MSGBOX_TEXTDATA* msg : m_MsgDataList)
+    {
+        const bool bold = msg->byFontType == MSGBOX_FONT_BOLD;
+        g_pRenderText->SetFont(bold ? g_hFontBold : g_hFont);
+        const SIZE size = g_pRenderText->MeasureText(msg->strMsg.c_str(), static_cast<int>(msg->strMsg.size()));
+        const int x = static_cast<int>(GetSize().cx / 2) - static_cast<int>(size.cx / 2);
+        lines.push_back({msg->strMsg, static_cast<float>(x), static_cast<float>(y), bold, msg->dwColor});
+        y += static_cast<int>(size.cy) + 4;
+    }
+
+    // RenderButtons() then RenderGemList(): Close, then Dissolve (grey until a line is selected).
+    const POINT pos = GetPos();
+    auto button = [&pos](CMessageBoxButton& btn, const wchar_t* label)
+    {
+        return MessageBoxView::Button{label,          btn.GetPosX() - pos.x, btn.GetPosY() - pos.y,
+                                      btn.GetWidth(), btn.GetHeight(),       btn.IsEnabled()};
+    };
+    const std::vector<MessageBoxView::Button> buttons = {button(m_BtnCancel, I18N::Game::Close388),
+                                                         button(m_BtnDisjoint, I18N::Game::Disband)};
+    m_View.Sync(pos, lines, buttons);
+
+    // CUIUnmixgemList::Render(): its box, scroll bar and the shown lines' 13 px rows from
+    // GetRenderLinePos_y() - 3, the arrows drawn pressed while held.
+    CUIUnmixgemList& list = COMGEM::m_UnmixTarList;
+    const TextListScrollBarGeometry bar = list.ComputeLegacyScrollBar();
+    const auto listX = static_cast<float>(list.GetPosition_x());
+    const auto listBottom = static_cast<float>(list.GetPosition_y());
+    const auto listWidth = static_cast<float>(list.GetWidth());
+    const auto listHeight = static_cast<float>(list.GetHeight());
+    const float listTop = listBottom - listHeight;
+
+    MessageBoxView::List view;
+    view.left = listX - pos.x;
+    view.top = listTop - pos.y;
+    view.width = listWidth;
+    view.height = listHeight;
+    view.upPressed = MouseLButtonPush && ::CheckMouseIn(static_cast<int>(listX + listWidth - 12),
+                                                        static_cast<int>(listTop - 1), 13, 13) == TRUE;
+    view.downPressed = MouseLButtonPush && ::CheckMouseIn(static_cast<int>(listX + listWidth - 12),
+                                                          static_cast<int>(listBottom - 12), 13, 13) == TRUE;
+    view.trackTop = bar.rangeTop - listTop;
+    view.trackHeight = bar.rangeBottom - bar.rangeTop;
+    if (list.GetLineNum() >= list.GetBoxSize())
+    {
+        view.thumbTop = bar.thumbTop - listTop;
+        view.thumbHeight = bar.thumbHeight;
+    }
+    else
+    {
+        // The original filled the whole track and closed it at the thumb's height (not the track's).
+        view.thumbTop = view.trackTop;
+        view.thumbHeight = view.trackHeight;
+    }
+    view.thumbBottomTop = view.thumbTop + bar.thumbHeight - 1;
+    list.ForEachRenderLine(
+        [&](int line, const UNMIX_TEXT& item, bool selected)
+        {
+            view.rows.push_back(
+                {list.GetLineText(item), static_cast<float>(list.GetRenderLinePos_y(line)) - 3.f - listTop, selected});
+        });
+    m_View.SyncList(&view);
 }
 
 bool mu::ui::window::CGemIntegrationDisjointMsgBox::Render()
 {
+    // MessageBoxView draws the box (SyncView()); natively only without its document.
+    if (m_View.IsShown())
+        return true;
+
     EnableAlphaTest();
     RenderFrame();
     RenderTexts();
@@ -183,7 +287,8 @@ void mu::ui::window::CGemIntegrationDisjointMsgBox::SetAddCallbackFunc()
 CALLBACK_RESULT mu::ui::window::CGemIntegrationDisjointMsgBox::LButtonUp(class CMessageBoxBase* pOwner, const leaf::xstreambuf& xParam)
 {
     auto* pMsgBox = dynamic_cast<CGemIntegrationDisjointMsgBox*>(pOwner);
-    if (pMsgBox)
+    // With the RmlUi view its buttons report the clicks (Update()).
+    if (pMsgBox && !pMsgBox->m_View.IsShown())
     {
         if (pMsgBox->m_BtnBlessing.IsMouseIn() == true)
         {

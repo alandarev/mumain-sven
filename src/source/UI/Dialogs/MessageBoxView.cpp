@@ -23,6 +23,11 @@ bool SameLine(const MessageBoxViewLineEntry& a, const MessageBoxViewLineEntry& b
     return a.text == b.text && a.left == b.left && a.top == b.top && a.bold == b.bold && a.color == b.color;
 }
 
+bool SameListRow(const MessageBoxViewListRowEntry& a, const MessageBoxViewListRowEntry& b)
+{
+    return a.text == b.text && a.top == b.top && a.selected == b.selected;
+}
+
 bool SameButton(const MessageBoxViewButtonEntry& a, const MessageBoxViewButtonEntry& b)
 {
     return a.label == b.label && a.index == b.index && a.left == b.left && a.top == b.top && a.width == b.width &&
@@ -81,6 +86,25 @@ void mu::ui::window::MessageBoxView::Create(int middleCount, float backHeight)
             button.RegisterMember("enabled", &MessageBoxViewButtonEntry::enabled);
             c.RegisterArray<std::vector<MessageBoxViewButtonEntry>>();
             c.Bind("buttons", &model.buttons);
+
+            c.Bind("list_shown", &model.listShown);
+            c.Bind("list_left", &model.listLeft);
+            c.Bind("list_top", &model.listTop);
+            c.Bind("list_width", &model.listWidth);
+            c.Bind("list_height", &model.listHeight);
+            auto row = c.RegisterStruct<MessageBoxViewListRowEntry>();
+            row.RegisterMember("text", &MessageBoxViewListRowEntry::text);
+            row.RegisterMember("top", &MessageBoxViewListRowEntry::top);
+            row.RegisterMember("selected", &MessageBoxViewListRowEntry::selected);
+            c.RegisterArray<std::vector<MessageBoxViewListRowEntry>>();
+            c.Bind("list_rows", &model.listRows);
+            c.Bind("list_up_pressed", &model.listUpPressed);
+            c.Bind("list_down_pressed", &model.listDownPressed);
+            c.Bind("list_track_top", &model.listTrackTop);
+            c.Bind("list_track_height", &model.listTrackHeight);
+            c.Bind("list_thumb_top", &model.listThumbTop);
+            c.Bind("list_thumb_height", &model.listThumbHeight);
+            c.Bind("list_thumb_bottom_top", &model.listThumbBottomTop);
 
             c.BindEventCallback("message_box_button",
                                 [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& arguments)
@@ -204,6 +228,48 @@ void mu::ui::window::MessageBoxView::Sync(const POINT& pos, const std::vector<Li
     {
         model.buttons = std::move(buttonEntries);
         m_RmlBinder.MarkDirty("buttons");
+    }
+}
+
+void mu::ui::window::MessageBoxView::SyncList(const List* list)
+{
+    if (!m_pRmlDoc)
+        return;
+
+    MessageBoxViewRmlModel& model = m_RmlBinder.GetModel();
+    auto sync = [this](auto& field, const auto& value, const char* name)
+    {
+        if (field != value)
+        {
+            field = value;
+            m_RmlBinder.MarkDirty(name);
+        }
+    };
+
+    sync(model.listShown, list != nullptr, "list_shown");
+    if (!list)
+        return;
+
+    sync(model.listLeft, list->left, "list_left");
+    sync(model.listTop, list->top, "list_top");
+    sync(model.listWidth, list->width, "list_width");
+    sync(model.listHeight, list->height, "list_height");
+    sync(model.listUpPressed, list->upPressed, "list_up_pressed");
+    sync(model.listDownPressed, list->downPressed, "list_down_pressed");
+    sync(model.listTrackTop, list->trackTop, "list_track_top");
+    sync(model.listTrackHeight, list->trackHeight, "list_track_height");
+    sync(model.listThumbTop, list->thumbTop, "list_thumb_top");
+    sync(model.listThumbHeight, list->thumbHeight, "list_thumb_height");
+    sync(model.listThumbBottomTop, list->thumbBottomTop, "list_thumb_bottom_top");
+
+    std::vector<MessageBoxViewListRowEntry> rows;
+    for (const List::Row& row : list->rows)
+        rows.push_back({StringUtils::WideToNarrow(row.text.c_str()), row.top, row.selected});
+    if (model.listRows.size() != rows.size() ||
+        !std::equal(model.listRows.begin(), model.listRows.end(), rows.begin(), SameListRow))
+    {
+        model.listRows = std::move(rows);
+        m_RmlBinder.MarkDirty("list_rows");
     }
 }
 

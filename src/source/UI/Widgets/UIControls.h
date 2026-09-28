@@ -764,6 +764,11 @@ public:
     virtual void AddText(int iIndex, BYTE cComType);
     void Sort();
 
+    // The text RenderDataLine() draws for `line`: the jewel's name and its bundle size.
+    std::wstring GetLineText(const UNMIX_TEXT& line) const;
+    // The y (reference px) Render() draws line `iLineNumber` at.
+    virtual int GetRenderLinePos_y(int iLineNumber);
+
     inline bool IsNotified()
     {
         return m_bNotify;
@@ -777,7 +782,6 @@ protected:
     virtual void RenderInterface();
     virtual BOOL RenderDataLine(int iLineNumber);
     virtual BOOL DoLineMouseAction(int iLineNumber);
-    virtual int GetRenderLinePos_y(int iLineNumber);
 
     bool m_bNotify;
 };

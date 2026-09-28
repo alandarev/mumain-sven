@@ -32,3 +32,22 @@
 .box-btn.disabled { background-color: token(surface-recessed); }
 .box-label { color: token(text-primary); }
 .box-btn.disabled .box-label { color: token(text-muted); }
+
+/* CGemIntegrationDisjointMsgBox's list: the legacy geometry in the modern tokens. */
+#panel.list-shown { pointer-events: none; }
+#list { position: absolute; pointer-events: none; }
+#list_box, .list-scroll-up, .list-scroll-down, .list-track, .list-thumb, .list-thumb-top, .list-thumb-bottom, .list-row {
+	position: absolute;
+	pointer-events: none;
+}
+#list_box { left: -1px; top: -1px; background-color: token(surface-recessed); }
+.list-scroll-up, .list-scroll-down { width: 13px; height: 13px; background-color: token(surface-raised); border: 1px token(border-frame); }
+.list-scroll-up { top: -1px; }
+.list-scroll-up.pressed, .list-scroll-down.pressed { background-color: token(accent-steel); }
+.list-track { width: 1px; background-color: token(border-frame); }
+.list-thumb, .list-thumb-top, .list-thumb-bottom { width: 11px; }
+.list-thumb { background-color: token(accent-steel); border-radius: token(radius-sm)px; }
+.list-thumb-top, .list-thumb-bottom { display: none; }
+.list-row { left: 0; height: 13px; }
+.list-row.selected { background-color: token(accent-steel); }
+.list-row-text { left: 6px; top: 3px; white-space: pre; color: token(text-primary); }
