@@ -12,8 +12,11 @@ namespace UI::RmlBridge
 {
     namespace
     {
-        // Self-owning: deletes itself in OnDetach() per RmlUi's AddEventListener contract, so the
-        // caller never needs to track or clean this up.
+        // Self-owning: deletes itself when its last attachment is detached, so the caller never
+        // needs to track or clean this up. One instance listens for three events and RmlUi calls
+        // OnAttach()/OnDetach() once per event, so it counts them: deleting on the first OnDetach()
+        // left the other two entries pointing at freed memory, and unloading the document (a theme
+        // switch) crashed in EventDispatcher::DetachAllEvents().
         class DragMoveListener : public Rml::EventListener
         {
         public:
@@ -67,9 +70,16 @@ namespace UI::RmlBridge
                 }
             }
 
-            void OnDetach(Rml::Element*) override { delete this; }
+            void OnAttach(Rml::Element*) override { ++m_Attachments; }
+
+            void OnDetach(Rml::Element*) override
+            {
+                if (--m_Attachments <= 0)
+                    delete this;
+            }
 
         private:
+            int m_Attachments = 0;
             Rml::Element* m_Panel;
             OnPanelMoved m_OnMove;
             OnDragEnd m_OnDragEnd;
