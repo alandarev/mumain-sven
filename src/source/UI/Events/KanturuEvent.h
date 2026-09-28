@@ -8,6 +8,7 @@
 #include "UI/Core/WindowManager.h"
 #include "UI/Dialogs/MessageBox.h"
 #include "UI/Events/KanturuEnterRmlModel.h"
+#include "UI/Events/KanturuInfoRmlModel.h"
 #include "UI/RmlBridge/RmlModelBinder.h"
 
 namespace Rml
@@ -107,6 +108,8 @@ private:
     bool m_PendingClose = false;
 };
 
+    // The Kanturu boss-battle HUD. kanturu_info.rml draws it; C++ keeps the counts, the time and
+    // when it is shown.
     class CKanturuInfoWindow : public CObject
     {
     public:
@@ -138,12 +141,11 @@ private:
 
         void SetTime(int iTimeLimit);
 
-    private:
-        void LoadImages();
-        void UnloadImages();
+        void ReloadRmlTheme();
 
-        void RenderFrame();
-        void RenderInfo();
+    private:
+        void BuildRmlUi();
+        void SyncView();
 
     private:
         CManager* m_pNewUIMng;
@@ -152,6 +154,11 @@ private:
         int m_iMinute;
         int m_iSecond;
         DWORD m_dwSyncTime;
+
+        DWORD m_dwColonTime = 0; // the colon's last blink
+        bool m_bColonVisible = true;
+        RmlModelBinder<KanturuInfoRmlModel> m_RmlBinder;
+        Rml::ElementDocument* m_pRmlDoc = nullptr;
     };
 }
 

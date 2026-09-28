@@ -21,6 +21,9 @@
 
 #include <RmlUi/Core/ElementDocument.h>
 
+#include <algorithm>
+#include <string>
+
 namespace
 {
 // RenderText() shrinks a text wider than its box to fit it: the size it drew `text` at.
@@ -569,7 +572,9 @@ void mu::ui::window::CKanturu2ndEnterNpc::SyncContent()
     const UI::Scaling::Transform transform = UI::Scaling::GetActiveTransform();
     KanturuEnterRmlModel updated = m_RmlBinder.GetModel();
     const int lineHeight = CUIRenderTextSDLTtf::LineHeight(UI::Scaling::FontRole::Normal);
-    updated.labelTop = static_cast<float>(23 / 2 - lineHeight / 2);
+    // CButton::Render()'s whole-unit centring.
+    const int labelTopUnits = 23 / 2 - lineHeight / 2;
+    updated.labelTop = static_cast<float>(labelTopUnits);
     updated.labelLinePx = static_cast<float>(lineHeight) * transform.scaleY;
     updated.refreshText = StringUtils::WideToNarrow(I18N::Game::Refresh);
     updated.enterText = StringUtils::WideToNarrow(I18N::Game::Enter);
@@ -663,7 +668,8 @@ bool mu::ui::window::CKanturuInfoWindow::Create(CManager* pNewUIMng, int x, int 
 
     SetPos(x, y);
 
-    LoadImages();
+    BuildRmlUi();
+    UI::RmlBridge::RegisterForThemeReload(this, [this] { ReloadRmlTheme(); });
 
     Show(false);
 
@@ -672,7 +678,7 @@ bool mu::ui::window::CKanturuInfoWindow::Create(CManager* pNewUIMng, int x, int 
 
 void mu::ui::window::CKanturuInfoWindow::Release()
 {
-    UnloadImages();
+    UI::RmlBridge::UnregisterForThemeReload(this);
 
     if (m_pNewUIMng)
     {
@@ -707,77 +713,161 @@ bool mu::ui::window::CKanturuInfoWindow::Update()
         }
     }
 
+    SyncView();
     return true;
 }
 
 bool mu::ui::window::CKanturuInfoWindow::Render()
 {
-    EnableAlphaTest();
-
-    RenderFrame();
-
-    RenderInfo();
-
+    // Nothing native left: the frame, the texts and the digits are RmlUi (SyncView()). Kept
+    // because CObject requires the override.
     return true;
 }
 
-void mu::ui::window::CKanturuInfoWindow::RenderFrame()
+namespace
 {
-    RenderImage(IMAGE_KANTURUINFO_WINDOW, m_Pos.x, m_Pos.y, 99.f, 78.f);
+// The original drew the HUD under every panel (layer depth 1.92): the document sits in the
+// background context, behind its other documents.
+Rml::Context* KanturuInfoContext()
+{
+    Rml::Context* context = RmlUiRuntime::Instance().GetBackgroundContext();
+    return context != nullptr ? context : RmlUiRuntime::Instance().GetContext();
 }
 
-void mu::ui::window::CKanturuInfoWindow::RenderInfo()
+template <typename T>
+void SyncInfoField(RmlModelBinder<mu::ui::window::KanturuInfoRmlModel>& binder,
+                   T mu::ui::window::KanturuInfoRmlModel::* field, const char* name, T value)
 {
-    g_pRenderText->SetFont(g_hFontBold);
+    auto& model = binder.GetModel();
+    if (model.*field == value)
+        return;
+    model.*field = std::move(value);
+    binder.MarkDirty(name);
+}
 
+// RenderNumber(x, y, number, 1.f): 8.4-unit digits centred on x, 6.72 units apart.
+void AddNumberDigits(std::vector<mu::ui::window::KanturuInfoDigitEntry>& digits, float x, int number)
+{
+    const std::string text = std::to_string(number);
+    const float width = 12.f * 0.7f;
+    float left = x - width * static_cast<float>(text.size()) / 2;
+    for (const char digit : text)
+    {
+        if (digit < '0' || digit > '9')
+        {
+            left += width * 0.8f; // a minus sign: the original drew the cell before '0'
+            continue;
+        }
+        digits.push_back({left, std::to_string((digit - '0') * 12) + " 0 12 14"});
+        left += width * 0.8f;
+    }
+}
+} // namespace
+
+void mu::ui::window::CKanturuInfoWindow::BuildRmlUi()
+{
+    if (m_pRmlDoc || !RmlUiRuntime::Instance().IsCreated())
+        return;
+
+    const bool modelCreated = m_RmlBinder.Create(KanturuInfoContext(), "kanturu_info",
+                                                 [](Rml::DataModelConstructor& c, KanturuInfoRmlModel& model)
+                                                 {
+                                                     c.Bind("scale_x", &model.scaleX);
+                                                     c.Bind("scale_y", &model.scaleY);
+                                                     c.Bind("inverse_scale_x", &model.inverseScaleX);
+                                                     c.Bind("inverse_scale_y", &model.inverseScaleY);
+                                                     c.Bind("bold_text_px", &model.boldTextPx);
+                                                     c.Bind("panel_x", &model.panelX);
+                                                     c.Bind("panel_y", &model.panelY);
+                                                     c.Bind("users_text", &model.usersText);
+                                                     c.Bind("monsters_text", &model.monstersText);
+                                                     c.Bind("colon_visible", &model.colonVisible);
+                                                     auto digit = c.RegisterStruct<KanturuInfoDigitEntry>();
+                                                     digit.RegisterMember("left", &KanturuInfoDigitEntry::left);
+                                                     digit.RegisterMember("rect", &KanturuInfoDigitEntry::rect);
+                                                     c.RegisterArray<std::vector<KanturuInfoDigitEntry>>();
+                                                     c.Bind("digits", &model.digits);
+                                                 });
+    if (modelCreated)
+        m_pRmlDoc = UI::RmlBridge::LoadThemedDocument(KanturuInfoContext(), "Data/Interface/RmlUi/kanturu_info.rml");
+}
+
+void mu::ui::window::CKanturuInfoWindow::ReloadRmlTheme()
+{
+    if (!m_pRmlDoc)
+        return;
+    Rml::Context* context = KanturuInfoContext();
+    m_RmlBinder.Destroy(context);
+    context->UnloadDocument(m_pRmlDoc);
+    m_pRmlDoc = nullptr;
+
+    BuildRmlUi();
+}
+
+void mu::ui::window::CKanturuInfoWindow::SyncView()
+{
+    BuildRmlUi();
+    if (!m_pRmlDoc)
+        return;
+
+    UI::RmlBridge::SyncDocumentVisibilityBehind(m_pRmlDoc, IsVisible());
+    if (!IsVisible())
+        return;
+
+    // CManager scopes LayoutMode::Hud around the window: W/640 x H/480, no offset.
+    const UI::Scaling::Transform transform = UI::Scaling::GetActiveTransform();
+    SyncInfoField(m_RmlBinder, &KanturuInfoRmlModel::scaleX, "scale_x", transform.scaleX);
+    SyncInfoField(m_RmlBinder, &KanturuInfoRmlModel::scaleY, "scale_y", transform.scaleY);
+    SyncInfoField(m_RmlBinder, &KanturuInfoRmlModel::inverseScaleX, "inverse_scale_x", 1.0f / transform.scaleX);
+    SyncInfoField(m_RmlBinder, &KanturuInfoRmlModel::inverseScaleY, "inverse_scale_y", 1.0f / transform.scaleY);
+    SyncInfoField(m_RmlBinder, &KanturuInfoRmlModel::boldTextPx, "bold_text_px",
+                  UI::Scaling::NativeTextPixelSize(UI::Scaling::FontRole::Bold, transform));
+    SyncInfoField(m_RmlBinder, &KanturuInfoRmlModel::panelX, "panel_x", static_cast<float>(m_Pos.x));
+    SyncInfoField(m_RmlBinder, &KanturuInfoRmlModel::panelY, "panel_y", static_cast<float>(m_Pos.y));
+
+    // The original's RenderInfo(): the characters, then the monsters or, while Maya fights, the boss.
     wchar_t strText[256];
     mu_swprintf(strText, I18N::Game::CharacterD, UserCount);
-    g_pRenderText->SetBgColor(0);
-    g_pRenderText->SetTextColor(134, 134, 199, 255);
-    g_pRenderText->RenderText(m_Pos.x + 10, m_Pos.y + 15, strText);
-
-    if (g_Direction.m_CKanturu.m_iMayaState == KANTURU_MAYA_DIRECTION_MAYA1
-        || g_Direction.m_CKanturu.m_iMayaState == KANTURU_MAYA_DIRECTION_MAYA2
-        || g_Direction.m_CKanturu.m_iMayaState == KANTURU_MAYA_DIRECTION_MAYA3)
+    SyncInfoField(m_RmlBinder, &KanturuInfoRmlModel::usersText, "users_text", StringUtils::WideToNarrow(strText));
+    if (g_Direction.m_CKanturu.m_iMayaState == KANTURU_MAYA_DIRECTION_MAYA1 ||
+        g_Direction.m_CKanturu.m_iMayaState == KANTURU_MAYA_DIRECTION_MAYA2 ||
+        g_Direction.m_CKanturu.m_iMayaState == KANTURU_MAYA_DIRECTION_MAYA3)
     {
-        g_pRenderText->RenderText(m_Pos.x + 10, m_Pos.y + 35, I18N::Game::MonsterBoss2182);
+        wcscpy(strText, I18N::Game::MonsterBoss2182);
     }
     else
     {
         mu_swprintf(strText, I18N::Game::MonsterD, MonsterCount);
-        g_pRenderText->RenderText(m_Pos.x + 10, m_Pos.y + 35, strText);
     }
+    SyncInfoField(m_RmlBinder, &KanturuInfoRmlModel::monstersText, "monsters_text", StringUtils::WideToNarrow(strText));
 
-    int iCurrentTime = (GetTickCount() - m_dwSyncTime) / 1000;
-    int iPastSecond = m_iSecond - iCurrentTime;
+    // The time left since the last SetTime(). The original showed 0 seconds for the whole last
+    // minute (it took the seconds modulo 60 * minutes); the seconds are taken modulo 60 here.
+    const int iPastSecond = m_iSecond - static_cast<int>((GetTickCount() - m_dwSyncTime) / 1000);
+    const int iRemaining = std::max(iPastSecond, 0);
+    m_iMinute = iRemaining / 60;
+    const int iSecond = iRemaining % 60;
 
-    m_iMinute = iPastSecond / 60;
-    int iSecond;
-
-    if (m_iMinute <= 0)
+    if (timeGetTime() - m_dwColonTime > 500)
     {
-        iSecond = 0;
+        m_dwColonTime = timeGetTime();
+        m_bColonVisible = !m_bColonVisible;
     }
-    else
-    {
-        iSecond = iPastSecond % (60 * m_iMinute);
-    }
+    SyncInfoField(m_RmlBinder, &KanturuInfoRmlModel::colonVisible, "colon_visible", m_bColonVisible);
 
-    static DWORD dwTime = timeGetTime();
-    static bool bRender = true;
-    if (timeGetTime() - dwTime > 500)
+    std::vector<KanturuInfoDigitEntry> digits;
+    AddNumberDigits(digits, 35.f, m_iMinute);
+    AddNumberDigits(digits, 65.f, iSecond);
+    auto& model = m_RmlBinder.GetModel();
+    const bool same = model.digits.size() == digits.size() &&
+                      std::equal(model.digits.begin(), model.digits.end(), digits.begin(),
+                                 [](const KanturuInfoDigitEntry& a, const KanturuInfoDigitEntry& b)
+                                 { return a.left == b.left && a.rect == b.rect; });
+    if (!same)
     {
-        dwTime = timeGetTime();
-        bRender = !bRender;
+        model.digits = std::move(digits);
+        m_RmlBinder.MarkDirty("digits");
     }
-
-    if (bRender)
-    {
-        g_pRenderText->RenderText(m_Pos.x + 48, m_Pos.y + 57, L":");
-    }
-
-    mu::ui::window::RenderNumber(m_Pos.x + 35, m_Pos.y + 55, m_iMinute, 1.f);
-    mu::ui::window::RenderNumber(m_Pos.x + 65, m_Pos.y + 55, iSecond, 1.f);
 }
 
 float mu::ui::window::CKanturuInfoWindow::GetLayerDepth()
@@ -788,16 +878,6 @@ float mu::ui::window::CKanturuInfoWindow::GetLayerDepth()
 float mu::ui::window::CKanturuInfoWindow::GetKeyEventOrder()
 {
     return 9.1f;
-}
-
-void mu::ui::window::CKanturuInfoWindow::LoadImages()
-{
-    LoadBitmap(L"Interface\\newui_Figure_kantru.tga", IMAGE_KANTURUINFO_WINDOW, GL_LINEAR);
-}
-
-void mu::ui::window::CKanturuInfoWindow::UnloadImages()
-{
-    DeleteBitmap(IMAGE_KANTURUINFO_WINDOW);
 }
 
 void mu::ui::window::CKanturuInfoWindow::SetTime(int iTimeLimit)
