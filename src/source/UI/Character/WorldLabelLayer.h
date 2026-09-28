@@ -88,6 +88,7 @@ private:
     Rml::ElementDocument* m_document = nullptr;
     std::vector<Slot> m_slots;
     std::size_t m_used = 0;
+    std::size_t m_shown = 0; // slots used by the last finished frame
     bool m_registered = false;
 };
 } // namespace UI::Character

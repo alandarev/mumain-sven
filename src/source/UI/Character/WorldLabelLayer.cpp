@@ -75,7 +75,17 @@ void UI::Character::WorldLabelLayer::Release()
         UI::RmlBridge::UnregisterForThemeReload(this);
         m_registered = false;
     }
-    Hide();
+    // Unload the document while its context still exists; at shutdown the runtime may already be
+    // gone, and with it the document. Idempotent.
+    if (m_document != nullptr && RmlUiRuntime::Instance().IsCreated())
+    {
+        if (Rml::Context* context = RmlUiRuntime::Instance().GetBackgroundContext())
+            context->UnloadDocument(m_document);
+    }
+    m_document = nullptr;
+    m_slots.clear();
+    m_used = 0;
+    m_shown = 0;
 }
 
 void UI::Character::WorldLabelLayer::Build()
@@ -88,6 +98,7 @@ void UI::Character::WorldLabelLayer::Build()
     m_document = UI::RmlBridge::LoadThemedDocument(context, kDocumentPath);
     m_slots.clear();
     m_used = 0;
+    m_shown = 0;
 }
 
 void UI::Character::WorldLabelLayer::ReloadTheme()
@@ -125,8 +136,10 @@ void UI::Character::WorldLabelLayer::BeginFrame()
 
 void UI::Character::WorldLabelLayer::EndFrame()
 {
-    for (std::size_t i = m_used; i < m_slots.size(); ++i)
+    // Only the slots used last frame but not this one: the ones beyond were hidden already.
+    for (std::size_t i = m_used; i < m_shown && i < m_slots.size(); ++i)
         SetKind(m_slots[i], SlotKind::Hidden);
+    m_shown = m_used;
 }
 
 UI::Character::WorldLabelLayer::Slot& UI::Character::WorldLabelLayer::NextSlot(SlotKind kind)
