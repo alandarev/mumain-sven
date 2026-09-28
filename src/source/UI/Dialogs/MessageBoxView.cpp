@@ -20,7 +20,8 @@ namespace
 {
 bool SameLine(const MessageBoxViewLineEntry& a, const MessageBoxViewLineEntry& b)
 {
-    return a.text == b.text && a.left == b.left && a.top == b.top && a.bold == b.bold && a.color == b.color;
+    return a.text == b.text && a.left == b.left && a.top == b.top && a.bold == b.bold && a.color == b.color &&
+           a.textPx == b.textPx;
 }
 
 bool SameListRow(const MessageBoxViewListRowEntry& a, const MessageBoxViewListRowEntry& b)
@@ -31,7 +32,8 @@ bool SameListRow(const MessageBoxViewListRowEntry& a, const MessageBoxViewListRo
 bool SameButton(const MessageBoxViewButtonEntry& a, const MessageBoxViewButtonEntry& b)
 {
     return a.label == b.label && a.index == b.index && a.left == b.left && a.top == b.top && a.width == b.width &&
-           a.height == b.height && a.labelLeft == b.labelLeft && a.labelTop == b.labelTop && a.enabled == b.enabled;
+           a.height == b.height && a.labelLeft == b.labelLeft && a.labelTop == b.labelTop && a.enabled == b.enabled &&
+           a.okArt == b.okArt;
 }
 } // namespace
 
@@ -57,10 +59,12 @@ void mu::ui::window::MessageBoxView::Create(int middleCount, float backHeight)
             c.Bind("root_scale", &model.rootScale);
             c.Bind("text_px", &model.textPx);
             c.Bind("bold_text_px", &model.boldTextPx);
-            c.Bind("middle_count", &model.middleCount);
             c.Bind("back_height", &model.backHeight);
-            c.RegisterArray<std::vector<int>>();
+            c.RegisterArray<std::vector<float>>();
             c.Bind("middles", &model.middles);
+            c.Bind("bottom_top", &model.bottomTop);
+            c.Bind("divider_top", &model.dividerTop);
+            c.Bind("separators", &model.separators);
             c.Bind("progress_shown", &model.progressShown);
             c.Bind("progress_top", &model.progressTop);
             c.Bind("progress_width", &model.progressWidth);
@@ -71,6 +75,7 @@ void mu::ui::window::MessageBoxView::Create(int middleCount, float backHeight)
             line.RegisterMember("top", &MessageBoxViewLineEntry::top);
             line.RegisterMember("bold", &MessageBoxViewLineEntry::bold);
             line.RegisterMember("color", &MessageBoxViewLineEntry::color);
+            line.RegisterMember("text_px", &MessageBoxViewLineEntry::textPx);
             c.RegisterArray<std::vector<MessageBoxViewLineEntry>>();
             c.Bind("lines", &model.lines);
 
@@ -84,6 +89,7 @@ void mu::ui::window::MessageBoxView::Create(int middleCount, float backHeight)
             button.RegisterMember("label_left", &MessageBoxViewButtonEntry::labelLeft);
             button.RegisterMember("label_top", &MessageBoxViewButtonEntry::labelTop);
             button.RegisterMember("enabled", &MessageBoxViewButtonEntry::enabled);
+            button.RegisterMember("ok_art", &MessageBoxViewButtonEntry::okArt);
             c.RegisterArray<std::vector<MessageBoxViewButtonEntry>>();
             c.Bind("buttons", &model.buttons);
 
@@ -125,20 +131,54 @@ void mu::ui::window::MessageBoxView::Create(int middleCount, float backHeight)
                                                   "Data/Interface/RmlUi/message_box_view.rml");
 }
 
-void mu::ui::window::MessageBoxView::SetFrame(int middleCount, float backHeight)
+void mu::ui::window::MessageBoxView::SetFrame(int middleCount, float backHeight, int middlesAboveDivider)
 {
+    // The strips from the top's 67 units, 15 apart; the divider's 21 units after the first
+    // middlesAboveDivider of them.
+    constexpr float kTopHeight = 67.f;
+    constexpr float kMiddleHeight = 15.f;
+    constexpr float kDividerHeight = 21.f;
+    std::vector<float> middles;
+    float y = kTopHeight;
+    float dividerTop = -1.f;
+    for (int i = 0; i < middleCount; ++i)
+    {
+        if (i == middlesAboveDivider)
+        {
+            dividerTop = y;
+            y += kDividerHeight;
+        }
+        middles.push_back(y);
+        y += kMiddleHeight;
+    }
+    if (middlesAboveDivider >= middleCount)
+    {
+        dividerTop = y;
+        y += kDividerHeight;
+    }
+
     MessageBoxViewRmlModel& model = m_RmlBinder.GetModel();
-    if (model.middleCount == middleCount && model.backHeight == backHeight &&
-        static_cast<int>(model.middles.size()) == middleCount)
+    if (model.middleCount == middleCount && model.backHeight == backHeight && model.middles == middles &&
+        model.dividerTop == dividerTop && model.bottomTop == y)
         return;
     model.middleCount = middleCount;
     model.backHeight = backHeight;
-    model.middles.clear();
-    for (int i = 0; i < middleCount; ++i)
-        model.middles.push_back(i);
-    m_RmlBinder.MarkDirty("middle_count");
+    model.middles = std::move(middles);
+    model.dividerTop = dividerTop;
+    model.bottomTop = y;
     m_RmlBinder.MarkDirty("back_height");
     m_RmlBinder.MarkDirty("middles");
+    m_RmlBinder.MarkDirty("divider_top");
+    m_RmlBinder.MarkDirty("bottom_top");
+}
+
+void mu::ui::window::MessageBoxView::SetSeparators(const std::vector<float>& tops)
+{
+    MessageBoxViewRmlModel& model = m_RmlBinder.GetModel();
+    if (model.separators == tops)
+        return;
+    model.separators = tops;
+    m_RmlBinder.MarkDirty("separators");
 }
 
 void mu::ui::window::MessageBoxView::SetProgress(float top, float fraction)
@@ -202,7 +242,7 @@ void mu::ui::window::MessageBoxView::Sync(const POINT& pos, const std::vector<Li
     std::vector<MessageBoxViewLineEntry> lineEntries;
     for (const Line& line : lines)
         lineEntries.push_back({StringUtils::WideToNarrow(line.text.c_str()), line.left, line.top, line.bold,
-                               UI::RmlBridge::RgbaToCss(line.color)});
+                               UI::RmlBridge::RgbaToCss(line.color), line.textPx});
     if (model.lines.size() != lineEntries.size() ||
         !std::equal(model.lines.begin(), model.lines.end(), lineEntries.begin(), SameLine))
     {
@@ -221,7 +261,7 @@ void mu::ui::window::MessageBoxView::Sync(const POINT& pos, const std::vector<Li
         const int labelTop = static_cast<int>(button.height / 2) - static_cast<int>(size.cy / 2);
         buttonEntries.push_back({StringUtils::WideToNarrow(button.label.c_str()), static_cast<int>(i), button.left,
                                  button.top, button.width, button.height, static_cast<float>(labelLeft),
-                                 static_cast<float>(labelTop), button.enabled});
+                                 static_cast<float>(labelTop), button.enabled, button.okArt});
     }
     if (model.buttons.size() != buttonEntries.size() ||
         !std::equal(model.buttons.begin(), model.buttons.end(), buttonEntries.begin(), SameButton))

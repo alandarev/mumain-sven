@@ -15,7 +15,8 @@ namespace mu::ui::window
 {
 // The RmlUi side of a native message box (a CMessageBoxBase) drawn as newui_msgbox_top, 15-unit
 // middle strips and newui_msgbox_bottom over the newui_msgbox_back fill, with text lines and
-// newui_btn_empty_small buttons, or a progress bar (CGuild_ToPerson_Position, CProgressMsgBox). One box at a time. The
+// newui_btn_empty_small or newui_button_ok buttons, or a progress bar (CGuild_ToPerson_Position, CProgressMsgBox,
+// the event result boxes). One box at a time. The
 // box owns it while it exists and keeps its callbacks: a button RmlUi reports is taken with TakePressedButton() and
 // sent as the box's own event.
 class MessageBoxView
@@ -28,6 +29,7 @@ public:
         float top = 0.f;
         bool bold = false;
         DWORD color = 0;
+        float textPx = 0.f; // physical px; 0: the font's native size
     };
 
     struct Button
@@ -38,6 +40,7 @@ public:
         float width = 0.f;
         float height = 0.f;
         bool enabled = true;
+        bool okArt = false; // newui_button_ok's lettered art instead of a labelled newui_btn_empty_small
     };
 
     // A text list inside the box (CUIUnmixgemList), in the box's reference px: rows' tops are
@@ -70,8 +73,12 @@ public:
     MessageBoxView& operator=(const MessageBoxView&) = delete;
 
     void Create(int middleCount, float backHeight);
-    // A box whose size changes after Create() (CProgressMsgBox grows with its text).
-    void SetFrame(int middleCount, float backHeight);
+    // A box whose size changes after Create() (CProgressMsgBox grows with its text). With
+    // middlesAboveDivider >= 0 the 21-unit newui_Message_Line follows that many middle strips
+    // (CDevilSquareRankMsgBox).
+    void SetFrame(int middleCount, float backHeight, int middlesAboveDivider = -1);
+    // newui_separate_line rules at these tops (CDevilSquareRankMsgBox's table).
+    void SetSeparators(const std::vector<float>& tops);
     // CProgressMsgBox's bar at `top`, `fraction` (0 .. 1) filled; a negative top hides it.
     void SetProgress(float top, float fraction);
     void Destroy();

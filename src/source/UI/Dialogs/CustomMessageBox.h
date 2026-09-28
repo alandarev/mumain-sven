@@ -68,6 +68,7 @@ private:
         virtual ~CBloodCastleResultMsgBox();
 
         bool Create(float fPriority = 3.f);
+        void Release();
 
         bool Update();
         bool Render();
@@ -79,6 +80,7 @@ private:
         void RenderFrame();
 
         CMessageBoxButton m_BtnOk;
+        MessageBoxView m_View; // draws the box (SyncMatchResultView()); native only without it
     };
 
     class CDevilSquareRankMsgBox : public CMessageBoxBase
@@ -90,6 +92,7 @@ private:
         virtual ~CDevilSquareRankMsgBox();
 
         bool Create(float fPriority = 3.f);
+        void Release();
 
         bool Update();
         bool Render();
@@ -101,6 +104,7 @@ private:
         void RenderFrame();
 
         CMessageBoxButton m_BtnOk;
+        MessageBoxView m_View; // draws the box (SyncMatchResultView()); native only without it
     };
 
     class CChaosCastleResultMsgBox : public CMessageBoxBase
@@ -111,6 +115,7 @@ private:
         virtual ~CChaosCastleResultMsgBox();
 
         bool Create(float fPriority = 3.f);
+        void Release();
 
         bool Update();
         bool Render();
@@ -122,6 +127,7 @@ private:
         void RenderFrame();
 
         CMessageBoxButton m_BtnOk;
+        MessageBoxView m_View; // draws the box (SyncMatchResultView()); native only without it
     };
 
     // CChaosMixMenuMsgBox/CTrainerMenuMsgBox/CTrainerRecoverMsgBox are now

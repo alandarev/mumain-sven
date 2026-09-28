@@ -21,6 +21,7 @@
 #include "UI/Core/WindowSystem.h"
 #include "MUHelper/MuHelper.h"
 #include "Core/Text/TextLineWrap.h"
+#include "UI/Scaling/UITransform.h"
 
 extern int DeleteIndex;
 extern int AppointStatus;
@@ -54,6 +55,55 @@ int AppendWrappedMessageLines(const std::wstring& text, BYTE fontType, int maxWi
         appendLine(line);
     }
     return static_cast<int>(lines.size());
+}
+
+// The event result boxes' MessageBoxView: the texts RenderMatchResult() draws, placed as
+// RenderText() places them (RT3_WRITE_CENTER centred on x, RT3_SORT_CENTER centred in a box the
+// text fits into), and the OK button's newui_button_ok art.
+void SyncMatchResultView(MessageBoxView& view, const POINT& pos, CMessageBoxButton& ok)
+{
+    std::vector<MatchResultText> texts;
+    matchEvent::CollectResult(texts);
+
+    std::vector<MessageBoxView::Line> lines;
+    for (const MatchResultText& text : texts)
+    {
+        const bool bold = text.font == MatchResultText::Font::Bold;
+        g_pRenderText->SetFont(bold ? g_hFontBold : g_hFont);
+        const SIZE size = g_pRenderText->MeasureText(text.text.c_str(), static_cast<int>(text.text.size()));
+        auto left = static_cast<float>(text.x);
+        if (text.sort == RT3_WRITE_CENTER)
+            left -= static_cast<float>(size.cx) / 2.f;
+        else if (text.sort == RT3_SORT_CENTER && size.cx < text.boxWidth)
+            left += static_cast<float>(text.boxWidth - size.cx) / 2.f;
+        // A box the text does not fit shrinks it (the Devil Square headers' box height of 3).
+        float textPx = 0.f;
+        if (text.boxWidth > 0 || text.boxHeight > 0)
+        {
+            const auto role = bold ? UI::Scaling::FontRole::Bold : UI::Scaling::FontRole::Normal;
+            const UI::Scaling::Transform transform = UI::Scaling::GetActiveTransform();
+            const float fittedPx = UI::Scaling::NativeTextPixelSizeInBounds(
+                role, transform, static_cast<float>(size.cx), static_cast<float>(size.cy),
+                static_cast<float>(text.boxWidth), static_cast<float>(text.boxHeight));
+            if (fittedPx != UI::Scaling::NativeTextPixelSize(role, transform))
+                textPx = fittedPx;
+        }
+        lines.push_back({text.text, left - static_cast<float>(pos.x), static_cast<float>(text.y - pos.y), bold,
+                         text.color, textPx});
+    }
+
+    MessageBoxView::Button button{L"OK", ok.GetPosX() - pos.x, ok.GetPosY() - pos.y, ok.GetWidth(), ok.GetHeight()};
+    button.okArt = true;
+    view.Sync(pos, lines, {button});
+}
+
+// A click on the OK button RmlUi reported, sent as the box's OK event.
+bool TakeMatchResultOk(MessageBoxView& view, CMessageBoxBase* box)
+{
+    if (!view.IsShown() || view.TakePressedButton() != 0)
+        return false;
+    g_MessageBox->SendEvent(box, MSGBOX_EVENT_USER_COMMON_OK);
+    return true;
 }
 } // namespace
 
@@ -672,18 +722,34 @@ bool mu::ui::window::CBloodCastleResultMsgBox::Create(float fPriority)
     m_BtnOk.SetInfo(CMessageBoxMng::IMAGE_MSGBOX_BTN_OK, x, y, width, height);
 #endif // KJH_ADD_INGAMESHOP_UI_SYSTEM
 
+    m_View.Create(static_cast<int>(MIDDLE_COUNT), static_cast<float>(GetSize().cy) - MSGBOX_BACK_BLANK_HEIGHT);
+
     return true;
+}
+
+void mu::ui::window::CBloodCastleResultMsgBox::Release()
+{
+    m_View.Destroy();
+    CMessageBoxBase::Release();
 }
 
 bool mu::ui::window::CBloodCastleResultMsgBox::Update()
 {
+    if (TakeMatchResultOk(m_View, this))
+        return true;
+
     m_BtnOk.Update();
 
+    if (m_View.IsShown())
+        SyncMatchResultView(m_View, GetPos(), m_BtnOk);
     return true;
 }
 
 bool mu::ui::window::CBloodCastleResultMsgBox::Render()
 {
+    if (m_View.IsShown())
+        return true;
+
     EnableAlphaTest();
     RenderFrame();
     m_BtnOk.Render();
@@ -766,19 +832,40 @@ bool mu::ui::window::CDevilSquareRankMsgBox::Create(float fPriority)
     height = MSGBOX_BTN_HEIGHT;
     m_BtnOk.SetInfo(CMessageBoxMng::IMAGE_MSGBOX_BTN_OK, x, y, width, height);
 
+    // RenderFrame(): 11 middle strips, the divider, 3 more, and the table's four rules.
+    const auto middles = static_cast<int>(MIDDLE_COUNT1 + MIDDLE_COUNT2);
+    const float backHeight = static_cast<float>(GetSize().cy) - MSGBOX_BACK_BLANK_HEIGHT;
+    m_View.Create(middles, backHeight);
+    m_View.SetFrame(middles, backHeight, static_cast<int>(MIDDLE_COUNT1));
+    m_View.SetSeparators({75.f, 93.f, 255.f, 273.f});
+
     return true;
+}
+
+void mu::ui::window::CDevilSquareRankMsgBox::Release()
+{
+    m_View.Destroy();
+    CMessageBoxBase::Release();
 }
 
 bool mu::ui::window::CDevilSquareRankMsgBox::Update()
 {
+    if (TakeMatchResultOk(m_View, this))
+        return true;
+
     m_BtnOk.Update();
     matchEvent::SetPosition(GetPos().x, GetPos().y);
 
+    if (m_View.IsShown())
+        SyncMatchResultView(m_View, GetPos(), m_BtnOk);
     return true;
 }
 
 bool mu::ui::window::CDevilSquareRankMsgBox::Render()
 {
+    if (m_View.IsShown())
+        return true;
+
     EnableAlphaTest();
     RenderFrame();
     m_BtnOk.Render();
@@ -889,18 +976,34 @@ bool mu::ui::window::CChaosCastleResultMsgBox::Create(float fPriority)
     m_BtnOk.SetInfo(CMessageBoxMng::IMAGE_MSGBOX_BTN_OK, x, y, width, height);
 #endif // KJH_ADD_INGAMESHOP_UI_SYSTEM
 
+    m_View.Create(static_cast<int>(MIDDLE_COUNT), static_cast<float>(GetSize().cy) - MSGBOX_BACK_BLANK_HEIGHT);
+
     return true;
+}
+
+void mu::ui::window::CChaosCastleResultMsgBox::Release()
+{
+    m_View.Destroy();
+    CMessageBoxBase::Release();
 }
 
 bool mu::ui::window::CChaosCastleResultMsgBox::Update()
 {
+    if (TakeMatchResultOk(m_View, this))
+        return true;
+
     m_BtnOk.Update();
 
+    if (m_View.IsShown())
+        SyncMatchResultView(m_View, GetPos(), m_BtnOk);
     return true;
 }
 
 bool mu::ui::window::CChaosCastleResultMsgBox::Render()
 {
+    if (m_View.IsShown())
+        return true;
+
     EnableAlphaTest();
     RenderFrame();
     m_BtnOk.Render();
