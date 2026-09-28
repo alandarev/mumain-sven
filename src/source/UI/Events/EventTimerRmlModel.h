@@ -4,8 +4,8 @@
 
 namespace mu::ui::window
 {
-// The Blood Castle / Chaos Castle time HUD (EventTimerView): the kill count, "Time left" and the
-// time in the big font, each centred on the 124-unit frame and shrunk to it like the original's.
+// An event time HUD on newui_Figure_blood (EventTimerView): a first line, a second line and the
+// time in the big font, each centred on the same box and shrunk to it like the original's.
 struct EventTimerRmlModel
 {
     // The Hud layout's W/640 x H/480 stretch (UI::Scaling::GetActiveTransform() while CManager
@@ -16,12 +16,17 @@ struct EventTimerRmlModel
     // The window's top-left, reference px (m_Pos).
     float panelX = 0.f, panelY = 0.f;
 
-    Rml::String killsText; // empty: not drawn (no kill target received yet)
+    // The box every line is centred on, reference px from the frame's left.
+    float boxLeft = 0.f, boxWidth = 124.f;
+
+    Rml::String killsText; // the first line; empty: not drawn
     float killsTextPx = 0.f;
+    Rml::String killsColor;
     Rml::String timeLeftText;
     float timeLeftTextPx = 0.f;
+    Rml::String timeLeftColor;
     Rml::String timeText;
     float timeTextPx = 0.f;
-    bool imminent = false; // under five minutes: the time in red (255, 32, 32)
+    Rml::String timeColor;
 };
 } // namespace mu::ui::window

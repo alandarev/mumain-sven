@@ -2,9 +2,12 @@
 
 #include "UI/Core/WindowObject.h"
 #include "UI/Core/WindowManager.h"
+#include "UI/Events/EventTimerView.h"
 
 namespace mu::ui::window
 {
+    // The Imperial Guardian timer HUD. empire_guardian_timer.rml draws it (EventTimerView); C++
+    // keeps the round, the zone, the time and the monster count.
     class CEmpireGuardianTimer : public CObject
     {
     public:
@@ -64,14 +67,16 @@ namespace mu::ui::window
         const int GetDay() { return m_iDay; }
         const int GetZone() { return m_iZone; }
 
+        void ReloadRmlTheme();
+
     private:
-        void LoadImages();
-        void UnloadImages();
+        void SyncView();
 
         int m_iType;
         DWORD m_dTime;
         int m_iDay;
         int m_iZone;
         int m_iMonsterCount;
+        EventTimerView m_View{"empire_guardian_timer", "Data/Interface/RmlUi/empire_guardian_timer.rml"};
     };
 }

@@ -118,7 +118,10 @@ void CChaosCastleTime::SyncView()
             kills = szText;
         }
     }
-    m_View.Sync(shown, m_Pos, kills, I18N::Game::TimeLeft, m_szTime, m_iTimeState == CC_TIME_STATE_IMMINENCE);
+    // (255, 150, 0), the time red (255, 32, 32) under five minutes.
+    const unsigned long orange = RGBA(255, 150, 0, 255);
+    m_View.Sync(shown, m_Pos, {kills, orange}, {I18N::Game::TimeLeft, orange},
+                {m_szTime, m_iTimeState == CC_TIME_STATE_IMMINENCE ? RGBA(255, 32, 32, 255) : orange});
 }
 
 void CChaosCastleTime::ReloadRmlTheme()

@@ -1,5 +1,5 @@
-/* Modern theme for the event time HUDs (CBloodCastle, CChaosCastleTime): the modern panel surface
-   instead of newui_Figure_blood, the legacy geometry and colours. */
+/* Modern theme for the event time HUDs (CBloodCastle, CChaosCastleTime, CEmpireGuardianTimer):
+   the modern panel surface instead of newui_Figure_blood, the legacy geometry and colours. */
 
 body { pointer-events: none; }
 
@@ -23,9 +23,7 @@ body { pointer-events: none; }
 	transform-origin: left top;
 	white-space: nowrap;
 	text-align: center;
-	color: #ff9600;
 }
 #kills { top: 13px; }
 #time_left { top: 38px; }
 #time { top: 50px; font-weight: bold; }
-#time.imminent { color: #ff2020; }
