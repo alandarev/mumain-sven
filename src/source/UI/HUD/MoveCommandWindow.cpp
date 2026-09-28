@@ -466,8 +466,8 @@ void mu::ui::window::CMoveCommandWindow::BuildRmlUi()
                     if (arguments.size() == 1)
                         RmlClickWarp(arguments[0].Get<int>(-1));
                 });
-            c.BindEventCallback("movecommand_wheel",
-                [this](Rml::DataModelHandle, Rml::Event& event, const Rml::VariantList&) { RmlWheelList(event); });
+            c.BindEventCallback("movecommand_wheel", [this](Rml::DataModelHandle, Rml::Event& event,
+                                                            const Rml::VariantList&) { RmlWheelList(event); });
             c.BindEventCallback("movecommand_close",
                 [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&)
                 {
