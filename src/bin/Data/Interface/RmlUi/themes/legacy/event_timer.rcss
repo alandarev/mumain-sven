@@ -1,0 +1,36 @@
+/* Legacy theme for the event time HUDs (CBloodCastle, CChaosCastleTime), reproducing their
+   Render(): newui_Figure_blood (124 x 81) at the window's position, then, centred on its 124
+   units in (255, 150, 0), the kill count at y 13 and "Time left" at y 38 in the normal font, and
+   the time at y 50 in the big font (bold), red (255, 32, 32) under five minutes. Reference px relative
+   to the window's top-left, under .screen's W/640 x H/480 stretch. */
+
+@spritesheet timer-back-sheet { src: "../../../newui_Figure_blood.tga"; timer-back: 0px 0px 124px 81px; }
+
+body { pointer-events: none; }
+
+.screen {
+	position: absolute;
+	left: 0;
+	top: 0;
+	width: 640px;
+	height: 480px;
+	transform-origin: left top;
+	pointer-events: none;
+}
+
+#panel { position: absolute; width: 124px; height: 81px; font-family: "token(font-body)"; }
+#back { position: absolute; left: 0; top: 0; width: 124px; height: 81px; decorator: image(timer-back); }
+
+.timer-text {
+	display: block;
+	position: absolute;
+	left: 0;
+	transform-origin: left top;
+	white-space: nowrap;
+	text-align: center;
+	color: #ff9600;
+}
+#kills { top: 13px; }
+#time_left { top: 38px; }
+#time { top: 50px; font-weight: bold; }
+#time.imminent { color: #ff2020; }

@@ -5,10 +5,13 @@
 #pragma once
 
 #include "UI/Core/WindowObject.h"
+#include "UI/Events/EventTimerView.h"
 #include "UI/Events/BloodCastleTime.h"
 
 namespace mu::ui::window
 {
+    // The Chaos Castle time HUD. chaos_castle_time.rml draws it (EventTimerView); C++ keeps the time, the kill
+    // count and when it is shown.
     class CChaosCastleTime : public CObject
     {
     public:
@@ -44,6 +47,7 @@ namespace mu::ui::window
         int							m_iTimeState;		// 시간상태( 기본, 임박 )
         int							m_iMaxKillMonster;	// 죽여야하는 몬스터숫자
         int							m_iKilledMonster;	// 현재 죽인 몬스터숫자
+        EventTimerView m_View{"chaos_castle_time", "Data/Interface/RmlUi/chaos_castle_time.rml"};
 
     public:
         CChaosCastleTime();
@@ -66,9 +70,10 @@ namespace mu::ui::window
         void OpenningProcess();
         void ClosingProcess();
 
+        void ReloadRmlTheme();
+
     private:
-        void LoadImages();
-        void UnloadImages();
+        void SyncView();
 
     public:
         void SetTime(int m_iTime);
