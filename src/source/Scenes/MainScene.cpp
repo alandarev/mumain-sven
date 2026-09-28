@@ -172,7 +172,7 @@ static void InitializeMainScene()
 
     g_pSlideHelpMgr->Init();
     g_pUIMapName->Init();
-    g_pNewUIMuHelper->Reset();
+    g_pMuHelperConfig->Reset();
 
     g_GuildCache.Reset();
     g_PortalMgr.Reset();

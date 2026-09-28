@@ -104,7 +104,9 @@ four independent pieces still keeping this file alive:
      352x113dp with its own art against the dialog's 230x160dp, so consolidating would visibly
      restyle this one prompt and leave it inconsistent with every other message box. Worth revisiting
      as a deliberate UX decision, not as a port.
-   - Chat (`CUIChatInputBox`), `CGuildMakeWindow`, `CGoldBowmanWindow`, `WindowMuHelper`,
+   - ~~`WindowMuHelper`~~ — **migrated** with its host windows: every field is a stock `<input>`, the numeric
+     ones filtered by `UI::RmlBridge::AttachNumericInputFilter`.
+   - Chat (`CUIChatInputBox`), `CGuildMakeWindow`, `CGoldBowmanWindow`,
      `MsgBoxIGSSendGift`, `UIWindows`' friend/mail, `UIGuildMaster` — **migrate each when its own
      host screen moves to RmlUi, not before.** These are all still-native screens; porting just
      their text field would mean positioning an RmlUi `<input>` against native sprite coordinates,
@@ -129,7 +131,7 @@ four independent pieces still keeping this file alive:
      class — see `migration-ledger.md`'s own rows for the full story.
    - Guild/chat/letter/socket variants (`CUIGuildListBox`, `CUISimpleChatListBox`,
      `CUIChatPalListBox`, `CUIWindowListBox`, `CUILetterListBox`/`CUILetterTextListBox`,
-     `CUIGuildNoticeListBox`, `CUIUnionGuildListBox`, `CUIExtraItemListBox`,
+     `CUIGuildNoticeListBox`, `CUIUnionGuildListBox`,
      `CUIBCDeclareGuildListBox`/`CUIBCGuildListBox`, `CUIMoveCommandListBox`) — not yet traced to
      live call sites individually; treat as live until checked, same discipline as the confirmed
      ones above.
@@ -208,6 +210,19 @@ ways, and only the first is self-announcing:
   native's reference-scaled one. Deliberate — its pane's net transform is identity — but it makes
   this window's scrollbar the one element that tracks the user's scale dial instead of the dock's.
 - **Reward-item preview moved from hover to click** in `CMyQuestInfoWindow`/`CQuestProgress`.
+- **The MU Helper windows' behaviour changes**, each deliberate and confirmed in play:
+  - Legacy tabs draw `newui_guild_tab04`. Native pointed them at a texture slot nothing loads, so
+    they shipped with labels only.
+  - Pick-all and pick-selected clear each other's flag. Native only unticked the other box.
+  - Ticking a skill's Condition fills an empty radio group with a default. Native left the skill
+    unable to fire.
+  - Esc closes the window from inside a focused field. Native's field swallowed it.
+  - The open skill picker passes clicks through to the world everywhere except its icons.
+  - The extra-item list is always shown reverse-alphabetically. Native showed that only after a
+    reload, and insertion order before.
+- **`COptionWindow`'s volume slider is a gold-thumb slider**; native drew the same fill gauge
+  (`newui_option_volume01/02`) the MU Helper's detail window now draws in both themes. The gauge
+  pieces are in `mu_helper_common.rcss` if the options window is revisited.
 - **Modern-theme treatments picked without checking dock neighbours** — already its own gap note in
   `STATUS.md`, which has recurred twice and whose *process* half is still unfixed.
 

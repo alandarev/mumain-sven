@@ -104,7 +104,6 @@
 #include "../MuEditor/Config/MuEditorConfig.h"
 #endif
 
-CUIMercenaryInputBox* g_pMercenaryInputBox = nullptr;
 CUITextInputBox* g_pSingleTextInputBox = nullptr;
 CUITextInputBox* g_pSinglePasswdInputBox = nullptr;
 int g_iChatInputType = 1;
@@ -592,7 +591,6 @@ void DestroyWindow()
     DeleteAllFrustrum();
 #endif // DYNAMIC_FRUSTRUM
 
-    SAFE_DELETE(g_pMercenaryInputBox);
     SAFE_DELETE(g_pSingleTextInputBox);
     SAFE_DELETE(g_pSinglePasswdInputBox);
 
@@ -2423,7 +2421,6 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR szCmdLine, int nC
 
     if (g_iChatInputType == 1)
     {
-        g_pMercenaryInputBox = new CUIMercenaryInputBox;
         g_pSingleTextInputBox = new CUITextInputBox;
         g_pSinglePasswdInputBox = new CUITextInputBox;
     }
@@ -2442,13 +2439,11 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR szCmdLine, int nC
 
     if (g_iChatInputType == 1)
     {
-        g_pMercenaryInputBox->Init(g_hWnd);
         g_pSingleTextInputBox->Init(g_hWnd, 200, 20);
         g_pSinglePasswdInputBox->Init(g_hWnd, 200, 20, 9, TRUE);
         g_pSingleTextInputBox->SetState(UISTATE_HIDE);
         g_pSinglePasswdInputBox->SetState(UISTATE_HIDE);
 
-        g_pMercenaryInputBox->SetFont(g_hFont);
         g_pSingleTextInputBox->SetFont(g_hFont);
         g_pSinglePasswdInputBox->SetFont(g_hFont);
 

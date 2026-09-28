@@ -78,6 +78,10 @@ button classes of its own (`CButton`, `CUIButton`, `mu::ui::window::CButton`); s
 `docs/rmlui-ui-system/building-new-ui.md` for which one to use and why they aren't duplicates of
 each other.
 
+Inside a panel scaled by `transform: scale(root_scale)`, `.btn`'s `dp` sizes would scale twice.
+Modern has `.modern-btn-px` (and `.modern-checkbox-px` for checkboxes), the same recipe in
+reference `px` with no size of its own; the MU Helper windows use both.
+
 ## Checkbox
 
 `.checkbox-row`/`.checkbox-box`/`.checkbox-box.checked`/`.checkbox-label`, both themes' `base.rcss`
@@ -145,11 +149,20 @@ ordinary window it swallows every hotkey the moment the window opens, so My Shop
 it and is click-to-focus. Filtering that RmlUi has no equivalent for (digits-only) belongs in C++;
 enforce it by rejecting the keystroke, not by correcting the value afterwards: a capture-phase
 `textinput` listener on the document runs before the focused widget's own listener, and
-`StopPropagation()` there leaves the caret untouched (see `DigitOnlyInputFilter`). Writing a
+`StopPropagation()` there leaves the caret untouched. That listener is shared:
+`UI::RmlBridge::AttachNumericInputFilter(doc)` (`RmlNumericInputFilter.h`) filters every field that
+carries `text-field--numeric`, so a window marks its fields and attaches once; `KeepDigitsOnly()` is
+the read-side half. Writing a
 filtered value back onto the element instead re-enters `OnValueAttributeChanged()` and resets the
 caret to index 0. Clipboard paste raises no `textinput`, so filter on read as well. SDL3 IME is
 handled once, centrally, by `RmlUiRuntime`'s installed `TextInputMethodEditor_SDL` plus
 `RmlUiSystemInterface::ActivateKeyboard()` — a consumer needs no IME code of its own.
+
+A focused field suspends every window's key handling (`CManager::UpdateKeyEvent()`), its own
+included, so Esc and Enter never reach the window you're typing in. A window that should still close
+on Esc from inside its field calls `UI::RmlBridge::ClaimKeyboardWhileTyping(*this, doc)` from
+`Update()` (`RmlKeyboardFocus.h`); `CChatInputBox` hand-rolls the same claim and could adopt it.
+Blur the focused field on every hide path as well, or hotkeys stay suspended after the window closes.
 
 `CUITextInputBox` remains **transitional infrastructure for unmigrated consumers only**
 (`CLoginWin`, `CCharMakeWin`, `CGenericConfirmDialog::Mode::Text`, chat). It is not a permanent
@@ -433,14 +446,9 @@ tool and has no RmlUi dependency to pull in. `ToRmlBridgeLines()` converts a res
 `UI::RmlBridge::Tooltip::Line`s (the `LineColor` switch every caller used to hand-roll); three
 callers now build a `Config` from it directly instead of calling `Render()`'s native
 `RenderTipTextList()` draw: `MainFrameWindow.cpp`'s skill-hotkey tooltip, and (this round)
-`SiegeWarBase.cpp`'s guild-skill tooltip (Siege War). `Render()` itself is kept for one remaining
-caller, but that caller is dead code, not a migration gap: `WindowMuHelper.cpp`'s
-`CMuHelperSkillList::RenderSkillInfo()` (the MU Helper bot config window — distinct from the
-already-migrated `CMuHelperBar`) is only ever invoked through an `if (m_bRenderSkillInfo && ...)`
-guard whose fields are never set to anything but their constructor defaults anywhere in the file —
-confirmed unreachable, not merely unmigrated. Left as-is (not deleted, not wired up) per explicit
-decision; revisit only if this window's skill-hover tooltip is ever actually wanted as a live
-feature.
+`SiegeWarBase.cpp`'s guild-skill tooltip (Siege War). `Render()` itself now has **no callers**: its
+last one, the MU Helper skill picker's `RenderSkillInfo()`, was unreachable and went with that port.
+Kept on purpose rather than deleted; the picker shows no hover tooltip, as native never did.
 
 **Deliberately not on this primitive**: `CBuffStrip`/`CMuHelperBar`'s own hover tooltip is still a
 separate, CSS-only `:hover` mechanism (plain text, no per-line color) — deferred because it lives
@@ -451,6 +459,19 @@ is open rather than on hover, so they don't fit this primitive's owner-token mod
 `Show()` always wins, which assumes a momentary, naturally mutually-exclusive hover tooltip) — a
 second, non-competing primitive for them was scoped and rejected as not worth duplicating most of
 this primitive's positioning/clamping logic for two low-traffic windows.
+
+## Skill icons
+
+`UI::Skills::Icon::ResolveSkillIcon()` (`UI/HUD/Skills/SkillIconAtlas.h`) maps a skill to its
+20x28 cell, lit or grey, and `IconSpriteName()` names the sprite in `skill_icons.rcss` or
+`master_skill_icons.rcss`. Link both, build `"image(" + sprite + ")"` in C++ and bind it with
+`data-style-decorator`. It is the one resolver for every skill icon: the HUD (`CSkillList`), the
+master tree and the MU Helper windows (`UI::MuHelper::SkillIconDecorator()`, always lit).
+
+A *gauge*, native's fill-by-level slider (`newui_option_volume01` back, `volume02` fill clipped to
+`level * 10%`), is built in `mu_helper_common.rcss` (`.mh-gauge`/`.mh-gauge-fill`). Legacy uses one
+sprite rect per level (`mh-gauge-fill-1..10`), because a clipped wrapper doesn't clip absolutely-positioned children
+here. The input stays in C++. Move it to `base.rcss` when a second window needs it.
 
 ## Does not exist as a reusable primitive yet
 
