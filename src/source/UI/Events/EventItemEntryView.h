@@ -8,6 +8,7 @@
 
 namespace Rml
 {
+class Element;
 class ElementDocument;
 }
 
@@ -31,6 +32,7 @@ public:
         float width = 0.f;
         bool bold = false;
         DWORD color = 0;
+        bool leftAligned = false; // RT3_SORT_LEFT from the box's left edge instead of centred
     };
 
     struct Button
@@ -59,6 +61,9 @@ public:
 
     // A click RmlUi reported since the last call: an unlocked button's index, else -1.
     int TakePressedButton();
+
+    // An element of the main document (a window's own text field), or nullptr before Build().
+    Rml::Element* GetElementById(const char* id) const;
 
 private:
     void SyncTexts();

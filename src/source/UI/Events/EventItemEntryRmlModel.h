@@ -6,7 +6,8 @@
 
 namespace mu::ui::window
 {
-// One RenderText() of the window: centred on its box, shrunk to it like the original's.
+// One RenderText() of the window: centred on its box (or from its left edge), shrunk to it like the
+// original's.
 struct EventItemEntryTextEntry
 {
     Rml::String text;
@@ -16,6 +17,7 @@ struct EventItemEntryTextEntry
     float textPx = 0.f; // physical px
     bool bold = false;
     Rml::String color; // CSS colour of the native text colour
+    bool leftAligned = false; // RT3_SORT_LEFT: from the box's left edge
 };
 
 // A CButton with its label (53 x 23 newui_btn_empty_very_small unless the window's theme styles it

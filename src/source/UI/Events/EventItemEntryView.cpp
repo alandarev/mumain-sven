@@ -45,6 +45,7 @@ void mu::ui::window::EventItemEntryView::Build()
             text.RegisterMember("text_px", &EventItemEntryTextEntry::textPx);
             text.RegisterMember("bold", &EventItemEntryTextEntry::bold);
             text.RegisterMember("color", &EventItemEntryTextEntry::color);
+            text.RegisterMember("left_aligned", &EventItemEntryTextEntry::leftAligned);
             c.RegisterArray<std::vector<EventItemEntryTextEntry>>();
             c.Bind("texts", &model.texts);
 
@@ -160,7 +161,7 @@ void mu::ui::window::EventItemEntryView::SyncTexts()
         const int width = g_pRenderText->MeasureText(text.text.c_str(), static_cast<int>(text.text.size())).cx;
         texts.push_back({StringUtils::WideToNarrow(text.text.c_str()), text.left, text.top, text.width,
                          UI::Scaling::NativeTextPixelSizeInBox(role, transform, static_cast<float>(width), text.width),
-                         text.bold, UI::RmlBridge::RgbaToCss(text.color)});
+                         text.bold, UI::RmlBridge::RgbaToCss(text.color), text.leftAligned});
     }
     const bool same = model.texts.size() == texts.size() &&
                       std::equal(model.texts.begin(), model.texts.end(), texts.begin(),
@@ -168,7 +169,7 @@ void mu::ui::window::EventItemEntryView::SyncTexts()
                                  {
                                      return a.text == b.text && a.left == b.left && a.top == b.top &&
                                             a.width == b.width && a.textPx == b.textPx && a.bold == b.bold &&
-                                            a.color == b.color;
+                                            a.color == b.color && a.leftAligned == b.leftAligned;
                                  });
     if (same)
         return;
@@ -231,4 +232,9 @@ int mu::ui::window::EventItemEntryView::TakePressedButton()
     if (pressed < 0 || pressed >= static_cast<int>(m_Buttons.size()) || m_Buttons[pressed].locked)
         return -1;
     return pressed;
+}
+
+Rml::Element* mu::ui::window::EventItemEntryView::GetElementById(const char* id) const
+{
+    return m_pRmlDoc != nullptr ? m_pRmlDoc->GetElementById(id) : nullptr;
 }
