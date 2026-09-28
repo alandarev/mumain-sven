@@ -116,6 +116,10 @@ void CLoginWin::Create()
         model.password = StringUtils::WideToNarrow(m_Password);
         m_bRememberMeChecked = true;
     }
+    // Create() runs on every entry to the login scene, but the document outlives it: push the
+    // fresh values into the fields, or they keep what an earlier visit typed.
+    m_RmlBinder.MarkDirty("username");
+    m_RmlBinder.MarkDirty("password");
 
     // The password is only pre-filled and re-saved when the player previously
     // opted in on a trusted machine.
