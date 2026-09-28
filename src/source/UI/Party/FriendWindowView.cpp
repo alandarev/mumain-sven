@@ -23,8 +23,10 @@ constexpr const char* DocumentPath = "Data/Interface/RmlUi/friend_window.rml";
 constexpr const char* ModelPlaceholder = "data-model=\"friend_window\"";
 } // namespace
 
-FriendWindowRmlBuilder::FriendWindowRmlBuilder(int originX, int originY, std::vector<FriendWindowPart>& parts)
-    : m_OriginX(originX), m_OriginY(originY), m_Transform(UI::Scaling::GetActiveTransform()), m_Parts(parts)
+FriendWindowRmlBuilder::FriendWindowRmlBuilder(int originX, int originY, std::vector<FriendWindowPart>& parts,
+                                               std::vector<FriendWindowPart>& underlayParts)
+    : m_OriginX(originX), m_OriginY(originY), m_Transform(UI::Scaling::GetActiveTransform()), m_Main{&parts},
+      m_Underlay{&underlayParts}
 {
 }
 
@@ -43,33 +45,41 @@ template <typename T, typename U> void Assign(T& field, const U& value, bool& ch
 FriendWindowPart& FriendWindowRmlBuilder::NextPart(int kind, const char* role, double x, double y, double width,
                                                    double height)
 {
-    if (m_Count == m_Parts.size())
+    PartList& list = *m_Active;
+    if (list.count == list.parts->size())
     {
-        m_Parts.emplace_back();
-        m_Changed = true;
+        list.parts->emplace_back();
+        list.changed = true;
     }
-    FriendWindowPart& part = m_Parts[m_Count++];
-    Assign(part.kind, kind, m_Changed);
+    FriendWindowPart& part = (*list.parts)[list.count++];
+    Assign(part.kind, kind, list.changed);
     if (part.role != role)
     {
         part.role = role;
-        m_Changed = true;
+        list.changed = true;
     }
-    Assign(part.left, static_cast<float>(x - m_OriginX), m_Changed);
-    Assign(part.top, static_cast<float>(y - m_OriginY), m_Changed);
-    Assign(part.width, static_cast<float>(width), m_Changed);
-    Assign(part.height, static_cast<float>(height), m_Changed);
+    Assign(part.left, static_cast<float>(x - m_OriginX), list.changed);
+    Assign(part.top, static_cast<float>(y - m_OriginY), list.changed);
+    Assign(part.width, static_cast<float>(width), list.changed);
+    Assign(part.height, static_cast<float>(height), list.changed);
     return part;
 }
 
-bool FriendWindowRmlBuilder::Finish()
+bool FriendWindowRmlBuilder::PartList::Finish()
 {
-    if (m_Count < m_Parts.size())
+    if (count < parts->size())
     {
-        m_Parts.resize(m_Count);
-        m_Changed = true;
+        parts->resize(count);
+        changed = true;
     }
-    return m_Changed;
+    return changed;
+}
+
+void FriendWindowRmlBuilder::UnderlayFill(const char* role, double x, double y, double width, double height)
+{
+    m_Active = &m_Underlay;
+    Fill(role, x, y, width, height);
+    m_Active = &m_Main;
 }
 
 void FriendWindowRmlBuilder::Fill(const char* role, double x, double y, double width, double height)
@@ -98,19 +108,19 @@ void FriendWindowRmlBuilder::Text(const wchar_t* text, double x, double y, DWORD
     {
         part.sourceText = text;
         part.text = StringUtils::WideToNarrow(text);
-        m_Changed = true;
+        m_Active->changed = true;
     }
     Assign(part.textPx,
            UI::Scaling::NativeTextPixelSize(bold ? UI::Scaling::FontRole::Bold : UI::Scaling::FontRole::Normal,
                                             m_Transform),
-           m_Changed);
-    Assign(part.align, align, m_Changed);
-    Assign(part.bold, bold, m_Changed);
+           m_Active->changed);
+    Assign(part.align, align, m_Active->changed);
+    Assign(part.bold, bold, m_Active->changed);
     if (part.sourceColor != color || part.color.empty())
     {
         part.sourceColor = color;
         part.color = UI::RmlBridge::RgbaToCss(color);
-        m_Changed = true;
+        m_Active->changed = true;
     }
 }
 
@@ -210,6 +220,7 @@ template <typename List> void FriendWindowRmlBuilder::ListScrollBar(List& list)
 template void FriendWindowRmlBuilder::ListScrollBar<CUIChatPalListBox>(CUIChatPalListBox&);
 template void FriendWindowRmlBuilder::ListScrollBar<CUIWindowListBox>(CUIWindowListBox&);
 template void FriendWindowRmlBuilder::ListScrollBar<CUILetterListBox>(CUILetterListBox&);
+template void FriendWindowRmlBuilder::ListScrollBar<CUILetterTextListBox>(CUILetterTextListBox&);
 
 namespace
 {
@@ -258,31 +269,65 @@ FriendWindowView::~FriendWindowView()
     Unload();
 }
 
+namespace
+{
+bool CreateModel(RmlModelBinder<FriendWindowRmlModel>& binder, Rml::Context* context, const std::string& name)
+{
+    return binder.Create(context, name,
+                         [](Rml::DataModelConstructor& c, FriendWindowRmlModel& model)
+                         {
+                             c.Bind("root_x", &model.rootX);
+                             c.Bind("root_y", &model.rootY);
+                             c.Bind("root_scale", &model.rootScale);
+                             auto part = c.RegisterStruct<FriendWindowPart>();
+                             part.RegisterMember("kind", &FriendWindowPart::kind);
+                             part.RegisterMember("role", &FriendWindowPart::role);
+                             part.RegisterMember("left", &FriendWindowPart::left);
+                             part.RegisterMember("top", &FriendWindowPart::top);
+                             part.RegisterMember("width", &FriendWindowPart::width);
+                             part.RegisterMember("height", &FriendWindowPart::height);
+                             part.RegisterMember("text", &FriendWindowPart::text);
+                             part.RegisterMember("text_px", &FriendWindowPart::textPx);
+                             part.RegisterMember("align", &FriendWindowPart::align);
+                             part.RegisterMember("bold", &FriendWindowPart::bold);
+                             part.RegisterMember("color", &FriendWindowPart::color);
+                             c.RegisterArray<std::vector<FriendWindowPart>>();
+                             c.Bind("parts", &model.parts);
+                         });
+}
+
+// Root position and scale of a window's document (FloatingWorkspace); marks what changed.
+void SyncRoot(RmlModelBinder<FriendWindowRmlModel>& binder, float rootX, float rootY, float scale)
+{
+    FriendWindowRmlModel& model = binder.GetModel();
+    if (model.rootX == rootX && model.rootY == rootY && model.rootScale == scale)
+        return;
+    model.rootX = rootX;
+    model.rootY = rootY;
+    model.rootScale = scale;
+    binder.MarkDirty("root_x");
+    binder.MarkDirty("root_y");
+    binder.MarkDirty("root_scale");
+    // Text sizes follow the scale; the parts carry them.
+}
+} // namespace
+
+void FriendWindowView::BuildUnderlay()
+{
+    if (m_pUnderDoc || !RmlUiRuntime::Instance().IsCreated())
+        return;
+    Rml::Context* context = RmlUiRuntime::Instance().GetBackgroundContext();
+    if (!context || !CreateModel(m_UnderBinder, context, m_ModelName + "_under"))
+        return;
+    m_pUnderDoc = UI::RmlBridge::LoadThemedDocument(context, DocumentPath, ModelPlaceholder,
+                                                    "data-model=\"" + m_ModelName + "_under\"");
+}
+
 void FriendWindowView::Build()
 {
     if (m_pDoc || !RmlUiRuntime::Instance().IsCreated())
         return;
-    const bool created = m_Binder.Create(RmlUiRuntime::Instance().GetContext(), m_ModelName,
-                                         [](Rml::DataModelConstructor& c, FriendWindowRmlModel& model)
-                                         {
-                                             c.Bind("root_x", &model.rootX);
-                                             c.Bind("root_y", &model.rootY);
-                                             c.Bind("root_scale", &model.rootScale);
-                                             auto part = c.RegisterStruct<FriendWindowPart>();
-                                             part.RegisterMember("kind", &FriendWindowPart::kind);
-                                             part.RegisterMember("role", &FriendWindowPart::role);
-                                             part.RegisterMember("left", &FriendWindowPart::left);
-                                             part.RegisterMember("top", &FriendWindowPart::top);
-                                             part.RegisterMember("width", &FriendWindowPart::width);
-                                             part.RegisterMember("height", &FriendWindowPart::height);
-                                             part.RegisterMember("text", &FriendWindowPart::text);
-                                             part.RegisterMember("text_px", &FriendWindowPart::textPx);
-                                             part.RegisterMember("align", &FriendWindowPart::align);
-                                             part.RegisterMember("bold", &FriendWindowPart::bold);
-                                             part.RegisterMember("color", &FriendWindowPart::color);
-                                             c.RegisterArray<std::vector<FriendWindowPart>>();
-                                             c.Bind("parts", &model.parts);
-                                         });
+    const bool created = CreateModel(m_Binder, RmlUiRuntime::Instance().GetContext(), m_ModelName);
     if (!created)
         return;
     m_pDoc = UI::RmlBridge::LoadThemedDocument(RmlUiRuntime::Instance().GetContext(), DocumentPath, ModelPlaceholder,
@@ -308,6 +353,7 @@ void FriendWindowView::Unload()
     {
         // The context and its documents are gone already.
         m_pDoc = nullptr;
+        m_pUnderDoc = nullptr;
         for (Field& field : m_Fields)
             field = Field{};
         return;
@@ -330,6 +376,13 @@ void FriendWindowView::Unload()
         m_pDoc = nullptr;
     }
     m_Binder.Destroy(context);
+    if (Rml::Context* underContext = RmlUiRuntime::Instance().GetBackgroundContext())
+    {
+        if (m_pUnderDoc)
+            underContext->UnloadDocument(m_pUnderDoc);
+        m_UnderBinder.Destroy(underContext);
+    }
+    m_pUnderDoc = nullptr;
 }
 
 void FriendWindowView::ReloadTheme()
@@ -338,6 +391,7 @@ void FriendWindowView::ReloadTheme()
         return;
     Unload();
     m_Binder.GetModel().parts.clear();
+    m_UnderBinder.GetModel().parts.clear();
     Build();
 }
 
@@ -351,31 +405,39 @@ bool FriendWindowView::Sync(CUIBaseWindow* window, bool shown)
                 field.element->Blur();
         }
         UI::RmlBridge::SyncDocumentVisibility(m_pDoc, false);
+        UI::RmlBridge::SyncDocumentVisibility(m_pUnderDoc, false);
         return false;
     }
     Build();
     if (!m_pDoc)
         return false;
 
-    FriendWindowRmlModel& model = m_Binder.GetModel();
     const UI::Scaling::Transform transform = UI::Scaling::GetActiveTransform();
     const float rootX = static_cast<float>(window->GetPosition_x()) * transform.scaleX + transform.offsetX;
     const float rootY = static_cast<float>(window->GetPosition_y()) * transform.scaleY + transform.offsetY;
-    if (model.rootX != rootX || model.rootY != rootY || model.rootScale != transform.scaleX)
-    {
-        model.rootX = rootX;
-        model.rootY = rootY;
-        model.rootScale = transform.scaleX;
-        m_Binder.MarkDirty("root_x");
-        m_Binder.MarkDirty("root_y");
-        m_Binder.MarkDirty("root_scale");
-        // Text sizes follow the scale; the parts carry them.
-    }
+    SyncRoot(m_Binder, rootX, rootY, transform.scaleX);
 
-    FriendWindowRmlBuilder builder(window->GetPosition_x(), window->GetPosition_y(), model.parts);
+    FriendWindowRmlBuilder builder(window->GetPosition_x(), window->GetPosition_y(), m_Binder.GetModel().parts,
+                                   m_UnderBinder.GetModel().parts);
     window->CollectRmlView(builder);
     if (builder.Finish())
         m_Binder.MarkDirty("parts");
+
+    // The underlay (under a photo viewer): a background-context document, made when first needed.
+    const bool underlayChanged = builder.FinishUnderlay();
+    const bool hasUnderlay = !m_UnderBinder.GetModel().parts.empty();
+    if (hasUnderlay)
+        BuildUnderlay();
+    if (m_pUnderDoc)
+    {
+        if (hasUnderlay)
+        {
+            SyncRoot(m_UnderBinder, rootX, rootY, transform.scaleX);
+            if (underlayChanged)
+                m_UnderBinder.MarkDirty("parts");
+        }
+        UI::RmlBridge::SyncDocumentVisibility(m_pUnderDoc, hasUnderlay);
+    }
 
     const bool wasVisible = m_pDoc->IsVisible();
     UI::RmlBridge::SyncDocumentVisibility(m_pDoc, true);

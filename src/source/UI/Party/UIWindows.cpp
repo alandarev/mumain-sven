@@ -316,9 +316,14 @@ void CUIWindowMgr::Render()
         m_WindowMapIter = m_WindowMap.find(*m_WindowArrangeListIter);
         if (m_WindowMapIter != m_WindowMap.end())
         {
-            if (m_WindowMapIter->second->GetState() != UISTATE_HIDE &&
-                m_WindowMapIter->second->GetState() != UISTATE_READY && !m_WindowMapIter->second->HasRmlView())
-                m_WindowMapIter->second->Render();
+            CUIBaseWindow* window = m_WindowMapIter->second;
+            if (window->GetState() != UISTATE_HIDE && window->GetState() != UISTATE_READY)
+            {
+                if (!window->HasRmlView())
+                    window->Render();
+                else
+                    window->RenderRmlOverlay();
+            }
         }
     }
     m_bRenderFrame = TRUE;
@@ -1081,6 +1086,12 @@ void CUIBaseWindow::Render()
         DisableAlphaBlend();
     }
 
+    RenderOver();
+}
+
+void CUIBaseWindow::RenderRmlOverlay()
+{
+    EnableAlphaTest();
     RenderOver();
 }
 

@@ -11,6 +11,8 @@
 #include "UI/Core/WindowSystem.h"
 #include "I18N/All.h"
 
+#include <algorithm>
+
 namespace
 {
 const DWORD TextNormal = RGBA(230, 220, 200, 255);
@@ -35,6 +37,7 @@ const char* SelectedRowRole(bool afterCheckBox)
 {
     return afterCheckBox ? "row-selected after-check-box" : "row-selected";
 }
+
 } // namespace
 
 void CUIBaseWindow::CollectRmlView(FriendWindowRmlBuilder& view)
@@ -46,12 +49,32 @@ void CUIBaseWindow::CollectRmlView(FriendWindowRmlBuilder& view)
     const auto w = static_cast<float>(m_iWidth);
     const auto h = static_cast<float>(m_iHeight);
 
-    if (m_iOptions == UIWINDOWSTYLE_NULL)
-        ;
-    else if (CheckOption(UIWINDOWSTYLE_FRAME))
-        view.Fill("window-back", x, y + 5, w, h - 10);
-    else
-        view.Fill("window-back", x, y + 5, w, h);
+    if (m_iOptions != UIWINDOWSTYLE_NULL)
+    {
+        const float backTop = y + 5;
+        const float backHeight = CheckOption(UIWINDOWSTYLE_FRAME) ? h - 10 : h;
+        CUIPhotoViewer* photo = GetRmlPhoto();
+        if (photo == nullptr)
+        {
+            view.Fill("window-back", x, backTop, w, backHeight);
+        }
+        else
+        {
+            // The photo viewer's 3D character is drawn natively after the RmlUi background layer
+            // and before this document: its box's share of the back goes under it, the rest stays
+            // here around it.
+            const float px = std::clamp(static_cast<float>(photo->GetPosition_x()), x, x + w);
+            const float pr = std::clamp(static_cast<float>(photo->GetPosition_x() + photo->GetWidth()), px, x + w);
+            const float py = std::clamp(static_cast<float>(photo->GetPosition_y()), backTop, backTop + backHeight);
+            const float pb =
+                std::clamp(static_cast<float>(photo->GetPosition_y() + photo->GetHeight()), py, backTop + backHeight);
+            view.Fill("window-back", x, backTop, w, py - backTop);
+            view.Fill("window-back", x, py, px - x, pb - py);
+            view.Fill("window-back", pr, py, x + w - pr, pb - py);
+            view.Fill("window-back", x, pb, w, backTop + backHeight - pb);
+            view.UnderlayFill("window-back", px, py, pr - px, pb - py);
+        }
+    }
 
     CollectRmlContent(view);
 
@@ -350,4 +373,103 @@ void CUIQuestionWindow::CollectRmlContent(FriendWindowRmlBuilder& view)
     view.Button(m_AddButton);
     if (m_iDialogType == 0)
         view.Button(m_CancelButton);
+}
+
+// CUILetterWriteWindow::RenderSub(): receiver, title and text fields and the buttons; the photo
+// viewer (RenderOver()) stays native.
+void CUILetterWriteWindow::CollectRmlContent(FriendWindowRmlBuilder& view)
+{
+    if (GetState() == UISTATE_MOVE || GetState() == UISTATE_RESIZE)
+    {
+        m_SendButton.SendUIMessageDirect(UI_MESSAGE_P_MOVE, 0, 0);
+        m_CloseButton.SendUIMessageDirect(UI_MESSAGE_P_MOVE, 0, 0);
+        m_MailtoInputBox.SendUIMessageDirect(UI_MESSAGE_P_MOVE, 0, 0);
+        m_TitleInputBox.SendUIMessageDirect(UI_MESSAGE_P_MOVE, 0, 0);
+        m_TextInputBox.SendUIMessageDirect(UI_MESSAGE_P_MOVE, 0, 0);
+        m_PrevPoseButton.SendUIMessageDirect(UI_MESSAGE_P_MOVE, 0, 0);
+        m_NextPoseButton.SendUIMessageDirect(UI_MESSAGE_P_MOVE, 0, 0);
+        m_Photo.SendUIMessageDirect(UI_MESSAGE_P_MOVE, 0, 0);
+    }
+
+    view.Fill("panel", RPos_x(0), RPos_y(0), RWidth(), 29);
+    view.Fill("separator", RPos_x(0), RPos_y(14), RWidth(), 1);
+    view.Fill("separator", RPos_x(0), RPos_y(29), RWidth(), 1);
+    view.Fill("panel", RPos_x(0), RPos_y(0) + RHeight() - 19, RWidth(), 19);
+    view.Fill("separator", RPos_x(0), RPos_y(0) + RHeight() - 19, RWidth(), 1);
+
+    // RT3_SORT_RIGHT in a box as wide as "Receiver": a label that fits is moved to its right edge.
+    const float labelBox = TextWidth(I18N::Game::Receiver);
+    for (const auto& [label, top] : {std::pair{I18N::Game::Receiver, 3}, std::pair{I18N::Game::Title, 18}})
+    {
+        const float width = TextWidth(label);
+        view.Text(label, RPos_x(3) + (width < labelBox ? labelBox - width : 0.f), RPos_y(top), TextNormal);
+    }
+
+    view.Field(0, m_MailtoInputBox);
+    view.Field(1, m_TitleInputBox);
+    view.Field(2, m_TextInputBox);
+
+    view.Button(m_SendButton);
+    view.Button(m_CloseButton);
+    if (m_iShowType == 1)
+    {
+        view.Button(m_PrevPoseButton);
+        view.Button(m_NextPoseButton);
+    }
+}
+
+// CUILetterReadWindow::RenderSub(): the letter's lines, the sender line and the buttons; the photo
+// viewer (RenderOver()) stays native.
+void CUILetterReadWindow::CollectRmlContent(FriendWindowRmlBuilder& view)
+{
+    if (GetState() == UISTATE_MOVE || GetState() == UISTATE_RESIZE)
+    {
+        m_LetterTextBox.SendUIMessageDirect(UI_MESSAGE_P_MOVE, 0, 0);
+        m_ReplyButton.SendUIMessageDirect(UI_MESSAGE_P_MOVE, 0, 0);
+        m_DeleteButton.SendUIMessageDirect(UI_MESSAGE_P_MOVE, 0, 0);
+        m_CloseButton.SendUIMessageDirect(UI_MESSAGE_P_MOVE, 0, 0);
+        m_PrevButton.SendUIMessageDirect(UI_MESSAGE_P_MOVE, 0, 0);
+        m_NextButton.SendUIMessageDirect(UI_MESSAGE_P_MOVE, 0, 0);
+        m_Photo.SendUIMessageDirect(UI_MESSAGE_P_MOVE, 0, 0);
+        if (GetState() == UISTATE_RESIZE)
+        {
+            m_LetterTextBox.SendUIMessageDirect(UI_MESSAGE_P_RESIZE, 0, 0);
+            m_Photo.SendUIMessageDirect(UI_MESSAGE_P_RESIZE, 0, 0);
+        }
+    }
+
+    // CUILetterTextListBox::Render()
+    view.ListScrollBar(m_LetterTextBox);
+    const auto textX = static_cast<float>(m_LetterTextBox.GetPosition_x());
+    m_LetterTextBox.ForEachRenderLine(
+        [&](int line, LETTER_TEXT& item, bool)
+        {
+            view.Text(item.m_szText, textX + 10, static_cast<float>(m_LetterTextBox.GetRenderLinePos_y(line)),
+                      TextNormal);
+        });
+
+    const float bottom = static_cast<float>(RPos_y(0) + RHeight());
+    if (m_iShowType >= 2)
+    {
+        view.Fill("separator", RPos_x(0) + RWidth() - 120, bottom - 19, 1, 19);
+        view.Fill("separator", RPos_x(0), bottom - 20, RWidth() - 120, 1);
+        view.Fill("panel", RPos_x(0), bottom - 19, RWidth() - 120, 18);
+    }
+    else
+    {
+        view.Fill("separator", RPos_x(0), bottom - 20, RWidth(), 1);
+        view.Fill("panel", RPos_x(0), bottom - 19, RWidth(), 18);
+    }
+    view.Fill("separator", RPos_x(0), RPos_y(14), RWidth(), 1);
+    view.Fill("panel", RPos_x(0), RPos_y(0), RWidth(), 14);
+
+    wchar_t mailFrom[256] = {0};
+    mu_swprintf(mailFrom, I18N::Game::SenderSSS, m_LetterHead.m_szID, m_LetterHead.m_szDate, m_LetterHead.m_szTime);
+    view.Text(mailFrom, RPos_x(3), RPos_y(3), TextNormal);
+
+    view.Button(m_ReplyButton);
+    view.Button(m_DeleteButton);
+    view.Button(m_CloseButton);
+    view.Button(m_PrevButton);
+    view.Button(m_NextButton);
 }

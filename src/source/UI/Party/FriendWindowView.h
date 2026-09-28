@@ -51,7 +51,8 @@ struct FriendWindowFieldLayout
 class FriendWindowRmlBuilder
 {
 public:
-    FriendWindowRmlBuilder(int originX, int originY, std::vector<FriendWindowPart>& parts);
+    FriendWindowRmlBuilder(int originX, int originY, std::vector<FriendWindowPart>& parts,
+                           std::vector<FriendWindowPart>& underlayParts);
 
     void Fill(const char* role, double x, double y, double width, double height);
     void Sprite(const char* role, double x, double y, double width, double height);
@@ -68,8 +69,19 @@ public:
     // CUITextInputBox::Render(): its background as a part, the field itself as the slot's input.
     void Field(int slot, CUITextInputBox& box);
 
-    // Drops the parts past the last one collected; true if any part changed this frame.
-    bool Finish();
+    // A flat part under the window's native 3D content (CUIPhotoViewer): drawn by the window's
+    // underlay document in the background context, before the native pass.
+    void UnderlayFill(const char* role, double x, double y, double width, double height);
+
+    // Drop the parts past the last one collected; true if any part changed this frame.
+    bool Finish()
+    {
+        return m_Main.Finish();
+    }
+    bool FinishUnderlay()
+    {
+        return m_Underlay.Finish();
+    }
     const std::array<FriendWindowFieldLayout, FriendWindowFieldLayout::SlotCount>& GetFields() const
     {
         return m_Fields;
@@ -81,9 +93,17 @@ private:
     double m_OriginX;
     double m_OriginY;
     UI::Scaling::Transform m_Transform;
-    std::vector<FriendWindowPart>& m_Parts;
-    size_t m_Count = 0;
-    bool m_Changed = false;
+    struct PartList
+    {
+        std::vector<FriendWindowPart>* parts;
+        size_t count = 0;
+        bool changed = false;
+
+        bool Finish();
+    };
+    PartList m_Main;
+    PartList m_Underlay;
+    PartList* m_Active = &m_Main;
     std::array<FriendWindowFieldLayout, FriendWindowFieldLayout::SlotCount> m_Fields{};
 };
 
@@ -127,6 +147,7 @@ private:
     };
 
     void Build();
+    void BuildUnderlay();
     void Unload();
     void SyncFields(CUIBaseWindow& window, const FriendWindowRmlBuilder& builder, bool topWindow);
     void PlaceField(Field& field, const FriendWindowFieldLayout& layout, const UI::Scaling::Transform& transform);
@@ -136,6 +157,9 @@ private:
     std::string m_ModelName;
     Rml::ElementDocument* m_pDoc = nullptr;
     RmlModelBinder<FriendWindowRmlModel> m_Binder;
+    // Parts under the window's native 3D content (FriendWindowRmlBuilder::UnderlayFill()).
+    Rml::ElementDocument* m_pUnderDoc = nullptr;
+    RmlModelBinder<FriendWindowRmlModel> m_UnderBinder;
     std::array<Field, FriendWindowFieldLayout::SlotCount> m_Fields;
 };
 

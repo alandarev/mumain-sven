@@ -379,9 +379,11 @@ public:
     template <typename Visit> void ForEachRenderLine(Visit&& visit)
     {
         MoveRenderLine();
+        // A multiline list draws its wrapped lines (MoveRenderLine() starts there).
+        const auto end = m_bUseMultiline == TRUE ? m_RenderTextList.end() : m_TextList.end();
         for (int i = 0; i < m_iNumRenderLine; ++i, ++m_TextListIter)
         {
-            if (m_TextListIter == m_TextList.end())
+            if (m_TextListIter == end)
                 break;
             const bool selected = SLGetSelectLineNum() == m_iCurrentRenderEndLine + i + 1;
             if constexpr (std::is_void_v<decltype(visit(i, *m_TextListIter, selected))>)
@@ -519,6 +521,8 @@ protected:
         return TRUE;
     }
     void CalcLineNum();
+
+public:
     virtual int GetRenderLinePos_y(int iLineNumber);
 };
 

@@ -57,6 +57,7 @@ const int UIPHOTOVIEWER_CANCONTROL = 1;
 
 class FriendWindowRmlBuilder;
 class FriendWindowViews;
+class CUIPhotoViewer;
 
 class CUIBaseWindow : public CUIControl
 {
@@ -137,6 +138,14 @@ public:
         (void)slot;
         return nullptr;
     }
+    // The native 3D content drawn over the RmlUi view (the letter windows' CUIPhotoViewer, their
+    // RenderOver()), or nullptr: the view leaves its box to an underlay under the native pass.
+    virtual CUIPhotoViewer* GetRmlPhoto()
+    {
+        return nullptr;
+    }
+    // CUIWindowMgr::Render() for a window with an RmlUi view: RenderOver() only.
+    void RenderRmlOverlay();
 
 protected:
     BOOL DoMouseAction();
@@ -351,8 +360,17 @@ public:
     virtual void InitControls() {}
     virtual void Refresh();
     void SetLetter(LETTERLIST_TEXT* pLetterHead, const wchar_t* pLetterText);
+    bool HasRmlView() const override
+    {
+        return true;
+    }
+    CUIPhotoViewer* GetRmlPhoto() override
+    {
+        return m_iShowType >= 2 ? &m_Photo : nullptr;
+    }
 
 protected:
+    void CollectRmlContent(FriendWindowRmlBuilder& view) override;
     virtual void RenderSub();
     virtual void RenderOver();
     virtual BOOL HandleMessage();
@@ -394,9 +412,32 @@ public:
     }
 
     virtual BOOL CloseCheck();
+    bool HasRmlView() const override
+    {
+        return true;
+    }
+    CUITextInputBox* GetRmlTextField(int slot) override
+    {
+        switch (slot)
+        {
+        case 0:
+            return &m_MailtoInputBox;
+        case 1:
+            return &m_TitleInputBox;
+        case 2:
+            return &m_TextInputBox;
+        default:
+            return nullptr;
+        }
+    }
+    CUIPhotoViewer* GetRmlPhoto() override
+    {
+        return m_iShowType == 1 ? &m_Photo : nullptr;
+    }
 
 protected:
     void InitControls() override;
+    void CollectRmlContent(FriendWindowRmlBuilder& view) override;
     virtual void RenderSub();
     virtual void RenderOver();
     virtual BOOL HandleMessage();
