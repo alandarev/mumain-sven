@@ -162,6 +162,7 @@ namespace mu::ui::window
 
         MESSAGE_TYPE		m_CurrentRenderMsgType;
         bool				m_bShowChatLog;
+        bool m_bSceneAllowsShow = false;
         int		m_iCurrentRenderEndLine;
         float	m_fBackAlpha;
 
@@ -251,6 +252,10 @@ namespace mu::ui::window
         bool UpdateMouseEvent() override;
         bool UpdateKeyEvent() override;
         bool Update() override;
+        // Hides the document outside the main scene (CSystem::SyncMainSceneHudVisibility()): the
+        // window is only updated there, but its document would keep drawing in every scene.
+        void SyncDocVisibility(bool sceneAllowsShow);
+
         bool Render() override;
 
         float GetLayerDepth() override;	//. 6.1f
@@ -309,6 +314,7 @@ namespace mu::ui::window
         int		m_iCurrentRenderEndLine;
         float	m_fBackAlpha;
         bool    m_bShowMessages;
+        bool m_bSceneAllowsShow = false;
 
         void Init();
 
@@ -342,6 +348,10 @@ namespace mu::ui::window
         bool UpdateMouseEvent() override;
         bool UpdateKeyEvent() override;
         bool Update() override;
+        // Hides the document outside the main scene (CSystem::SyncMainSceneHudVisibility()): the
+        // window is only updated there, but its document would keep drawing in every scene.
+        void SyncDocVisibility(bool sceneAllowsShow);
+
         bool Render() override;
 
         float GetLayerDepth() override;

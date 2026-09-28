@@ -1774,6 +1774,10 @@ void CSystem::SyncMainSceneHudVisibility()
         m_pNewItemEnduranceInfo->SyncDocVisibility(sceneAllowsShow);
     if (m_pNewMainFrameWindow)
         m_pNewMainFrameWindow->SyncDocVisibility(sceneAllowsShow);
+    if (m_pNewChatLogWindow)
+        m_pNewChatLogWindow->SyncDocVisibility(sceneAllowsShow);
+    if (m_pNewSystemLogWindow)
+        m_pNewSystemLogWindow->SyncDocVisibility(sceneAllowsShow);
 }
 
 void CSystem::UpdateMuHelperBarVisibilityForLayoutChange(DWORD dwKey)

@@ -650,11 +650,17 @@ void mu::ui::window::CChatLogWindow::ReloadRmlTheme()
     m_bLinesDirty = true; // next SyncRmlModel() repopulates the fresh document
 }
 
+void mu::ui::window::CChatLogWindow::SyncDocVisibility(bool sceneAllowsShow)
+{
+    m_bSceneAllowsShow = sceneAllowsShow;
+    UI::RmlBridge::SyncDocumentVisibility(m_pRmlDoc, IsVisible() && m_bShowChatLog && sceneAllowsShow);
+}
+
 void mu::ui::window::CChatLogWindow::SyncRmlModel()
 {
     if (!m_pRmlDoc) return;
 
-    UI::RmlBridge::SyncDocumentVisibility(m_pRmlDoc, IsVisible() && m_bShowChatLog);
+    UI::RmlBridge::SyncDocumentVisibility(m_pRmlDoc, IsVisible() && m_bShowChatLog && m_bSceneAllowsShow);
 
     ChatLogRmlModel& model = m_RmlBinder.GetModel();
 
@@ -1235,12 +1241,18 @@ void mu::ui::window::CSystemLogWindow::ReloadRmlTheme()
     m_bLinesDirty = true;
 }
 
+void mu::ui::window::CSystemLogWindow::SyncDocVisibility(bool sceneAllowsShow)
+{
+    m_bSceneAllowsShow = sceneAllowsShow;
+    UI::RmlBridge::SyncDocumentVisibility(m_pRmlDoc, IsVisible() && m_bShowMessages && sceneAllowsShow);
+}
+
 void mu::ui::window::CSystemLogWindow::SyncRmlModel()
 {
     if (!m_pRmlDoc) return;
 
     // m_bShowMessages is the input box's own "system messages" toggle; IsVisible() is the window's.
-    UI::RmlBridge::SyncDocumentVisibility(m_pRmlDoc, IsVisible() && m_bShowMessages);
+    UI::RmlBridge::SyncDocumentVisibility(m_pRmlDoc, IsVisible() && m_bShowMessages && m_bSceneAllowsShow);
 
     SystemLogRmlModel& model = m_RmlBinder.GetModel();
 
