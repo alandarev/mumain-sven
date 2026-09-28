@@ -13,6 +13,7 @@
 #include "Render/RmlUi/RmlUiRuntime.h"
 #include "UI/RmlBridge/RmlTheme.h"
 #include "UI/RmlBridge/RmlDocumentVisibility.h"
+#include "UI/Scaling/UITransform.h"
 #include "Core/Utilities/StringUtils.h"
 #include <RmlUi/Core/ElementDocument.h>
 #include <RmlUi/Core/Element.h>
@@ -1218,6 +1219,11 @@ void mu::ui::window::CSystemLogWindow::BuildRmlUi()
 
             c.Bind("lines", &model.lines);
             c.Bind("back_color", &model.backColor);
+            c.Bind("panel_x", &model.panelX);
+            c.Bind("panel_y", &model.panelY);
+            c.Bind("row_px", &model.rowPx);
+            c.Bind("line_px", &model.linePx);
+            c.Bind("text_px", &model.textPx);
         });
 
     if (modelCreated)
@@ -1265,12 +1271,42 @@ void mu::ui::window::CSystemLogWindow::SyncRmlModel()
         m_RmlBinder.MarkDirty("back_color");
     }
 
+    SyncNativeGeometry();
+
     if (m_bLinesDirty)
     {
         m_bLinesDirty = false;
         RebuildLineModel();
         m_RmlBinder.MarkDirty("lines");
     }
+}
+
+// Native's RenderMessages(): the first line at the window position plus FONT_LEADING on both axes,
+// one row every MeasureText("Q").cy * 1.2 (logical), each line's background as tall as the text.
+void mu::ui::window::CSystemLogWindow::SyncNativeGeometry()
+{
+    const auto transform = UI::Scaling::GetActiveTransform();
+    g_pRenderText->SetFont(g_hFont);
+    const int textHeight = g_pRenderText->MeasureText(L"Q", 1).cy;
+    const int rowHeight = std::max(1, static_cast<int>(static_cast<float>(textHeight) * 1.2f));
+
+    SystemLogRmlModel& model = m_RmlBinder.GetModel();
+    auto syncFloat = [&](float SystemLogRmlModel::* field, const char* name, float value)
+    {
+        if (model.*field != value)
+        {
+            model.*field = value;
+            m_RmlBinder.MarkDirty(name);
+        }
+    };
+    syncFloat(&SystemLogRmlModel::panelX, "panel_x",
+              UI::Scaling::PositionX(transform, static_cast<float>(m_WndPos.x + FONT_LEADING)));
+    syncFloat(&SystemLogRmlModel::panelY, "panel_y",
+              UI::Scaling::PositionY(transform, static_cast<float>(m_WndPos.y + FONT_LEADING)));
+    syncFloat(&SystemLogRmlModel::rowPx, "row_px", UI::Scaling::SizeY(transform, static_cast<float>(rowHeight)));
+    syncFloat(&SystemLogRmlModel::linePx, "line_px", UI::Scaling::SizeY(transform, static_cast<float>(textHeight)));
+    syncFloat(&SystemLogRmlModel::textPx, "text_px",
+              UI::Scaling::NativeTextPixelSize(UI::Scaling::FontRole::Normal, transform));
 }
 
 void mu::ui::window::CSystemLogWindow::RebuildLineModel()

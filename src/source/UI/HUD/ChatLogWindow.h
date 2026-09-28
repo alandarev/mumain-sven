@@ -283,6 +283,15 @@ namespace mu::ui::window
         // this is a per-line colour, not a panel fill.
         Rml::String backColor = "rgba(0,0,0,153)";
         Rml::Vector<ChatLogLineEntry> lines;
+
+        // The native renderer's geometry under the window's layout, in physical px (the legacy
+        // theme's system_log.rml): the first line's origin, the row pitch, each line's background
+        // height and the text size.
+        float panelX = 0.f;
+        float panelY = 0.f;
+        float rowPx = 0.f;
+        float linePx = 0.f;
+        float textPx = 0.f;
     };
 
     class CSystemLogWindow : public CObject
@@ -320,6 +329,7 @@ namespace mu::ui::window
 
         void BuildRmlUi();
         void SyncRmlModel();
+        void SyncNativeGeometry();
         void RebuildLineModel();
 
         RmlModelBinder<SystemLogRmlModel> m_RmlBinder;
