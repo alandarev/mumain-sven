@@ -4,26 +4,14 @@
 #include "UI/Core/WindowObject.h"
 #include "UI/Core/WindowManager.h"
 #include "UI/Inventory/MyInventory.h"
-#include "UI/Widgets/Window/Button.h"
+#include "UI/Events/EventItemEntryView.h"
 
 namespace mu::ui::window
 {
+    // Delgado's lucky coin exchange window. lucky_coin_exchange.rml draws it (the frame in the
+    // background context); C++ keeps the button locks, Escape and every request it sends.
     class CExchangeLuckyCoin : public CObject
     {
-    public:
-        enum IMAGE_LIST
-        {
-            // Base Window (Reference)
-            IMAGE_EXCHANGE_LUCKYCOIN_WINDOW_BACK = CMessageBoxMng::IMAGE_MSGBOX_BACK,				//. newui_msgbox_back.jpg
-            IMAGE_EXCHANGE_LUCKYCOIN_WINDOW_TOP = CMyInventory::IMAGE_INVENTORY_BACK_TOP2,			//. newui_item_back01.tga	(190,64)
-            IMAGE_EXCHANGE_LUCKYCOIN_WINDOW_LEFT = CMyInventory::IMAGE_INVENTORY_BACK_LEFT,		//. newui_item_back02-l.tga	(21,320)
-            IMAGE_EXCHANGE_LUCKYCOIN_WINDOW_RIGHT = CMyInventory::IMAGE_INVENTORY_BACK_RIGHT,		//. newui_item_back02-r.tga	(21,320)
-            IMAGE_EXCHANGE_LUCKYCOIN_WINDOW_BOTTOM = CMyInventory::IMAGE_INVENTORY_BACK_BOTTOM,	//. newui_item_back03.tga	(190,45)
-            IMAGE_EXCHANGE_LUCKYCOIN_WINDOW_BTN_EXIT = CMessageBoxMng::IMAGE_MSGBOX_BTN_EMPTY_SMALL,	//. newui_btn_empty.tga (64, 87)
-
-            IMAGE_EXCHANGE_LUCKYCOIN_EXCHANGE_BTN = CMessageBoxMng::IMAGE_MSGBOX_BTN_EMPTY			//. newui_btn_empty.tga	(108, 87)
-        };
-
     private:
         enum ENTERBC_WINDOW_SIZE
         {
@@ -42,11 +30,9 @@ namespace mu::ui::window
     private:
         CManager* m_pNewUIMng;
         POINT						m_Pos;
-        POINT						m_TextPos;
-        POINT						m_FirstBtnPos;
-
-        CButton				m_BtnExchange[MAX_EXCHANGE_BTN];
-        CButton				m_BtnExit;
+        bool m_ExchangeLocked = false;
+        EventItemEntryView m_View{"lucky_coin_exchange", "Data/Interface/RmlUi/lucky_coin_exchange.rml",
+                                  "lucky_coin_exchange_bg", "Data/Interface/RmlUi/lucky_coin_exchange_bg.rml"};
 
     public:
         CExchangeLuckyCoin();
@@ -73,11 +59,6 @@ namespace mu::ui::window
         void UnLockExchangeBtn();
 
     private:
-        void SetBtnPos(int x, int y);
-        void RenderFrame();
-        void RenderTexts();
-        void RenderBtn();
-        void LoadImages();
-        void UnloadImages();
+        void SyncView();
     };
 }
