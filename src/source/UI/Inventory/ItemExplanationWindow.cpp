@@ -7,6 +7,10 @@
 #include "GameLogic/Items/CSItemOption.h"
 #include "I18N/All.h"
 #include "UI/RmlBridge/RmlTheme.h"
+#include "Engine/Object/ZzzInterface.h"
+
+extern int TextNum;
+extern int g_iItemInfo[16][17];
 
 using namespace SEASON3B;
 using namespace mu::ui::window;
@@ -101,19 +105,22 @@ bool mu::ui::window::CItemExplanationWindow::Render()
 
 void mu::ui::window::CItemExplanationWindow::RecordTable(TipTextListRecord& record)
 {
-
-    extern int ItemHelp;
-    extern wchar_t TextList[50][100];
-    extern int TextListColor[50];
-    extern int TextBold[50];
-    extern int TextNum;
-    extern int g_iItemInfo[12][17];
+    // The globals, not block-scope externs: inside mu::ui::window those redeclared UIManager.cpp's
+    // same-named references as plain objects, so the original read ItemHelp as garbage and hid the
+    // window on its first frame (and would have written the table through the references).
 
     int iInfoWidth = 0;
     int iLabelHeight = 0;
     int iDataHeight = 0;
 
-    switch (WindowWidth)
+    // The original knew only these four window widths; any other left iInfoWidth 0 and divided
+    // by it below (never reached there: the window hid itself first). Other widths take the
+    // nearest smaller one's values.
+    const int layoutWidth = WindowWidth >= 1280   ? 1280
+                            : WindowWidth >= 1024 ? 1024
+                            : WindowWidth >= 800  ? 800
+                                                  : REFERENCE_WIDTH;
+    switch (layoutWidth)
     {
     case REFERENCE_WIDTH:
         iInfoWidth = 90;
@@ -169,9 +176,9 @@ void mu::ui::window::CItemExplanationWindow::RecordTable(TipTextListRecord& reco
     {
         iType = 5;
 
-        if (WindowWidth == REFERENCE_WIDTH || WindowWidth == 1280)
+        if (layoutWidth == REFERENCE_WIDTH || layoutWidth == 1280)
             TabSpace += int(5940 / iInfoWidth);
-        else if (WindowWidth == 800 || WindowWidth == 1024)
+        else if (layoutWidth == 800 || layoutWidth == 1024)
             TabSpace += int(5200 / iInfoWidth);
     }
     else
