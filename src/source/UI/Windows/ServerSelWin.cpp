@@ -38,6 +38,10 @@ void CServerSelWin::Create()
 {
     Release();
 
+    // Create() runs on every entry to the login scene: start with no group chosen, so the list
+    // does not reopen on the group an earlier visit picked.
+    m_iSelectServerBtnIndex = -1;
+
     if (!m_pRmlDoc && RmlUiRuntime::Instance().IsCreated())
     {
         BuildRmlUi();
