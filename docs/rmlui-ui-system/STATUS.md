@@ -247,6 +247,16 @@ genuinely stay in C++ — worth reading before auditing any legacy-theme code ag
   box back from RmlUi, and the hint ends below its anchor like the native one. Paint order is
   RmlUi's: the icons now follow `main_frame.rml`'s document order instead of the native layer
   depth (the hit targets already did). The skill textures stay loaded for `CUIMuHelper`.
+- **Guild and social windows** — **done, both themes (2026-09-28)**: `CServerMsgWin`,
+  `CGuildMakeWindow`, `CGuildInfoWindow` with its lists, `CGuild_ToPerson_Position`, `CGensRanking`,
+  `CItemExplanationWindow`, `CSetItemExplanation`. The friends family (`CFriendWindow`, letters, chat
+  rooms) is still native, scheduled for its own run. Worth carrying to the next port:
+
+  - **A block-scope `extern` inside `mu::ui::window`** declares a namespace member, not the global:
+    UIManager.cpp defines same-named references there (`ItemHelp`, `TextList`, ...), so such an
+    extern reads the reference's pointer bits. Use the globals.
+  - **Windows the original never showed** (the item help) can still carry the original's latent
+    crashes (a division by a width it did not list); exercise every size once it draws.
 - **Castle siege windows** — **done, both themes (2026-09-28)**: `CProgressMsgBox` (seal, crown
   switch and crown defence notices), `CGateSwitchWindow`, `CCatapultWindow`, `CGatemanWindow`,
   `CGuardWindow` with its guild lists, `CCastleWindow` (Senatus) and `CSiegeWarfare` (the Valley of
