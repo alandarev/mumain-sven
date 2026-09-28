@@ -196,6 +196,7 @@ void UI::Character::WorldLabelLayer::RecordText(const Render::Renderer::Recorded
     // The native renderer draws no box for a fully transparent background colour.
     SetBox(slot, {text.boxX, text.boxY, text.boxWidth, text.boxHeight},
            (text.backColor >> 24) == 0 ? 0u : text.backColor);
+    SetDecorator(slot, {});
     SetPx(slot.text, Rml::PropertyId::Left, slot.textOffset, text.textX - text.boxX);
     SetPx(slot.text, Rml::PropertyId::FontSize, slot.textPixelSize, text.textPixelSize);
     SetPx(slot.text, Rml::PropertyId::LineHeight, slot.lineHeight, text.lineHeight);
@@ -220,13 +221,41 @@ void UI::Character::WorldLabelLayer::RecordText(const Render::Renderer::Recorded
 void UI::Character::WorldLabelLayer::RecordQuad(const Render::Renderer::RecordedQuad& quad)
 {
     Slot& slot = NextSlot(SlotKind::Quad);
-    SetBox(slot, {quad.x, quad.y, quad.width, quad.height}, AbgrFromArgb(quad.argb));
+    std::uint32_t abgr = AbgrFromArgb(quad.argb);
+    std::string decorator;
+    if (quad.blend == Render::Renderer::RecordedBlend::Additive)
+    {
+        // Added to what is behind it (Render::RmlUi::RegisterAdditiveFillDecorator), no plain fill.
+        char fill[40];
+        std::snprintf(fill, sizeof(fill), "additive-fill(#%02x%02x%02x)", abgr & 0xFFu, (abgr >> 8) & 0xFFu,
+                      (abgr >> 16) & 0xFFu);
+        decorator = fill;
+        abgr = 0;
+    }
+    else if (quad.blend == Render::Renderer::RecordedBlend::Opaque)
+    {
+        abgr |= 0xFF000000u;
+    }
+    SetBox(slot, {quad.x, quad.y, quad.width, quad.height}, abgr);
+    SetDecorator(slot, decorator);
+}
+
+void UI::Character::WorldLabelLayer::SetDecorator(Slot& slot, const std::string& decorator)
+{
+    if (slot.boxDecorator == decorator)
+        return;
+    slot.boxDecorator = decorator;
+    if (decorator.empty())
+        slot.box->RemoveProperty(Rml::PropertyId::Decorator);
+    else
+        slot.box->SetProperty("decorator", decorator);
 }
 
 void UI::Character::WorldLabelLayer::RecordBitmap(const Render::Renderer::RecordedBitmap& bitmap)
 {
     Slot& slot = NextSlot(SlotKind::Bitmap);
     SetBox(slot, {bitmap.x, bitmap.y, bitmap.width, bitmap.height}, 0u);
+    SetDecorator(slot, {});
 
     std::string source = ImageSource(bitmap.fileName);
     if (slot.imageSource != source)

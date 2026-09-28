@@ -27,6 +27,14 @@ struct RecordedText
     std::string utf8;
 };
 
+// How a recorded quad combines with what is behind it: the native blend state it was drawn under.
+enum class RecordedBlend
+{
+    Alpha,    // EnableAlphaTest() and most modes: ordinary alpha blending
+    Additive, // EnableAlphaBlend(): BlendMode::Glow (ONE, ONE), the colour is added
+    Opaque,   // DisableAlphaBlend(): blending off, alpha ignored
+};
+
 struct RecordedQuad
 {
     float x = 0.0f;
@@ -34,6 +42,7 @@ struct RecordedQuad
     float width = 0.0f;
     float height = 0.0f;
     std::uint32_t argb = 0;
+    RecordedBlend blend = RecordedBlend::Alpha;
 };
 
 struct RecordedBitmap

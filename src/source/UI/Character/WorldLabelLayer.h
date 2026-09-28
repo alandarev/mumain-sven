@@ -61,6 +61,7 @@ private:
         SlotKind kind = SlotKind::Hidden;
         float x = -1.0f, y = -1.0f, width = -1.0f, height = -1.0f;
         std::uint32_t boxColor = 1;
+        std::string boxDecorator;
         float textOffset = -1.0f, textPixelSize = -1.0f, lineHeight = -1.0f;
         bool bold = false;
         std::uint32_t textColor = 1;
@@ -82,6 +83,7 @@ private:
         float height;
     };
     void SetBox(Slot& slot, const Rect& rect, std::uint32_t abgr);
+    void SetDecorator(Slot& slot, const std::string& decorator);
 
     Rml::ElementDocument* m_document = nullptr;
     std::vector<Slot> m_slots;

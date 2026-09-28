@@ -1121,7 +1121,10 @@ void RenderColorQuadARGB(float x, float y, float Width, float Height, unsigned i
 
     if (Render::Renderer::IOverlay2DRecorder* recorder = Render::Renderer::ActiveOverlay2DRecorder())
     {
-        recorder->RecordQuad({x, y, Width, Height, argbColor});
+        const Render::Renderer::RecordedBlend blend = AlphaBlendType == 3   ? Render::Renderer::RecordedBlend::Additive
+                                                      : AlphaBlendType == 0 ? Render::Renderer::RecordedBlend::Opaque
+                                                                            : Render::Renderer::RecordedBlend::Alpha;
+        recorder->RecordQuad({x, y, Width, Height, argbColor, blend});
         return;
     }
 
