@@ -669,11 +669,13 @@ public:
         return (SLGetSelectLine() == m_TextList.end() ? NULL : &(*SLGetSelectLine()));
     }
 
+    // The y (reference px) Render() draws line `iLineNumber` at.
+    virtual int GetRenderLinePos_y(int iLineNumber);
+
 protected:
     virtual void RenderInterface();
     virtual BOOL RenderDataLine(int iLineNumber);
     virtual BOOL DoLineMouseAction(int iLineNumber);
-    virtual int GetRenderLinePos_y(int iLineNumber);
 };
 
 class CUIGuildNoticeListBox : public CUITextListBox<GUILDLOG_TEXT>
