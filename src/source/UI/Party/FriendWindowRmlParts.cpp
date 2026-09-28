@@ -38,6 +38,73 @@ const char* SelectedRowRole(bool afterCheckBox)
     return afterCheckBox ? "row-selected after-check-box" : "row-selected";
 }
 
+// CUIChatPalListBox::Render(): its scroll bar, then its lines (a chat room's members and the
+// friends it can invite).
+void CollectChatPalList(FriendWindowRmlBuilder& view, CUIChatPalListBox& list)
+{
+    view.ListScrollBar(list);
+    const TextListScrollBarGeometry bar = list.ComputeLegacyScrollBar();
+    const auto listX = static_cast<float>(list.GetPosition_x());
+    list.ForEachRenderLine(
+        [&](int line, GUILDLIST_TEXT& item, bool selected)
+        {
+            const auto lineY = static_cast<float>(list.GetRenderLinePos_y(line));
+            if (selected)
+                view.Fill(SelectedRowRole(false), listX, lineY - 3, list.GetWidth() - bar.barWidth + 1, 13);
+            const DWORD color = selected ? TextSelectedRow : TextNormal;
+            view.Text(item.m_szID, listX + 3 + list.GetColumnPos_x(0), lineY, color);
+            if (list.GetLayout() == 1)
+            {
+                wchar_t server[MAX_TEXT_LENGTH + 1] = {0};
+                if (item.m_Server == 0xFF || item.m_Server == 0xFE || item.m_Server == 0xFC)
+                    mu_swprintf(server, I18N::Game::Offline1039);
+                else if (item.m_Server == 0xFD)
+                    mu_swprintf(server, I18N::Game::CannotUse);
+                else
+                    mu_swprintf(server, I18N::Game::_2dServer, item.m_Server + 1);
+                view.Text(server, listX + 3 + 4 + list.GetColumnPos_x(1), lineY, color);
+            }
+        });
+}
+
+// RenderWindowVLine(): a vertical divider, a dark band between two lines.
+void CollectWindowVLine(FriendWindowRmlBuilder& view, float x, float y, float height)
+{
+    view.Fill("separator", x, y, 1, height);
+    view.Fill("separator", x + 4, y, 1, height);
+    view.Fill("frame-band", x + 1, y, 3, height);
+}
+
+// CUISimpleChatListBox::RenderDataLine()'s colours by message type: the sender's, then the text's.
+DWORD ChatNameColor(int type)
+{
+    switch (type)
+    {
+    case 1:
+        return RGBA(100, 150, 255, 255);
+    case 2:
+        return RGBA(255, 30, 0, 255);
+    case 3:
+        return RGBA(239, 220, 205, 255);
+    default:
+        return RGBA(0, 0, 0, 255);
+    }
+}
+
+DWORD ChatTextColor(int type)
+{
+    switch (type)
+    {
+    case 1:
+        return RGBA(70, 165, 210, 255);
+    case 2:
+        return RGBA(255, 30, 0, 255);
+    case 3:
+        return TextNormal;
+    default:
+        return RGBA(0, 0, 0, 255);
+    }
+}
 } // namespace
 
 void CUIBaseWindow::CollectRmlView(FriendWindowRmlBuilder& view)
@@ -373,6 +440,67 @@ void CUIQuestionWindow::CollectRmlContent(FriendWindowRmlBuilder& view)
     view.Button(m_AddButton);
     if (m_iDialogType == 0)
         view.Button(m_CancelButton);
+}
+
+// CUIChatWindow::RenderSub(): a chat room -- its lines, the members (and the friends to invite),
+// the input line.
+void CUIChatWindow::CollectRmlContent(FriendWindowRmlBuilder& view)
+{
+    if (GetState() == UISTATE_MOVE || GetState() == UISTATE_RESIZE)
+    {
+        m_ChatListBox.SendUIMessageDirect(UI_MESSAGE_P_MOVE, 0, 0);
+        m_PalListBox.SendUIMessageDirect(UI_MESSAGE_P_MOVE, 0, 0);
+        m_InvitePalListBox.SendUIMessageDirect(UI_MESSAGE_P_MOVE, 0, 0);
+        m_InviteButton.SendUIMessageDirect(UI_MESSAGE_P_MOVE, 0, 0);
+        m_CloseInviteButton.SendUIMessageDirect(UI_MESSAGE_P_MOVE, 0, 0);
+        m_TextInputBox.SendUIMessageDirect(UI_MESSAGE_P_MOVE, 0, 0);
+        if (GetState() == UISTATE_RESIZE)
+        {
+            m_ChatListBox.SendUIMessageDirect(UI_MESSAGE_P_RESIZE, 0, 0);
+            m_PalListBox.SendUIMessageDirect(UI_MESSAGE_P_RESIZE, 0, 0);
+            m_InvitePalListBox.SendUIMessageDirect(UI_MESSAGE_P_RESIZE, 0, 0);
+        }
+    }
+
+    // CUISimpleChatListBox::Render(): the sender (on a message's first line) and the text after it.
+    view.ListScrollBar(m_ChatListBox);
+    const auto chatX = static_cast<float>(m_ChatListBox.GetPosition_x());
+    const auto chatBottom = static_cast<float>(m_ChatListBox.GetPosition_y());
+    m_ChatListBox.ForEachRenderLine(
+        [&](int line, WHISPER_TEXT& item, bool)
+        {
+            const float lineY = chatBottom - 16 - static_cast<float>(line) * 13;
+            float nameWidth = 0.f;
+            if (item.m_szID[0] != L'\0')
+            {
+                wchar_t name[MAX_TEXT_LENGTH + 1] = {0};
+                mu_swprintf(name, L"%ls: ", item.m_szID);
+                view.Text(name, chatX + 8, lineY, ChatNameColor(item.m_iType));
+                nameWidth = TextWidth(name);
+            }
+            view.Text(item.m_szText, chatX + 8 + nameWidth, lineY, ChatTextColor(item.m_iType));
+        });
+
+    const bool showMembers = m_PalListBox.GetLineNum() > 2 || m_iShowType >= 2;
+    if (showMembers)
+        CollectChatPalList(view, m_PalListBox);
+    if (m_iShowType >= 2)
+    {
+        CollectChatPalList(view, m_InvitePalListBox);
+        CollectWindowVLine(view, static_cast<float>(RPos_x(0) + RWidth() - 160), static_cast<float>(RPos_y(0)),
+                           static_cast<float>(RHeight() - 16));
+    }
+    if (showMembers)
+        CollectWindowVLine(view, static_cast<float>(RPos_x(0) + RWidth() - 80), static_cast<float>(RPos_y(0)),
+                           static_cast<float>(RHeight() - 16));
+
+    view.Fill("separator", RPos_x(0), RPos_y(0) + RHeight() - 16, RWidth(), 1);
+    view.Fill("panel", RPos_x(0), RPos_y(0) + RHeight() - 15, RWidth(), 15);
+
+    view.Button(m_InviteButton);
+    view.Field(0, m_TextInputBox);
+    if (m_iShowType >= 2)
+        view.Button(m_CloseInviteButton);
 }
 
 // CUILetterWriteWindow::RenderSub(): receiver, title and text fields and the buttons; the photo

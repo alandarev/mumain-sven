@@ -220,6 +220,7 @@ template <typename List> void FriendWindowRmlBuilder::ListScrollBar(List& list)
 template void FriendWindowRmlBuilder::ListScrollBar<CUIChatPalListBox>(CUIChatPalListBox&);
 template void FriendWindowRmlBuilder::ListScrollBar<CUIWindowListBox>(CUIWindowListBox&);
 template void FriendWindowRmlBuilder::ListScrollBar<CUILetterListBox>(CUILetterListBox&);
+template void FriendWindowRmlBuilder::ListScrollBar<CUISimpleChatListBox>(CUISimpleChatListBox&);
 template void FriendWindowRmlBuilder::ListScrollBar<CUILetterTextListBox>(CUILetterTextListBox&);
 
 namespace

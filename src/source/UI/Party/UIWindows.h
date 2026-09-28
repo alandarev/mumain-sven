@@ -249,8 +249,17 @@ public:
         return m_dwRoomNumber;
     }
     void Lock(BOOL bFlag);
+    bool HasRmlView() const override
+    {
+        return true;
+    }
+    CUITextInputBox* GetRmlTextField(int slot) override
+    {
+        return slot == 0 ? &m_TextInputBox : nullptr;
+    }
 
 protected:
+    void CollectRmlContent(FriendWindowRmlBuilder& view) override;
     virtual void RenderSub();
     virtual BOOL HandleMessage();
     virtual void DoActionSub(BOOL bMessageOnly);
