@@ -55,7 +55,7 @@ have had no investigation beyond confirming no RmlUi call sites exist, not a sha
 | `CMainFrameWindow` (+ nested `CSkillList`) | `CObject`-tier + live-3D | Done | Hybrid RmlUi/native 3D | `STATUS.md` "What's migrated" — 3-phase port; skill icons/boxes RmlUi since 2026-09-27 (`ResolveSkillIcon()`, `skill_icons.rcss`), only the item-hotkey potions stay native 3D |
 | `CBuffStrip` | `CObject`-tier | Done | RmlUi-only 2D | `STATUS.md` "What's migrated"; the `data-for` pilot |
 | `CMuHelperBar` | `CObject`-tier | Done | RmlUi-only 2D | `STATUS.md` "What's migrated" |
-| `CHotKey` | `CObject`-tier | Not started | TBD | Not the same class as `CItemHotKey` (a nested type inside `CMainFrameWindow`, already ported as part of Phase 3) — verify relationship before scoping |
+| `CHotKey` | `CObject`-tier | Nothing to port | — | `CHotKey::Render()` only returns true: the window handles hotkeys and draws nothing (verified 2026-09-28). Not the same class as `CItemHotKey`, a nested type inside `CMainFrameWindow`, already ported with it |
 | `CGensRanking` | `CObject`-tier | Done (2026-09-28) | RmlUi-only 2D | `gens_ranking.rml` + both themes. |
 | `CCommandWindow` | `CObject`-tier | Done (2026-09-27) | RmlUi-only 2D | `command_window.rml` + both themes (modern overrides the markup for its forged shell). Right-docked; `docked_panel_frame.rcss`'s frame at this window's own 432 height. The twelve `CButton`s are gone: RmlUi draws up/over/down frames and the armed command pressed and bold; C++ keeps the armed command, the right-click that runs it, the cursor state and the corner-close hit test. The target box at the pointer is part of the same document. Title shrunk to its 72-unit box via `UI::Scaling::NativeTextPixelSizeInBox()`. |
 | `CQuickCommandWindow` | `CObject`-tier | Done (2026-09-27) | RmlUi-only 2D | `quick_command.rml` + both themes. Render-only port: placement at the pointer, the hover index and the clicks stay native (the control socket's quick-peer observation reads the same index), the document mirrors them and takes no pointer events. |
@@ -84,7 +84,7 @@ have had no investigation beyond confirming no RmlUi call sites exist, not a sha
 | `CItemEnduranceInfo` | `CObject`-tier | Not started | TBD | |
 | `CSetItemExplanation` | `CObject`-tier | Done (2026-09-28) | RmlUi-only 2D | `set_item_explanation.rml` through `UI/Inventory/TipTextListView`. |
 | `CUnitedMarketPlaceWindow` | `CObject`-tier + live-3D (`I3DRenderObj`) | Done (2026-09-27): `united_market_place.rml` + both themes; RmlUi-only 2D (the 3D hook draws nothing) | TBD (likely Hybrid) | `component-catalog.md`: "not in this family [inventory `C3DRenderMng` group] — no `CInventoryCtrl`/item grid... still native, but not blocked by anything here" |
-| `CInGameShop` | `CObject`-tier, has live-3D render calls | Not started | TBD (likely Hybrid) | Several of its sub-dialogs (`MsgBoxIGS*`) already call `CGenericConfirmDialog` for individual confirms — the shop shell itself is still fully native |
+| `CInGameShop` | `CObject`-tier, has live-3D render calls | Stays native | — | Not ported: OpenMU has no cash shop server side, so there is nothing to port against. Several of its sub-dialogs (`MsgBoxIGS*`) already call `CGenericConfirmDialog` for individual confirms; the shop shell is still fully native |
 
 ### Party / Guild
 
@@ -197,8 +197,8 @@ been individually ported. What's left, by current grep of the two headers:
 | Component | Status | Target primitive | Detail pointer |
 |---|---|---|---|
 | `CGuild_ToPerson_Position` | Done (2026-09-28) | RmlUi (shared `UI/Dialogs/MessageBoxView`) | `component-catalog.md`'s Dialog section |
-| `CGemIntegrationDisjointMsgBox` | Stays native | Bespoke (embedded live inventory list-selection widget) | `component-catalog.md`'s Dialog section |
-| `CQuestCountLimitMsgBoxLayout` (`CCommonMessageBox`) | Not started | TBD | |
+| `CGemIntegrationDisjointMsgBox` | Not started | TBD (with its `CUIUnmixgemList`) | Queued: every native dialog is to move to RmlUi; `component-catalog.md`'s Dialog section |
+| `CQuestCountLimitMsgBoxLayout` (`CCommonMessageBox`) | Compiled out | — | Its only creator, `ReceiveQuestLimitResult()`, is under `ASG_ADD_TIME_LIMIT_QUEST`, which this build does not define |
 | `CBloodCastleResultMsgBoxLayout` | Not started | TBD | |
 | `CDevilSquareRankMsgBoxLayout` | Not started | TBD | |
 | `CChaosCastleResultMsgBoxLayout` | Not started | TBD | |
@@ -208,37 +208,58 @@ been individually ported. What's left, by current grep of the two headers:
 | `CCursedTempleHolicItemGetLayout`, `CCursedTempleHolicItemSaveLayout` (`CCursedTempleProgressMsgBox`) | Not started | TBD | Share one underlying shape class |
 
 Also present: `C3DItemCommonMsgBox` (`CommonMessageBox.h`) — a `CMessageBoxBase` shape class with
-live-3D item content, no `...Layout` instantiation found using it directly in the current grep;
-verify whether it's still a live shape before scoping a port.
+live-3D item content; its only user is the cash shop's `MsgBoxIGSStorageItemInfo`, so it stays with
+`CInGameShop` (verified 2026-09-28).
 
 ## `CUIControl` list family (`UI/Widgets/UIControls.h`)
 
-The `data-for` binding pattern is proven (`component-catalog.md`'s "List / repeated rows") on 2 of
-18 `CUITextListBox<T>` instantiations, and a third (`CUIExtraItemListBox`) was deleted with its only
-user. The other 15 are the tracked deferral in `tracked-deferrals.md`.
+The `data-for` binding pattern is proven (`component-catalog.md`'s "List / repeated rows"); the list
+widgets retire with their host windows. As of 2026-09-28 only `CUISocketListBox` (inside the mix
+window) and `CUIUnmixgemList` (jewel dialog) still draw natively, plus the three cash shop lists that
+stay with `CInGameShop`.
 
 | Component | Row type | Status | Detail pointer |
 |---|---|---|---|
 | `CUICurQuestListBox` | `SCurQuestItem` | Done | `component-catalog.md` — `CMyQuestInfoWindow`'s quest list |
 | `CUIQuestContentsListBox` | `SQuestContents` | Done | `component-catalog.md` — same window |
-| `CUIGuildListBox` | `GUILDLIST_TEXT` | Not started | `tracked-deferrals.md` |
-| `CUISimpleChatListBox` | `WHISPER_TEXT` | Not started | `tracked-deferrals.md` |
-| `CUILetterTextListBox` | `LETTER_TEXT` | Not started | `tracked-deferrals.md` |
-| `CUIChatPalListBox` | `GUILDLIST_TEXT` | Not started | `tracked-deferrals.md` |
-| `CUIWindowListBox` | `WINDOWLIST_TEXT` | Not started | `tracked-deferrals.md` |
-| `CUILetterListBox` | `LETTERLIST_TEXT` | Not started | `tracked-deferrals.md` |
-| `CUISocketListBox` | `SOCKETLIST_TEXT` | Not started | `tracked-deferrals.md` |
-| `CUIGuildNoticeListBox` | `GUILDLOG_TEXT` | Not started | `tracked-deferrals.md` |
-| `CUINewGuildMemberListBox` | `GUILDLIST_TEXT` | Not started | `tracked-deferrals.md` |
-| `CUIUnionGuildListBox` | `UNIONGUILD_TEXT` | Not started | `tracked-deferrals.md` |
+| `CUIGuildListBox` | `GUILDLIST_TEXT` | Unused | Only an `extern` declaration in `ZzzInventory.cpp` is left; no window draws it |
+| `CUISimpleChatListBox` | `WHISPER_TEXT` | Done (2026-09-28) | `CFriendWindow` port (`UI/Party/FriendWindowRmlParts.cpp`) |
+| `CUILetterTextListBox` | `LETTER_TEXT` | Done (2026-09-28) | `CFriendWindow` port (`UI/Party/FriendWindowRmlParts.cpp`) |
+| `CUIChatPalListBox` | `GUILDLIST_TEXT` | Done (2026-09-28) | `CFriendWindow` port (`UI/Party/FriendWindowRmlParts.cpp`) |
+| `CUIWindowListBox` | `WINDOWLIST_TEXT` | Done (2026-09-28) | `CFriendWindow` port (`UI/Party/FriendWindowRmlParts.cpp`) |
+| `CUILetterListBox` | `LETTERLIST_TEXT` | Done (2026-09-28) | `CFriendWindow` port (`UI/Party/FriendWindowRmlParts.cpp`) |
+| `CUISocketListBox` | `SOCKETLIST_TEXT` | Not started | Still drawn natively inside the ported `CMixInventory` (socket attach/detach mixes); queued |
+| `CUIGuildNoticeListBox` | `GUILDLOG_TEXT` | Done (2026-09-28) | `CGuildInfoWindow` port (`guild_info.rml`) |
+| `CUINewGuildMemberListBox` | `GUILDLIST_TEXT` | Done (2026-09-28) | `CGuildInfoWindow` port (`guild_info.rml`) |
+| `CUIUnionGuildListBox` | `UNIONGUILD_TEXT` | Done (2026-09-28) | `CGuildInfoWindow` port (`guild_info.rml`) |
 | `CUIExtraItemListBox` | `FILTERLIST_TEXT` | Deleted | Its only user, the MU Helper config window, now binds a `data-for` list in a `.scroll-pane` |
-| `CUIUnmixgemList` | `UNMIX_TEXT` | Not started | `tracked-deferrals.md` |
-| `CUIBCDeclareGuildListBox` | `BCDECLAREGUILD_TEXT` | Not started | `tracked-deferrals.md` |
-| `CUIBCGuildListBox` | `BCGUILD_TEXT` | Not started | `tracked-deferrals.md` |
-| `CUIMoveCommandListBox` | `MOVECOMMAND_TEXT` | Not started | `tracked-deferrals.md` |
+| `CUIUnmixgemList` | `UNMIX_TEXT` | Not started | Drawn by `CGemIntegrationDisjointMsgBox`; ported with it |
+| `CUIBCDeclareGuildListBox` | `BCDECLAREGUILD_TEXT` | Done (2026-09-28) | `CGuardWindow` port (`guard_window.rml`) |
+| `CUIBCGuildListBox` | `BCGUILD_TEXT` | Done (2026-09-28) | `CGuardWindow` port (`guard_window.rml`) |
+| `CUIMoveCommandListBox` | `MOVECOMMAND_TEXT` | Unused | No user left; `CMoveCommandWindow` binds its own `data-for` list |
 | `CUIInGameShopListBox` | `IGS_StorageItem` | Not started | `tracked-deferrals.md` |
 | `CUIBuyingListBox` | `IGS_BuyList` | Not started | `tracked-deferrals.md` |
 | `CUIPackCheckBuyingListBox` | `IGS_SelectBuyItem` | Not started | `tracked-deferrals.md` |
+
+## Native surfaces outside the window classes
+
+UI drawn by free functions or scene code rather than by one of the classes above (audited
+2026-09-28 from the remaining `RenderBitmap`/`RenderImage`/`RenderText`/`RenderColor` callers).
+
+| Surface | Native code | Status |
+|---|---|---|
+| Centre-screen notice lines | `UI::Notices::Render()` | Not started |
+| Map name banner | `CUIMapName::Render()` | Not started |
+| Party members' HP bars over their heads | `RenderPartyHP()` | Not started |
+| Tournament countdown | `RenderTournamentInterface()` | Not started |
+| Kanturu final result banner | `M39Kanturu3rd::RenderKanturu3rdResultInterface()` | Not started |
+| Siege crown switch lines, build-time bars | `RenderSwichState()`, `battleCastle::RenderBuildTimes()` | Not started |
+| Hellas object labels | `RenderObjectDescription()` | Not started |
+| Reconnect dialog | `UI::Reconnect::RenderDialog()` | Not started |
+| Login scene logo, copyright and version lines | `NewRenderLogInScene()` | Not started |
+| Loading screen art | `CLoadingScene::Render()` | Not started |
+| Mouse cursor | `RenderCursor()` | Stays native: drawn after RmlUi's pass so the pointer stays on top |
+| FPS counter, debug info, GL stats, `ImeInput`/`Whisper` debug text | `SceneManager.cpp`, `ImeInput.cpp`, `Whisper.cpp` | Stays native: developer overlays, not player UI |
 
 ## Using this ledger
 
