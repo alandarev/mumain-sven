@@ -20,6 +20,8 @@
 #include "Core/Utilities/StringUtils.h"
 #include <RmlUi/Core/Element.h>
 #include <RmlUi/Core/ElementDocument.h>
+#include <RmlUi/Core/Event.h>
+#include <cmath>
 
 using namespace SEASON3B;
 using namespace mu::ui::window;
@@ -326,6 +328,21 @@ void mu::ui::window::CMoveCommandWindow::SettingCanMoveMap()
     }
 }
 
+void mu::ui::window::CMoveCommandWindow::RmlWheelList(Rml::Event& event)
+{
+    Rml::Element* list = event.GetCurrentElement();
+    const MoveCommandRmlModel& model = m_RmlBinder.GetModel();
+    const float rowStep = model.rowHeight * model.rootScale;
+    if (list == nullptr || rowStep <= 0.f)
+        return;
+
+    // Stopping the event keeps RmlUi from scrolling the list itself.
+    event.StopPropagation();
+    const float notches = event.GetParameter("wheel_delta_y", 0.f);
+    const float row = std::round(list->GetScrollTop() / rowStep) + notches;
+    list->SetScrollTop(row * rowStep);
+}
+
 void mu::ui::window::CMoveCommandWindow::RmlClickWarp(int row)
 {
     // The requirements are re-evaluated on the click itself, not trusted from the row model: the
@@ -418,6 +435,7 @@ void mu::ui::window::CMoveCommandWindow::BuildRmlUi()
 
             c.Bind("panel_height", &model.panelHeight);
             c.Bind("list_height", &model.listHeight);
+            c.Bind("list_tail", &model.listTail);
             c.Bind("list_width", &model.listWidth);
             c.Bind("row_width", &model.rowWidth);
             c.Bind("row_height", &model.rowHeight);
@@ -448,6 +466,8 @@ void mu::ui::window::CMoveCommandWindow::BuildRmlUi()
                     if (arguments.size() == 1)
                         RmlClickWarp(arguments[0].Get<int>(-1));
                 });
+            c.BindEventCallback("movecommand_wheel",
+                [this](Rml::DataModelHandle, Rml::Event& event, const Rml::VariantList&) { RmlWheelList(event); });
             c.BindEventCallback("movecommand_close",
                 [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&)
                 {
@@ -524,6 +544,7 @@ void mu::ui::window::CMoveCommandWindow::SyncRmlModel()
 
     syncFloat(&MoveCommandRmlModel::panelHeight, "panel_height", panelHeight);
     syncFloat(&MoveCommandRmlModel::listHeight, "list_height", listHeight);
+    syncFloat(&MoveCommandRmlModel::listTail, "list_tail", rowHeight > 0.f ? std::fmod(listHeight, rowHeight) : 0.f);
     syncFloat(&MoveCommandRmlModel::listWidth, "list_width", listWidth);
     syncFloat(&MoveCommandRmlModel::rowWidth, "row_width", rowWidth);
     syncFloat(&MoveCommandRmlModel::rowHeight, "row_height", rowHeight);
