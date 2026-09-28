@@ -238,7 +238,9 @@ body {
 .scroll-pane scrollbarvertical slidertrack {
 	decorator: ninepatch(legacy-scroll-track, legacy-scroll-track-inner);
 }
+/* Native's thumb keeps its sprite's size at every list length (a knob, not a proportional bar). */
 .scroll-pane scrollbarvertical sliderbar {
+	height: 30dp;
 	decorator: ninepatch(legacy-scroll-thumb, legacy-scroll-thumb-inner);
 }
 /* Native tints the thumb down while it's held (RGBA(179,179,179) in RenderFrame()); brightness()
