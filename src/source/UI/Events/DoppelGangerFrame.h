@@ -2,9 +2,18 @@
 
 #include "UI/Core/WindowObject.h"
 #include "UI/Core/WindowManager.h"
+#include "UI/Events/DoppelGangerFrameRmlModel.h"
+#include "UI/RmlBridge/RmlModelBinder.h"
+
+namespace Rml
+{
+class ElementDocument;
+}
 
 namespace mu::ui::window
 {
+    // The Doppelganger event HUD. doppelganger_frame.rml draws it; C++ keeps the counts, the time,
+    // the gauge and marker animation and every position the server sends.
     class CDoppelGangerFrame : public CObject
     {
     public:
@@ -70,9 +79,12 @@ namespace mu::ui::window
         void EnabledDoppelGangerEvent(BOOL bFlag) { m_bIsEnabled = bFlag; }
         BOOL IsDoppelGangerEnabled() { return m_bIsEnabled; }
 
+        void ReloadRmlTheme();
+
     private:
-        void LoadImages();
-        void UnloadImages();
+        void BuildRmlUi();
+        void StepGauges();
+        void SyncView();
 
         int m_iEnteredMonsters;
         int m_iMaxMonsters;
@@ -88,5 +100,7 @@ namespace mu::ui::window
         float m_fIceWalkerPosition;
 
         BOOL m_bIsEnabled;
+        RmlModelBinder<DoppelGangerFrameRmlModel> m_RmlBinder;
+        Rml::ElementDocument* m_pRmlDoc = nullptr;
     };
 }
