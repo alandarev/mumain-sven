@@ -3696,17 +3696,21 @@ void RenderInterface(bool Render)
     g_pRenderText->SetTextColor(255, 255, 255, 255);
 
     RenderOutSides();
-    // Recorded into the world-label layer instead when it is available (CNameWindow).
-    if (g_pNameWindow == nullptr || !g_pNameWindow->RecordsPartyHealthBars())
+    // The overlays below are recorded into the world-label layer instead when it is available
+    // (CNameWindow::PrepareBackgroundLayer()).
+    const bool overlaysRecorded = g_pNameWindow != nullptr && g_pNameWindow->RecordsInterfaceOverlays();
+    if (!overlaysRecorded)
+    {
         RenderPartyHP();
-
-    RenderSwichState();
-    battleCastle::RenderBuildTimes();
+        RenderSwichState();
+        battleCastle::RenderBuildTimes();
+    }
 
     g_pUIMapName->Render();		// rozy
 
     //	M34CryWolf1st::Render_Mvp_Interface();
-    M39Kanturu3rd::RenderKanturu3rdinterface();
+    if (!overlaysRecorded)
+        M39Kanturu3rd::RenderKanturu3rdinterface();
     //	M34CryWolf1st::Sub_Interface();
 }
 

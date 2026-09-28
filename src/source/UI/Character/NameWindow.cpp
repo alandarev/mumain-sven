@@ -15,6 +15,8 @@
 #include "Camera/CameraProjection.h"
 #include "Camera/CameraState.h"
 #include "UI/Combat/MonsterHealthBar.h"
+#include "World/GameMaps/GMBattleCastle.h"
+#include "World/GameMaps/GM_Kanturu_3rd.h"
 
 // DevEditor forward declarations (must be at global scope)
 #ifdef _EDITOR
@@ -165,16 +167,21 @@ void mu::ui::window::CNameWindow::PrepareBackgroundLayer()
     m_labelLayer.BeginFrame();
     {
         Render::Renderer::Overlay2DRecordScope record(&m_labelLayer);
-        // The party HP bars first: the original drew them from RenderInterface() (top view off
-        // only), before this window's labels.
+        // RenderInterface()'s overlays first, in its order: the original drew them from there (top
+        // view off only), before this window's labels.
         if (g_Camera.TopViewEnable == false)
+        {
             RenderPartyHP();
+            RenderSwichState();
+            battleCastle::RenderBuildTimes();
+            M39Kanturu3rd::RenderKanturu3rdinterface();
+        }
         RenderLabels();
     }
     m_labelLayer.EndFrame();
 }
 
-bool mu::ui::window::CNameWindow::RecordsPartyHealthBars() const
+bool mu::ui::window::CNameWindow::RecordsInterfaceOverlays() const
 {
     return IsVisible() && m_labelLayer.IsAvailable();
 }

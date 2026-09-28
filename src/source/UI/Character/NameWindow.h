@@ -28,10 +28,11 @@ namespace mu::ui::window
         void PrepareBackgroundLayer() override;
         void Show(bool bShow) override;
 
-        // True when the world-label layer draws the party members' HP bars over their heads
-        // (RenderPartyHP(), recorded under the name labels as the original drew it before them);
+        // True when the world-label layer draws RenderInterface()'s overlays -- the party members'
+        // HP bars over their heads, the siege crown switch lines and build-time bars, the Kanturu
+        // result banner -- recorded under the name labels as the original drew them before them;
         // RenderInterface() then leaves them out.
-        bool RecordsPartyHealthBars() const;
+        bool RecordsInterfaceOverlays() const;
 
         float GetLayerDepth();		// 1.0f
 
