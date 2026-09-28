@@ -294,6 +294,16 @@ public:
     virtual BOOL DoMouseAction();
     virtual void Render();
 
+    // What Render() draws: the caption, and the pressed look (m_bMouseState).
+    const wchar_t* GetCaption() const
+    {
+        return m_pszCaption;
+    }
+    bool IsPressedLook() const
+    {
+        return m_bMouseState == TRUE;
+    }
+
 protected:
     DWORD m_dwButtonID;
     wchar_t* m_pszCaption;
@@ -313,6 +323,8 @@ struct TextListScrollBarGeometry
     float rangeBottom = 0.f;
     float thumbTop = 0.f;
     bool dragged = false;
+    float thumbHeight = 0.f; // ComputeLegacyScrollBar() only
+    float barWidth = 0.f;
 };
 
 template <class T> class CUITextListBox : public CUIControl
@@ -387,6 +399,15 @@ public:
         if (!dragged)
             ComputeScrollBar();
         return {m_fScrollBarRange_top, m_fScrollBarRange_bottom, m_fScrollBarPos_y, dragged};
+    }
+
+    // The old-style scroll bar the friends family's lists draw: RenderInterface() computes it every
+    // frame, also while the thumb is dragged.
+    TextListScrollBarGeometry ComputeLegacyScrollBar()
+    {
+        ComputeScrollBar();
+        return {m_fScrollBarRange_top,        m_fScrollBarRange_bottom, m_fScrollBarPos_y,
+                GetState() == UISTATE_SCROLL, m_fScrollBarHeight,       m_fScrollBarWidth};
     }
 
 protected:
@@ -544,12 +565,16 @@ public:
         return iResult;
     }
     void MakeTitleText(wchar_t* pszTitleText);
+    int GetLayout() const
+    {
+        return m_iLayoutType;
+    }
+    virtual int GetRenderLinePos_y(int iLineNumber);
 
 protected:
     virtual void RenderInterface();
     virtual BOOL RenderDataLine(int iLineNumber);
     virtual BOOL DoLineMouseAction(int iLineNumber);
-    virtual int GetRenderLinePos_y(int iLineNumber);
 
 protected:
     int m_iLayoutType;
@@ -570,12 +595,12 @@ public:
     {
         return (SLGetSelectLine() == m_TextList.end() ? NULL : &(*SLGetSelectLine()));
     }
+    virtual int GetRenderLinePos_y(int iLineNumber);
 
 protected:
     virtual void RenderInterface();
     virtual BOOL RenderDataLine(int iLineNumber);
     virtual BOOL DoLineMouseAction(int iLineNumber);
-    virtual int GetRenderLinePos_y(int iLineNumber);
 };
 
 class CUILetterListBox : public CUITextListBox<LETTERLIST_TEXT>
@@ -616,12 +641,12 @@ public:
         }
         return iResult;
     }
+    virtual int GetRenderLinePos_y(int iLineNumber);
 
 protected:
     virtual void RenderInterface();
     virtual BOOL RenderDataLine(int iLineNumber);
     virtual BOOL DoLineMouseAction(int iLineNumber);
-    virtual int GetRenderLinePos_y(int iLineNumber);
 
 protected:
     int m_iColumnWidth[4];

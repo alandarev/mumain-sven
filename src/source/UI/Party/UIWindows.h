@@ -6,6 +6,7 @@
 #include "Engine/Object/ZzzCharacter.h"
 #include "Network/Server/WSclient.h"
 #include "Dotnet/Connection.h"
+#include <memory>
 #include <mutex>
 
 #define WM_CHATROOMMSG_BEGIN (WM_USER + 0x100)
@@ -53,6 +54,9 @@ enum UIADDWINDOWOPTION
 };
 
 const int UIPHOTOVIEWER_CANCONTROL = 1;
+
+class FriendWindowRmlBuilder;
+class FriendWindowViews;
 
 class CUIBaseWindow : public CUIControl
 {
@@ -118,8 +122,21 @@ public:
         return TRUE;
     }
 
+    // RmlUi presentation (UI/Party/FriendWindowView.h): a window type whose HasRmlView() is true
+    // is not drawn by CUIWindowMgr::Render(); its document is built every frame from
+    // CollectRmlView() -- Render()'s frame and title bar around CollectRmlContent() -- instead.
+    virtual bool HasRmlView() const
+    {
+        return false;
+    }
+    void CollectRmlView(FriendWindowRmlBuilder& view);
+
 protected:
     BOOL DoMouseAction();
+    virtual void CollectRmlContent(FriendWindowRmlBuilder& view)
+    {
+        (void)view;
+    }
 
     virtual void InitControls() = 0;
 
@@ -468,6 +485,8 @@ protected:
     virtual BOOL HandleMessage();
     virtual void DoActionSub(BOOL bMessageOnly);
     virtual void DoMouseActionSub();
+    void CollectRmlContent(FriendWindowRmlBuilder& view) override;
+    void SyncControlLayout();
 
 protected:
     CUIChatPalListBox m_PalListBox;
@@ -501,6 +520,8 @@ public:
 
 protected:
     virtual void RenderSub();
+    void CollectRmlContent(FriendWindowRmlBuilder& view) override;
+    void SyncControlLayout();
     virtual BOOL HandleMessage();
     virtual void DoActionSub(BOOL bMessageOnly);
     virtual void DoMouseActionSub();
@@ -577,6 +598,8 @@ protected:
     virtual BOOL HandleMessage();
     virtual void DoActionSub(BOOL bMessageOnly);
     virtual void DoMouseActionSub();
+    void CollectRmlContent(FriendWindowRmlBuilder& view) override;
+    void SyncControlLayout();
 
 protected:
     CUILetterListBox m_LetterListBox;
@@ -640,10 +663,17 @@ public:
     {
         return m_iTabIndex;
     }
+    bool HasRmlView() const override
+    {
+        return true;
+    }
 
 protected:
     virtual void InitControls() {}
     virtual void RenderSub();
+    void CollectRmlContent(FriendWindowRmlBuilder& view) override;
+    void SyncTabLayout();
+    void RenderTabStrip();
     virtual BOOL HandleMessage();
     virtual void DoActionSub(BOOL bMessageOnly);
     virtual void DoMouseActionSub();
@@ -726,6 +756,9 @@ public:
                     int iOption = UIADDWND_NULL);
     void RemoveWindow(DWORD dwUIID);
     void Render();
+    // Builds the RmlUi documents of the windows with an RmlUi view (CUIBaseWindow::HasRmlView())
+    // and shows them in the draw order Render() uses; hides them all when !familyShown.
+    void SyncRmlViews(bool familyShown);
     void DoAction();
     void ShowHideWindow(DWORD dwUIID, BOOL bShowWindow);
     void HideAllWindow(BOOL bHide, BOOL bMainClose = FALSE);
@@ -819,6 +852,7 @@ public:
     BOOL m_bRenderFrame;
 
 protected:
+    std::unique_ptr<FriendWindowViews> m_pRmlViews;
     BOOL m_bWindowsEnable;
     DWORD m_dwMainWindowUIID;
     WndMap m_WindowMap;

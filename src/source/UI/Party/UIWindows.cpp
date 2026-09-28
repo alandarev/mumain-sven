@@ -3,6 +3,7 @@
 
 #include "stdafx.h"
 #include "UIWindows.h"
+#include "UI/Party/FriendWindowView.h"
 #include "Core/Time/FrameTimerScheduler.h"
 #include "Render/Renderer/MuRenderer.h"
 #include "Render/Textures/ZzzOpenglUtil.h"
@@ -316,7 +317,7 @@ void CUIWindowMgr::Render()
         if (m_WindowMapIter != m_WindowMap.end())
         {
             if (m_WindowMapIter->second->GetState() != UISTATE_HIDE &&
-                m_WindowMapIter->second->GetState() != UISTATE_READY)
+                m_WindowMapIter->second->GetState() != UISTATE_READY && !m_WindowMapIter->second->HasRmlView())
                 m_WindowMapIter->second->Render();
         }
     }
@@ -3448,7 +3449,7 @@ const wchar_t* CUIFriendListTabWindow::GetCurrentSelectedFriend(BYTE* pNumber, B
     }
 }
 
-void CUIFriendListTabWindow::RenderSub()
+void CUIFriendListTabWindow::SyncControlLayout()
 {
     if (GetState() == UISTATE_MOVE || GetState() == UISTATE_RESIZE)
     {
@@ -3464,6 +3465,11 @@ void CUIFriendListTabWindow::RenderSub()
             m_PalListBox.SendUIMessageDirect(UI_MESSAGE_P_RESIZE, 0, 0);
         }
     }
+}
+
+void CUIFriendListTabWindow::RenderSub()
+{
+    SyncControlLayout();
 
     EnableAlphaTest();
     SetLineColor(7);
@@ -4017,7 +4023,7 @@ DWORD CUIChatRoomListTabWindow::GetCurrentSelectedWindow()
     else return m_WindowListBox.GetSelectedText()->m_dwUIID;
 }
 
-void CUIChatRoomListTabWindow::RenderSub()
+void CUIChatRoomListTabWindow::SyncControlLayout()
 {
     if (GetState() == UISTATE_MOVE || GetState() == UISTATE_RESIZE)
     {
@@ -4029,6 +4035,11 @@ void CUIChatRoomListTabWindow::RenderSub()
             m_WindowListBox.SendUIMessageDirect(UI_MESSAGE_P_RESIZE, 0, 0);
         }
     }
+}
+
+void CUIChatRoomListTabWindow::RenderSub()
+{
+    SyncControlLayout();
 
     EnableAlphaTest();
     SetLineColor(7);
@@ -4374,7 +4385,7 @@ void CUILetterBoxTabWindow::PrevNextCursorMove(int iMove)
     m_LetterListBox.SLSetSelectLine(iMove);
 }
 
-void CUILetterBoxTabWindow::RenderSub()
+void CUILetterBoxTabWindow::SyncControlLayout()
 {
     if (GetState() == UISTATE_MOVE || GetState() == UISTATE_RESIZE)
     {
@@ -4391,6 +4402,11 @@ void CUILetterBoxTabWindow::RenderSub()
             m_LetterListBox.SendUIMessageDirect(UI_MESSAGE_P_RESIZE, 0, 0);
         }
     }
+}
+
+void CUILetterBoxTabWindow::RenderSub()
+{
+    SyncControlLayout();
 
     EnableAlphaTest();
     SetLineColor(7);
@@ -4738,6 +4754,28 @@ void RenderTabLine(int iPos_x, int iPos_y, int iTabWidth, int iTabHeight, int iT
 
 void CUIFriendWindow::RenderSub()
 {
+    SyncTabLayout();
+
+    switch (m_iTabIndex)
+    {
+    case 0:
+        m_FriendListWnd.Render();
+        break;
+    case 1:
+        m_LetterBoxWnd.Render();
+        break;
+    case 2:
+        m_ChatRoomListWnd.Render();
+        break;
+    default:
+        break;
+    }
+
+    RenderTabStrip();
+}
+
+void CUIFriendWindow::SyncTabLayout()
+{
     if (GetState() == UISTATE_MOVE || GetState() == UISTATE_RESIZE)
     {
         m_FriendListWnd.SendUIMessageDirect(UI_MESSAGE_P_MOVE, 0, 0);
@@ -4757,22 +4795,10 @@ void CUIFriendWindow::RenderSub()
             m_LetterBoxWnd.SetState(UISTATE_RESIZE);
         }
     }
+}
 
-    switch (m_iTabIndex)
-    {
-    case 0:
-        m_FriendListWnd.Render();
-        break;
-    case 1:
-        m_LetterBoxWnd.Render();
-        break;
-    case 2:
-        m_ChatRoomListWnd.Render();
-        break;
-    default:
-        break;
-    }
-
+void CUIFriendWindow::RenderTabStrip()
+{
     EnableAlphaTest();
 
     SetLineColor(7);

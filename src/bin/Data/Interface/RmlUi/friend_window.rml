@@ -1,0 +1,31 @@
+<rml>
+<head>
+	<title>Friends</title>
+	<link type="text/rcss" href="base.rcss"/>
+	<link type="text/rcss" href="friend_window.rcss"/>
+</head>
+<body>
+	<!-- One window of the friends family (CUIWindowMgr, UIWindows.h): the main window with its
+	     friends, letter box and chat-room tabs, and later the letter and chat-room windows. One
+	     document per open window, its data model named per window (FriendWindowView.cpp replaces
+	     the data-model name). The parts are what the native Render() drew, in its order, placed in
+	     reference px from the window's top-left corner and named by what they are (the class list
+	     in `role`); the theme gives them their look. The native window keeps every hit test, drag,
+	     resize and button, so the document leaves the pointer alone. Text is .sharp-text at the
+	     native size, counter-scaled out of the window's scale. -->
+	<div id="window" data-model="friend_window" data-style-left="root_x + 'px'" data-style-top="root_y + 'px'"
+	     data-style-transform="'scale(' + root_scale + ')'">
+		<div class="slot" data-for="p : parts">
+			<div data-if="p.kind != 2" data-attr-class="'part ' + p.role"
+			     data-style-left="p.left + 'px'" data-style-top="p.top + 'px'"
+			     data-style-width="p.width + 'px'" data-style-height="p.height + 'px'"></div>
+			<span data-if="p.kind == 2" class="sharp-text fw-text" data-class-bold="p.bold"
+			      data-class-centred="p.align == 1" data-class-clip="p.width > 0 &amp;&amp; p.align == 0"
+			      data-style-left="p.left + 'px'" data-style-top="p.top + 'px'" data-style-color="p.color"
+			      data-style-font-size="p.text_px + 'px'"
+			      data-style-width="p.width == 0 ? 'auto' : (p.width * root_scale) + 'px'"
+			      data-style-transform="'scale(' + (1 / root_scale) + ')'">{{p.text}}</span>
+		</div>
+	</div>
+</body>
+</rml>
