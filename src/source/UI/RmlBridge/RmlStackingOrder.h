@@ -11,7 +11,7 @@
 // both the main and the background context. See docs/rmlui-ui-system/STATUS.md, "Stacking order".
 namespace UI::RmlBridge
 {
-    // Depth for a document file name such as "chat_log.rml" (no directory); none for a name the
-    // table does not know (such a document keeps z-index:auto, under every listed one).
-    std::optional<float> StackingDepthForDocument(std::string_view documentName);
-}
+// Depth for a document file name such as "chat_log.rml" (no directory); none for a name the
+// table does not know (such a document keeps z-index:auto, under every listed one).
+std::optional<float> StackingDepthForDocument(std::string_view documentName);
+} // namespace UI::RmlBridge
