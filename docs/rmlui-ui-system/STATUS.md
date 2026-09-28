@@ -249,8 +249,15 @@ genuinely stay in C++ — worth reading before auditing any legacy-theme code ag
   depth (the hit targets already did). The skill textures stay loaded for `CUIMuHelper`.
 - **Guild and social windows** — **done, both themes (2026-09-28)**: `CServerMsgWin`,
   `CGuildMakeWindow`, `CGuildInfoWindow` with its lists, `CGuild_ToPerson_Position`, `CGensRanking`,
-  `CItemExplanationWindow`, `CSetItemExplanation`. The friends family (`CFriendWindow`, letters, chat
-  rooms) is still native, scheduled for its own run. Worth carrying to the next port:
+  `CItemExplanationWindow`, `CSetItemExplanation`. The friends family (`CFriendWindow`): the main
+  window with its three tabs is RmlUi (2026-09-28); the letter, chat-room and dialog windows are
+  still native and draw under it until they are ported. Worth carrying to the next port:
+
+  - **A toolkit of draggable native windows** (`CUIWindowMgr`) ports window by window without
+    touching its logic: each window's `Render()` gets a `CollectRmlView()` twin that emits the same
+    geometry as named parts into a per-window document, synced from `Update()`; code that lived in
+    the render functions (child layout messages, scroll bar computation, `InitControls()`) moves to
+    functions both paths call. Native text keeps its spaces (`white-space: pre`).
 
   - **A block-scope `extern` inside `mu::ui::window`** declares a namespace member, not the global:
     UIManager.cpp defines same-named references there (`ItemHelp`, `TextList`, ...), so such an
