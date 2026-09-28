@@ -111,7 +111,7 @@ have had no investigation beyond confirming no RmlUi call sites exist, not a sha
 |---|---|---|---|---|
 | `CNPCShop` | `CObject`-tier + live-3D | Done | Hybrid RmlUi/native 3D | Listed under Inventory/Shop above |
 | `CNPCDialogue` | `CObject`-tier | Done | RmlUi-only 2D | The window a quest-giving NPC actually opens first (`ProcessOpening()`/`ReceiveQuestByNPCEPList`/`ReceiveQuestByEtcEPList`) — was the source of a modern-theme "looks legacy" report, since it had zero RmlUi/theme participation before this port; only after picking a step from it does the server push a `PMSG_QUEST_STEP_INFO` that opens the already-ported `CQuestProgress`/`CQuestProgressByEtc` above. Own `npc_dialogue.rml`/`.rcss` (not shared with `quest_progress.rcss` despite reusing the same `Quest_bt_L/R.tga` sprite asset — the layout isn't a near-identical sibling: two independently paginated lists in one document, an NPC-word pager (top) and a sel-text pager (bottom) whose rows come from either `GetNPCDlgAnswer()` or quest-list-mode's `SetQuestListText()` quest subjects, both reduced to the same `{text, index}` row shape via `NPCDialogueRmlModel`). The "page to the end reveals the list" gate is preserved exactly (now a same-click side effect, matching the native single-button double-duty). Retires all 5 `CButton`s and every native `Render*()` call — no hybrid native-draw boundary left at all, unlike `CQuestProgress`'s reward-item popup. Gens contribute-point banner (NPC 543/544) and the Gens join/secede/reward flows (`ASG_ADD_GENS_SYSTEM`/`PBG_ADD_GENSRANKING`, unconditionally on in this build) are untouched native logic, just reactively synced into the model. Fixed a fragile-transitive-include situation this same session's earlier `QuestProgress.h` cleanup had patched around: `NPCDialogue.h` no longer needs `MessageBox.h`/`MyInventory.h`/`MyQuestInfoWindow.h`/`QuestProgress.h`/`Button.h` at all (those were only for texture-slot enum aliasing and the now-removed `CButton` members). Build verified (`RelWithDebInfo`) and confirmed working in-game. |
-| `CGatemanWindow` | `CObject`-tier | Not started | TBD | |
+| `CGatemanWindow` | `CObject`-tier | Done (2026-09-28) | RmlUi-only 2D | `gateman.rml` + both themes, right-docked; guest, staff and master pages. |
 | `CEmpireGuardianTimer` | `CObject`-tier | Not started | TBD | |
 | `CEmpireGuardianNPC` | `CObject`-tier + live-3D (`I3DRenderObj`) | Done (2026-09-27) | Hybrid | `empire_guardian_enter.rml` (texts, buttons) + `empire_guardian_enter_bg.rml` (frame, background context) through `UI/Events/EventItemEntryView`, shared with `CDoppelGangerWindow`; Gaion's Order stays a native 3D preview over the frame. |
 
@@ -119,19 +119,19 @@ have had no investigation beyond confirming no RmlUi call sites exist, not a sha
 
 | Component | Category | Status | Target shape / primitive | Detail pointer |
 |---|---|---|---|---|
-| `CCastleWindow` | `CObject`-tier | Not started | TBD | Already a `CGenericConfirmDialog` caller for a sub-dialog — shell itself still native |
-| `CGuardWindow` | `CObject`-tier | Not started | TBD | Same as above |
+| `CCastleWindow` | `CObject`-tier | Done (2026-09-28) | RmlUi-only 2D | `castle_window.rml` + both themes (Senatus: gate, statue and tax pages); its buy/repair confirmations stay `CGenericConfirmDialog`. The treasury no longer draws twice from a `%I64d` format. |
+| `CGuardWindow` | `CObject`-tier | Done (2026-09-28) | RmlUi-only 2D | `guard_window.rml` + both themes with its guild lists; the owner line and the period's tab labels show (the original lost the first to an unterminated buffer and froze the second). |
 | `CDuelWindow` | `CObject`-tier | Done (2026-09-27) | RmlUi-only 2D | `duel_window.rml` + both themes, in the **background context** behind its other documents: the original drew it under every panel (layer 1.1). |
 | `CDuelWatchWindow` | `CObject`-tier | Done (2026-09-27) | RmlUi-only 2D | `duel_watch.rml` + both themes; right-docked, `docked_panel_frame.rcss`. |
 | `CDuelWatchUserListWindow` | `CObject`-tier | Not started | TBD | |
 | `CDuelWatchMainFrameWindow` | `CObject`-tier + live-3D (`I3DRenderObj`) | Not started | TBD (likely Hybrid) | |
-| `CSiegeWarfare` | `CObject`-tier | Not started | TBD | |
+| `CSiegeWarfare` | `CObject`-tier | Done (2026-09-28) | RmlUi-only 2D | `siege_warfare.rml` + both themes, background context behind its other documents (layer depth 1.6); observer, soldier and commander fill one model (`SiegeWarfareRmlModel`), buttons still hit-test natively. |
 
 ### Events (small, self-contained per-event status/timer windows; the entry windows marked Done)
 
 | Component | Category | Notes |
 |---|---|---|
-| `CCatapultWindow` | `CObject`-tier | |
+| `CCatapultWindow` | `CObject`-tier | Done (2026-09-28): `catapult.rml` + both themes, right-docked |
 | `CEnterBloodCastle` | `CObject`-tier | Done (2026-09-27): `blood_castle_enter.rml` through `UI/Events/EventEntryView` (shared with `CEnterDevilSquare`, `event_entry.rcss`) |
 | `CBattleSoccerScore` | `CObject`-tier | Done (2026-09-27): `battle_soccer_score.rml`, background context like `CDuelWindow`; guild marks as 8 x 8 cells (`Guild::MarkPalette`) |
 | `CBloodCastle` | `CObject`-tier | |
@@ -143,7 +143,7 @@ have had no investigation beyond confirming no RmlUi call sites exist, not a sha
 | `CDoppelGangerFrame` | `CObject`-tier | |
 | `CDoppelGangerWindow` | `CObject`-tier + live-3D (`I3DRenderObj`) | Done (2026-09-27), Hybrid: `doppelganger_enter.rml` + `doppelganger_enter_bg.rml` (frame in the background context, under the native 3D preview) through `UI/Events/EventItemEntryView` |
 | `CEnterDevilSquare` | `CObject`-tier | Done (2026-09-27): `devil_square_enter.rml` through `UI/Events/EventEntryView` |
-| `CGateSwitchWindow` | `CObject`-tier | |
+| `CGateSwitchWindow` | `CObject`-tier | Done (2026-09-28): `gate_switch.rml` + both themes, right-docked |
 | `CGoldBowmanLena` | `CObject`-tier, incidental 3D render call | Signal is an NPC-model render, not necessarily a Hybrid-shape icon — verify at port time |
 | `CGoldBowmanWindow` | `CObject`-tier | |
 | `CExchangeLuckyCoin` | `CObject`-tier | |
@@ -202,9 +202,9 @@ been individually ported. What's left, by current grep of the two headers:
 | `CBloodCastleResultMsgBoxLayout` | Not started | TBD | |
 | `CDevilSquareRankMsgBoxLayout` | Not started | TBD | |
 | `CChaosCastleResultMsgBoxLayout` | Not started | TBD | |
-| `CCrownSwitchPopLayout`, `CCrownSwitchPushLayout`, `CCrownSwitchOtherPushLayout` (`CProgressMsgBox`) | Not started | TBD | Share one underlying shape class |
-| `CSealRegisterStartLayout`, `CSealRegisterSuccessLayout`, `CSealRegisterFailLayout`, `CSealRegisterOtherLayout`, `CSealRegisterOtherCampLayout` (`CProgressMsgBox`) | Not started | TBD | Share one underlying shape class |
-| `CCrownDefenseRemoveLayout`, `CCrownDefenseCreateLayout` (`CProgressMsgBox`) | Not started | TBD | Share one underlying shape class |
+| `CCrownSwitchPopLayout`, `CCrownSwitchPushLayout`, `CCrownSwitchOtherPushLayout` (`CProgressMsgBox`) | Done (2026-09-28) | RmlUi (`MessageBoxView` with frame and progress bar) | Share one underlying shape class |
+| `CSealRegisterStartLayout`, `CSealRegisterSuccessLayout`, `CSealRegisterFailLayout`, `CSealRegisterOtherLayout`, `CSealRegisterOtherCampLayout` (`CProgressMsgBox`) | Done (2026-09-28) | RmlUi (`MessageBoxView`) | Share one underlying shape class |
+| `CCrownDefenseRemoveLayout`, `CCrownDefenseCreateLayout` (`CProgressMsgBox`) | Done (2026-09-28) | RmlUi (`MessageBoxView`) | Share one underlying shape class |
 | `CCursedTempleHolicItemGetLayout`, `CCursedTempleHolicItemSaveLayout` (`CCursedTempleProgressMsgBox`) | Not started | TBD | Share one underlying shape class |
 
 Also present: `C3DItemCommonMsgBox` (`CommonMessageBox.h`) — a `CMessageBoxBase` shape class with

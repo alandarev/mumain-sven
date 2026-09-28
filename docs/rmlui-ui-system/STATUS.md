@@ -247,6 +247,20 @@ genuinely stay in C++ — worth reading before auditing any legacy-theme code ag
   box back from RmlUi, and the hint ends below its anchor like the native one. Paint order is
   RmlUi's: the icons now follow `main_frame.rml`'s document order instead of the native layer
   depth (the hit targets already did). The skill textures stay loaded for `CUIMuHelper`.
+- **Castle siege windows** — **done, both themes (2026-09-28)**: `CProgressMsgBox` (seal, crown
+  switch and crown defence notices), `CGateSwitchWindow`, `CCatapultWindow`, `CGatemanWindow`,
+  `CGuardWindow` with its guild lists, `CCastleWindow` (Senatus) and `CSiegeWarfare` (the Valley of
+  Loren HUD). Legacy matches the original in paired comparison replays (notices and NPC windows at
+  800x600 to 1920x1080; the Senatus against the real server's replies and the HUD's observer
+  variant by hand at all eight sizes; the HUD's soldier and commander variants by code). Worth carrying to the next port:
+
+  - **A HUD the original drew under every window** (the siege HUD, layer depth 1.6) goes in the
+    background context like the duel and battle-soccer boards; a main-context document covered
+    the still-native durability warnings.
+  - **A texture the original cut with UVs** (the siege mini map's scrolled, zoomed window) is an
+    `<img rect="x y w h">` in texels bound from C++; no clipping box needed.
+  - **A native button can keep its input** (`CButton` hit-test and up / over / down state) while
+    RmlUi draws it from the reported row, when the window's input is native anyway.
 - **Event, duel and map windows** — **done, both themes (2026-09-27)**: `CMiniMap`, `CDuelWindow`,
   `CBattleSoccerScore`, `CDuelWatchWindow`, `CEnterBloodCastle`, `CEnterDevilSquare`,
   `CCursedTempleEnter`, `CCursedTempleResult`, `CDoppelGangerWindow`, `CEmpireGuardianNPC`,
