@@ -372,18 +372,16 @@ public:
         return m_iSelectLineNum;
     }
 
-    // The lines Render() draws, in its order: visit(line, item, selected) with line 0 the first
-    // drawn. For windows that draw the list elsewhere (RmlUi) and keep this control for its data,
-    // scrolling and line clicks. A visit returning false skips the item without using up its line,
-    // as a RenderDataLine() returning FALSE does.
+    // The lines Render() draws (a multiline list's wrapped ones), in its order: visit(line, item,
+    // selected) with line 0 the first drawn. For windows that draw the list elsewhere (RmlUi) and keep
+    // this control for its data, scrolling and line clicks. A visit returning false skips the item
+    // without using up its line, as a RenderDataLine() returning FALSE does.
     template <typename Visit> void ForEachRenderLine(Visit&& visit)
     {
         MoveRenderLine();
-        // A multiline list draws its wrapped lines (MoveRenderLine() starts there).
-        const auto end = m_bUseMultiline == TRUE ? m_RenderTextList.end() : m_TextList.end();
         for (int i = 0; i < m_iNumRenderLine; ++i, ++m_TextListIter)
         {
-            if (m_TextListIter == end)
+            if (m_TextListIter == (m_bUseMultiline == TRUE ? m_RenderTextList.end() : m_TextList.end()))
                 break;
             const bool selected = SLGetSelectLineNum() == m_iCurrentRenderEndLine + i + 1;
             if constexpr (std::is_void_v<decltype(visit(i, *m_TextListIter, selected))>)
@@ -1153,7 +1151,16 @@ public:
     {
         return m_portableText;
     }
-    void SetValueFromField(const std::wstring& value);
+    void SetValueFromField(const std::wstring& value)
+    {
+        m_portableText = value;
+        if (m_iMaxLength > 0 && static_cast<int>(m_portableText.length()) > m_iMaxLength)
+            m_portableText.resize(m_iMaxLength);
+        m_iCaret = static_cast<int>(m_portableText.length());
+        m_iSelAnchor = m_iCaret;
+        m_iFirstVisible = 0;
+        m_composition.clear();
+    }
     int GetCaret() const
     {
         return m_iCaret;

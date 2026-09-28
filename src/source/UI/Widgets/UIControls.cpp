@@ -2728,17 +2728,6 @@ void CUITextInputBox::SetText(const wchar_t* pszText)
     m_iFirstVisible = 0;
 }
 
-void CUITextInputBox::SetValueFromField(const std::wstring& value)
-{
-    m_portableText = value;
-    if (m_iMaxLength > 0 && static_cast<int>(m_portableText.length()) > m_iMaxLength)
-        m_portableText.resize(m_iMaxLength);
-    m_iCaret = static_cast<int>(m_portableText.length());
-    m_iSelAnchor = m_iCaret;
-    m_iFirstVisible = 0;
-    m_composition.clear();
-}
-
 void CUITextInputBox::SetTextLimit(int iLimit)
 {
     m_iMaxLength = iLimit;
