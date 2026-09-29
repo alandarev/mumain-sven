@@ -102,6 +102,13 @@ namespace mu::ui::window
         // because the lines themselves are pointer-events:none (see chat_log.rcss).
         int pointedIndex = -1;
         Rml::Vector<ChatLogLineEntry> lines;
+
+        // The native renderer's line geometry in physical px (the legacy theme's chat_log.rml):
+        // the text size, each line's background height (the measured text) and the 15-unit row
+        // pitch of the dp-sized well.
+        float textPx = 0.f;
+        float linePx = 0.f;
+        float rowPx = 0.f;
     };
 
     class CChatLogWindow : public CObject
@@ -174,6 +181,7 @@ namespace mu::ui::window
 
         void BuildRmlUi();
         void SyncRmlModel();
+        void SyncNativeLineGeometry();
         // Rebuilds the bound line list from the currently-selected message vector. Kept
         // index-aligned with that vector (undrawable entries become blanks rather than being
         // skipped) because chat_line_rightclick() resolves a sender by array index.

@@ -619,6 +619,9 @@ void mu::ui::window::CChatLogWindow::BuildRmlUi()
             c.Bind("back_color", &model.backColor);
             c.Bind("show_frame", &model.showFrame);
             c.Bind("pointed_index", &model.pointedIndex);
+            c.Bind("text_px", &model.textPx);
+            c.Bind("line_px", &model.linePx);
+            c.Bind("row_px", &model.rowPx);
 
             // Drag the handle above the window to resize it in native's own 3-line steps. The
             // stepping stays in UpdateMouseEvent() where the pointer's absolute Y already lives;
@@ -698,6 +701,8 @@ void mu::ui::window::CChatLogWindow::SyncRmlModel()
         m_RmlBinder.MarkDirty("back_color");
     }
 
+    SyncNativeLineGeometry();
+
     if (m_bLinesDirty)
     {
         // Native's own rule, restated against scroll position: follow the tail while the frame is
@@ -738,6 +743,31 @@ void mu::ui::window::CChatLogWindow::SyncRmlModel()
     }
 
     UpdatePointedLine();
+}
+
+// Native's RenderMessages(): each line drawn with RenderText() at the native text size, its
+// background as tall as the measured text (MeasureText("Q").cy, logical), one line every
+// SCROLL_MIDDLE_PART_HEIGHT; the row pitch follows the well, which is sized in dp.
+void mu::ui::window::CChatLogWindow::SyncNativeLineGeometry()
+{
+    const auto transform = UI::Scaling::GetActiveTransform();
+    g_pRenderText->SetFont(g_hFont);
+    const int textHeight = g_pRenderText->MeasureText(L"Q", 1).cy;
+    const float dpRatio = RmlUiRuntime::Instance().GetContext()->GetDensityIndependentPixelRatio();
+
+    ChatLogRmlModel& model = m_RmlBinder.GetModel();
+    auto syncFloat = [&](float ChatLogRmlModel::* field, const char* name, float value)
+    {
+        if (model.*field != value)
+        {
+            model.*field = value;
+            m_RmlBinder.MarkDirty(name);
+        }
+    };
+    syncFloat(&ChatLogRmlModel::textPx, "text_px",
+              UI::Scaling::NativeTextPixelSize(UI::Scaling::FontRole::Normal, transform));
+    syncFloat(&ChatLogRmlModel::linePx, "line_px", UI::Scaling::SizeY(transform, static_cast<float>(textHeight)));
+    syncFloat(&ChatLogRmlModel::rowPx, "row_px", SCROLL_MIDDLE_PART_HEIGHT * dpRatio);
 }
 
 void mu::ui::window::CChatLogWindow::RebuildLineModel()
@@ -814,8 +844,11 @@ void mu::ui::window::CChatLogWindow::UpdatePointedLine()
                 if (child == nullptr)
                     continue;
 
+                // The whole row (native tested SCROLL_MIDDLE_PART_HEIGHT), including the gap under
+                // a line whose background is only as tall as its text (legacy chat_log.rml).
                 const Rml::Vector2f pos = child->GetAbsoluteOffset();
-                const float h = child->GetOffsetHeight();
+                const float h =
+                    child->GetOffsetHeight() + child->GetBox().GetEdge(Rml::BoxArea::Margin, Rml::BoxEdge::Bottom);
                 if (py >= pos.y && py < pos.y + h)
                 {
                     // Only a line carrying a sender is a target, matching native -- an
