@@ -20,8 +20,10 @@ class ElementDocument;
 // Scene windows the original drew at fixed pixels (login form and buttons, server list, system
 // menu) opt in with `class="scene-window-scale"` on their <body> instead: the root font-size is then
 // UI::Scaling::SceneWindowScale() px, so their RCSS writes the original's pixel sizes in `rem`
-// (1rem = one original pixel, growing like the native text). An element inside with class
-// "native-text" gets the native text size as its font-size, for the text it contains.
+// (1rem = one original pixel, growing like the native text). `class="scene-bar-scale"` does the
+// same with UI::Scaling::SceneBarScale(), the original's own scale of the character scene button
+// bar. In both, an element with class "native-text" gets the native text size as its font-size,
+// for the text it contains.
 namespace UI::RmlBridge
 {
 // What the companion C++ of a "scene-window-scale" window (hit-test rects, pushed positions) multiplies

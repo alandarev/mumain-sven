@@ -139,6 +139,9 @@ namespace UI::Scaling
     float SceneWindowScale(int windowWidth, int windowHeight);
     // The rule behind SceneWindowScale() for any text size: textPx / referenceTextPx, not below 1.
     float TextGrowthScale(float textPx, float referenceTextPx);
+    // How the original scaled its character scene button bar (laid out for 800x600): by
+    // min(W/800, H/600), clamped to [1, 2] (UI::CharacterSelection::CalculateLayout()).
+    float SceneBarScale(int windowWidth, int windowHeight);
     // The same for a box with a height too (RenderText() with a box height the text is taller than,
     // e.g. the Devil Square rank headers' height of 3): the smaller of the two fits, down to the minimum.
     float NativeTextPixelSizeInBounds(FontRole role, const Transform& transform, float measuredWidth,

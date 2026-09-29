@@ -936,6 +936,12 @@ TEST_CASE("scene windows grow like the native dialog text, never below the origi
     CHECK(UI::Scaling::SceneWindowScale(1920, 1080) == doctest::Approx(15.0f / 13.0f));
     CHECK(UI::Scaling::SceneWindowScale(2560, 1440) == doctest::Approx(15.0f / 13.0f));
     UI::Scaling::SetWindowContentScale(previousContentScale);
+
+    // The character scene bar keeps the original's own rule: its 800x600 layout scaled to fit, in [1, 2].
+    CHECK(UI::Scaling::SceneBarScale(800, 600) == doctest::Approx(1.0f));
+    CHECK(UI::Scaling::SceneBarScale(1024, 768) == doctest::Approx(1.28f));
+    CHECK(UI::Scaling::SceneBarScale(1280, 720) == doctest::Approx(1.2f));
+    CHECK(UI::Scaling::SceneBarScale(2560, 1440) == doctest::Approx(2.0f));
 }
 
 TEST_CASE("layout typography grows gradually and fits bounded controls [ui][scaling]")

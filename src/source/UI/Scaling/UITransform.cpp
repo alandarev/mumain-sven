@@ -430,6 +430,12 @@ float UI::Scaling::TextGrowthScale(float textPx, float referenceTextPx)
     return std::max(textPx / referenceTextPx, 1.0f);
 }
 
+float UI::Scaling::SceneBarScale(int windowWidth, int windowHeight)
+{
+    return std::clamp(std::min(static_cast<float>(windowWidth) / 800.0f, static_cast<float>(windowHeight) / 600.0f),
+                      1.0f, 2.0f);
+}
+
 float UI::Scaling::NativeTextPixelSizeInBounds(FontRole role, const Transform& transform, float measuredWidth,
                                                float measuredHeight, float boxWidth, float boxHeight)
 {

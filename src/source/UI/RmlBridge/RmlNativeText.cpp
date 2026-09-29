@@ -13,6 +13,7 @@ namespace
 {
 constexpr const char* kNativeTextClass = "native-text";
 constexpr const char* kSceneWindowScaleClass = "scene-window-scale";
+constexpr const char* kSceneBarScaleClass = "scene-bar-scale";
 } // namespace
 
 float SceneWindowRatio(int windowWidth, int windowHeight)
@@ -34,10 +35,12 @@ void ApplyNativeTextSize(Rml::ElementDocument* document)
     const Rml::Vector2i window = document->GetContext()->GetDimensions();
     const auto transform = UI::Scaling::TransformForLayout(UI::Scaling::LayoutMode::Dialog, window.x, window.y);
     const float textPx = UI::Scaling::NativeTextPixelSize(UI::Scaling::FontRole::Normal, transform);
-    if (document->IsClassSet(kSceneWindowScaleClass))
+    const bool sceneWindow = document->IsClassSet(kSceneWindowScaleClass);
+    if (sceneWindow || document->IsClassSet(kSceneBarScaleClass))
     {
-        document->SetProperty(Rml::PropertyId::FontSize,
-                              Rml::Property(UI::Scaling::SceneWindowScale(window.x, window.y), Rml::Unit::PX));
+        const float rootPx = sceneWindow ? UI::Scaling::SceneWindowScale(window.x, window.y)
+                                         : UI::Scaling::SceneBarScale(window.x, window.y);
+        document->SetProperty(Rml::PropertyId::FontSize, Rml::Property(rootPx, Rml::Unit::PX));
         Rml::ElementList textElements;
         document->GetElementsByClassName(textElements, kNativeTextClass);
         for (Rml::Element* element : textElements)
