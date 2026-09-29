@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "UI/Core/WindowSystem.h"
 #include "UI/Dialogs/MessageBox.h"
+#include "UI/RmlBridge/RmlTheme.h"
 #include "UI/Scaling/UITransform.h"
 
 #include "GameLogic/Items/PersonalShopTitleImp.h"
@@ -1884,6 +1885,9 @@ bool CSystem::HandleFrameCornerClose(const POINT& winPos, DWORD dwKey)
 
 bool CSystem::Update()
 {
+    // Before any window syncs its document: see ResumeMainSceneDocuments().
+    UI::RmlBridge::ResumeMainSceneDocuments();
+
     if (m_pNewItemMng)
     {
         m_pNewItemMng->Update();

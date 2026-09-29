@@ -186,3 +186,11 @@ mu_add_test(
     SOURCES test_rml_model_binder.cpp
     LINK_LIBS MuClient
 )
+
+mu_add_test(
+    NAME rml_document_scene_tests
+    SOURCES
+        test_rml_document_scene.cpp
+        ${CMAKE_SOURCE_DIR}/src/source/App/Platform/Windows/Winmain.cpp
+    LINK_LIBS MuClient
+)

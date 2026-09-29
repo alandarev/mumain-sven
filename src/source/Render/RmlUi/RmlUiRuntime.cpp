@@ -14,6 +14,7 @@
 #include "Data/GameConfig/GameConfig.h"
 #include "UI/Scaling/UITransform.h"
 #include "UI/RmlBridge/RmlNativeText.h"
+#include "UI/RmlBridge/RmlTheme.h"
 #include "Core/Utilities/FrameProfiler.h"
 
 namespace
@@ -218,6 +219,7 @@ void RmlUiRuntime::Update()
 {
     if (!m_Context) return;
     FRAME_PROFILE(RmlUiUpdate);
+    UI::RmlBridge::SuspendMainSceneDocumentsOutsideMainScene();
     ReleaseStrandedFieldFocus();
     m_Context->Update();
 }
