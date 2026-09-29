@@ -56,7 +56,9 @@
 	pointer-events: auto;
 }
 .shop-btn:hover { filter: brightness(1.25); }
-.shop-btn.locked { pointer-events: none; filter: brightness(0.6); }
+/* A locked CNewUIButton still shows its hint on hover; it only takes no click (MyShopInventory.cpp). */
+.shop-btn.locked,
+.shop-btn.locked:hover { cursor: default; filter: brightness(0.6); }
 
 .shop-btn-exit  { left: 13px; decorator: image(shop-btn-exit); }
 .shop-btn-open  { left: 53px; decorator: image(shop-btn-open); }
