@@ -120,6 +120,13 @@ void mu::ui::window::CMoveCommandWindow::RefreshLayoutMetrics()
     // physical font grows more slowly than the dock transform does, so the row height in these
     // units SHRINKS as the resolution rises and more rows fit -- native's own behaviour, and the
     // reason this is re-measured rather than fixed.
+    // Measured under the screen overlay transform, not this window's DockLeft one: native measured
+    // only at open/SetPos, from the Hud-mode hot key/window menu or outside any window, all of
+    // which run under ScreenOverlayTransform(). The two part where the dock scale is capped
+    // (2560x1440: 2.25 against 3.0), and measuring under the dock gave rows about 22.6 px apart
+    // there instead of native's 18.
+    const UI::Scaling::ScopedActiveTransform measureScope(
+        UI::Scaling::ScreenOverlayTransform(static_cast<int>(WindowWidth), static_cast<int>(WindowHeight)));
     g_pRenderText->SetFont(g_hFont);
     const int measuredFontHeight = g_pRenderText->MeasureText(L"Q", 1).cy;
     m_iRealFontHeight = measuredFontHeight > 0 ? measuredFontHeight + 2 : kDefaultRowHeight;
@@ -518,8 +525,7 @@ void mu::ui::window::CMoveCommandWindow::SyncRmlModel()
     UI::RmlBridge::SyncNativeTextSize(m_RmlBinder);
 
     // Re-measured every frame, not just on open: the row height and therefore the whole window's
-    // height follow the active transform, which a resolution or UI-scale change moves under an
-    // already-open window.
+    // height follow the window size, which a resolution change moves under an already-open window.
     RefreshLayoutMetrics();
 
     MoveCommandRmlModel& model = m_RmlBinder.GetModel();
