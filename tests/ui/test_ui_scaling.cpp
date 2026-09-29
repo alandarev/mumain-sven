@@ -918,6 +918,26 @@ TEST_CASE("text fitted to a width follows the native box rule for any size [ui][
     CHECK(UI::Scaling::FitTextPixelSizeToWidth(16.0f, 0.0f, 100.0f, 12.0f) == doctest::Approx(16.0f));
 }
 
+TEST_CASE("scene windows grow like the native dialog text, never below the original's size [ui][scaling]")
+{
+    CHECK(UI::Scaling::TextGrowthScale(13.0f, 13.0f) == doctest::Approx(1.0f));
+    CHECK(UI::Scaling::TextGrowthScale(15.0f, 13.0f) == doctest::Approx(15.0f / 13.0f));
+    // Smaller text than at the reference size: the window keeps the original's fixed size.
+    CHECK(UI::Scaling::TextGrowthScale(12.0f, 13.0f) == doctest::Approx(1.0f));
+    CHECK(UI::Scaling::TextGrowthScale(12.0f, 0.0f) == doctest::Approx(1.0f));
+
+    const float previousContentScale = UI::Scaling::GetWindowContentScale();
+    UI::Scaling::SetWindowContentScale(1.0f);
+    // Dialog text: 12 at 800x600, 13 at 1024x768 and 1280x720, 15 from 1280x1024 on (panel scale capped at 2).
+    CHECK(UI::Scaling::SceneWindowScale(800, 600) == doctest::Approx(1.0f));
+    CHECK(UI::Scaling::SceneWindowScale(1024, 768) == doctest::Approx(1.0f));
+    CHECK(UI::Scaling::SceneWindowScale(1280, 720) == doctest::Approx(1.0f));
+    CHECK(UI::Scaling::SceneWindowScale(1280, 1024) == doctest::Approx(15.0f / 13.0f));
+    CHECK(UI::Scaling::SceneWindowScale(1920, 1080) == doctest::Approx(15.0f / 13.0f));
+    CHECK(UI::Scaling::SceneWindowScale(2560, 1440) == doctest::Approx(15.0f / 13.0f));
+    UI::Scaling::SetWindowContentScale(previousContentScale);
+}
+
 TEST_CASE("layout typography grows gradually and fits bounded controls [ui][scaling]")
 {
     const auto reference = UI::Scaling::PanelTransform(640, 480);

@@ -413,6 +413,23 @@ float UI::Scaling::FitTextPixelSizeToWidth(float textPx, float measuredWidth, fl
     return std::max(textPx * boxWidth / measuredWidth, std::min(minimumPx, textPx));
 }
 
+float UI::Scaling::SceneWindowScale(int windowWidth, int windowHeight)
+{
+    const float textPx =
+        NativeTextPixelSize(FontRole::Normal, TransformForLayout(LayoutMode::Dialog, windowWidth, windowHeight));
+    const float referenceTextPx =
+        NativeTextPixelSize(FontRole::Normal, TransformForLayout(LayoutMode::Dialog, 1024, 768));
+    return TextGrowthScale(textPx, referenceTextPx);
+}
+
+float UI::Scaling::TextGrowthScale(float textPx, float referenceTextPx)
+{
+    if (referenceTextPx <= 0.0f)
+        return 1.0f;
+
+    return std::max(textPx / referenceTextPx, 1.0f);
+}
+
 float UI::Scaling::NativeTextPixelSizeInBounds(FontRole role, const Transform& transform, float measuredWidth,
                                                float measuredHeight, float boxWidth, float boxHeight)
 {

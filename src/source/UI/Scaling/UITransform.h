@@ -132,6 +132,13 @@ namespace UI::Scaling
     // boxWidth / measuredWidth when the text is wider than its box, but not below `minimumPx`
     // (nor above `textPx`). `measuredWidth` is the text's width at `textPx`, in the box's units.
     float FitTextPixelSizeToWidth(float textPx, float measuredWidth, float boxWidth, float minimumPx);
+    // How much a window the original drew at fixed pixels (login form, server list, system menu,
+    // login/character scene buttons) grows in the legacy theme: as much as the native dialog text
+    // (NativeTextPixelSize(), LayoutMode::Dialog) has grown against its size at 1024x768, never
+    // below 1 -- the original's own size up to 1280x720, larger only where the text is larger.
+    float SceneWindowScale(int windowWidth, int windowHeight);
+    // The rule behind SceneWindowScale() for any text size: textPx / referenceTextPx, not below 1.
+    float TextGrowthScale(float textPx, float referenceTextPx);
     // The same for a box with a height too (RenderText() with a box height the text is taller than,
     // e.g. the Devil Square rank headers' height of 3): the smaller of the two fits, down to the minimum.
     float NativeTextPixelSizeInBounds(FontRole role, const Transform& transform, float measuredWidth,
