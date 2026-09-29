@@ -31,7 +31,7 @@
 				<span class="sharp-text cmd-label" data-style-top="b.label_top + 'px'"
 				      data-style-font-size="b.label_text_px + 'px'" data-style-line-height="b.label_line_px + 'px'"
 				      data-style-width="(108 * root_scale) + 'px'"
-				      data-style-transform="'scale(' + (1 / root_scale) + ')'">{{b.label}}</span>
+				      data-style-transform="'scale(' + (1 / root_scale) + ')'"><span class="native-fit">{{b.label}}</span></span>
 			</div>
 		</div>
 

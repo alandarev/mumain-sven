@@ -395,13 +395,21 @@ float UI::Scaling::NativeTextPixelSize(FontRole role, const Transform& transform
 float UI::Scaling::NativeTextPixelSizeInBox(FontRole role, const Transform& transform, float measuredWidth,
                                             float boxWidth)
 {
-    const float textPx = NativeTextPixelSize(role, transform);
+    return FitTextPixelSizeToWidth(NativeTextPixelSize(role, transform), measuredWidth, boxWidth,
+                                   MinimumTextPixelSize(role));
+}
+
+float UI::Scaling::MinimumTextPixelSize(FontRole role)
+{
+    return static_cast<float>(CachedFontPointSize(role)) * static_cast<float>(MinimumFontPointSize(role)) /
+           static_cast<float>(MaximumFontPointSize(role));
+}
+
+float UI::Scaling::FitTextPixelSizeToWidth(float textPx, float measuredWidth, float boxWidth, float minimumPx)
+{
     if (measuredWidth <= boxWidth || measuredWidth <= 0.0f)
         return textPx;
 
-    const float minimumPx = static_cast<float>(CachedFontPointSize(role)) *
-                            static_cast<float>(MinimumFontPointSize(role)) /
-                            static_cast<float>(MaximumFontPointSize(role));
     return std::max(textPx * boxWidth / measuredWidth, std::min(minimumPx, textPx));
 }
 
@@ -417,10 +425,7 @@ float UI::Scaling::NativeTextPixelSizeInBounds(FontRole role, const Transform& t
     if (fit >= 1.0f)
         return textPx;
 
-    const float minimumPx = static_cast<float>(CachedFontPointSize(role)) *
-                            static_cast<float>(MinimumFontPointSize(role)) /
-                            static_cast<float>(MaximumFontPointSize(role));
-    return std::max(textPx * fit, std::min(minimumPx, textPx));
+    return std::max(textPx * fit, std::min(MinimumTextPixelSize(role), textPx));
 }
 
 float UI::Scaling::FontScaleForBounds(FontRole role, const Transform& transform, float measuredWidth,

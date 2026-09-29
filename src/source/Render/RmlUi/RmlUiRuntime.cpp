@@ -14,6 +14,7 @@
 #include "Data/GameConfig/GameConfig.h"
 #include "UI/Scaling/UITransform.h"
 #include "UI/RmlBridge/RmlNativeText.h"
+#include "UI/RmlBridge/RmlNativeTextFit.h"
 #include "UI/RmlBridge/RmlTheme.h"
 #include "Core/Utilities/FrameProfiler.h"
 
@@ -222,6 +223,7 @@ void RmlUiRuntime::Update()
     UI::RmlBridge::SuspendMainSceneDocumentsOutsideMainScene();
     ReleaseStrandedFieldFocus();
     m_Context->Update();
+    UI::RmlBridge::FitNativeTextToBoxes(m_Context);
 }
 
 void RmlUiRuntime::ReleaseStrandedFieldFocus()
@@ -406,6 +408,7 @@ void RmlUiRuntime::RenderBackgroundLayer()
     {
         FRAME_PROFILE(RmlUiUpdate);
         m_BackgroundContext->Update();
+        UI::RmlBridge::FitNativeTextToBoxes(m_BackgroundContext);
     }
     {
         FRAME_PROFILE(RmlUiRender);
@@ -435,6 +438,7 @@ void RmlUiRuntime::RenderDialogBackgroundLayer()
     {
         FRAME_PROFILE(RmlUiUpdate);
         m_DialogBackgroundContext->Update();
+        UI::RmlBridge::FitNativeTextToBoxes(m_DialogBackgroundContext);
     }
     {
         FRAME_PROFILE(RmlUiRender);

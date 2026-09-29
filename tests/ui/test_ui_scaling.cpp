@@ -899,8 +899,23 @@ TEST_CASE("native text in a box shrinks to fit it down to the minimum size [ui][
                             static_cast<float>(UI::Scaling::MinimumFontPointSize(FontRole::Bold)) /
                             static_cast<float>(UI::Scaling::MaximumFontPointSize(FontRole::Bold));
     CHECK(UI::Scaling::NativeTextPixelSizeInBox(FontRole::Bold, dock, 1000.0f, 72.0f) == doctest::Approx(minimumPx));
+    CHECK(UI::Scaling::MinimumTextPixelSize(FontRole::Bold) == doctest::Approx(minimumPx));
 
     UI::Scaling::SetWindowContentScale(previousContentScale);
+}
+
+TEST_CASE("text fitted to a width follows the native box rule for any size [ui][scaling]")
+{
+    // Fits: unchanged. Too wide: scaled by box / measured width.
+    CHECK(UI::Scaling::FitTextPixelSizeToWidth(16.0f, 100.0f, 120.0f, 12.0f) == doctest::Approx(16.0f));
+    CHECK(UI::Scaling::FitTextPixelSizeToWidth(16.0f, 100.0f, 100.0f, 12.0f) == doctest::Approx(16.0f));
+    CHECK(UI::Scaling::FitTextPixelSizeToWidth(16.0f, 128.0f, 112.0f, 12.0f) == doctest::Approx(14.0f));
+    // Not below the minimum size: the text overflows its box from there on.
+    CHECK(UI::Scaling::FitTextPixelSizeToWidth(16.0f, 200.0f, 100.0f, 12.0f) == doctest::Approx(12.0f));
+    // A text already at or below the minimum size is never enlarged to it.
+    CHECK(UI::Scaling::FitTextPixelSizeToWidth(11.0f, 200.0f, 100.0f, 12.0f) == doctest::Approx(11.0f));
+    // Nothing measured: unchanged.
+    CHECK(UI::Scaling::FitTextPixelSizeToWidth(16.0f, 0.0f, 100.0f, 12.0f) == doctest::Approx(16.0f));
 }
 
 TEST_CASE("layout typography grows gradually and fits bounded controls [ui][scaling]")
