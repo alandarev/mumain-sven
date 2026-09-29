@@ -230,6 +230,13 @@ DWORD CUIWindowMgr::AddWindow(int iWindowType, int iPos_x, int iPos_y, const wch
                 m_WindowMapIter = m_WindowMap.begin();
             }
         }
+
+        // The default place (0, 332) and the cascade put a window's lower part under the bottom
+        // HUD, where its buttons cannot be reached (an original defect): keep it above the HUD.
+        const int contentHeight =
+            static_cast<int>(UI::Scaling::FloatingWorkspaceContentHeight(WindowWidth, WindowHeight));
+        if (iPos_y + pbw->GetHeight() > contentHeight)
+            iPos_y = std::max(contentHeight - pbw->GetHeight(), 0);
     }
     pbw->SetPosition(iPos_x, iPos_y);
 
