@@ -94,6 +94,15 @@
 	width: auto;
 	margin: 0;
 }
+/* CChaosMixMenuMsgBox: each recipe's lines at their own native offsets above its button, one
+   line each as native draws them (a wrapped line would run into the button); a line wider than the
+   box stays centred on it (the cell centres its content-wide lines). Native shrank such a line to
+   its box instead (RenderText's box width, at 800x600). */
+#panel.native-frame .gmd-button-cell.native-lines .gmd-line {
+	width: auto;
+	white-space: nowrap;
+	margin-bottom: 0;
+}
 /* CTrainerRecoverMsgBox draws each pet's status line under its button. */
 .gmd-button-cell.lines-below { flex-direction: column-reverse; }
 #panel.native-frame .gmd-button-cell.lines-below .gmd-line { line-height: 18dp; margin: 0; }
@@ -206,6 +215,7 @@
 }
 .gmd-btn:hover { decorator: image(msgbox-btn-empty-hover); }
 .gmd-btn:active { decorator: image(msgbox-btn-empty-active); }
+.gmd-btn.narrow { width: 108dp; } /* MSGBOX_BTN_EMPTY_WIDTH (CGemIntegrationMsgBox) */
 .gmd-btn.compact { width: 64dp; decorator: image(msgbox-btn-empty-small-idle); }
 .gmd-btn.compact:hover { decorator: image(msgbox-btn-empty-small-hover); }
 .gmd-btn.compact:active { decorator: image(msgbox-btn-empty-small-active); }
