@@ -180,3 +180,9 @@ mu_add_test(
     SOURCES test_rml_draggable.cpp
     LINK_LIBS MuClient
 )
+
+mu_add_test(
+    NAME rml_model_binder_tests
+    SOURCES test_rml_model_binder.cpp
+    LINK_LIBS MuClient
+)
