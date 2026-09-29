@@ -59,8 +59,9 @@
 .mix-row.hidden { display: none; }
 .mix-text { background-color: rgba(40, 40, 40, 128); }
 
-/* Prediction / source checklist / status (fixed top 203, 15px rows, wrapping like native's
-   CutStr() at ~156px), then the advice after one blank row. */
+/* Prediction / source checklist / status (fixed top 203, 15px rows -- 10 in the socket mixes, bound
+   in mix_inventory.rml --, wrapping like native's CutStr() at ~156px), then the advice after one
+   blank row. */
 .mix-list {
 	position: absolute;
 	left: 15px;
@@ -70,7 +71,7 @@
 .mix-list.hidden, .mix-head.hidden, .mix-descriptions.hidden { display: none; }
 .mix-list-line {
 	display: block;
-	line-height: inherit; /* 15px, bound on the .mix-list text layer */
+	line-height: inherit; /* 15px (socket mixes 10px), bound on the .mix-list text layer */
 	font-weight: bold;
 	font-size: 1em;
 	color: #dcdcdc;
