@@ -15,6 +15,7 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace Rml
 {
@@ -107,6 +108,15 @@ private:
     std::array<FriendWindowFieldLayout, FriendWindowFieldLayout::SlotCount> m_Fields{};
 };
 
+// A rectangle in native reference px.
+struct FriendWindowRect
+{
+    float left = 0.f;
+    float top = 0.f;
+    float right = 0.f;
+    float bottom = 0.f;
+};
+
 // One window's document.
 class FriendWindowView
 {
@@ -117,8 +127,9 @@ public:
     FriendWindowView& operator=(const FriendWindowView&) = delete;
 
     // Rebuilds the document from the window (nullptr or !shown: hidden). Returns true when the
-    // document became visible this frame.
-    bool Sync(CUIBaseWindow* window, bool shown);
+    // document became visible this frame. shades: the underlays of the windows in front of this
+    // one; their back is drawn over this window there, as the original drew their back over it.
+    bool Sync(CUIBaseWindow* window, bool shown, const std::vector<FriendWindowRect>& shades = {});
     void PullToFront();
     void ReloadTheme();
     // True while one of the window's inputs holds the keyboard the native field handed it.

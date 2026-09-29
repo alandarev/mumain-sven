@@ -10,6 +10,8 @@
 #include "UI/RmlBridge/RmlTheme.h"
 #include "Core/Utilities/StringUtils.h"
 
+#include <algorithm>
+
 #include <RmlUi/Core/Context.h>
 #include <RmlUi/Core/ElementDocument.h>
 #include <RmlUi/Core/Elements/ElementFormControlInput.h>
@@ -397,7 +399,7 @@ void FriendWindowView::ReloadTheme()
     Build();
 }
 
-bool FriendWindowView::Sync(CUIBaseWindow* window, bool shown)
+bool FriendWindowView::Sync(CUIBaseWindow* window, bool shown, const std::vector<FriendWindowRect>& shades)
 {
     if (window == nullptr || !shown)
     {
@@ -423,6 +425,18 @@ bool FriendWindowView::Sync(CUIBaseWindow* window, bool shown)
     FriendWindowRmlBuilder builder(window->GetPosition_x(), window->GetPosition_y(), m_Binder.GetModel().parts,
                                    m_UnderBinder.GetModel().parts);
     window->CollectRmlView(builder);
+    // A window in front leaves its photo viewer's box to an underlay under the native pass, which
+    // is under this document too: its back is drawn over this window here instead.
+    const float windowRight = static_cast<float>(window->GetPosition_x() + window->GetWidth());
+    const float windowBottom = static_cast<float>(window->GetPosition_y() + window->GetHeight());
+    for (const FriendWindowRect& shade : shades)
+    {
+        const float left = std::max(shade.left, static_cast<float>(window->GetPosition_x()));
+        const float top = std::max(shade.top, static_cast<float>(window->GetPosition_y()));
+        const float right = std::min(shade.right, windowRight);
+        const float bottom = std::min(shade.bottom, windowBottom);
+        builder.Fill("window-back", left, top, right - left, bottom - top);
+    }
     if (builder.Finish())
         m_Binder.MarkDirty("parts");
 
@@ -624,17 +638,38 @@ void FriendWindowViews::Sync(const std::list<CUIBaseWindow*>& windows, bool fami
             it = m_Views.erase(it);
     }
 
-    bool restack = false;
-    std::list<DWORD> order;
+    const auto isShown = [familyShown](CUIBaseWindow* window)
+    { return familyShown && window->GetState() != UISTATE_HIDE && window->GetState() != UISTATE_READY; };
+
+    // The underlays of the shown windows, back to front: each is drawn over the windows behind it.
+    std::vector<FriendWindowRect> shades;
+    std::vector<size_t> shadesInFront; // per window: the first of `shades` that is in front of it
     for (CUIBaseWindow* window : windows)
     {
+        FriendWindowRect rect;
+        if (window != nullptr && window->HasRmlView() && isShown(window) &&
+            window->GetRmlUnderlayRect(rect.left, rect.top, rect.right, rect.bottom))
+        {
+            shades.push_back(rect);
+        }
+        shadesInFront.push_back(shades.size());
+    }
+
+    bool restack = false;
+    std::list<DWORD> order;
+    std::vector<FriendWindowRect> windowShades;
+    size_t index = 0;
+    for (CUIBaseWindow* window : windows)
+    {
+        const size_t firstShade = shadesInFront[index++];
         if (window == nullptr || !window->HasRmlView())
             continue;
         auto& view = m_Views[window->GetUIID()];
         if (!view)
             view = std::make_unique<FriendWindowView>(window->GetUIID());
-        const bool shown = familyShown && window->GetState() != UISTATE_HIDE && window->GetState() != UISTATE_READY;
-        if (view->Sync(window, shown))
+        const bool shown = isShown(window);
+        windowShades.assign(shades.begin() + static_cast<std::ptrdiff_t>(firstShade), shades.end());
+        if (view->Sync(window, shown, windowShades))
             restack = true;
         if (shown)
             order.push_back(window->GetUIID());

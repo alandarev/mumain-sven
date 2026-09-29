@@ -144,6 +144,9 @@ public:
     {
         return nullptr;
     }
+    // The photo viewer's box clipped to the window's back (reference px), which the view leaves
+    // to its underlay; false without a photo viewer or window background.
+    bool GetRmlUnderlayRect(float& left, float& top, float& right, float& bottom);
     // CUIWindowMgr::Render() for a window with an RmlUi view: RenderOver() only.
     void RenderRmlOverlay();
 
