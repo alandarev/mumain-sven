@@ -73,7 +73,7 @@ TEST_CASE("only the main scene's windows are suspended outside it [ui][stacking]
 
 TEST_CASE("documents stack as the original's windows did [ui][stacking]")
 {
-    // FIXLIST A: the logs over the friends windows; friends over character and inventory.
+    // The original's order: the logs over the friends windows; friends over character and inventory.
     CHECK(Depth("chat_log.rml") > Depth("friend_window.rml"));
     CHECK(Depth("system_log.rml") > Depth("friend_window.rml"));
     CHECK(Depth("friend_window.rml") > Depth("character_info.rml"));

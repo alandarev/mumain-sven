@@ -314,8 +314,7 @@ genuinely stay in C++ — worth reading before auditing any legacy-theme code ag
   (OpenMU never sends its packets). Left native on purpose: the mouse cursor, live 3D content,
   `CInGameShop`, developer overlays (`migration-ledger.md`'s "Native surfaces outside the window
   classes"). Legacy matches the original at the eight sizes (suites where they exist, hand probes
-  over injected packets otherwise; per-surface evidence in the superproject's OpenSpec change
-  `port-remaining-native-ui-to-rmlui`). Worth carrying to the next port:
+  over injected packets otherwise). Worth carrying to the next port:
 
   - **World-anchored or shared legacy drawing** (party HP bars, Kanturu banner, siege lines, Kalima
     labels) goes through the world-label layer's `Overlay2DRecordScope`, not a new document.
