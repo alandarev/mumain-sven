@@ -1,0 +1,8 @@
+/* Opaque potion wells paint before native 3D items; gaps stay transparent. */
+body { margin: 0; pointer-events: none; }
+#bg_root { position: absolute; transform-origin: left top; pointer-events: none; }
+#bg_left { position: absolute; top: 429px; width: 152px; height: 41px; pointer-events: none; }
+.potion-well { position: absolute; top: 0; width: 38px; height: 41px; decorator: image(glass-slot); pointer-events: none; }
+.well-0 { left: 0; } .well-1 { left: 38px; } .well-2 { left: 76px; } .well-3 { left: 114px; }
+.hidden { display: none; }
+#skill_list_highlight { position: absolute; top: 429px; width: 160px; height: 40px; background-color: #d3b46920; pointer-events: none; }

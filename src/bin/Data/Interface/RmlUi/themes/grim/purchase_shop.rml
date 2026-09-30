@@ -1,0 +1,44 @@
+<rml>
+<head>
+	<title>Personal Store - Purchase</title>
+	<link type="text/rcss" href="base.rcss"/>
+	<link type="text/rcss" href="purchase_shop.rcss"/>
+</head>
+<body data-model="purchase_shop">
+	<!-- Window frame/title/subtitle-strip/warning-text/exit-button only -- inventory grid stays
+	     native (PurchaseShopInventory.h). Background lives in purchase_shop_bg.rml instead, since
+	     it must paint behind the native 3D icons. -->
+	<div id="panel" data-style-left="root_x + 'px'" data-style-top="root_y + 'px'"
+	     data-style-transform="'scale(' + root_scale + ')'"
+	     data-style-font-size="(text_px / root_scale) + 'px'">
+		<span class="sharp-text" id="title"
+		     data-style-transform="'scale(' + (1 / root_scale) + ')'" data-style-font-size="text_px + 'px'" data-style-width="(190 * root_scale) + 'px'">{{title}}</span>
+
+		<!-- Reproduces IMAGE_MYSHOPINVENTORY_EDIT (newui_Box_openTitle.tga), the same sprite
+		     CMyShopInventory's own subject strip uses -- here purely decorative behind the
+		     shop-owner's (read-only) name, not a live text-input widget. -->
+		<div class="shop-title-strip"></div>
+		<span class="sharp-text" id="shop_owner_text"
+		     data-style-transform="'scale(' + (1 / root_scale) + ')'" data-style-font-size="text_px + 'px'" data-style-width="(190 * root_scale) + 'px'">{{shop_owner_text}}</span>
+
+		<span class="sharp-text warning-label"
+		     data-style-transform="'scale(' + (1 / root_scale) + ')'" data-style-font-size="text_px + 'px'" data-style-width="(152 * root_scale) + 'px'">{{warning_label}}</span>
+		<span class="sharp-text warning-line line-1"
+		     data-style-transform="'scale(' + (1 / root_scale) + ')'" data-style-font-size="text_px + 'px'" data-style-width="(152 * root_scale) + 'px'">{{selling_price_line}}</span>
+		<span class="sharp-text warning-line line-2"
+		     data-style-transform="'scale(' + (1 / root_scale) + ')'" data-style-font-size="text_px + 'px'" data-style-width="(152 * root_scale) + 'px'">{{verify_line}}</span>
+		<span class="sharp-text warning-line line-3"
+		     data-style-transform="'scale(' + (1 / root_scale) + ')'" data-style-font-size="text_px + 'px'" data-style-width="(152 * root_scale) + 'px'">{{already_in_store_line}}</span>
+		<span class="sharp-text warning-line line-4"
+		     data-style-transform="'scale(' + (1 / root_scale) + ')'" data-style-font-size="text_px + 'px'" data-style-width="(152 * root_scale) + 'px'">{{cancel_purchased_line}}</span>
+		<span class="sharp-text warning-line line-5"
+		     data-style-transform="'scale(' + (1 / root_scale) + ')'" data-style-font-size="text_px + 'px'" data-style-width="(152 * root_scale) + 'px'">{{cant_be_returned_line}}</span>
+		<span class="sharp-text warning-label-2 line-6"
+		     data-style-transform="'scale(' + (1 / root_scale) + ')'" data-style-font-size="text_px + 'px'" data-style-width="(152 * root_scale) + 'px'">{{all_item_trading_line}}</span>
+		<span class="sharp-text warning-label-2 line-7"
+		     data-style-transform="'scale(' + (1 / root_scale) + ')'" data-style-font-size="text_px + 'px'" data-style-width="(152 * root_scale) + 'px'">{{zen_only_line}}</span>
+
+		<div id="btn_exit" class="shop-btn-exit" data-event-click="purchase_shop_exit_click"></div>
+	</div>
+</body>
+</rml>

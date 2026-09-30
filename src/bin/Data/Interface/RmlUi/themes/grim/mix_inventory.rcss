@@ -1,0 +1,192 @@
+/* Legacy theme for CMixInventory's chrome (frame/title/Mix button/recipe-result content). #panel's
+   left/top/scale come live from C++ (SyncRmlModel()), so coordinates below are plain reference px,
+   not dp. Only the inventory grid renders natively on top of this document's frame now. */
+
+#panel {
+	position: absolute;
+	transform-origin: left top;
+	width: 190px;
+	height: 429px;
+	font-family: "token(font-body)";
+}
+
+/* Native RenderFrame() draws every text line bold, the title and tax rate in (220,220,220). */
+#title {
+	position: absolute;
+	left: 0;
+	top: 13px;
+	width: 190px;
+	text-align: center;
+	color: #dcdcdc;
+	font-weight: bold;
+	font-size: 1em;
+}
+#title.low { top: 18px; } /* mix types without the tax line */
+
+/* Native shrinks the tax line to its 160 box (tax_rate_fit, a transform) rather than wrapping it. */
+.mix-tax-rate {
+	position: absolute;
+	left: 15px;
+	top: 25px;
+	width: 160px;
+	white-space: nowrap;
+	text-align: center;
+	color: #dcdcdc;
+	font-weight: bold;
+	font-size: 1em;
+}
+/* The tax line and the descriptions are text layers (.sharp-text, mix_inventory.rml); inside them
+   .mix-fit shrinks the line to its box around the box's centre (left edge when left-aligned). */
+.mix-fit { display: block; transform-origin: center top; }
+.mix-description.left .mix-fit { transform-origin: left top; }
+
+/* Recipe name (two 10px rows, the second kept even when empty), then success rate and required
+   zen (20px each, when shown) -- left-aligned at native's fPos_x, over a translucent band. */
+.mix-head {
+	position: absolute;
+	left: 15px;
+	top: 49px;
+	width: 160px;
+}
+/* Row heights (10px, 20px wide) are bound in mix_inventory.rml: .mix-head is a text layer. */
+.mix-row {
+	display: block;
+	white-space: nowrap;
+	font-weight: bold;
+	font-size: 1em;
+	color: #d2e6ff;
+}
+.mix-row.hidden { display: none; }
+.mix-text { background-color: rgba(40, 40, 40, 128); }
+
+/* Prediction / source checklist / status (fixed top 203, 15px rows -- 10 in the socket mixes, bound
+   in mix_inventory.rml --, wrapping like native's CutStr() at ~156px), then the advice after one
+   blank row. */
+.mix-list {
+	position: absolute;
+	left: 15px;
+	top: 203px;
+	width: 156px;
+}
+.mix-list.hidden, .mix-head.hidden, .mix-descriptions.hidden { display: none; }
+.mix-list-line {
+	display: block;
+	line-height: inherit; /* 15px (socket mixes 10px), bound on the .mix-list text layer */
+	font-weight: bold;
+	font-size: 1em;
+	color: #dcdcdc;
+}
+.mix-list-line.hidden { display: none; }
+/* Native cuts only the prediction and source lines (CutStr); status and advice run on. */
+/* One native line each, cut at the frame's inner edge (x 182, width bound in mix_inventory.rml):
+   nothing covers what native runs on past its frame. */
+.mix-unwrapped { white-space: nowrap; overflow: hidden; }
+.mix-advice { display: block; } /* margin-top 15px, bound (text layer) */
+
+/* RenderMixDescriptions(): each line at its own native top (d.top), centred in 160px at x=15 or
+   left-aligned from x=5, no band, shrunk to fit its box like native (d.fit, as a transform on
+   .mix-fit: a continuous scale, where font-size steps would be coarse). Native's left box is 200
+   wide and runs past the window; here it stays inside it (180). A line still too long at the
+   minimum size is cut at its box, as native's window cuts it. */
+.mix-descriptions {
+	position: absolute;
+	left: 0;
+	top: 0;
+	width: 190px;
+}
+.mix-description {
+	position: absolute;
+	left: 5px;   /* native's 160 box at x=15, widened to the frame around the same centre (95): */
+	width: 180px; /* the fit still targets 160 (MixInventory.cpp), the cut is at the frame */
+	text-align: center;
+	white-space: nowrap;
+	overflow: hidden;
+	font-weight: bold;
+	font-size: 1em;
+}
+.mix-description.left { left: 5px; width: 180px; text-align: left; }
+
+.mix-socket-prompt {
+	position: absolute;
+	left: 15px;
+	top: 280px;
+	width: 160px;
+	text-align: center;
+	color: #c8c8c8;
+	font-weight: bold;
+	font-size: 1em;
+}
+.mix-socket-prompt.hidden { display: none; }
+/* CUISocketListBox::Render(): the box and the selected row black at 40 % (SetLineColor(7, 0.4f),
+   the colour RenderInterface() leaves set for RenderDataLine()), the lines in the normal font at
+   8, 3 in their row, (230, 220, 200) or black when selected; the scroll track
+   (newui_scrollbar_up / m / down) and the newui_scroll_on thumb, tinted (200, 200, 200) while
+   dragged. Hit-tested natively (m_SocketListBox.DoAction()). */
+@spritesheet mix-scroll-top-sheet { src: "../../../newui_scrollbar_up.tga"; mix-scroll-top: 0px 0px 7px 3px; }
+@spritesheet mix-scroll-mid-sheet { src: "../../../newui_scrollbar_m.tga"; mix-scroll-mid: 0px 0px 7px 15px; }
+@spritesheet mix-scroll-bottom-sheet { src: "../../../newui_scrollbar_down.tga"; mix-scroll-bottom: 0px 0px 7px 3px; }
+@spritesheet mix-thumb-sheet { src: "../../../newui_scroll_on.tga"; mix-thumb: 0px 0px 15px 30px; }
+.socket-list-box, .socket-line, .socket-scroll-top, .socket-scroll-mid, .socket-scroll-bottom, .socket-thumb {
+	position: absolute;
+	pointer-events: none;
+}
+.socket-list-box { background-color: rgba(0, 0, 0, 102); }
+.socket-line { height: 13px; }
+.socket-line.selected { background-color: rgba(0, 0, 0, 102); }
+.socket-line-text {
+	position: absolute;
+	left: 8px;
+	top: 3px;
+	white-space: nowrap;
+	color: #e6dcc8;
+}
+.socket-line.selected .socket-line-text { color: #000000; }
+.socket-scroll-top, .socket-scroll-mid, .socket-scroll-bottom { width: 7px; }
+.socket-scroll-top { height: 3px; decorator: image(mix-scroll-top); }
+.socket-scroll-mid { decorator: image(mix-scroll-mid); }
+.socket-scroll-bottom { height: 3px; decorator: image(mix-scroll-bottom); }
+.socket-thumb { width: 15px; height: 30px; decorator: image(mix-thumb); }
+.socket-thumb.dragged { image-color: #c8c8c8; }
+
+/* 44x35 crop of the top-left ("up") frame of the native 2-frame vertical button sheet
+   (CMixInventory::Create()'s former ChangeButtonInfo(..., 44.f, 35.f)) -- hover uses a CSS
+   brightness filter instead of the sheet's own "down"/"over" frames, same convention as every
+   other migrated inv-btn/ext-btn. Centered: (190-44)/2 = 73, top matches the native
+   `m_Pos.y + 380`. */
+@spritesheet mix-btn-sheet { src: "../../../newui_bt_mix.tga"; mix-btn: 0px 0px 44px 35px; }
+.mix-btn {
+	position: absolute;
+	left: 73px;
+	top: 380px;
+	width: 44px;
+	height: 35px;
+	cursor: pointer;
+	pointer-events: auto;
+	decorator: image(mix-btn);
+}
+.mix-btn:hover { filter: brightness(1.25); }
+.mix-btn.hidden { display: none; }
+.mix-btn.locked { pointer-events: none; filter: brightness(0.6); }
+
+/* Button hints as docked_panel_frame.rcss draws them (CNewUIButton::Render()): a transparent
+   120-wide row (content centre at left + 4 + 60, 3 right of the button's centre) anchored 2 above
+   the button by its bottom edge; the inner .tooltip-text span carries the black 180/255 box, text
+   width + 6. */
+.tooltip {
+	display: none;
+	position: absolute;
+	bottom: 49px; /* 429 - 380 */
+	width: 120px;
+	white-space: nowrap;
+	color: token(text-primary);
+	padding: 2px 4px;
+	font-family: "token(font-body)";
+	font-size: 1em;
+	text-align: center;
+	pointer-events: none;
+	z-index: 1;
+}
+.tooltip.sharp-text { transform-origin: left bottom; }
+.tooltip-text { background-color: rgba(0, 0, 0, 180); }
+.tooltip-mix { left: 34px; } /* button centre 95 */
+#btn_mix:hover ~ .tooltip-mix { display: block; }

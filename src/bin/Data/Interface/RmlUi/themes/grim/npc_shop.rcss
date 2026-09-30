@@ -1,0 +1,112 @@
+/* Legacy theme for CNPCShop's chrome (frame/title/tax-rate line/repair buttons/repair-money
+   strip). #panel's left/top/scale come live from C++ (SyncRmlModel()), so coordinates below are
+   plain reference px, not dp. No exit button -- see npc_shop.rml's own comment; the frame-corner
+   close "X" stays native. Button/text positions match NPCShop.cpp's former RenderTexts()/
+   SetButtonInfo()/RenderRepairMoney() constants. */
+
+#panel {
+	position: absolute;
+	transform-origin: left top;
+	width: 190px;
+	height: 429px;
+	font-family: "token(font-body)";
+}
+
+#title {
+	position: absolute;
+	left: 0;
+	top: 11px; /* native y+12 (glyph top) */
+	width: 190px;
+	text-align: center;
+	color: token(text-label);
+	font-weight: bold;
+	font-size: 1em;
+}
+#tax_rate {
+	position: absolute;
+	left: 0;
+	top: 26px; /* native y+27 */
+	width: 190px;
+	text-align: center;
+	color: token(text-label);
+	font-weight: bold;
+	font-size: 1em;
+}
+
+/* Both buttons share one sprite -- NPCShop.cpp's former SetButtonInfo() pointed both
+   m_BtnRepair/m_BtnRepairAll at the same IMAGE_NPCSHOP_BTN_REPAIR image, differing only by
+   tooltip text. */
+@spritesheet shop-btn-repair-sheet { src: "../../../newui_repair_00.tga"; shop-btn-repair: 0px 0px 36px 29px; }
+.shop-btn {
+	position: absolute;
+	top: 390px;
+	width: 36px;
+	height: 29px;
+	cursor: pointer;
+	pointer-events: auto;
+	decorator: image(shop-btn-repair);
+}
+.shop-btn:hover { filter: brightness(1.25); }
+.shop-btn.hidden { display: none; }
+
+.shop-btn-repair     { left: 54px; }
+.shop-btn-repair-all { left: 98px; }
+
+@spritesheet repair-money-sheet { src: "../../../newui_item_money2.tga"; repair-money: 0px 0px 170px 24px; }
+.repair-money {
+	position: absolute;
+	left: 10px;
+	top: 355px;
+	width: 170px;
+	height: 24px;
+	pointer-events: none;
+	decorator: image(repair-money);
+}
+.repair-money.hidden { display: none; }
+
+.repair-money-label, .repair-money-value {
+	position: absolute;
+	top: 362px;
+	font-weight: bold;
+	font-size: 1em;
+	white-space: nowrap;
+	pointer-events: none;
+}
+.repair-money-label { left: 20px; color: token(text-label); }
+.repair-money-value { left: 100px; }
+.repair-money-label.hidden, .repair-money-value.hidden { display: none; }
+
+/* Button hints as docked_panel_frame.rcss draws them (CNewUIButton::Render()): a transparent
+   120-wide row (content centre at left + 4 + 60, 3 right of the button's centre) anchored 2 above
+   the button by its bottom edge; the inner .tooltip-text span carries the black 180/255 box, text
+   width + 6. */
+.tooltip {
+	display: none;
+	position: absolute;
+	bottom: 39px; /* 429 - 390 */
+	width: 120px;
+	white-space: nowrap;
+	color: token(text-primary);
+	padding: 2px 4px;
+	font-family: "token(font-body)";
+	font-size: 1em;
+	text-align: center;
+	pointer-events: none;
+	z-index: 1;
+}
+.tooltip.sharp-text { transform-origin: left bottom; }
+.tooltip-text { background-color: rgba(0, 0, 0, 180); }
+.tooltip-repair     { left: 11px; }
+.tooltip-repair-all { left: 55px; }
+
+#btn_repair:hover ~ .tooltip-repair,
+#btn_repair_all:hover ~ .tooltip-repair-all {
+	display: block;
+}
+
+/* Black Glass: presentation only; native geometry and event regions retained. */
+
+#title { color: #f0e5cf; }
+#tax_rate { color: #aab4bc; font-weight: normal; }
+.repair-money { decorator: none; background-color: #10161b; border: 1px #49535b; box-sizing: border-box; }
+.shop-btn:hover { background-color: #bfc8d015; }

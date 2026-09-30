@@ -1,0 +1,11 @@
+/* Shared background-context frame. Never place opaque paint above native item models. */
+@spritesheet grim-shared-sheet {
+    src: "black-glass.tga";
+    grim-panel: 784px 528px 222px 224px;
+    grim-panel-inner: 806px 550px 178px 180px;
+}
+
+.bg-fill { decorator: ninepatch(grim-panel, grim-panel-inner, 0.22); background-color: #080a0c; }
+.bg-top { left: 5px; top: 5px; width: 180px; height: 419px; decorator: none; background-color: #080a0cdd; }
+.bg-left, .bg-right, .bg-bottom { decorator: none; }
+.grim-corner-close { position: absolute; left: 169px; top: 8px; width: 15px; height: 15px; color: #c7cdd1; font-family: "DejaVu Sans"; font-size: 13px; text-align: center; pointer-events: none; }

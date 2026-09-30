@@ -1,0 +1,33 @@
+/* Generated-art crops, mapped from the 1254px source to the 1024px runtime atlas. */
+@spritesheet grim-bronze {
+	src: "bronze-atlas.tga";
+	bronze-socket: 47px 47px 184px 176px;
+	bronze-selected: 301px 47px 187px 176px;
+	bronze-panel: 541px 46px 200px 176px;
+	bronze-gem-frame: 776px 44px 218px 179px;
+	bronze-ruby: 33px 287px 194px 176px;
+	bronze-sapphire: 289px 287px 194px 176px;
+	bronze-poison: 543px 287px 194px 176px;
+	bronze-empty: 800px 287px 194px 176px;
+	bronze-shop: 33px 533px 195px 191px;
+	bronze-character: 289px 533px 195px 191px;
+	bronze-inventory: 543px 533px 195px 191px;
+	bronze-friends: 799px 533px 195px 191px;
+	bronze-menu: 33px 776px 195px 194px;
+	bronze-gauge: 342px 769px 83px 202px;
+	bronze-rail: 511px 847px 252px 60px;
+	bronze-top-rail: 563px 47px 155px 6px;
+	bronze-exp-left: 511px 847px 35px 60px;
+	bronze-exp-middle: 546px 847px 182px 60px;
+	bronze-exp-right: 728px 847px 35px 60px;
+	bronze-flourish: 798px 839px 195px 71px;
+}
+
+/* Complete sockets avoid opaque gem corners overwriting frame ornament. */
+@spritesheet grim-gems {
+    src: "gem-sockets.tga";
+    grim-gem-red: 26px 44px 464px 436px;
+    grim-gem-blue: 534px 44px 464px 436px;
+    grim-gem-green: 26px 531px 464px 436px;
+    grim-gem-empty: 534px 531px 464px 436px;
+}

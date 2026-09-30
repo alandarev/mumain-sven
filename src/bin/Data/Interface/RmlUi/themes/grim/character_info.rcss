@@ -1,0 +1,69 @@
+/* Refined classic: native docked footprint, class-driven card heights and sharp
+   counter-scaled text. Childless paint layers keep decoration clear of content. */
+#panel { position: absolute; width: 190px; height: 429px; transform-origin: left top; font-family: "token(font-body)"; color: #eee9df; pointer-events: auto; }
+.panel-art { position: absolute; width: 190px; height: 429px; decorator: ninepatch(glass-panel, glass-panel-inner, 0.22); background-color: #080a0c; pointer-events: none; }
+.header-rule { position: absolute; left: 12px; top: 59px; width: 166px; height: 1px; background-color: #777d7c; pointer-events: none; }
+.identity, .level-text, .levelup-point-text, .attr-label, .attr-value, .attr-lines,
+.footer-label, .progression-label span, .progression-details span, .tooltip {
+    position: absolute; transform-origin: left top; pointer-events: none;
+    font-effect: shadow(0px 1px #000000); white-space: nowrap;
+}
+.identity { left: 13px; }
+.name { font-weight: bold; }
+.server { color: #9da6ac; }
+.level-text { left: 13px; top: 65px; color: #d6c9a8; }
+.points-art { position: absolute; left: 10px; top: 79px; width: 170px; height: 17px; decorator: linear-gradient(to bottom, #373128, #161514); pointer-events: none; }
+.levelup-point-text { left: 16px; top: 82px; color: #e6bd6d; font-weight: bold; }
+#stat_cards { position: absolute; left: 10px; width: 170px; bottom: 38px; overflow-x: hidden; overflow-y: auto; }
+.stat-card { display: block; position: relative; width: 164px; margin-bottom: 5px; }
+.card-art { position: absolute; width: 100%; height: 100%; decorator: ninepatch(glass-panel, glass-panel-inner, 0.13); pointer-events: none; }
+.card-header { position: absolute; left: 4px; right: 4px; top: 4px; height: 20px; background-color: #101216; border-bottom: 1px #42494e; pointer-events: none; }
+.attr-label { left: 9px; top: 8px; font-weight: bold; }
+.attr-value { left: 89px; top: 8px; text-align: right; font-weight: bold; }
+.attr-lines { left: 8px; top: 29px; }
+.attr-lines span { display: block; white-space: nowrap; }
+.stat-btn { position: absolute; right: 5px; top: 3px; width: 23px; height: 23px; cursor: pointer; decorator: image(glass-slot); }
+.stat-btn span { display: block; width: 23px; text-align: center; font-size: 20px; line-height: 22px; color: #e6bd6d; pointer-events: none; }
+.stat-btn:hover { decorator: image(glass-selected); }
+.stat-btn:active { image-color: #c2c8cc; }
+.exit-button { position: absolute; left: 168px; top: 7px; width: 16px; height: 16px; decorator: image(glass-slot); cursor: pointer; }
+.exit-button span { display: block; text-align: center; font-size: 15px; line-height: 16px; color: #e5d5bb; pointer-events: none; }
+.exit-button:hover { decorator: image(glass-selected); }
+.info-btn { position: absolute; top: 394px; width: 55px; height: 27px; cursor: pointer; }
+.info-btn-quest { left: 10px; }
+.info-btn-pet { left: 67px; }
+.info-btn-masterlevel { left: 124px; }
+.footer-art { position: absolute; width: 55px; height: 27px; decorator: ninepatch(glass-panel, glass-panel-inner, 0.13); pointer-events: none; }
+.footer-label { left: 1px; top: 6px; text-align: center; white-space: normal; }
+.info-btn:hover .footer-art { image-color: #d0d7df; }
+.info-btn.locked .footer-label { color: #85898c; }
+.tooltip { display: none; left: 12px; bottom: 36px; background-color: #080a0cf5; color: #eee9df; padding: 3px; z-index: 4; }
+.tooltip-exit { top: 25px; bottom: auto; }
+#btn_exit:hover ~ .tooltip-exit, #btn_quest:hover ~ .tooltip-quest,
+#btn_pet:hover ~ .tooltip-pet, #btn_masterlevel:hover ~ .tooltip-masterlevel { display: block; }
+.progression-section { display: block; position: relative; width: 164px; margin-bottom: 6px; padding-top: 25px; }
+#progression_toggle { position: absolute; left: 0; top: 0; width: 164px; height: 24px; opacity: 0; cursor: pointer; z-index: 2; }
+.progression-label { position: absolute; left: 0; top: 0; width: 164px; height: 24px; decorator: ninepatch(glass-panel, glass-panel-inner, 0.13); pointer-events: none; }
+.progression-label span { left: 8px; top: 7px; color: #c8cccd; }
+.disclosure-closed, .disclosure-open { position: absolute; right: 7px; top: 5px; font-size: 13px; color: #d9dfe2; pointer-events: none; }
+.disclosure-open, .progression-details { display: none; }
+.progression-details { position: relative; width: 164px; height: 65px; }
+.progression-details span { left: 5px; white-space: normal; color: #adb9c0; }
+.exp-text { top: 3px; }
+.point-probability-text { top: 25px; }
+.point-text { top: 43px; }
+#progression_toggle:checked ~ .progression-details, #progression_toggle:checked ~ .disclosure-open { display: block; }
+#progression_toggle:checked ~ .disclosure-closed { display: none; }
+#progression_toggle:hover ~ .progression-label, #progression_toggle:focus ~ .progression-label { image-color: #d0d7df; }
+.stat-card.hidden, .stat-btn.hidden, .points-art.hidden, .levelup-point-text.hidden { display: none; }
+
+.panel-shade { position: absolute; left: 5px; top: 5px; right: 5px; bottom: 5px; background-color: #080a0cdd; pointer-events: none; }
+.card-shade { position: absolute; left: 3px; right: 3px; top: 3px; bottom: 3px; background-color: #080a0ccc; pointer-events: none; }
+
+/* Visible, draggable scroll thumb for class-specific overflow and expanded details. */
+#stat_cards scrollbarvertical { width: 5px; margin: 0; }
+#stat_cards scrollbarvertical slidertrack { background-color: #14171a; }
+#stat_cards scrollbarvertical sliderbar { width: 4px; min-height: 18px; background-color: #798087; }
+#stat_cards scrollbarvertical sliderbar:hover { background-color: #bdc5cb; }
+#stat_cards scrollbarvertical sliderarrowdec, #stat_cards scrollbarvertical sliderarrowinc { width: 5px; height: 0; }
+#stat_cards scrollbarhorizontal { height: 0; }

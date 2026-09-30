@@ -1,0 +1,28 @@
+/* Two review presets, selected by the main_frame.rml body class.
+   Both preserve native gauge hitboxes and live current-value bindings. */
+.caption-backing { display: none; position: absolute; pointer-events: none; box-sizing: border-box; }
+
+/* A: fixed opaque nameplates below the fills, independent of digit count. */
+.caption-plates .caption-backing { display: block; background-color: #101415; border: 1px #535955; border-radius: 2px; }
+.caption-plates #bar_hp .caption-backing { left: -4px; top: 25px; width: 49px; height: 14px; }
+.caption-plates #bar_mp .caption-backing { left: 0; top: 25px; width: 49px; height: 14px; }
+.caption-plates #bar_sd .caption-backing,
+.caption-plates #bar_ag .caption-backing { left: -1px; top: 22px; width: 18px; height: 17px; }
+.caption-plates .minor-label { z-index: 1; }
+
+/* Selected B: every gauge fits the common y=429..470 HUD band.
+   The number field is bottom-aligned within the gem; black outline plus a
+   drop shadow protects the digits over bright resource facets. */
+.caption-inset .gem-window { top: -3px; width: 45px; height: 41px; }
+.caption-inset #bar_hp .gem-window, .caption-inset #bar_mp .gem-window { left: 0; }
+.caption-inset .gem-interior { width: 39px; height: 35px; }
+.caption-inset .gem-empty, .caption-inset .gem-progress { width: 39px; height: 35px; }
+.caption-inset .gem-rim { width: 45px; height: 41px; }
+.caption-inset #bar_hp .gauge-num,
+.caption-inset #bar_mp .gauge-num { top: 22px; color: #fff6df; font-effect: outline(2px #000000), shadow(0px 2px #000000); }
+.caption-inset .minor-gauge-frame { left: -1px; top: -2px; width: 18px; height: 41px; }
+.caption-inset .minor-progress { left: 1px; top: 1px; width: 14px; height: 35px; }
+/* The gauge parents retain native hover regions and their sibling tooltips. */
+.caption-inset .minor-label,
+.caption-inset #bar_sd .gauge-num,
+.caption-inset #bar_ag .gauge-num { display: none; }

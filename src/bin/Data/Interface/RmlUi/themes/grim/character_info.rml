@@ -1,0 +1,109 @@
+<rml>
+<head>
+    <title>Character Info</title>
+    <link type="text/rcss" href="base.rcss"/>
+    <link type="text/rcss" href="black_glass_sprites.rcss"/>
+    <link type="text/rcss" href="character_info.rcss"/>
+</head>
+<body>
+<!-- Refined classic: the native docked footprint and every existing gameplay callback remain.
+     The existing variable-length stat lists own class/buff/master information; never replace
+     them with a fixed Knight-only summary. Card height follows the bound list length. -->
+<div id="panel" data-model="character_info" data-style-left="root_x + 'px'" data-style-top="root_y + 'px'" data-style-transform="'scale(' + root_scale + ')'">
+    <div class="panel-art"></div>
+    <div class="panel-shade"></div>
+    <div class="header-rule"></div>
+    <span id="name" class="identity name" style="top: 12px;" data-style-font-size="(text_px + 1) + 'px'" data-style-transform="'scale(' + (1 / root_scale) + ')'" data-style-width="(148 * root_scale) + 'px'" data-style-color="name_color">{{name_text}}</span>
+    <span id="classname" class="identity" style="top: 29px;" data-style-font-size="(text_px + 1) + 'px'" data-style-transform="'scale(' + (1 / root_scale) + ')'" data-style-width="(148 * root_scale) + 'px'">{{classname_text}}</span>
+    <span id="servername" class="identity server" style="top: 43px;" data-style-font-size="(text_px + 1) + 'px'" data-style-transform="'scale(' + (1 / root_scale) + ')'" data-style-width="(148 * root_scale) + 'px'">{{servername_text}}</span>
+    <span class="level-text" data-style-font-size="(text_px + 1) + 'px'" data-style-transform="'scale(' + (1 / root_scale) + ')'" data-style-width="(166 * root_scale) + 'px'">{{level_text}}</span>
+    <div class="points-art" data-class-hidden="!can_level_up"></div>
+    <span class="levelup-point-text" data-class-hidden="!can_level_up" data-style-font-size="(text_px + 1) + 'px'" data-style-transform="'scale(' + (1 / root_scale) + ')'" data-style-width="(160 * root_scale) + 'px'">{{levelup_point_text}}</span>
+    <div id="stat_cards" data-style-top="can_level_up ? '99px' : '77px'">
+
+        <div class="stat-card" data-style-height="(29 + 15 * str_lines.size) + 'px'">
+            <div class="card-art"></div>
+            <div class="card-shade"></div>
+            <div class="card-header"></div>
+            <span class="attr-label" data-style-font-size="(text_px + 1) + 'px'" data-style-transform="'scale(' + (1 / root_scale) + ')'" data-style-width="(96 * root_scale) + 'px'" data-style-color="str_value_color">{{str_label}}</span>
+            <span class="attr-value" data-style-font-size="(text_px + 1) + 'px'" data-style-transform="'scale(' + (1 / root_scale) + ')'" data-style-width="(46 * root_scale) + 'px'" data-style-color="str_value_color">{{str_value_text}}</span>
+            <div class="stat-btn" data-class-hidden="!can_level_up" data-event-click="chainfo_increase_stat(0)"><span>+</span></div>
+            <div class="attr-lines" data-style-font-size="(text_px + 1) + 'px'" data-style-transform="'scale(' + (1 / root_scale) + ')'" data-style-width="(152 * root_scale) + 'px'">
+                <span data-for="line : str_lines" data-style-color="line.color" data-style-height="15 * root_scale + 'px'">{{line.text}}</span>
+            </div>
+        </div>
+        <div class="stat-card" data-style-height="(29 + 15 * agi_lines.size) + 'px'">
+            <div class="card-art"></div>
+            <div class="card-shade"></div>
+            <div class="card-header"></div>
+            <span class="attr-label" data-style-font-size="(text_px + 1) + 'px'" data-style-transform="'scale(' + (1 / root_scale) + ')'" data-style-width="(96 * root_scale) + 'px'" data-style-color="agi_value_color">{{agi_label}}</span>
+            <span class="attr-value" data-style-font-size="(text_px + 1) + 'px'" data-style-transform="'scale(' + (1 / root_scale) + ')'" data-style-width="(46 * root_scale) + 'px'" data-style-color="agi_value_color">{{agi_value_text}}</span>
+            <div class="stat-btn" data-class-hidden="!can_level_up" data-event-click="chainfo_increase_stat(1)"><span>+</span></div>
+            <div class="attr-lines" data-style-font-size="(text_px + 1) + 'px'" data-style-transform="'scale(' + (1 / root_scale) + ')'" data-style-width="(152 * root_scale) + 'px'">
+                <span data-for="line : agi_lines" data-style-color="line.color" data-style-height="15 * root_scale + 'px'">{{line.text}}</span>
+            </div>
+        </div>
+        <div class="stat-card" data-style-height="(29 + 15 * vit_lines.size) + 'px'">
+            <div class="card-art"></div>
+            <div class="card-shade"></div>
+            <div class="card-header"></div>
+            <span class="attr-label" data-style-font-size="(text_px + 1) + 'px'" data-style-transform="'scale(' + (1 / root_scale) + ')'" data-style-width="(96 * root_scale) + 'px'" data-style-color="vit_value_color">{{vit_label}}</span>
+            <span class="attr-value" data-style-font-size="(text_px + 1) + 'px'" data-style-transform="'scale(' + (1 / root_scale) + ')'" data-style-width="(46 * root_scale) + 'px'" data-style-color="vit_value_color">{{vit_value_text}}</span>
+            <div class="stat-btn" data-class-hidden="!can_level_up" data-event-click="chainfo_increase_stat(2)"><span>+</span></div>
+            <div class="attr-lines" data-style-font-size="(text_px + 1) + 'px'" data-style-transform="'scale(' + (1 / root_scale) + ')'" data-style-width="(152 * root_scale) + 'px'">
+                <span data-for="line : vit_lines" data-style-color="line.color" data-style-height="15 * root_scale + 'px'">{{line.text}}</span>
+            </div>
+        </div>
+        <div class="stat-card" data-style-height="(29 + ((root_scale < 1.8 &amp;&amp; vit_lines.size > 1) ? 25 : 15) * ene_lines.size) + 'px'">
+            <div class="card-art"></div>
+            <div class="card-shade"></div>
+            <div class="card-header"></div>
+            <span class="attr-label" data-style-font-size="(text_px + 1) + 'px'" data-style-transform="'scale(' + (1 / root_scale) + ')'" data-style-width="(96 * root_scale) + 'px'" data-style-color="ene_value_color">{{ene_label}}</span>
+            <span class="attr-value" data-style-font-size="(text_px + 1) + 'px'" data-style-transform="'scale(' + (1 / root_scale) + ')'" data-style-width="(46 * root_scale) + 'px'" data-style-color="ene_value_color">{{ene_value_text}}</span>
+            <div class="stat-btn" data-class-hidden="!can_level_up" data-event-click="chainfo_increase_stat(3)"><span>+</span></div>
+            <div class="attr-lines" data-style-font-size="(text_px + 1) + 'px'" data-style-transform="'scale(' + (1 / root_scale) + ')'" data-style-width="(152 * root_scale) + 'px'">
+                <span data-for="line : ene_lines" data-style-color="line.color" data-style-white-space="(root_scale < 1.8 &amp;&amp; vit_lines.size > 1) ? 'normal' : 'nowrap'" data-style-height="((root_scale < 1.8 &amp;&amp; vit_lines.size > 1) ? 25 : 15) * root_scale + 'px'">{{line.text}}</span>
+            </div>
+        </div>
+        <div class="stat-card" data-class-hidden="!show_charisma" style="height: 28px;">
+            <div class="card-art"></div>
+            <div class="card-shade"></div>
+            <div class="card-header"></div>
+            <span class="attr-label" data-style-font-size="(text_px + 1) + 'px'" data-style-transform="'scale(' + (1 / root_scale) + ')'" data-style-width="(96 * root_scale) + 'px'" data-style-color="cmd_value_color">{{cmd_label}}</span>
+            <span class="attr-value" data-style-font-size="(text_px + 1) + 'px'" data-style-transform="'scale(' + (1 / root_scale) + ')'" data-style-width="(46 * root_scale) + 'px'" data-style-color="cmd_value_color">{{cmd_value_text}}</span>
+            <div class="stat-btn" data-class-hidden="!can_level_up || !show_charisma" data-event-click="chainfo_increase_stat(4)"><span>+</span></div>
+        </div>
+        <!-- Local disclosure is a stock RmlUi checkbox, not a gameplay event or new model field.
+             Theme-owned heading; all actual progression/fruit text remains localized bindings. -->
+        <div class="progression-section">
+            <input type="checkbox" id="progression_toggle"/>
+            <label for="progression_toggle" class="progression-label"><span data-style-font-size="(text_px + 1) + 'px'" data-style-transform="'scale(' + (1 / root_scale) + ')'" data-style-width="(142 * root_scale) + 'px'">Progression &amp; fruit</span></label>
+            <span class="disclosure-closed">+</span><span class="disclosure-open">−</span>
+            <div class="progression-details">
+                <span class="exp-text" data-style-font-size="(text_px + 1) + 'px'" data-style-transform="'scale(' + (1 / root_scale) + ')'" data-style-width="(154 * root_scale) + 'px'">{{exp_text}}</span>
+                <span class="point-probability-text" data-style-font-size="(text_px + 1) + 'px'" data-style-transform="'scale(' + (1 / root_scale) + ')'" data-style-width="(154 * root_scale) + 'px'">{{point_probability_text}}</span>
+                <span class="point-text" data-style-font-size="(text_px + 1) + 'px'" data-style-transform="'scale(' + (1 / root_scale) + ')'" data-style-width="(154 * root_scale) + 'px'">{{point_text}}</span>
+            </div>
+        </div>
+    </div>
+    <div id="btn_exit" class="exit-button" data-event-click="chainfo_click_exit"><span>×</span></div>
+
+    <div id="btn_quest" class="info-btn info-btn-quest" data-event-click="chainfo_click_quest">
+        <div class="footer-art"></div>
+        <span class="footer-label" data-style-font-size="text_px + 'px'" data-style-width="(53 * root_scale) + 'px'" data-style-transform="'scale(' + (1 / root_scale) + ')'">{{quest_tooltip}}</span>
+    </div>
+    <div id="btn_pet" class="info-btn info-btn-pet" data-event-click="chainfo_click_pet">
+        <div class="footer-art"></div>
+        <span class="footer-label" data-style-font-size="text_px + 'px'" data-style-width="(53 * root_scale) + 'px'" data-style-transform="'scale(' + (1 / root_scale) + ')'">{{pet_tooltip}}</span>
+    </div>
+    <div id="btn_masterlevel" class="info-btn info-btn-masterlevel" data-class-locked="!master_level_enabled" data-event-click="chainfo_click_masterlevel">
+        <div class="footer-art"></div>
+        <span class="footer-label" data-style-font-size="text_px + 'px'" data-style-width="(53 * root_scale) + 'px'" data-style-transform="'scale(' + (1 / root_scale) + ')'">{{masterlevel_tooltip}}</span>
+    </div>
+    <span class="tooltip tooltip-exit" data-style-font-size="(text_px + 1) + 'px'" data-style-transform="'scale(' + (1 / root_scale) + ')'" data-style-width="(166 * root_scale) + 'px'">{{exit_tooltip}}</span>
+    <span class="tooltip tooltip-quest" data-style-font-size="(text_px + 1) + 'px'" data-style-transform="'scale(' + (1 / root_scale) + ')'" data-style-width="(166 * root_scale) + 'px'">{{quest_tooltip}}</span>
+    <span class="tooltip tooltip-pet" data-style-font-size="(text_px + 1) + 'px'" data-style-transform="'scale(' + (1 / root_scale) + ')'" data-style-width="(166 * root_scale) + 'px'">{{pet_tooltip}}</span>
+    <span class="tooltip tooltip-masterlevel" data-style-font-size="(text_px + 1) + 'px'" data-style-transform="'scale(' + (1 / root_scale) + ')'" data-style-width="(166 * root_scale) + 'px'">{{masterlevel_tooltip}}</span>
+</div>
+</body>
+</rml>

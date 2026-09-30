@@ -1,0 +1,80 @@
+/* Fixed native hitboxes; decorative art and captions stay inside their bands. */
+#bar_hp, #bar_mp { background-color: transparent; }
+/* Caption bindings rasterize at final display size, then cancel root scaling. */
+/* Only this neutral alpha crystal is cropped/tinted; the separate rim is static.
+   Decorative height grows upward without changing native hit regions. */
+.gem-window { position: absolute; top: -20px; width: 49px; height: 45px; pointer-events: none; }
+#bar_hp .gem-window { left: -4px; }
+#bar_mp .gem-window { left: 0; }
+.gem-interior { position: absolute; left: 3px; top: 3px; width: 43px; height: 39px; pointer-events: none; }
+.gem-empty, .gem-progress { position: absolute; left: 0; top: 0; width: 43px; height: 39px; pointer-events: none; }
+.gem-empty { decorator: image(glass-crystal); image-color: #343942; }
+.gem-progress { fill-image: glass-crystal; }
+.gem-hp { image-color: #ff3038; }
+.gem-hp.poisoned { image-color: #47ff68; }
+.gem-mp { image-color: #287dff; }
+.gem-rim { position: absolute; left: 0; top: 0; width: 49px; height: 45px; decorator: image(glass-rim); pointer-events: none; }
+#bar_hp .gauge-num, #bar_mp .gauge-num {
+    left: 0; top: 25px; width: 45px; font-size: 12px; line-height: 13px;
+    transform: scaleX(0.86); color: #f6ead3; font-weight: bold;
+}
+#bar_mp .gauge-num { color: #b7dcf5; }
+#bar_sd, #bar_ag { background-color: transparent; decorator: none; }
+.minor-gauge-frame { position: absolute; left: 1px; top: -6px; width: 14px; height: 29px; decorator: image(glass-tube); pointer-events: none; }
+.minor-progress { position: absolute; left: 4px; top: -3px; width: 8px; height: 23px; background-color: #0b0d10; pointer-events: none; }
+.minor-sd fill { decorator: linear-gradient(to right, #7c470c, #ffd457, #bd790e); }
+.minor-ag fill { decorator: linear-gradient(to right, #4e246c, #df9bff, #8641b7); }
+.minor-label { position: absolute; left: 0; top: 23px; width: 16px; text-align: center; font-size: 7px; line-height: 7px; transform-origin: center top; color: #e8c98f; pointer-events: none; }
+#bar_sd .gauge-num, #bar_ag .gauge-num {
+    left: -7px; top: 30px; width: 30px; font-size: 6.5px; line-height: 8px;
+    transform: scaleX(0.75); color: #eee5d6;
+}
+#skill_slots > .slot-frame, .skill-cell { decorator: image(glass-slot); }
+#skill_slots > .selected, .skill-cell.selected { decorator: image(glass-selected); }
+#skill_slots > .slot-frame:hover, .skill-cell:hover { decorator: image(glass-selected); }
+/* The current skill's native anchor is the 20x28 icon itself; its frame must sit outside. */
+#current_skill_slot { decorator: none; }
+#current_skill_slot .current-skill-frame { position: absolute; left: -6px; top: -6px; width: 32px; height: 38px; decorator: image(glass-slot); pointer-events: none; }
+#item_slots .slot-frame { decorator: none; }
+#item_slots .slot-frame.selected { background-color: transparent; }
+/* Highlight the whole well without tinting native 3D items or enlarging their
+   20x20 input area. One-pixel inset follows the background well's inner edge. */
+.potion-hover-frame {
+    display: none; position: absolute; left: -9px; top: -13px;
+    width: 36px; height: 39px; box-sizing: border-box;
+    border: 1px #bec5cacc; border-radius: 2px; pointer-events: none;
+}
+#item_slots .selected .potion-hover-frame { display: block; }
+.slot-hotkey-label {
+    display: block; position: absolute; left: -5px; top: -11px; font-size: 9px;
+    color: token(grim-gold); font-weight: bold; font-effect: outline(1px #000000); pointer-events: none;
+}
+.item-stack-label { font-size: 10px; color: token(grim-ivory); }
+.skill-hotkey-label { font-size: 10px; color: token(grim-ivory); }
+
+/* Square pictograms retain their aspect ratio within native portrait buttons. */
+.frame-btn .utility-icon { position: absolute; left: 4px; top: 10px; width: 22px; height: 22px; pointer-events: none; }
+#btn_cshop, #btn_chainfo, #btn_myinven, #btn_friend, #btn_window { decorator: image(glass-slot); }
+#btn_cshop .utility-icon { decorator: image(glass-shop-icon); }
+#btn_chainfo .utility-icon { decorator: image(glass-character-icon); }
+#btn_myinven .utility-icon { decorator: image(glass-inventory-icon); }
+#btn_friend .utility-icon { decorator: image(glass-friends-icon); }
+#btn_window .utility-icon { decorator: image(glass-menu-icon); }
+#btn_cshop:hover, #btn_cshop.open, #btn_chainfo:hover, #btn_chainfo.open,
+#btn_myinven:hover, #btn_myinven.open, #btn_friend:hover, #btn_friend.open,
+#btn_window:hover, #btn_window.open { decorator: image(glass-selected); }
+#current_skill_slot:hover .current-skill-frame { decorator: image(glass-selected); }
+/* Preserve the inherited 300px tooltip positioning coordinate system. */
+#buttons { width: 300px; background-color: transparent; }
+.frame-btn { background-color: transparent; }
+/* Three rail pieces preserve ornamental end caps instead of stretching them across 640px. */
+#exp { background-color: transparent; border-width: 0; }
+#exp_frame_left { left: 0; top: 0; width: 10px; height: 10px; decorator: image(glass-rail-left); }
+#exp_frame_middle { left: 10px; top: 0; width: 620px; height: 10px; decorator: image(glass-rail-middle); }
+#exp_frame_right { left: 630px; top: 0; width: 10px; height: 10px; decorator: image(glass-rail-right); }
+#exp_track { left: 12px; top: 3px; width: 602px; height: 4px; border-width: 0; background-color: #11130c; }
+#exp_digit { right: 10px; top: 0; font-size: 8px; line-height: 10px; color: token(grim-gold); }
+#exp_fill { decorator: linear-gradient(to bottom, #81d99b, #32824f, #17472b); }
+.tooltip { background-color: #11100ef0; color: token(grim-ivory); border: 1px #777a78; }
+
+.tooltip-hp, .tooltip-sd, .tooltip-ag, .tooltip-mp { top: 398px; }
