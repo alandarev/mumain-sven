@@ -85,11 +85,8 @@ void CGenericMenuDialog::BindRmlModel(Rml::DataModelConstructor& c, GenericMenuR
     // Position argument is the clicked button's own data-for index (it_index) -- a
     // proven RmlUi pattern already used by char_make.rml/server_select.rml/
     // my_quest_info.rml/main_frame.rml, not a fixed-slot workaround.
-    c.BindEventCallback("gmd_button_click",
-        [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& args)
-        {
-            OnButtonClicked(args.empty() ? -1 : args[0].Get<int>(-1));
-        });
+    c.BindEventCallback("gmd_button_click", [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& args)
+                        { OnButtonClicked(args.empty() ? -1 : args[0].Get<int>(-1)); });
 }
 
 // Dragged by any part that is not a button (base.rcss blocks those): most menus, the system

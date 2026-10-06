@@ -2148,7 +2148,8 @@ bool mu::ui::window::CGuild_ToPerson_Position::Update()
     {
         const SIZE size = g_pRenderText->MeasureText(text.c_str(), static_cast<int>(text.size()));
         const int x = static_cast<int>(GetSize().cx / 2) - static_cast<int>(size.cx / 2);
-        lines.push_back({text, static_cast<float>(x), static_cast<float>(y), true, static_cast<DWORD>(RGBA(255, 128, 0, 255))});
+        lines.push_back(
+            {text, static_cast<float>(x), static_cast<float>(y), true, static_cast<DWORD>(RGBA(255, 128, 0, 255))});
         y += static_cast<int>(size.cy) + 4;
     }
 

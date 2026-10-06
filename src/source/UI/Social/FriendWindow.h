@@ -29,7 +29,10 @@ namespace mu::ui::window
         float GetLayerDepth();		// 6.f
 
         void Reset();
-        const CUIWindowMgr* GetWindowManager() const { return m_pFriendWindowMgr; }
+        const CUIWindowMgr* GetWindowManager() const
+        {
+            return m_pFriendWindowMgr;
+        }
         UI::Social::FriendDialogs& Dialogs() { return m_Dialogs; }
 
         void SendUIMessage(int iMessage, int iParam1, int iParam2) { m_pFriendWindowMgr->SendUIMessage(iMessage, iParam1, iParam2); }
