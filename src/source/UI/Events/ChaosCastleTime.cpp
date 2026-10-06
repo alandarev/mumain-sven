@@ -40,7 +40,6 @@ bool CChaosCastleTime::Create(CManager* pNewUIMng, int x, int y)
     SetPos(x, y);
 
     m_View.Build();
-    UI::RmlBridge::RegisterForThemeReload(this, [this] { ReloadRmlTheme(); });
 
     Show(false);
 
@@ -49,7 +48,7 @@ bool CChaosCastleTime::Create(CManager* pNewUIMng, int x, int y)
 
 void CChaosCastleTime::Release()
 {
-    UI::RmlBridge::UnregisterForThemeReload(this);
+    m_View.Release();
 
     if (m_pNewUIMng)
     {
@@ -118,15 +117,9 @@ void CChaosCastleTime::SyncView()
             kills = szText;
         }
     }
-    // (255, 150, 0), the time red (255, 32, 32) under five minutes.
-    const unsigned long orange = RGBA(255, 150, 0, 255);
-    m_View.Sync(shown, m_Pos, {kills, orange}, {I18N::Game::TimeLeft, orange},
-                {m_szTime, m_iTimeState == CC_TIME_STATE_IMMINENCE ? RGBA(255, 32, 32, 255) : orange});
-}
-
-void CChaosCastleTime::ReloadRmlTheme()
-{
-    m_View.ReloadTheme();
+    // the theme's colours, the time turning imminent under five minutes.
+    m_View.Sync(shown, m_Pos, {kills, "normal"}, {I18N::Game::TimeLeft, "normal"},
+                {m_szTime, m_iTimeState == CC_TIME_STATE_IMMINENCE ? "imminent" : "normal"});
 }
 
 bool CChaosCastleTime::BtnProcess()

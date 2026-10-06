@@ -4,11 +4,12 @@
 
 #include "stdafx.h"
 #include "UI/Widgets/Window/ComboBox.h"
-#include "UI/Widgets/UIControls.h"  // for g_pRenderText macro
+#include "UI/Social/SocialWindowBase.h"  // for g_pRenderText macro
 #include "Render/Renderer/MuRenderer.h"
 #include "Render/Renderer/RenderUtils.h"
 
 #include "Render/Textures/ZzzOpenglUtil.h"
+#include "Render/Text/CUIRenderText.h"
 
 extern unsigned int WindowWidth, WindowHeight;
 extern int MouseWheel;

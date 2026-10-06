@@ -39,6 +39,7 @@
 #include "Camera/CameraProjection.h"
 #include "Camera/CameraManager.h"
 #include "Camera/CameraMode.h"
+#include "Core/Input/ImeInput.h"
 #ifdef _EDITOR
 #include "Camera/FrustumRenderer.h"
 #include "Camera/CameraDebugLog.h"
@@ -222,11 +223,11 @@ static void InitializeSceneFrame()
  */
 static void UpdateUIAndInput()
 {
+    FRAME_PROFILE(UIUpdate);
     if (g_Camera.TopViewEnable || LoadingWorld >= 30)
         return;
 
-    if (UI::Scaling::BottomHudContainsWindowPoint(WindowWidth, WindowHeight,
-                                                  g_fWindowMouseX, g_fWindowMouseY))
+    if (g_pMainFrame != nullptr && g_pMainFrame->IsMouseOverHud())
         MouseOnWindow = true;
 
     g_pPartyManager->Update();
@@ -239,7 +240,6 @@ static void UpdateUIAndInput()
         g_pNewUISystem->IsVisible(mu::ui::window::INTERFACE_CHATINPUTBOX) == false)
     {
         g_pWindowMgr->SetWindowsEnable(FALSE);
-        g_pFriendMenu->HideMenu();
         g_dwKeyFocusUIID = 0;
         if (GetFocus() != g_hWnd)
         {

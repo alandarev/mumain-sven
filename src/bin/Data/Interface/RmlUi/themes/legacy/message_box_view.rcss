@@ -23,10 +23,14 @@
 
 #panel { position: absolute; transform-origin: left top; width: 230px; font-family: "token(font-body)"; pointer-events: auto; }
 #back { position: absolute; left: 0; top: 2px; width: 222px; decorator: image(box-back); }
-#box_top { position: absolute; left: 0; top: 0; width: 230px; height: 67px; decorator: image(box-top); }
-.box-middle { position: absolute; left: 0; width: 230px; height: 15px; decorator: image(box-middle); }
-#box_bottom { position: absolute; left: 0; width: 230px; height: 50px; decorator: image(box-bottom); }
-#box_divider { position: absolute; left: 0; width: 223px; height: 21px; decorator: image(box-divider); }
+/* The frame stacks by flow: the cap, then one element per strip C++ reported, then the foot. Their
+   heights are this theme's sprite heights and live only here -- C++ used to add them up itself. */
+#frame { position: absolute; left: 0; top: 0; width: 230px; }
+#box_top { display: block; width: 230px; height: 67px; decorator: image(box-top); }
+#box_bottom { display: block; width: 230px; height: 50px; decorator: image(box-bottom); }
+.box-strip { display: block; }
+.box-strip--middle { width: 230px; height: 15px; decorator: image(box-middle); }
+.box-strip--divider { width: 223px; height: 21px; decorator: image(box-divider); }
 .box-separator { position: absolute; left: 13px; width: 205px; height: 2px; decorator: image(box-separator); }
 
 /* CProgressMsgBox's bar, centred: its fill stretched to the elapsed fraction of 150 units. */
@@ -59,39 +63,19 @@
 .box-btn.ok-art:active { decorator: image(box-btn-ok-down); }
 .box-btn.ok-art .box-label { display: none; }
 
-/* CGemIntegrationDisjointMsgBox's list (CUIUnmixgemList::RenderInterface() / RenderDataLine()):
-   the box black at 40 % (SetLineColor(7, 0.4f)) from (-1, -1); the win_scrollbar arrows (a held
-   arrow is the other one turned by 180 degrees), the two 1 px track lines in SetLineColor(2) and
-   the thumb stretched with its 1 px caps; the selected row filled in the colour the interface
-   left set (SetLineColor(2)) with black text, the others (230, 220, 200), the text at 6, 3 in its
-   13 px row. Hit-tested natively. */
-@spritesheet box-list-scroll-sheet
-{
-	src: "../../../win_scrollbar.jpg";
-	box-list-scroll-up: 0px 3px 13px 13px;
-	box-list-scroll-down: 0px 16px 13px 13px;
-	box-list-thumb-top: 0px 0px 11px 1px;
-	box-list-thumb: 0px 1px 11px 1px;
-	box-list-thumb-bottom: 0px 2px 11px 1px;
-}
-#panel.list-shown { pointer-events: none; }
-#list { position: absolute; pointer-events: none; }
-#list_box, .list-scroll-up, .list-scroll-down, .list-track, .list-thumb, .list-thumb-top, .list-thumb-bottom, .list-row {
-	position: absolute;
-	pointer-events: none;
-}
-#list_box { left: -1px; top: -1px; background-color: rgba(0, 0, 0, 102); }
-.list-scroll-up, .list-scroll-down { width: 13px; height: 13px; }
-.list-scroll-up { top: -1px; decorator: image(box-list-scroll-up); }
-.list-scroll-up.pressed { decorator: image(box-list-scroll-down); transform: rotate(180deg); }
-.list-scroll-down { decorator: image(box-list-scroll-down); }
-.list-scroll-down.pressed { decorator: image(box-list-scroll-up); transform: rotate(180deg); }
-.list-track { width: 1px; background-color: rgb(106, 97, 88); }
-.list-thumb, .list-thumb-top, .list-thumb-bottom { width: 11px; }
-.list-thumb { decorator: image(box-list-thumb); }
-.list-thumb-top { height: 1px; decorator: image(box-list-thumb-top); }
-.list-thumb-bottom { height: 1px; decorator: image(box-list-thumb-bottom); }
-.list-row { left: 0; height: 13px; }
-.list-row.selected { background-color: rgb(106, 97, 88); }
-.list-row-text { left: 6px; top: 3px; white-space: pre; color: #e6dcc8; }
+/* The jewel list keeps native text metrics while RmlUi handles scrolling. */
+#list_box { position: absolute; left: 24px; top: 64.5px; width: 181px; height: 111px; pointer-events: none; background-color: rgba(0, 0, 0, 102); }
+#list { position: absolute; left: 25px; top: 65.5px; transform-origin: left top; overflow: hidden scroll; }
+.list-row { display: block; position: relative; pointer-events: auto; }
+.list-row-back { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; }
+.list-row.selected .list-row-back { background-color: rgb(106, 97, 88); }
+.list-row-text { position: absolute; left: 3.5714%; top: 23.0769%; white-space: pre; pointer-events: none; color: #e6dcc8; }
 .list-row.selected .list-row-text { color: #000000; }
+
+/* CGuild_ToPerson_Position's buttons, as its SetButtonInfo() placed them: the two appointments 114
+   wide at (57, 30) and (57, 57), OK and Close 64 wide at (48, 127) and (112, 127). */
+.guild-appoint .box-placed .box-btn { width: 64px; height: 29px; }
+.guild-appoint .box-placed .box-btn:nth-child(1) { left: 57px; top: 30px; width: 114px; }
+.guild-appoint .box-placed .box-btn:nth-child(2) { left: 57px; top: 57px; width: 114px; }
+.guild-appoint .box-placed .box-btn:nth-child(3) { left: 48px; top: 127px; }
+.guild-appoint .box-placed .box-btn:nth-child(4) { left: 112px; top: 127px; }

@@ -3,9 +3,12 @@
 
 #pragma once
 
+#include "UI/RmlBridge/RmlPanelGeometry.h"
 #include "UI/Scaling/UITransform.h"
 
- 
+extern unsigned int WindowWidth;
+extern unsigned int WindowHeight;
+
 namespace mu::ui::window
 {
     class IObject
@@ -29,6 +32,8 @@ namespace mu::ui::window
         bool m_bRender, m_bUpdate;
         bool m_bActive;
         UI::Scaling::LayoutMode m_layoutMode;
+        UI::Scaling::Transform m_slotTransform{1.f, 1.f, 0.f, 0.f, 1.f};
+        UI::RmlBridge::FillPlacementSize m_fillSize;
     public:
         CObject()
             : m_hRelatedWnd(nullptr), m_bRender(true), m_bUpdate(true), m_bActive(true),
@@ -44,6 +49,35 @@ namespace mu::ui::window
         HWND GetRelatedWnd() const { return m_hRelatedWnd; }
         void SetLayoutMode(UI::Scaling::LayoutMode mode) { m_layoutMode = mode; }
         UI::Scaling::LayoutMode GetLayoutMode() const { return m_layoutMode; }
+        // A window drawn wholly by RmlUi whose hit box reads its #panel returns that document: a
+        // theme's data-fit="fill" slot then sizes the #panel. How the content fills it is the theme's.
+        virtual Rml::ElementDocument* GetFillDocument() const { return nullptr; }
+        virtual bool SupportsFillPlacement() const { return GetFillDocument() != nullptr; }
+        virtual void SetFillPlacementSize(float width, float height)
+        {
+            if (m_fillSize.Set(width, height))
+                m_fillSize.Apply(GetFillDocument(), "panel");
+        }
+        // Once a frame: gives a document rebuilt since (a theme switch) its fill size again.
+        void SyncFillPlacement() const { m_fillSize.Sync(GetFillDocument(), "panel"); }
+        // The smallest size a fill slot may give this window, in its layout units; without one the
+        // window's content size.
+        virtual bool GetFillMinimumSize(float&, float&) const { return false; }
+        // The workspace places this window: its logical space is `transform`, with (0, 0) at the
+        // slot's top-left.
+        void PlaceInSlot(const UI::Scaling::Transform& transform)
+        {
+            m_layoutMode = UI::Scaling::LayoutMode::Slot;
+            m_slotTransform = transform;
+        }
+        // The transform this window's logical coordinates map through to screen pixels.
+        UI::Scaling::Transform GetLayoutTransform() const
+        {
+            if (m_layoutMode == UI::Scaling::LayoutMode::Slot)
+                return m_slotTransform;
+            return UI::Scaling::TransformForLayout(m_layoutMode, static_cast<int>(WindowWidth),
+                                                   static_cast<int>(WindowHeight));
+        }
 
         // Virtual so a window needing more than a flag flip on show/hide (e.g. toggling its own
         // sprites) still runs correctly through CManager's generic CObject*/IObject* dispatch.

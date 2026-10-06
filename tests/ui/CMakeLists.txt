@@ -1,7 +1,36 @@
 mu_add_test(
-    NAME input_box_config_tests
-    SOURCES test_input_box_config.cpp
-    LINK_LIBS MuClient
+    NAME guard_guild_lists_tests
+    SOURCES
+        test_guard_guild_lists.cpp
+        ${CMAKE_SOURCE_DIR}/src/source/UI/Combat/GuardGuildLists.cpp
+)
+
+mu_add_test(
+    NAME jewel_unmix_selection_tests
+    SOURCES
+        test_jewel_unmix_selection.cpp
+        ${CMAKE_SOURCE_DIR}/src/source/GameLogic/Items/JewelUnmixSelection.cpp
+)
+
+mu_add_test(
+    NAME buy_option_selection_tests
+    SOURCES
+        test_buy_option_selection.cpp
+        ${CMAKE_SOURCE_DIR}/src/source/GameShop/BuyOptionSelection.cpp
+)
+
+mu_add_test(
+    NAME storage_item_selection_tests
+    SOURCES
+        test_storage_item_selection.cpp
+        ${CMAKE_SOURCE_DIR}/src/source/GameShop/StorageItemSelection.cpp
+)
+
+mu_add_test(
+    NAME socket_list_selection_tests
+    SOURCES
+        test_socket_list_selection.cpp
+        ${CMAKE_SOURCE_DIR}/src/source/UI/Inventory/SocketListSelection.cpp
 )
 
 mu_add_test(
@@ -182,8 +211,38 @@ mu_add_test(
 )
 
 mu_add_test(
+    NAME window_placement_layout_tests
+    SOURCES test_window_placement_layout.cpp
+    LINK_LIBS MuClient
+)
+target_compile_definitions(window_placement_layout_tests PRIVATE
+    MU_RMLUI_DIR="${CMAKE_SOURCE_DIR}/src/bin/Data/Interface/RmlUi")
+
+mu_add_test(
     NAME rml_model_binder_tests
     SOURCES test_rml_model_binder.cpp
+    LINK_LIBS MuClient
+)
+
+mu_add_test(
+    NAME rml_themed_view_tests
+    SOURCES
+        test_rml_themed_view.cpp
+        ${CMAKE_SOURCE_DIR}/src/source/App/Platform/Windows/Winmain.cpp
+    LINK_LIBS MuClient
+)
+
+mu_add_test(
+    NAME rml_friend_window_identity_tests
+    SOURCES test_rml_friend_window_identity.cpp
+    LINK_LIBS MuClient
+)
+
+mu_add_test(
+    NAME generic_dialog_lifetime_tests
+    SOURCES
+        test_generic_dialog_lifetime.cpp
+        ${CMAKE_SOURCE_DIR}/src/source/App/Platform/Windows/Winmain.cpp
     LINK_LIBS MuClient
 )
 

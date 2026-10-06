@@ -15,6 +15,18 @@
 #include "Engine/Object/ZzzInventory.h"
 #include "Render/Sprites/Sprite.h"
 #include "InGameShopSystem.h"
+#include "Render/RmlUi/RmlUiRuntime.h"
+#include "UI/RmlBridge/RmlThemedView.h"
+#include "GameShop/StorageItemSelection.h"
+
+#include <RmlUi/Core/Types.h>
+
+#include <vector>
+
+namespace Rml
+{
+class ElementDocument;
+}
 
 namespace mu::ui::window
 {
@@ -285,7 +297,45 @@ private:
     int m_iStorageCurrentPageReceiveItemCnt;
     bool m_bRequestCurrentPage;
 
-    CUIInGameShopListBox m_StorageItemListBox;
+    GameShop::StorageItemSelection m_StorageItems;
+
+    // The window's flat backdrop must render behind the 3x3 package grid's live 3D item renders,
+    // but RmlUi's main context always renders last -- so it goes through RmlUiRuntime's background
+    // context, painted by CManager::Render()'s RenderBackgroundLayer() before every window's own
+    // Render(). This window is screen-space at the full reference area, so its root is {0,0}.
+    struct InGameShopBgRmlModel
+    {
+        float rootX = 0.f, rootY = 0.f, rootScale = 1.f;
+    };
+    static void BindRmlBgModel(Rml::DataModelConstructor& c, InGameShopBgRmlModel& model);
+    UI::RmlBridge::ThemedView<InGameShopBgRmlModel> m_RmlBgView{"in_game_shop_bg", BindRmlBgModel,
+        {{"Data/Interface/RmlUi/in_game_shop_bg.rml", [] { return RmlUiRuntime::Instance().GetBackgroundContext(); }}}};
+
+    // One row of the storage / gift list. Where it sits is the theme's; only what it says and
+    // whether it is the picked row travel through the model.
+    struct StorageRow
+    {
+        Rml::String name;
+        Rml::String period;
+        bool selected = false;
+
+        bool operator==(const StorageRow&) const = default;
+    };
+    struct InGameShopRmlModel
+    {
+        float rootX = 0.f, rootY = 0.f, rootScale = 1.f;
+        float textPx = 0.f;
+        std::vector<StorageRow> storageRows;
+    };
+    void BindRmlModel(Rml::DataModelConstructor& c, InGameShopRmlModel& model);
+    UI::RmlBridge::ThemedView<InGameShopRmlModel> m_RmlView{"in_game_shop",
+        [this](Rml::DataModelConstructor& c, InGameShopRmlModel& model) { BindRmlModel(c, model); },
+        {{"Data/Interface/RmlUi/in_game_shop.rml"}}};
+    bool m_StorageRowsDirty = true;
+
+    void BuildRmlUi();
+    void SyncRmlModel();
+    void SyncStorageRows();
 };
 } // namespace mu::ui::window
 

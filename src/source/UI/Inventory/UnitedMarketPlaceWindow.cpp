@@ -18,6 +18,7 @@
 #include "Core/Utilities/StringUtils.h"
 #include "Render/RmlUi/RmlUiRuntime.h"
 #include "Render/Text/CUIRenderTextSDLTtf.h"
+#include "UI/RmlBridge/RmlPanelGeometry.h"
 #include "UI/RmlBridge/RmlDocumentVisibility.h"
 #include "UI/RmlBridge/RmlRootTransform.h"
 #include "UI/RmlBridge/RmlTheme.h"
@@ -57,7 +58,6 @@ bool CUnitedMarketPlaceWindow::Create(CManager* pNewUIMng, C3DRenderMng* pNewUI3
     SetPos(x, y);
 
     BuildRmlUi();
-    UI::RmlBridge::RegisterForThemeReload(this, [this] { ReloadRmlTheme(); });
 
     Show(false);
 
@@ -67,7 +67,6 @@ bool CUnitedMarketPlaceWindow::Create(CManager* pNewUIMng, C3DRenderMng* pNewUI3
 
 void CUnitedMarketPlaceWindow::Release()
 {
-    UI::RmlBridge::UnregisterForThemeReload(this);
 
     if (m_pNewUI3DRenderMng)
     {
@@ -80,6 +79,8 @@ void CUnitedMarketPlaceWindow::Release()
         m_pNewUIMng->RemoveUIObj(this);
         m_pNewUIMng = NULL;
     }
+
+    m_RmlView.Release();
 }
 
 void CUnitedMarketPlaceWindow::SetPos(int x, int y)
@@ -93,7 +94,14 @@ bool CUnitedMarketPlaceWindow::UpdateMouseEvent()
     if (true == BtnProcess())
         return false;
 
-    if (mu::ui::window::WindowGeometry(m_Pos.x, m_Pos.y, INVENTORY_WIDTH, INVENTORY_HEIGHT).Contains(MouseX, MouseY))
+    // #panel's own live RCSS size is the source of truth -- INVENTORY_WIDTH/HEIGHT only cover the
+    // first frame after Create()/Show(true)/a theme switch, before RmlUi's next layout pass.
+    float panelWidth = INVENTORY_WIDTH;
+    float panelHeight = INVENTORY_HEIGHT;
+    UI::RmlBridge::RefreshLogicalPanelSize(m_RmlView.Document(), "panel", panelWidth, panelHeight);
+    if (mu::ui::window::WindowGeometry(m_Pos.x, m_Pos.y, static_cast<int>(panelWidth),
+                                      static_cast<int>(panelHeight))
+            .Contains(MouseX, MouseY))
         return false;
 
     return true;
@@ -203,104 +211,77 @@ void CUnitedMarketPlaceWindow::LockEnterButton(BOOL bLock)
     m_bIsEnterButtonLocked = bLock;
 }
 
-void CUnitedMarketPlaceWindow::BuildRmlUi()
+void CUnitedMarketPlaceWindow::BindRmlModel(Rml::DataModelConstructor& c, UnitedMarketPlaceRmlModel& model)
 {
-    if (m_pRmlDoc || !RmlUiRuntime::Instance().IsCreated())
-        return;
+    c.Bind("root_x", &model.rootX);
+    c.Bind("root_y", &model.rootY);
+    c.Bind("root_scale", &model.rootScale);
+    c.Bind("text_px", &model.textPx);
+    c.Bind("bold_text_px", &model.boldTextPx);
+    c.Bind("title", &model.title);
+    c.RegisterArray<std::vector<Rml::String>>();
+    c.Bind("lines", &model.lines);
+    c.Bind("warp_text", &model.warpText);
+    c.Bind("label_line_px", &model.labelLinePx);
+    c.Bind("warp_locked", &model.warpLocked);
+    c.Bind("exit_tooltip", &model.exitTooltip);
+    c.BindEventCallback("market_warp", [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&)
+                        { m_PendingWarp = true; });
+    c.BindEventCallback("market_exit", [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&)
+                        { m_PendingExit = true; });
 
-    const bool modelCreated = m_RmlBinder.Create(
-        RmlUiRuntime::Instance().GetContext(), "united_market_place",
-        [this](Rml::DataModelConstructor& c, UnitedMarketPlaceRmlModel& model)
-        {
-            c.Bind("root_x", &model.rootX);
-            c.Bind("root_y", &model.rootY);
-            c.Bind("root_scale", &model.rootScale);
-            c.Bind("text_px", &model.textPx);
-            c.Bind("bold_text_px", &model.boldTextPx);
-            c.Bind("title", &model.title);
-            auto line = c.RegisterStruct<UnitedMarketPlaceLineEntry>();
-            line.RegisterMember("text", &UnitedMarketPlaceLineEntry::text);
-            line.RegisterMember("top", &UnitedMarketPlaceLineEntry::top);
-            c.RegisterArray<std::vector<UnitedMarketPlaceLineEntry>>();
-            c.Bind("lines", &model.lines);
-            c.Bind("warp_text", &model.warpText);
-            c.Bind("label_top", &model.labelTop);
-            c.Bind("label_line_px", &model.labelLinePx);
-            c.Bind("warp_locked", &model.warpLocked);
-            c.Bind("exit_tooltip", &model.exitTooltip);
-            c.BindEventCallback("market_warp", [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&)
-                                { m_PendingWarp = true; });
-            c.BindEventCallback("market_exit", [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&)
-                                { m_PendingExit = true; });
-        });
-
-    if (!modelCreated)
-        return;
-
-    UnitedMarketPlaceRmlModel& model = m_RmlBinder.GetModel();
     model.title = StringUtils::WideToNarrow(I18N::Game::Julia);
     model.warpText = StringUtils::WideToNarrow(I18N::Game::Warp3016);
     model.exitTooltip = StringUtils::WideToNarrow(I18N::Game::Close388);
-    m_pRmlDoc = UI::RmlBridge::LoadThemedDocument(RmlUiRuntime::Instance().GetContext(),
-                                                  "Data/Interface/RmlUi/united_market_place.rml");
 }
 
-void CUnitedMarketPlaceWindow::ReloadRmlTheme()
+void CUnitedMarketPlaceWindow::BuildRmlUi()
 {
-    if (!m_pRmlDoc)
-        return;
-    Rml::Context* context = RmlUiRuntime::Instance().GetContext();
-    m_RmlBinder.Destroy(context);
-    context->UnloadDocument(m_pRmlDoc);
-    m_pRmlDoc = nullptr;
-
-    BuildRmlUi();
+    m_RmlView.Ensure();
 }
 
 void CUnitedMarketPlaceWindow::SyncRmlModel()
 {
     BuildRmlUi();
-    if (!m_pRmlDoc)
+    if (!m_RmlView.Document())
         return;
 
-    UI::RmlBridge::SyncDocumentVisibilityInFront(m_pRmlDoc, IsVisible());
+    UI::RmlBridge::SyncDocumentVisibilityInFront(m_RmlView.Document(), IsVisible());
     if (!IsVisible())
         return;
 
-    UI::RmlBridge::SyncRootTransform(m_RmlBinder, m_Pos);
-    UI::RmlBridge::SyncNativeTextSize(m_RmlBinder);
+    UI::RmlBridge::SyncRootTransform(m_RmlView.Binder(), m_Pos);
+    UI::RmlBridge::SyncNativeTextSize(m_RmlView.Binder());
 
-    // CButton::Render(): label top y + (23 / 2 - h / 2), whole units, h the native line height.
+    // The button label's line height: the native line height in physical px.
     {
         const int lineHeight = CUIRenderTextSDLTtf::LineHeight(UI::Scaling::FontRole::Normal);
-        const float labelTop = static_cast<float>(23 / 2 - lineHeight / 2);
         const float labelLinePx = static_cast<float>(lineHeight) * UI::Scaling::GetActiveTransform().scaleY;
-        auto& labelModel = m_RmlBinder.GetModel();
-        if (labelModel.labelTop != labelTop || labelModel.labelLinePx != labelLinePx)
+        auto& labelModel = m_RmlView.GetModel();
+        if (labelModel.labelLinePx != labelLinePx)
         {
-            labelModel.labelTop = labelTop;
             labelModel.labelLinePx = labelLinePx;
-            m_RmlBinder.MarkDirty("label_top");
-            m_RmlBinder.MarkDirty("label_line_px");
+            m_RmlView.MarkDirty("label_line_px");
         }
     }
-    UnitedMarketPlaceRmlModel& model = m_RmlBinder.GetModel();
+    UnitedMarketPlaceRmlModel& model = m_RmlView.GetModel();
     const float boldPx =
         UI::Scaling::NativeTextPixelSize(UI::Scaling::FontRole::Bold, UI::Scaling::GetActiveTransform());
     if (model.boldTextPx != boldPx)
     {
         model.boldTextPx = boldPx;
-        m_RmlBinder.MarkDirty("bold_text_px");
+        m_RmlView.MarkDirty("bold_text_px");
     }
     const bool locked = m_bIsEnterButtonLocked == TRUE;
     if (model.warpLocked != locked)
     {
         model.warpLocked = locked;
-        m_RmlBinder.MarkDirty("warp_locked");
+        m_RmlView.MarkDirty("warp_locked");
     }
 
-    // In the market, the way back to town; elsewhere, the market (the original's Render()). Every 20
-    // units from y 60, the last one at y 180.
+    // In the market, the way back to town; elsewhere, the market (the original's Render()). The
+    // theme gives each of the seven slots its own row; going back to town has nothing to say in
+    // three of them, which stay empty so the last line keeps its place.
     std::vector<const wchar_t*> texts;
     if (gMapManager.WorldActive == WD_79UNITEDMARKETPLACE)
         texts = {I18N::Game::WillYouBeGoingBackToTownNow,
@@ -318,19 +299,12 @@ void CUnitedMarketPlaceWindow::SyncRmlModel()
                  I18N::Game::YouCanSellThem,
                  I18N::Game::AtTheMarket,
                  I18N::Game::WouldYouLikeToGoToTheMarket};
-    std::vector<UnitedMarketPlaceLineEntry> lines;
-    for (std::size_t i = 0; i < texts.size(); ++i)
-    {
-        if (texts[i] != nullptr)
-            lines.push_back({StringUtils::WideToNarrow(texts[i]), 60.f + 20.f * static_cast<float>(i)});
-    }
-    const bool same = lines.size() == model.lines.size() &&
-                      std::equal(lines.begin(), lines.end(), model.lines.begin(),
-                                 [](const UnitedMarketPlaceLineEntry& a, const UnitedMarketPlaceLineEntry& b)
-                                 { return a.text == b.text && a.top == b.top; });
-    if (!same)
+    std::vector<Rml::String> lines;
+    for (const wchar_t* text : texts)
+        lines.push_back(text != nullptr ? StringUtils::WideToNarrow(text) : Rml::String{});
+    if (model.lines != lines)
     {
         model.lines = std::move(lines);
-        m_RmlBinder.MarkDirty("lines");
+        m_RmlView.MarkDirty("lines");
     }
 }

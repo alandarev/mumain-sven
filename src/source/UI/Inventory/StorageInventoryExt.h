@@ -4,9 +4,10 @@
 
 #pragma once
 
+#include "Render/RmlUi/RmlUiRuntime.h"
 #include "UI/Core/WindowObject.h"
 #include "UI/Inventory/InventoryCtrl.h"
-#include "UI/RmlBridge/RmlModelBinder.h"
+#include "UI/RmlBridge/RmlThemedView.h"
 #include <span>
 
 namespace Rml { class ElementDocument; }
@@ -38,12 +39,15 @@ namespace mu::ui::window
         struct StorageExtRmlModel
         {
             float rootX = 0.f, rootY = 0.f, rootScale = 1.f;
+            float panelWidth = 190.f;
             float textPx = 0.f; // native text size in physical px (RmlRootTransform.h)
             Rml::String title;
             Rml::String exitTooltip;
         };
-        RmlModelBinder<StorageExtRmlModel> m_RmlBinder;
-        Rml::ElementDocument* m_pRmlDoc = nullptr;
+        void BindRmlModel(Rml::DataModelConstructor& c, StorageExtRmlModel& model);
+        UI::RmlBridge::ThemedView<StorageExtRmlModel> m_RmlView{"storage_ext",
+            [this](Rml::DataModelConstructor& c, StorageExtRmlModel& model) { BindRmlModel(c, model); },
+            {{"Data/Interface/RmlUi/storage_ext.rml"}}};
 
         // The frame background panel must render behind the grid's live 3D icons, but RmlUi's
         // main context always renders last -- so it goes through
@@ -53,8 +57,9 @@ namespace mu::ui::window
         {
             float rootX = 0.f, rootY = 0.f, rootScale = 1.f;
         };
-        RmlModelBinder<StorageExtBgRmlModel> m_BgRmlBinder;
-        Rml::ElementDocument* m_pRmlBgDoc = nullptr;
+        static void BindRmlBgModel(Rml::DataModelConstructor& c, StorageExtBgRmlModel& model);
+        UI::RmlBridge::ThemedView<StorageExtBgRmlModel> m_RmlBgView{"storage_ext_bg", BindRmlBgModel,
+            {{"Data/Interface/RmlUi/storage_ext_bg.rml", [] { return RmlUiRuntime::Instance().GetBackgroundContext(); }}}};
 
         void BuildRmlUi();
         void SyncRmlModel();
@@ -72,8 +77,6 @@ namespace mu::ui::window
         bool UpdateKeyEvent() override;
         bool Update() override;
         bool Render() override;
-
-        void ReloadRmlTheme();
 
         float GetLayerDepth() override;	//. 2.2f
 

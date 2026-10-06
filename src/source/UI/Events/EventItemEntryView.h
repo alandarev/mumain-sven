@@ -1,7 +1,7 @@
 #pragma once
 
 #include "UI/Events/EventItemEntryRmlModel.h"
-#include "UI/RmlBridge/RmlModelBinder.h"
+#include "UI/RmlBridge/RmlThemedView.h"
 
 #include <string>
 #include <vector>
@@ -24,34 +24,39 @@ namespace mu::ui::window
 class EventItemEntryView
 {
 public:
+    // Where a line sits, what colour it is and how it is aligned are the document's
+    // <document>_rows.rcss, one :nth-child rule per line. `width` is the box the native renderer
+    // shrinks the text to, and `bold` the font it measures in.
     struct Text
     {
         std::wstring text;
-        float left = 0.f;
-        float top = 0.f;
         float width = 0.f;
         bool bold = false;
-        DWORD color = 0;
-        bool leftAligned = false; // RT3_SORT_LEFT from the box's left edge instead of centred
     };
 
+    // Where a button sits and which sprite it wears are the same file's; `width` and `height` are
+    // the label's own centring box, which CButton::Render() measured against.
     struct Button
     {
         std::wstring label;
-        float left = 0.f;
-        float top = 0.f;
         bool locked = false;
         float width = 53.f; // newui_btn_empty_very_small
         float height = 23.f;
         bool bold = false;
-        std::string style; // the window's own button kind, for its theme
     };
 
     EventItemEntryView(const char* modelName, const char* documentPath, const char* bgModelName,
                        const char* bgDocumentPath);
 
     void Build();
-    void ReloadTheme();
+    // Unloads the documents; from the window's own Release().
+    void Release()
+    {
+        m_View.Release();
+        m_BgView.Release();
+    }
+    // Runs after every build of the main document, including a theme switch's.
+    void SetAfterBuild(std::function<void()> afterBuild) { m_View.SetAfterBuild(std::move(afterBuild)); }
 
     void SetTexts(std::vector<Text> texts);
     void SetButtons(const std::vector<Button>& buttons);
@@ -65,18 +70,24 @@ public:
     // An element of the main document (a window's own text field), or nullptr before Build().
     Rml::Element* GetElementById(const char* id) const;
 
+    // The window's own text field's contents, when its document has one. Two-way: the <input>'s
+    // data-value writes it back, so this is the value, not the element's attribute.
+    const Rml::String& InputValue() const;
+    void SetInputValue(const Rml::String& value);
+
+    // #panel's own live RCSS size, for the owner's native hit test. Leaves both alone when the
+    // document isn't up or laid out yet, so seed them with the window's own fallback constants
+    // (UI::RmlBridge::RefreshLogicalPanelSize()'s convention, which this forwards to).
+    void RefreshPanelSize(float& width, float& height) const;
+
 private:
+    void BindModel(Rml::DataModelConstructor& c, EventItemEntryRmlModel& model);
+    static void BindBgModel(Rml::DataModelConstructor& c, EventItemEntryBgRmlModel& model);
     void SyncTexts();
     void SyncButtons();
 
-    const char* m_ModelName;
-    const char* m_DocumentPath;
-    const char* m_BgModelName;
-    const char* m_BgDocumentPath;
-    RmlModelBinder<EventItemEntryRmlModel> m_RmlBinder;
-    RmlModelBinder<EventItemEntryBgRmlModel> m_BgRmlBinder;
-    Rml::ElementDocument* m_pRmlDoc = nullptr;
-    Rml::ElementDocument* m_pRmlBgDoc = nullptr;
+    UI::RmlBridge::ThemedView<EventItemEntryRmlModel> m_View;
+    UI::RmlBridge::ThemedView<EventItemEntryBgRmlModel> m_BgView;
     std::vector<Text> m_Texts;
     std::vector<Button> m_Buttons;
     int m_PressedButton = -1;

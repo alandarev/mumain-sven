@@ -2,7 +2,6 @@
 
 #include "UI/Core/WindowSystem.h"
 #include "UI/Combat/SiegeWarObserver.h"
-#include "UI/Widgets/UIControls.h"
 #include "Scenes/MainScene.h"
 #include "Core/Time/FrameTimerScheduler.h"
 #include "UI/Dialogs/MessageBox.h"
@@ -10,6 +9,10 @@
 #include "UI/Windows/MsgWin.h"
 
 #include <RmlUi/Core.h>
+#include <filesystem>
+#include <fstream>
+#include <chrono>
+#include <memory>
 
 extern int LoadingWorld;
 
@@ -43,7 +46,7 @@ class UiLifecycleFixture
 {
 public:
     UiLifecycleFixture()
-        : m_scene(SceneFlag), m_loading(LoadingWorld), m_savedPopup(g_pUIPopup),
+        : m_scene(SceneFlag), m_loading(LoadingWorld),
           m_savedMessageVisible(g_MsgWin.IsVisible())
     {
         auto* system = CSystem::GetInstance();
@@ -62,10 +65,16 @@ public:
         m_rmlContext = m_rmlInitialised ? Rml::CreateContext("ui-lifecycle", {640, 480}) : nullptr;
         if (m_rmlContext != nullptr)
         {
-            chat.m_pRmlDoc = m_rmlContext->LoadDocumentFromMemory(
-                "<rml><body><input id='chat_field' type='text'/><input id='whisper_field' type='text'/></body></rml>");
-            if (chat.m_pRmlDoc != nullptr)
-                chat.m_pRmlDoc->Show();
+            m_fixtureFile = std::filesystem::temp_directory_path() /
+                ("mu-ui-lifecycle-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".rml");
+            std::ofstream(m_fixtureFile) << "<rml><body data-model='chat_fixture'><input id='chat_field' type='text'/><input id='whisper_field' type='text'/></body></rml>";
+            using ChatView = UI::RmlBridge::ThemedView<ChatInputRmlModel>;
+            std::destroy_at(&chat.m_RmlView);
+            std::construct_at(&chat.m_RmlView, "chat_fixture",
+                [&chat = chat](Rml::DataModelConstructor& c, ChatInputRmlModel& model) { chat.BindRmlModel(c, model); },
+                std::vector<UI::RmlBridge::ThemedDocumentSpec>{{m_fixtureFile.string(), [this] { return m_rmlContext; }}});
+            if (chat.m_RmlView.Ensure())
+                chat.m_RmlView.Document()->Show();
             m_rmlContext->Update();
         }
         quick.SetID(L"Peer");
@@ -76,7 +85,9 @@ public:
 
     ~UiLifecycleFixture()
     {
-        chat.m_pRmlDoc = nullptr; // Owned by the context removed below.
+        chat.m_RmlView.Release();
+        std::error_code fileError;
+        std::filesystem::remove(m_fixtureFile, fileError);
         if (m_rmlContext != nullptr)
             Rml::RemoveContext("ui-lifecycle");
         if (m_rmlInitialised)
@@ -97,20 +108,18 @@ public:
         registry.RemoveAllUIObjs();
         SceneFlag = m_scene;
         LoadingWorld = m_loading;
-        g_pUIPopup = m_savedPopup;
-        if (m_preparedPopup)
+        if (m_preparedMessageWindow)
             g_MsgWin.CObject::Show(m_savedMessageVisible);
     }
 
     UiLifecycleFixture(const UiLifecycleFixture&) = delete;
     UiLifecycleFixture& operator=(const UiLifecycleFixture&) = delete;
 
-    void PreparePopup()
+    void PrepareMessageWindow()
     {
-        g_pUIPopup = &popup;
         // CMsgWin has not run Create in this isolated executable. Initialize only
         // its inherited visibility; derived Show would read uninitialized widget state.
-        m_preparedPopup = true;
+        m_preparedMessageWindow = true;
         g_MsgWin.CObject::Show(false);
     }
 
@@ -138,6 +147,15 @@ public:
         return chat.GetField(whisper ? "whisper_field" : "chat_field");
     }
 
+    Rml::Element* UnrelatedInput()
+    {
+        if (m_rmlContext == nullptr) return nullptr;
+        auto* document = m_rmlContext->LoadDocumentFromMemory("<rml><body><input id='unrelated' type='text'/></body></rml>");
+        if (document == nullptr) return nullptr;
+        document->Show();
+        return document->GetElementById("unrelated");
+    }
+
     void Settle()
     {
         if (m_rmlContext != nullptr)
@@ -151,17 +169,16 @@ public:
     CHotKey hotkey;
     CCryWolf cryWolf;
     CFriendWindow friends;
-    CUIPopup popup;
 
 private:
+    std::filesystem::path m_fixtureFile;
     UiLifecycleNullRenderer m_rmlRenderer;
     bool m_rmlInitialised = false;
     Rml::Context* m_rmlContext = nullptr;
     bool m_modalPrerequisites = false;
     EGameScene m_scene;
     int m_loading;
-    CUIPopup* m_savedPopup;
     bool m_savedMessageVisible;
-    bool m_preparedPopup = false;
+    bool m_preparedMessageWindow = false;
 };
 } // namespace mu::ui::window

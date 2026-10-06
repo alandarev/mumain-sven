@@ -3,6 +3,7 @@
 //////////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
+#include "Network/Server/WSclient.h"
 #include "I18N/All.h"
 
 #include <algorithm>
@@ -27,6 +28,7 @@
 #include "Scenes/SceneCore.h"
 #include "Render/Textures/ZzzTexture.h"
 #include "Audio/DSPlaySound.h"
+#include "Render/Text/CUIRenderText.h"
 
 namespace
 {

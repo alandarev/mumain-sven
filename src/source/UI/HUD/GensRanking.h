@@ -8,10 +8,9 @@
 #include "UI/Dialogs/MessageBox.h"
 #include "UI/Inventory/MyInventory.h"
 #include "UI/Widgets/Window/Button.h"
-#include "UI/Widgets/Window/ScrollBar.h"
 #include "UI/Widgets/Window/TextBox.h"
 #include "UI/HUD/GensRankingRmlModel.h"
-#include "UI/RmlBridge/RmlModelBinder.h"
+#include "UI/RmlBridge/RmlThemedView.h"
 #define MAX_TITLELENGTH		32
 
 namespace Rml
@@ -22,8 +21,8 @@ class ElementDocument;
 namespace mu::ui::window
 {
 // The Gens ranking window, docked right. gens_ranking.rml draws it; the rewards text box and
-// its scroll bar stay native controls for their lines and dragging (their drawing is the
-// document's). RanderMark() still draws the small family marks over players (UI/Chat).
+// its reward lines keep the native wrapping while RmlUi owns scrolling and drawing.
+// RanderMark() still draws the small family marks over players (UI/Chat).
 class CGensRanking : public CObject
 {
     enum IMAGE_LIST
@@ -78,12 +77,13 @@ private:
     GENS_TYPE m_byGensInfluence;
     POINT m_ptRenderMarkPos;
 
-    RmlModelBinder<GensRankingRmlModel> m_RmlBinder;
-    Rml::ElementDocument* m_pRmlDoc = nullptr;
+    void BindRmlModel(Rml::DataModelConstructor& c, GensRankingRmlModel& model);
+    UI::RmlBridge::ThemedView<GensRankingRmlModel> m_RmlView{"gens_ranking",
+        [this](Rml::DataModelConstructor& c, GensRankingRmlModel& model) { BindRmlModel(c, model); },
+        {{"Data/Interface/RmlUi/gens_ranking.rml"}}};
     bool m_PendingExit = false;
 
     void BuildRmlUi();
-    void ReloadRmlTheme();
     void SyncRmlModel();
     void SyncContent();
 
@@ -93,12 +93,12 @@ private:
 
 public:
     CManager* m_pNewUIMng;
-    CScrollBar* m_pScrollBar;
     CTextBox* m_pTextBox;
     CGensRanking();
     virtual ~CGensRanking();
 
     bool Create(CManager* pNewUIMng, int x, int y);
+    Rml::ElementDocument* GetFillDocument() const override { return m_RmlView.Document(); }
     void SetPos(int x, int y);
     const POINT& GetPos()
     {

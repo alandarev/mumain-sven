@@ -6,7 +6,6 @@
 #include "Network/Server/WSclient.h"
 #include "Render/RmlUi/RmlUiRuntime.h"
 #include "UI/Core/WindowSystem.h"
-#include "UI/Widgets/UIControls.h"
 #include "UI/Windows/CreditWin.h"
 #include "UI/Windows/LoginWin.h"
 #include "UI/Windows/MsgWin.h"
@@ -91,7 +90,7 @@ LoginSceneFacts ObserveLoginScene()
     }
     ObserveLoginForm(facts);
     // Ported windows type into RmlUi <input>s, which the native focus does not see.
-    facts.inputFocused = CUITextInputBox::IsAnyInputBoxFocused() || RmlUiRuntime::Instance().IsTextInputActive();
+    facts.inputFocused = RmlUiRuntime::Instance().IsTextInputActive();
     facts.inputIdle = ControlInputIdle();
     facts.windowPointer = std::array<float, 2>{g_fWindowMouseX, g_fWindowMouseY};
     facts.logicalPointer = std::array<int, 2>{MouseX, MouseY};

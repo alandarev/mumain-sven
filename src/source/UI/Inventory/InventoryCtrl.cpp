@@ -1,6 +1,8 @@
 ﻿
 #include "stdafx.h"
+#include "UI/Core/UIManager.h"
 #include "UI/Inventory/InventoryCtrl.h"
+#include "UI/RmlBridge/RmlPanelGeometry.h"
 #include "UI/Inventory/ItemMng.h"
 #include "UI/Core/WindowSystem.h"
 #include "Engine/Object/ZzzInventory.h"
@@ -1099,8 +1101,14 @@ void mu::ui::window::CInventoryCtrl::Render()
 
         if (pickitemvisible)
         {
-            RECT rcPickedItem, rcInventory, rcIntersect;
-            ms_pPickedItem->GetRect(rcPickedItem);
+            // The picked item's own position is in its owner window's space; every placed window
+            // has its own, so take the item's box from the pointer in this grid's space.
+            const POINT pickedTopLeft =
+                UI::Items::Drag::ItemTopLeft(MouseX, MouseY, ms_pPickedItem->GetPickupOffset());
+            const SIZE& pickedSize = ms_pPickedItem->GetSize();
+            RECT rcPickedItem{pickedTopLeft.x, pickedTopLeft.y, pickedTopLeft.x + pickedSize.cx,
+                              pickedTopLeft.y + pickedSize.cy};
+            RECT rcInventory, rcIntersect;
             GetRect(rcInventory);
 
             if (IntersectRect(&rcIntersect, &rcPickedItem, &rcInventory))
@@ -1300,6 +1308,18 @@ void mu::ui::window::CInventoryCtrl::SetPos(int x, int y)
 const POINT& mu::ui::window::CInventoryCtrl::GetPos() const
 {
     return m_Pos;
+}
+
+void mu::ui::window::CInventoryCtrl::FollowAnchor(Rml::ElementDocument* doc, const char* anchorId, const POINT& panelPos,
+                                  int offsetX, int offsetY)
+{
+    float x = static_cast<float>(panelPos.x + offsetX);
+    float y = static_cast<float>(panelPos.y + offsetY);
+    UI::RmlBridge::RefreshLogicalAnchorPosition(doc, "panel", anchorId, panelPos, x, y);
+    const int gridX = static_cast<int>(std::lround(x));
+    const int gridY = static_cast<int>(std::lround(y));
+    if (GetPos().x != gridX || GetPos().y != gridY)
+        SetPos(gridX, gridY);
 }
 
 int mu::ui::window::CInventoryCtrl::GetNumberOfColumn() const

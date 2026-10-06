@@ -5,12 +5,24 @@
 #pragma once
 
 #ifdef KJH_ADD_INGAMESHOP_UI_SYSTEM
-#include "UI/Widgets/UIControls.h"
 #include "UI/Dialogs/CommonMessageBox.h"
 #include "GameShop/ShopListManager/ShopPackage.h"
 
+
 using namespace SEASON3B;
 using namespace mu::ui::window;
+
+#include "GameShop/BuyOptionSelection.h"
+#include "UI/RmlBridge/RmlThemedView.h"
+
+#include <RmlUi/Core/Types.h>
+
+#include <vector>
+
+namespace Rml
+{
+class ElementDocument;
+}
 
 class CMsgBoxIGSBuySelectItem : public CMessageBoxBase, public I3DRenderObj
 {
@@ -94,7 +106,27 @@ private:
     CMessageBoxButton m_BtnBuy;
     CMessageBoxButton m_BtnPresent;
     CMessageBoxButton m_BtnCancel;
-    CUIPackCheckBuyingListBox m_SelectBuyListBox;
+    GameShop::BuyOptionSelection m_BuyOptions;
+
+    struct OptionRow
+    {
+        Rml::String name;
+        bool selected = false;
+        bool operator==(const OptionRow&) const = default;
+    };
+    struct BuySelectRmlModel
+    {
+        float rootX = 0.f, rootY = 0.f, rootScale = 1.f;
+        float textPx = 0.f;
+        std::vector<OptionRow> options;
+    };
+    void BindRmlModel(Rml::DataModelConstructor& c, BuySelectRmlModel& model);
+    UI::RmlBridge::ThemedView<BuySelectRmlModel> m_RmlView{"igs_buy_select",
+        [this](Rml::DataModelConstructor& c, BuySelectRmlModel& model) { BindRmlModel(c, model); },
+        {{"Data/Interface/RmlUi/igs_buy_select.rml"}}};
+
+    void BuildRmlUi();
+    void SyncRmlModel();
 
     int m_iPackageSeq;
     int m_iDisplaySeq;

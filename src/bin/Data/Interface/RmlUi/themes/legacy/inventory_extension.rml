@@ -11,8 +11,13 @@
 	<div id="panel" data-style-left="root_x + 'px'" data-style-top="root_y + 'px'"
 	     data-style-transform="'scale(' + root_scale + ')'"
 	     data-style-font-size="(text_px / root_scale) + 'px'">
+		<!-- Where the native item grids go: invisible boxes the theme places; the window reads them each frame. -->
+		<div id="item_grid_1" class="native-anchor"></div>
+		<div id="item_grid_2" class="native-anchor"></div>
+		<div id="item_grid_3" class="native-anchor"></div>
+		<div id="item_grid_4" class="native-anchor"></div>
 		<span class="sharp-text" id="title"
-		     data-style-transform="'scale(' + (1 / root_scale) + ')'" data-style-font-size="text_px + 'px'" data-style-width="(190 * root_scale) + 'px'">{{title}}</span>
+		     data-style-transform="'scale(' + (1 / root_scale) + ')'" data-style-font-size="text_px + 'px'" data-style-width="(panel_width * root_scale) + 'px'" data-style-margin-left="(panel_width / 2 - panel_width / 2 * root_scale) + 'px'">{{title}}</span>
 
 		<div id="btn_exit" class="ext-btn" data-event-click="inventory_extension_exit_click"></div>
 		<span class="sharp-text tooltip tooltip-exit"
@@ -21,8 +26,10 @@
 		<!-- Locked (not-yet-purchased) pages' numbered lock glyph -- flat decorative overlay,
 		     no live 3D content underneath. Table/empty-slot backing art behind this stays native
 		     (InventoryExtension.cpp's RenderFrame()). -->
-		<div class="ext-locked-page" data-for="page : locked_pages" data-style-top="page.top + 'px'">
-			<div class="ext-locked-icon" data-style-decorator="page.decorator"></div>
+		<div class="ext-locked-page" data-for="page : locked_pages"
+		     data-class-page-1="page.number == 1" data-class-page-2="page.number == 2"
+		     data-class-page-3="page.number == 3" data-class-page-4="page.number == 4">
+			<div class="ext-locked-icon"></div>
 		</div>
 	</div>
 </body>

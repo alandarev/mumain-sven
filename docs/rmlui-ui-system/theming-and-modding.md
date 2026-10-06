@@ -17,20 +17,17 @@ for — a theme that only wants to restyle colors/borders/fonts can still get aw
 reskin against the shared file, but nothing about the architecture should discourage forking when
 a theme needs more than that.
 
-**Fixed 2026-09-04** — `login.rml`, `msg_win.rml`, and `remember_password_prompt.rml` used to have
-`modern`-specific class names (`modern-frame`, `modern-frame-accent`, `modern-panel`, etc.)
-hardcoded directly into what's supposed to be the shared, theme-neutral file — backwards, since it
-meant `legacy` was the one being constrained by `modern`'s vocabulary, not the other way around.
-Each now has a `themes/modern/` fork carrying those classes; the shared file is `legacy`'s own
-theme-neutral copy, same pattern as `main_frame`'s existing two-file case below.
+The shared file stays theme-neutral: theme-specific class vocabulary (`modern-frame`,
+`modern-panel`, …) belongs in that theme's fork, never in the shared `.rml` (`login.rml`,
+`msg_win.rml` and `remember_password_prompt.rml` are modern's earliest forks for this reason).
 
-**Forking safely needs a check — built 2026-09-04**: whichever theme's RML a window loads, the
+**Forking safely needs a check**: whichever theme's RML a window loads, the
 C++ side still expects the exact same ids/`data-model` bindings/event-callback names to exist.
 `tools/check_rml_rcss_drift.py` (a sibling to `check_rml_rcss_syntax.py`, wired into the same build
 step) diffs the ids/bindings a window's C++ actually references against every theme's copy of that
 window's RML and fails the build if none of them provide something the code needs — otherwise a
 missing or renamed id would fail **completely silently** (a dead button, not a build error or even
-a log line), the same failure shape as `main_frame`'s existing two-file hand-sync burden below.
+a log line).
 
 ## How theme resolution works
 
@@ -42,7 +39,8 @@ drop-a-folder operation.
 `GameConfig::GetRmlTheme()` and cached by `UI::RmlBridge::GetActiveThemeName()`. That cache is
 also live-mutable via `UI::RmlBridge::SetActiveThemeName()` — see
 ["Switching themes without relaunching"](#switching-themes-without-relaunching) below. Loading a
-window goes through `UI::RmlBridge::LoadThemedDocument(context, "Data/Interface/RmlUi/login.rml")`:
+window goes through its `ThemedView`, which hands `"Data/Interface/RmlUi/login.rml"` to
+`UI::RmlBridge::ThemedDocumentLoader::Load()`:
 
 1. It reads `login.rml`'s raw text once — the same file is shared, never duplicated per theme.
 2. It builds a synthetic source URL, `Data/Interface/RmlUi/themes/<name>/login.rml` — this path
@@ -56,47 +54,40 @@ This is confirmed against RmlUi's own source: `Context::LoadDocumentFromMemory` 
 in a `StreamMemory` and calls `SetSourceURL()` on it before parsing; `XMLNodeHandlerHead.cpp`'s
 `MakeExternalResource()` resolves `<link href>` via `AbsolutePath(path, parser->GetSourceURL())`.
 
-Every migrated window renders 100% of its own chrome through RmlUi, in every theme — nothing is
-drawn by the legacy `CWin`/`CSprite` path underneath it. A "legacy-look" theme reproduces the
+Every migrated window renders its chrome through RmlUi, in every theme — no native sprite path
+draws underneath it. A "legacy-look" theme reproduces the
 original art by pointing its own RCSS decorators at the same image files the old sprites used;
 a "modern" theme uses flat colors/vector shapes instead.
 
 ## Forking a theme's RML: the mechanism, and today's real examples
 
-`UI::RmlBridge::LoadThemedDocument()` ([`RmlTheme.cpp`](../../src/source/UI/RmlBridge/RmlTheme.cpp))
+`UI::RmlBridge::ThemedDocumentLoader::Load()` ([`RmlTheme.cpp`](../../src/source/UI/RmlBridge/RmlTheme.cpp))
 looks for `themes/<theme>/<name>.rml` first, falling back to the shared `<name>.rml` when no such
-file exists. As of this writing, `modern` has its own `.rml` for `login`, `msg_win`,
-`remember_password_prompt`, `my_inventory` (+ its background-context companion
-`my_inventory_bg`), `my_quest_info`, and `main_frame` — every other window has no per-theme
-override, so the lookup is a no-op for them (one extra failed `ifstream` open). Grep
-`themes/modern/*.rml` for the live, current list rather than trusting this paragraph's exact
-file names — it's kept current on a best-effort basis, not mechanically checked. Most of these
-exist so `modern`'s own `.modern-frame`/`.modern-frame-crimson`/`.title-glow` class vocabulary
-doesn't have to live in the shared, theme-neutral file (the Core Principle section above). `main_frame` is the one example forked for a **different** reason — two independently-maintained files —
-[`themes/legacy/main_frame.rml`](../../src/bin/Data/Interface/RmlUi/themes/legacy/main_frame.rml)
-and
-[`themes/modern/main_frame.rml`](../../src/bin/Data/Interface/RmlUi/themes/modern/main_frame.rml)
-— because modern's bottom-HUD button row moved to a genuinely different place in the document
-(a top-right panel, `#top_right_row`, echoing `mu_helper_bar`'s styling; since the stacking table
-it is a document of its own, `themes/modern/main_frame_top.rml`, bound to the same model and
-loaded only when the theme has that file, so it stacks under the windows docked over that corner
-while the bars stay over them) while legacy's stayed
-nested inside `#bars` where the original bottom-HUD button row always was. Two things were tried
-and rejected first: CSS-only hiding (`display: none` on modern's copy of the old row leaked
-through no matter how it was hardened) and a `data-if` bound to a C++-set "is modern" model
-boolean (rejected as the same kind of per-context C++ branching
-[`legacy-theme-modernization.md`](legacy-theme-modernization.md) exists to move *out* of C++, just
-relocated into a model field instead of an `if` statement).
+file exists (for a window with no fork, one extra failed `ifstream` open). `modern` forks a
+few dozen documents; `themes/modern/*.rml` is the live list. Most of these exist so `modern`'s own `.modern-frame`/`.modern-frame-crimson`/`.title-glow` class vocabulary
+doesn't have to live in the shared, theme-neutral file (the Core Principle section above).
 
-**Fork the RML when a theme's content genuinely differs in DOM structure or position, not merely in
-visibility or style** — "this element doesn't exist in the other theme's layout at all"
-(main_frame's button row) is worth a fork; "this element is hidden/styled differently" (ordinary
-RCSS `.hidden`/selector differences) isn't — RCSS alone already covers that case, and forking for
-it would just be needless duplication, not a policy violation. A real fork does come with a cost,
-currently paid entirely by hand for `main_frame`: the two files' shared ids/classes/bindings have
-to be kept in sync manually (each file's own header comment says so explicitly — check the other
-file's comment before editing either one) — see the Core Principle section above for the drift-
-check tooling this should eventually have and doesn't yet.
+`main_frame` was forked for a different reason and has since been merged back, which makes it the
+worked example of *not* forking. Its two copies differed in structure: legacy kept the original
+bottom button row inside `#bars`, while modern moved its buttons to `main_frame_top.rml` and added
+flat backing elements legacy has no use for. Hand-syncing two copies of the HUD made every added,
+moved or removed part a two-file edit. The shared `main_frame.rml` now carries every part either
+theme uses, and each theme's `main_frame.rcss` hides the others (`display: none`). Where the two
+themes bind different values to the same spot, the markup carries both variants and each theme
+shows one: a gauge's readout as `.value-current` or `.value-full`, its hint as `.native-hint`
+(native text size, counter-scaled through bound inline styles a theme's RCSS cannot override) or
+`.scaled-hint`. The document is also split into parts (`.hud-part`: the strip backing, each
+gauge group, EXP, buttons, item hotkeys, skill row, skill list), each placed by its own rule in
+the theme's `main_frame.rcss` with its contents laid out from its own corner, so a theme moves
+or hides a part without touching the others. The skill list's grid fans out from its part's box,
+the first cell's position, so it docks wherever the theme puts that box. An early attempt at CSS-only hiding was abandoned because the old row "leaked"
+through, but the record of it describes the whole stylesheet intermittently failing to apply, not
+`display: none` failing.
+
+**Fork the RML only when a theme needs markup the shared file cannot reasonably carry** — prefer
+adding the element to the shared file and letting the other theme hide it. A fork's
+ids/classes/bindings have to be kept in step with the shared file by hand;
+`tools/check_rml_rcss_drift.py` catches a missing binding, not a missing element.
 
 No source changes, no recompilation.
 
@@ -125,21 +116,13 @@ Mechanically: it validates `themes/<name>/base.rcss` exists (`UI::RmlBridge::The
 an unknown name is rejected with no state change, not left to fail silently per-window — then
 calls `UI::RmlBridge::SetActiveThemeName()` to update the live cache and
 `UI::RmlBridge::ReloadAllThemedDocuments()` to invoke every registered theme-reload callback.
-Every themed window/module registers one callback via `UI::RmlBridge::RegisterForThemeReload(owner,
-callback)` right next to the code that already creates its first document (typically
-`Create()`'s guarded `BuildRmlUi()` call) — a tier-agnostic registry keyed by an opaque owner
-pointer (`this` for a window, a private static token's address for a free-function module), not a
-`CManager`-tier sweep. A window unregisters (`UnregisterForThemeReload(this)`) at the exact point,
-if any, it already unhooks from its `CManager` (`RemoveUIObj(this)` in `Release()`) — a handful of
-app/scene-lifetime singleton windows never unhook from `CManager` at all, so they never unregister
-here either, matching that same lifetime. Each callback tears down its `Rml::ElementDocument`/
-`DataModel`(s) via `RmlModelBinder<T>::Destroy()` and `Context::UnloadDocument()`, then rebuilds
-them against whatever theme is now active, the same `BuildRmlUi()` helper `Create()` itself calls.
-A window that was never opened needs no explicit rebuild — it simply picks up the new theme the
-first time it *is* opened, since `LoadThemedDocument()` always reads the live cache.
-`UI::Login::ReloadRmlTheme()` (`RememberPasswordPrompt.h`) and `UI::RmlBridge::Tooltip::ReloadRmlTheme()`
-are no longer special cases — both free-function modules register with the same registry as every
-`CObject`-tier window, just keyed by a private static token instead of `this` since neither has one.
+Every themed document belongs to a `UI::RmlBridge::ThemedView` (`component-catalog.md`'s Theming
+section), which registers for theme switches the first time it builds. On a switch each view keeps
+its model's values, unloads its documents, loads them again from the active theme and shows again
+the ones that were visible; views rebuild from the bottom of their context's stack up, so the
+stacking survives. A window that was never opened has nothing to rebuild and picks up the active
+theme when it first builds. The free-function modules (the tooltip, notices, the remember-password
+prompt) hold a namespace-scope view and work the same way.
 
 **Session-only**: this does not write to `config.ini` — `GameConfig::SetRmlTheme()` only updates
 the in-memory value, so a relaunch still picks up whatever `config.ini` says. Use it for quickly
@@ -150,8 +133,7 @@ theme-name-agnostic (a theme is a folder, see above) so a *user-authored* theme 
 but no third first-party theme is planned — the project owner ruled one out. `architecture-
 principles.md` §25/§28 envisions a Custom/Test theme specifically to expose accidental coupling
 between a component and one visual design; that concern is real, but it is met by `modern`'s own
-structural divergence plus the drift checker rather than by a third theme. See `STATUS.md`'s
-Custom/Test-theme entry. Keep `legacy` and `modern` updated together for any window content
+structural divergence plus the drift checker rather than by a third theme. Keep `legacy` and `modern` updated together for any window content
 change — don't let one lag.
 
 ### `#backdrop` usage
@@ -235,16 +217,14 @@ game-asset pipeline everything else still depends on.
 
 ## Design tokens: `themes/<theme>/tokens.ini`
 
-**Fixed 2026-09-23** — both built-in themes (`modern` since 2026-09-04, `legacy` since this date)
-have a `tokens.ini` file (`[Tokens]` section, plain `name=value` lines) that a theme's own `.rcss`
+Both built-in themes have a `tokens.ini` file (`[Tokens]` section, plain `name=value` lines) that a theme's own `.rcss`
 files reference via a `token(name)` marker instead of repeating a literal value everywhere it's
-used. `UI::RmlBridge::LoadThemedDocument()`'s `InlineTokenizedStylesheet()`/`SubstituteTokens()`
+used. The themed loader's `InlineTokenizedStylesheet()`/`SubstituteTokens()`
 (`RmlTheme.cpp`) resolve every `token(name)` against the ACTIVE theme's own `tokens.ini` before
 RmlUi ever sees the stylesheet text — this vendored RmlUi build has no `var()`/custom-property
 mechanism of its own, so this is plain regex text substitution, not a CSS feature. The mechanism
-is entirely theme-name-agnostic (it keys off whichever theme is active, not a hardcoded name), so
-adding a token layer to a new theme is a pure content change — no engine code to touch, confirmed
-by inspection before `legacy`'s own layer was built.
+is theme-name-agnostic (it keys off whichever theme is active), so adding a token layer to a new
+theme is a pure content change.
 
 **What a token is for**: a *reusable, theme-level semantic choice* — the standard body text color,
 a shared muted/secondary text tier, the common tooltip backing, a shared accent/highlight, a
@@ -258,6 +238,9 @@ no real call site backing it (invented for taxonomy-completeness alone) doesn't 
 - **One-off decorative colors** — a single window's own specific accent choice with no cross-window
   or cross-selector reuse. Most of a theme's literal colors are legitimately this; not every color
   needs a lever.
+- **Gameplay colours** — gauge gradient stops around a base fill, the cooldown wipe, a status
+  colour such as poisoned HP or server load, and white-outlined text over the 3D world. They mean
+  something in the game, not in the theme.
 - **Content-driven/asset-driven palettes** — `tooltip.rcss`'s `.tt-blue`/`.tt-red`/`.tt-yellow`/etc.
   rich-text colors (and their `.tt-hl-*` background-highlight pairs) are the exact RGB values
   `RenderTipTextList()`'s native `TEXT_COLOR_*` switch (`ZzzInventory.cpp`) already used — they
@@ -271,9 +254,10 @@ no real call site backing it (invented for taxonomy-completeness alone) doesn't 
   [`tracked-deferrals.md`](tracked-deferrals.md) as a themeability-coupling gap). A value becoming
   `token(foo)` does not make duplicated geometry architecturally themeable — that requires actually
   deriving the position live (or, where that's currently impractical, an explicit pinned
-  cross-reference comment on both sides — see `tracked-deferrals.md`'s "hotkey slot pitch/size"
-  entry for the current example). Tokens are a color/typography/radius mechanism, not a substitute
+  cross-reference comment on both sides). Tokens are a color/typography/radius mechanism, not a substitute
   for the geometry-decoupling work tracked separately.
+
+Each theme's own token meanings: `themes/modern/README.md`; `themes/legacy/tokens.ini`'s comments.
 
 **Cross-theme naming**: reuse a `modern` token's NAME for a `legacy` token when the semantic ROLE
 genuinely matches (`text-primary`, `font-body`, `radius-sm` all exist in both, with each theme's
@@ -303,67 +287,45 @@ coordinate into `dp`.
 
 - **Layout of elements *within* the panel** — fully expressed in RCSS, exactly what a theme
   controls.
-- **The panel's own position on screen** — for a hybrid `CWin` + RmlUi window, this is driven by
-  the legacy window's own `SetPosition()`/centering math in C++, pushed into the panel's
-  `left`/`top` RCSS properties every frame/resize. A theme's RCSS receives this position; it
-  doesn't choose it. A window with no leftover `CWin` positioning dependency could express its
-  own anchoring purely in RCSS instead (`position: absolute; right: 0; bottom: 0;`, etc.).
-- **Draggability** — a legacy `CWin` concept (`Win::SetMovable()`) unrelated to RmlUi/RCSS, or
-  (for a pure-RmlUi window) `UI::RmlBridge::MakeDraggable()`. RmlUi/RCSS has no built-in
-  "make this draggable" CSS property.
+- **Where windows and HUD parts go** — the theme's `workspace.rml`/`workspace.rcss`: regions and
+  one slot per window or HUD part, laid out in RCSS; the game places each open window on its slot
+  ([window-placement.md](window-placement.md)). What a theme can do there:
+  - move a slot to another region, or reorder slots, to change the arrangement — including the
+    main HUD, chat, header corners and event HUDs;
+  - mark a shell region `data-participation="reserve"` (windows avoid it) or `overlay`;
+  - list in a slot's `data-closes` the windows that close for lack of room when it opens;
+  - give a slot `data-fit="fill"` and a size in `%`, for windows that support it;
+  - cap a dock region with `max-height: 100%` so its windows scale down to fit.
+
+  Worked examples (split docks, centred inventory, a side bar, chat on the right, the HUD at the
+  top) are in window-placement.md's "Theme recipes". Windows without a slot keep the rule below.
+- **The panel's own position on screen** for a window without a slot — its own RCSS anchoring
+  (`.center-both`, `position: absolute; right: 0; bottom: 0;`, …), or, for the few that follow
+  the pointer or a target (help, item explanations, quick command, tooltips), C++.
+- **Draggability** — `UI::RmlBridge::MakeDraggable()`, wired per window in C++; RCSS has no
+  "make this draggable" property. Which windows drag is decided in
+  [window-placement.md](window-placement.md) section 8.
 
 ## Known limitations
 
 - **Live hot-swap is session-only.** `$theme <name>` (see
   ["Switching themes without relaunching"](#switching-themes-without-relaunching) above) rebuilds
-  every open window's document/model in place, but doesn't persist to `config.ini` — a relaunch
-  still uses whatever's saved there. A window with genuinely live, frequently-changing state
-  (`CMuHelperBar`, `CBuffStrip`, `CCharInfoBalloonMng`, `CMainFrameWindow`) relies on its own
-  normal per-frame resync to repopulate the rebuilt model correctly; a window that doesn't
-  self-resync every frame pushes its current state back explicitly right after rebuilding instead
-  (see each window's own `ReloadRmlTheme()`) — a new themed window should follow whichever of the
-  two patterns matches its own update shape, not assume the sweep alone is enough.
+  every open window's document in place, but doesn't persist to `config.ini` — a relaunch still
+  uses whatever's saved there. The model survives the rebuild, so a window needs no resync of its
+  own; what it sized or placed from the old theme's metrics goes in its view's `afterReload`.
 - **Custom theme images require the engine's proprietary OZT/OZJ format, not plain PNG/JPG** —
   see [Bringing your own images to a theme](#bringing-your-own-images-to-a-theme) above. No
   converter tool exists in this repo today, and a missing/wrong-format image fails silently.
-- **`dp`-scaling is wired up globally** (RmlUi's density-independent-pixel ratio auto-fits to
-  window size and folds in `UIScalePercent`, `layout-and-scaling.md`'s "Global UI scale" section)
-  — but a hybrid window's on-screen *position* still isn't theme-controlled (see
-  [Coordinates, scaling, and positioning](#coordinates-scaling-and-positioning--what-a-theme-actually-controls)
-  above).
-- **Many windows are routed through `LoadThemedDocument()` today** (33 window classes plus the 2
-  free-function modules named above, as of this writing — this list only grows, so don't trust a
-  hardcoded count; grep `RegisterForThemeReload(` for the live figure). All of them register with
-  the theme-reload registry (previous section), so `$theme` covers every themed window that exists
-  today. Extending a new window to support theming is the same established pattern for both
-  halves, not new design work.
-- **Theme identity must never drive C++ branching** — `architecture-principles.md` §30. Fixed
-  2026-09-04: `MainFrameWindow.cpp`'s background-fill and skill-highlight logic used to key
-  on `GetActiveThemeName() == "modern"`; both now key on `UI::RmlBridge::ThemeProvidesOwnIconChrome()`,
-  a declared capability (`themes/modern/theme.ini`) — see `STATUS.md` for the real render-ordering
-  constraint that makes the conditional itself legitimate (only the name-check was the violation),
-  and the next bullet for whether that constraint is actually permanent.
-- **RmlUi rendering strictly last in the frame is an integration choice, not a proven RmlUi
-  requirement.** `RmlUiRuntime::Render()` fires from one fixed pre-submit callback, always after
-  every legacy 2D/3D draw call for the frame — which is *why* the conditional above exists (an
-  RmlUi-drawn fill would always paint over content that needs to render on top of it). The
-  question this raises — can legacy 3D content ever paint **on top of** an already-composited RmlUi
-  panel — has one proven answer and one proven-not-to-work approach:
-  - **Don't** add a manually-invoked native draw call in the post-RmlUi seam
-    (`SetPostRmlUiCallback`) for live 3D content. Tried for `CGenericConfirmDialog`'s `item3D`
-    preview; crashed on dialog dismiss both times, root cause never fully isolated (one real bug
-    found and fixed at the renderer level along the way — `MuRendererSDLGpu.cpp`'s post-RmlUi
-    replay needed `StageDeferredGpuData()`'s full re-stage, not a vertex-only one, for a skinned 3D
-    draw — but a second crash in the same seam persisted). That seam is proven safe for 2D quads/
-    text overlays only (`CMsgWin`/`CCharMakeWin`/`CLoginWin`'s existing uses); don't extend it to
-    live 3D without solving the dismiss-crash first.
-  - **Do** move the panel's own background art earlier instead, via a dedicated third
-    `Rml::Context` (`RmlUiRuntime::GetDialogBackgroundContext()`/`RenderDialogBackgroundLayer()`),
-    rendered by `CManager::Render()` at a specific point in its `GetLayerDepth()`-sorted loop —
-    strictly after every ordinary window's own `Render()` this frame, strictly before the 3D
-    content itself draws. This is the pattern `CGenericConfirmDialog::item3D` actually ships on.
-    **`GenericConfirmDialog.h`'s own class comment documents the full mechanism and why the
-    obvious-looking alternatives (the shared background context, `PullToFront()`) don't work** —
-    read that, not a paraphrase, before building anything similar. The general lesson: a dedicated
-    context plus a `GetLayerDepth()`-anchored render hook is how you interleave content at an
-    arbitrary point in the frame: an already-proven technique, not a one-off.
+- **Every themed document belongs to a `ThemedView`**, so `$theme` covers all of them; a new
+  window declares one.
+- **Theme identity must never drive C++ branching** — `architecture-principles.md` §30. Where a
+  theme must change C++ behaviour, it declares a capability in `theme.ini` (`NativeTextSize` is the
+  one in use). Prefer removing the need: the main frame's `ProvidesOwnIconChrome` existed only so
+  C++ could skip drawing legacy chrome for the modern theme, and went away once that chrome was
+  RCSS in the legacy theme's own stylesheet.
+- **RmlUi renders last in the frame**, so native content that must sit *in* a window's stacking
+  goes into a `UI::RmlBridge::RenderTarget` the document shows, and frame art that must sit
+  *behind* native 3D goes into the background context (or, for a modal's `item3D`,
+  `RmlUiRuntime::GetDialogBackgroundContext()` — `GenericConfirmDialog.h` documents why).
+  `UI::RmlBridge::OverlayRender` draws natively *above* every document, skinned 3D included, but
+  over every panel too (`component-catalog.md`).

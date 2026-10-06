@@ -11,8 +11,9 @@
 	pointer-events: auto;
 }
 
+.entry-texts, .entry-buttons { position: static; }
+
 .sharp-text { display: block; position: absolute; white-space: nowrap; text-align: center; pointer-events: none; transform-origin: left top; }
-.entry-text.bold { font-weight: bold; }
 
 .entry-btn {
 	display: block;
@@ -27,5 +28,7 @@
 .entry-btn:hover { border-color: token(accent-steel-hover); }
 .entry-btn:active { background-color: token(surface-recessed); }
 .entry-btn.locked, .entry-btn.locked:hover { background-color: token(surface-recessed); border-color: token(border-frame); }
-.entry-label { left: 0; color: token(text-primary); }
+/* A line's box: the panel's width unless its row rule says otherwise. Its text centres on it. */
+.entry-text { display: block; position: absolute; width: 190px; }
+.entry-label { color: token(text-primary); }
 .entry-btn.locked .entry-label { color: token(text-muted); }

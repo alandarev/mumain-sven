@@ -17,7 +17,8 @@
 #include <fstream>
 #include <regex>
 #include <sstream>
-#include <unordered_map>
+#include <utility>
+#include <vector>
 
 extern EGameScene SceneFlag;
 
@@ -103,8 +104,7 @@ namespace UI::RmlBridge
         // RML's <head> (a document typically links two: base.rcss, then its own <name>.rcss) and
         // substitutes each stylesheet independently, in place, preserving order.
         //
-        // Content-driven, not theme-name-driven (same reasoning as ThemeProvidesOwnIconChrome()
-        // above): a stylesheet with no token(...) marker leaves
+        // Content-driven, not theme-name-driven: a stylesheet with no token(...) marker leaves
         // its own <link> untouched, so `legacy` never enters the substitution branch at all.
         std::string InlineTokenizedStylesheet(const std::string& rmlText, const std::string& resolvedRmlPath)
         {
@@ -154,12 +154,6 @@ namespace UI::RmlBridge
             return name;
         }
 
-        bool ComputeProvidesOwnIconChrome(const std::string& themeName)
-        {
-            const std::string iniPath = "Data/Interface/RmlUi/themes/" + themeName + "/theme.ini";
-            return GetPrivateProfileIntW(L"Capabilities", L"ProvidesOwnIconChrome", 0, WidenAscii(iniPath).c_str()) != 0;
-        }
-
         bool ComputeUsesNativeTextSize(const std::string& themeName)
         {
             const std::string iniPath = "Data/Interface/RmlUi/themes/" + themeName + "/theme.ini";
@@ -172,21 +166,11 @@ namespace UI::RmlBridge
             return usesNativeTextSize;
         }
 
-        bool& ProvidesOwnIconChromeStorage()
-        {
-            static bool providesOwnIconChrome = ComputeProvidesOwnIconChrome(ActiveThemeNameStorage());
-            return providesOwnIconChrome;
-        }
     }
 
     const std::string& GetActiveThemeName()
     {
         return ActiveThemeNameStorage();
-    }
-
-    bool ThemeProvidesOwnIconChrome()
-    {
-        return ProvidesOwnIconChromeStorage();
     }
 
     bool ThemeUsesNativeTextSize()
@@ -197,7 +181,6 @@ namespace UI::RmlBridge
     void SetActiveThemeName(const std::string& themeName)
     {
         ActiveThemeNameStorage() = ToLower(themeName);
-        ProvidesOwnIconChromeStorage() = ComputeProvidesOwnIconChrome(ActiveThemeNameStorage());
         UsesNativeTextSizeStorage() = ComputeUsesNativeTextSize(ActiveThemeNameStorage());
 
         // Both themes deliberately reuse the same <template name="..."> for a shared concept
@@ -224,12 +207,6 @@ namespace UI::RmlBridge
     std::string ThemedDocumentSourceUrl(const char* documentName, const std::string& themeName)
     {
         return std::string("Data/Interface/RmlUi/themes/") + ToLower(themeName) + "/" + documentName;
-    }
-
-    bool ThemeProvidesDocument(const char* documentName)
-    {
-        std::ifstream file(ThemedDocumentSourceUrl(documentName, GetActiveThemeName()), std::ios::binary);
-        return file.good();
     }
 
     std::vector<std::string> DiscoverAvailableThemes()
@@ -287,13 +264,13 @@ namespace UI::RmlBridge
     }
     } // namespace
 
-    Rml::ElementDocument* LoadThemedDocument(Rml::Context* context, const char* documentPath)
+    Rml::ElementDocument* ThemedDocumentLoader::Load(Rml::Context* context, const char* documentPath)
     {
-        return LoadThemedDocument(context, documentPath, std::string(), std::string());
+        return Load(context, documentPath, std::string(), std::string());
     }
 
-    Rml::ElementDocument* LoadThemedDocument(Rml::Context* context, const char* documentPath,
-                                             const std::string& modelPlaceholder, const std::string& modelName)
+    Rml::ElementDocument* ThemedDocumentLoader::Load(Rml::Context* context, const char* documentPath,
+                                                     const std::string& modelPlaceholder, const std::string& modelName)
     {
         // documentPath's basename (the part after the last '/') is what the per-theme source URL
         // needs -- e.g. "Data/Interface/RmlUi/login.rml" -> "login.rml".
@@ -305,7 +282,7 @@ namespace UI::RmlBridge
 
         // Prefer a per-theme override of the document's own MARKUP (not just its styling) at
         // themes/<theme>/<name>.rml, falling back to the shared documentPath when no such override
-        // exists -- every window but main_frame.rml still has none, so this is a no-op for them
+        // exists -- most windows have none, so this is a no-op for them
         // (one extra failed ifstream open, immediately falls through). This exists for content
         // that must genuinely differ, not just look different, per theme; CSS-only hiding
         // (`display: none`) and a data-model boolean gating `data-if` both put per-theme awareness
@@ -392,39 +369,86 @@ namespace UI::RmlBridge
                                  { document->RemoveProperty(Rml::PropertyId::Display); });
     }
 
-    Rml::ElementDocument* CreateBackgroundDocument(const char* documentPath)
-    {
-        return CreateBackgroundDocument(documentPath, RmlUiRuntime::Instance().GetBackgroundContext());
-    }
-
-    Rml::ElementDocument* CreateBackgroundDocument(const char* documentPath, Rml::Context* context)
-    {
-        if (!context)
-            return nullptr;
-
-        // Starts hidden -- see this function's own header comment (RmlTheme.h) for why an eager
-        // Show() here used to cause a real first-login-only flicker.
-        return LoadThemedDocument(context, documentPath);
-    }
-
     namespace
     {
-        // Function-local static, same idiom ActiveThemeNameStorage() above already uses.
-        std::unordered_map<const void*, ThemeReloadCallback>& ThemeReloadRegistry()
+        struct ThemeReloadEntry
         {
-            static std::unordered_map<const void*, ThemeReloadCallback> registry;
-            return registry;
+            const void* owner;
+            ThemeReloadRegistry::Callback callback;
+            ThemeReloadRegistry::Document document;
+        };
+
+        // Never destroyed: an owner destroyed at exit after it (a static window) still unregisters.
+        // In registration order, which owners without a document keep on a theme switch.
+        std::vector<ThemeReloadEntry>& Registry()
+        {
+            static auto* registry = new std::vector<ThemeReloadEntry>();
+            return *registry;
+        }
+
+        std::vector<ThemeReloadEntry>::iterator FindThemeReloadEntry(const void* owner)
+        {
+            auto& registry = Registry();
+            return std::find_if(registry.begin(), registry.end(),
+                                [owner](const ThemeReloadEntry& entry) { return entry.owner == owner; });
+        }
+
+        // Where `document` sits among its context's documents, bottom first; -1 if it has none.
+        int StackPosition(const ThemeReloadEntry& entry)
+        {
+            Rml::ElementDocument* document = entry.document ? entry.document() : nullptr;
+            Rml::Context* context = document != nullptr ? document->GetContext() : nullptr;
+            if (context == nullptr)
+                return -1;
+            for (int i = 0; i < context->GetNumDocuments(); ++i)
+            {
+                if (context->GetDocument(i) == document)
+                    return i;
+            }
+            return -1;
+        }
+
+        // The registry, with the owners whose documents are loaded reordered among themselves from
+        // the bottom of their stacks up.
+        std::vector<ThemeReloadEntry> ReloadOrder()
+        {
+            std::vector<ThemeReloadEntry> entries = Registry();
+            std::vector<size_t> slots;
+            std::vector<std::pair<int, size_t>> stacked;
+            for (size_t i = 0; i < entries.size(); ++i)
+            {
+                const int position = StackPosition(entries[i]);
+                if (position < 0)
+                    continue;
+                slots.push_back(i);
+                stacked.emplace_back(position, i);
+            }
+            std::stable_sort(stacked.begin(), stacked.end(),
+                             [](const auto& a, const auto& b) { return a.first < b.first; });
+            std::vector<ThemeReloadEntry> ordered = entries;
+            for (size_t k = 0; k < slots.size(); ++k)
+                ordered[slots[k]] = entries[stacked[k].second];
+            return ordered;
         }
     }
 
-    void RegisterForThemeReload(const void* owner, ThemeReloadCallback callback)
+    void ThemeReloadRegistry::Register(const void* owner, Callback callback, Document document)
     {
-        ThemeReloadRegistry()[owner] = std::move(callback);
+        const auto entry = FindThemeReloadEntry(owner);
+        if (entry != Registry().end())
+        {
+            entry->callback = std::move(callback);
+            entry->document = std::move(document);
+        }
+        else
+            Registry().push_back({owner, std::move(callback), std::move(document)});
     }
 
-    void UnregisterForThemeReload(const void* owner)
+    void ThemeReloadRegistry::Unregister(const void* owner)
     {
-        ThemeReloadRegistry().erase(owner);
+        const auto entry = FindThemeReloadEntry(owner);
+        if (entry != Registry().end())
+            Registry().erase(entry);
     }
 
     void ReloadAllThemedDocuments()
@@ -448,11 +472,10 @@ namespace UI::RmlBridge
         }
 
         // Copy first -- see this function's own header comment (RmlTheme.h) for why.
-        const auto callbacks = ThemeReloadRegistry();
-        for (const auto& [owner, callback] : callbacks)
+        for (const ThemeReloadEntry& entry : ReloadOrder())
         {
-            if (callback)
-                callback();
+            if (entry.callback)
+                entry.callback();
         }
     }
 }

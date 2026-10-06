@@ -5,7 +5,7 @@
 #include "Render/Textures/ZzzOpenglUtil.h" // RenderColor, BeginBitmap/EndBitmap, Mouse*
 #include <vector>
 #include "Render/Sprites/GlobalBitmap.h"     // Bitmaps (texture-loaded check)
-#include "UI/Widgets/UIControls.h"            // g_pRenderText, CheckMouseIn, RT3_SORT_CENTER
+#include "UI/Social/SocialWindowBase.h"            // g_pRenderText, CheckMouseIn, RT3_SORT_CENTER
 #include "UI/Core/WindowCommon.h"            // mu::ui::window::RenderImage
 #include "UI/Dialogs/MessageBox.h"// CMessageBoxMng::IMAGE_MSGBOX_*
 #include "App/Platform/Windows/Winmain.h"        // g_hFont, g_hFontBold
@@ -14,10 +14,14 @@
 #include "Core/Utilities/StringUtils.h"
 #include "Render/RmlUi/RmlUiRuntime.h"
 #include "UI/Dialogs/ReconnectDialogRmlModel.h"
+#include "UI/RmlBridge/RmlSyncField.h"
 #include "UI/RmlBridge/RmlDocumentVisibility.h"
-#include "UI/RmlBridge/RmlModelBinder.h"
+#include "UI/RmlBridge/RmlThemedView.h"
 #include "UI/RmlBridge/RmlTheme.h"
 #include "UI/Scaling/UITransform.h"
+#include "Render/Text/CUIRenderText.h"
+
+using mu::ui::window::CheckMouseIn;   // WindowCommon.h
 
 #include <RmlUi/Core/ElementDocument.h>
 
@@ -35,11 +39,10 @@ namespace
     // document, the tooltip included, as the original drew it after the whole frame. RenderDialog()
     // fills it every frame and hides it while no reconnect runs. The frozen frame stays native
     // (a scene background, drawn before RmlUi's pass); the dim over it is the document's.
-    RmlModelBinder<ReconnectDialogRmlModel> s_binder;
-    Rml::ElementDocument* s_document = nullptr;
+    void BindModel(Rml::DataModelConstructor& c, ReconnectDialogRmlModel& model);
+    UI::RmlBridge::ThemedView<ReconnectDialogRmlModel> s_view{"reconnect_dialog", BindModel,
+        {{"Data/Interface/RmlUi/reconnect_dialog.rml"}}};
     bool s_cancelClicked = false;
-    bool s_themeReloadRegistered = false;
-    const int s_themeReloadOwner = 0; // the theme-reload registration's owner key
 
     // Native message-box frame slice sizes (match CCommonMessageBox).
     constexpr float MSGBOX_WIDTH = 230.0f;
@@ -188,109 +191,52 @@ namespace
 
     // ---- RmlUi rendering --------------------------------------------------------
 
-    Rml::Context* DialogContext()
+    void BindModel(Rml::DataModelConstructor& c, ReconnectDialogRmlModel& model)
     {
-        return RmlUiRuntime::Instance().GetContext();
-    }
-
-    void BuildView();
-
-    void ReloadTheme()
-    {
-        if (s_document == nullptr)
-            return;
-        s_binder.Destroy(DialogContext());
-        DialogContext()->UnloadDocument(s_document);
-        s_document = nullptr;
-        BuildView();
-    }
-
-    void BuildView()
-    {
-        if (s_document != nullptr || !RmlUiRuntime::Instance().IsCreated() || DialogContext() == nullptr)
-            return;
-
-        const bool modelCreated = s_binder.Create(
-            DialogContext(), "reconnect_dialog",
-            [](Rml::DataModelConstructor& c, ReconnectDialogRmlModel& model)
-            {
-                c.Bind("dim_alpha", &model.dimAlpha);
-                c.Bind("root_x", &model.rootX);
-                c.Bind("root_y", &model.rootY);
-                c.Bind("root_scale", &model.rootScale);
-                c.Bind("text_px", &model.textPx);
-                c.Bind("bold_text_px", &model.boldTextPx);
-                auto line = c.RegisterStruct<ReconnectLineEntry>();
-                line.RegisterMember("text", &ReconnectLineEntry::text);
-                line.RegisterMember("left", &ReconnectLineEntry::left);
-                line.RegisterMember("top", &ReconnectLineEntry::top);
-                line.RegisterMember("bold", &ReconnectLineEntry::bold);
-                c.RegisterArray<std::vector<ReconnectLineEntry>>();
-                c.Bind("lines", &model.lines);
-                c.Bind("progress_width", &model.progressWidth);
-                c.BindEventCallback("reconnect_cancel", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&)
-                                    { s_cancelClicked = true; });
-            });
-        if (modelCreated)
-            s_document =
-                UI::RmlBridge::LoadThemedDocument(DialogContext(), "Data/Interface/RmlUi/reconnect_dialog.rml");
-        if (s_document != nullptr && !s_themeReloadRegistered)
-        {
-            UI::RmlBridge::RegisterForThemeReload(&s_themeReloadOwner, [] { ReloadTheme(); });
-            s_themeReloadRegistered = true;
-        }
-    }
-
-    template <typename T> void SyncField(T ReconnectDialogRmlModel::* field, const char* name, T value)
-    {
-        auto& model = s_binder.GetModel();
-        if (model.*field == value)
-            return;
-        model.*field = std::move(value);
-        s_binder.MarkDirty(name);
-    }
-
-    // DrawStatusTexts(): the title (bold), the step and the countdown, each centred in the panel's
-    // width.
-    std::vector<ReconnectLineEntry> StatusLines()
-    {
-        ReconnectManager& mgr = ReconnectManager::Instance();
-        std::vector<ReconnectLineEntry> lines;
-        auto add = [&lines](const wchar_t* text, float top, bool bold)
-        {
-            g_pRenderText->SetFont(bold ? g_hFontBold : g_hFont);
-            const SIZE size = g_pRenderText->MeasureText(text, static_cast<int>(wcslen(text)));
-            const float left = size.cx < PANEL_W ? (PANEL_W - static_cast<float>(size.cx)) / 2.0f : 0.0f;
-            lines.push_back({StringUtils::WideToNarrow(text), left, top - PANEL_Y, bold});
-        };
-        add(I18N::Game::ConnectionLost, TITLE_Y, true);
-        add(StepLabel(mgr.GetPhase()), STEP_Y, false);
-        const int seconds = mgr.GetCountdownSeconds();
-        if (seconds > 0)
-        {
-            wchar_t countdown[64];
-            mu_swprintf(countdown, I18N::Game::RetryingInSeconds, seconds);
-            add(countdown, COUNTDOWN_Y, false);
-        }
-        return lines;
+        c.Bind("dim_alpha", &model.dimAlpha);
+        c.Bind("root_x", &model.rootX);
+        c.Bind("root_y", &model.rootY);
+        c.Bind("root_scale", &model.rootScale);
+        c.Bind("text_px", &model.textPx);
+        c.Bind("bold_text_px", &model.boldTextPx);
+        c.Bind("title_text", &model.titleText);
+        c.Bind("step_text", &model.stepText);
+        c.Bind("countdown_text", &model.countdownText);
+        c.Bind("progress_width", &model.progressWidth);
+        c.BindEventCallback("reconnect_cancel", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&)
+                            { s_cancelClicked = true; });
     }
 
     // DrawBackdrop()'s dim and DrawNative()'s panel, gauge and Cancel.
     void SyncView(float dimAlpha, float fraction)
     {
-        UI::RmlBridge::SyncDocumentVisibilityInFront(s_document, true);
+        UI::RmlBridge::SyncDocumentVisibilityInFront(s_view.Document(), true);
 
         const UI::Scaling::Transform transform = UI::Scaling::GetActiveTransform();
-        SyncField(&ReconnectDialogRmlModel::dimAlpha, "dim_alpha", dimAlpha);
-        SyncField(&ReconnectDialogRmlModel::rootX, "root_x", UI::Scaling::PositionX(transform, PANEL_X));
-        SyncField(&ReconnectDialogRmlModel::rootY, "root_y", UI::Scaling::PositionY(transform, PANEL_Y));
-        SyncField(&ReconnectDialogRmlModel::rootScale, "root_scale", transform.scaleX);
-        SyncField(&ReconnectDialogRmlModel::textPx, "text_px",
+        SyncField(s_view.Binder(), &ReconnectDialogRmlModel::dimAlpha, "dim_alpha", dimAlpha);
+        SyncField(s_view.Binder(), &ReconnectDialogRmlModel::rootX, "root_x", UI::Scaling::PositionX(transform, PANEL_X));
+        SyncField(s_view.Binder(), &ReconnectDialogRmlModel::rootY, "root_y", UI::Scaling::PositionY(transform, PANEL_Y));
+        SyncField(s_view.Binder(), &ReconnectDialogRmlModel::rootScale, "root_scale", transform.scaleX);
+        SyncField(s_view.Binder(), &ReconnectDialogRmlModel::textPx, "text_px",
                   UI::Scaling::NativeTextPixelSize(UI::Scaling::FontRole::Normal, transform));
-        SyncField(&ReconnectDialogRmlModel::boldTextPx, "bold_text_px",
+        SyncField(s_view.Binder(), &ReconnectDialogRmlModel::boldTextPx, "bold_text_px",
                   UI::Scaling::NativeTextPixelSize(UI::Scaling::FontRole::Bold, transform));
-        SyncField(&ReconnectDialogRmlModel::lines, "lines", StatusLines());
-        SyncField(&ReconnectDialogRmlModel::progressWidth, "progress_width", PROG_BAR_MAX_W * fraction);
+        // DrawStatusTexts(): the title, the step and the countdown. The theme gives each its
+        // row and centres it across the panel.
+        ReconnectManager& mgr = ReconnectManager::Instance();
+        SyncField(s_view.Binder(), &ReconnectDialogRmlModel::titleText, "title_text",
+                  StringUtils::WideToNarrow(I18N::Game::ConnectionLost));
+        SyncField(s_view.Binder(), &ReconnectDialogRmlModel::stepText, "step_text",
+                  StringUtils::WideToNarrow(StepLabel(mgr.GetPhase())));
+        Rml::String countdownText;
+        if (const int seconds = mgr.GetCountdownSeconds(); seconds > 0)
+        {
+            wchar_t countdown[64];
+            mu_swprintf(countdown, I18N::Game::RetryingInSeconds, seconds);
+            countdownText = StringUtils::WideToNarrow(countdown);
+        }
+        SyncField(s_view.Binder(), &ReconnectDialogRmlModel::countdownText, "countdown_text", std::move(countdownText));
+        SyncField(s_view.Binder(), &ReconnectDialogRmlModel::progressWidth, "progress_width", PROG_BAR_MAX_W * fraction);
     }
 
     // ---- Native (message-box textured) rendering ----------------------------
@@ -365,13 +311,13 @@ void RenderDialog()
     ReconnectManager& mgr = ReconnectManager::Instance();
     if (!mgr.IsActive())
     {
-        UI::RmlBridge::SyncDocumentVisibility(s_document, false);
+        UI::RmlBridge::SyncDocumentVisibility(s_view.Document(), false);
         s_cancelClicked = false;
         return;
     }
 
-    BuildView();
-    if (s_document != nullptr)
+    s_view.Ensure();
+    if (s_view.Document() != nullptr)
     {
         // Natively only the frozen frame (the re-login phase); the dim, panel and Cancel are the
         // document's. Cancel is its click, as the original's press on the button.

@@ -1,13 +1,14 @@
 #pragma once
 
 #include "UI/Core/WindowObject.h"
-#include "UI/RmlBridge/RmlModelBinder.h"
+#include "UI/RmlBridge/RmlThemedView.h"
 
 #include <RmlUi/Core/Types.h>
 
 namespace Rml
 {
     class ElementDocument;
+    class Event;
 }
 
 namespace mu::ui::window
@@ -68,6 +69,8 @@ namespace mu::ui::window
         ~CMuHelperDetailWindow() override;
 
         bool Create(CManager* pNewUIMng, int x, int y);
+        Rml::ElementDocument* GetFillDocument() const override { return m_RmlView.Document(); }
+        void SetPos(int x, int y) { m_Pos = {x, y}; }
         void Release();
 
         bool UpdateMouseEvent() override;
@@ -78,7 +81,6 @@ namespace mu::ui::window
         float GetKeyEventOrder() override;
         void Show(bool bShow) override;
 
-        void ReloadRmlTheme();
 
         // Opens `iPage`, or closes the panel if it is already showing that page.
         void Toggle(int iPage);
@@ -88,11 +90,8 @@ namespace mu::ui::window
         void InitConfig();
 
     private:
-        // Native's gauge input, kept in C++: a click maps to floor(10 * x / 124) + 1, the wheel
-        // steps by one, and holding the button drags. A stock <input type="range"> rounds
-        // differently and has no wheel handling. `left`/`top` are the gauge bar's own reference
-        // position, the same one the RCSS draws it at.
-        static bool UpdateGauge(int left, int top, int& level, const POINT& panelPos);
+        // RmlUi owns each gauge's hit area; C++ keeps the 0..10 threshold behavior.
+        void HandleGaugeEvent(Rml::Event& event, int gauge);
 
         void SetPreCondition(int index);
         void SetSubCondition(int index);
@@ -110,7 +109,13 @@ namespace mu::ui::window
         int m_iCurrentHealThreshold = 0;
         int m_iCurrentPartyHealThreshold = 0;
 
-        RmlModelBinder<MuHelperDetailRmlModel> m_RmlBinder;
-        Rml::ElementDocument* m_pRmlDoc = nullptr;
+        void BindRmlModel(Rml::DataModelConstructor& c, MuHelperDetailRmlModel& model);
+        // After every build: the field filters and limits the theme cannot set.
+        void OnRmlBuilt();
+
+        UI::RmlBridge::ThemedView<MuHelperDetailRmlModel> m_RmlView{"mu_helper_detail",
+            [this](Rml::DataModelConstructor& c, MuHelperDetailRmlModel& model) { BindRmlModel(c, model); },
+            {{"Data/Interface/RmlUi/mu_helper_detail.rml"}},
+            {.afterBuild = [this] { OnRmlBuilt(); }}};
     };
 }

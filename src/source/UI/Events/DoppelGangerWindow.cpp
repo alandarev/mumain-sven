@@ -15,6 +15,8 @@
 #include "UI/RmlBridge/RmlTheme.h"
 
 #include "Audio/DSPlaySound.h"
+#include "Render/Text/CUIRenderText.h"
+#include "Render/Text/TextWrap.h"
 
 using namespace SEASON3B;
 using namespace mu::ui::window;
@@ -47,7 +49,6 @@ bool CDoppelGangerWindow::Create(CManager* pNewUIMng, C3DRenderMng* pNewUI3DRend
     SetPos(x, y);
 
     m_View.Build();
-    UI::RmlBridge::RegisterForThemeReload(this, [this] { m_View.ReloadTheme(); });
 
     Show(false);
 
@@ -56,7 +57,7 @@ bool CDoppelGangerWindow::Create(CManager* pNewUIMng, C3DRenderMng* pNewUI3DRend
 
 void CDoppelGangerWindow::Release()
 {
-    UI::RmlBridge::UnregisterForThemeReload(this);
+    m_View.Release();
 
     if (m_pNewUI3DRenderMng)
     {
@@ -82,7 +83,14 @@ bool CDoppelGangerWindow::UpdateMouseEvent()
     if (true == BtnProcess())
         return false;
 
-    if (mu::ui::window::WindowGeometry(m_Pos.x, m_Pos.y, INVENTORY_WIDTH, INVENTORY_HEIGHT).Contains(MouseX, MouseY))
+    // #panel's own live RCSS size is the source of truth -- INVENTORY_WIDTH/HEIGHT only cover the
+    // first frame after Create()/Show(true)/ReloadRmlTheme(), before RmlUi's next layout pass.
+    float panelWidth = INVENTORY_WIDTH;
+    float panelHeight = INVENTORY_HEIGHT;
+    m_View.RefreshPanelSize(panelWidth, panelHeight);
+    if (mu::ui::window::WindowGeometry(m_Pos.x, m_Pos.y, static_cast<int>(panelWidth),
+                                      static_cast<int>(panelHeight))
+            .Contains(MouseX, MouseY))
         return false;
 
     return true;
@@ -143,32 +151,28 @@ void CDoppelGangerWindow::SyncView()
         // shared with the original, kept. The original also dropped the second line of each cut
         // (finding EV1): that came from its uninitialised stack buffer, not from its layout, so
         // those lines are kept here.
-        const DWORD color = RGBA(220, 220, 220, 255);
-        const float originY = 50.f;
         wchar_t szTextOut[2][300] = {};
         std::vector<EventItemEntryView::Text> texts;
-        texts.push_back({I18N::Game::Lugard, 15.f, 13.f, 160.f, true, color});
+        texts.push_back({I18N::Game::Lugard, 160.f, true});
         g_pRenderText->SetFont(g_hFont);
         CutStr(I18N::Game::OnlyThoseInPossessionOfAMirrorOfDimensions, szTextOut[0], 140, 2, 300);
-        texts.push_back({szTextOut[0], 0.f, originY, 190.f, false, color});
-        texts.push_back({szTextOut[1], 0.f, originY + 15, 190.f, false, color});
+        texts.push_back({szTextOut[0], 190.f});
+        texts.push_back({szTextOut[1], 190.f});
         CutStr(I18N::Game::MayPassThroughTheDoppelgangerGate, szTextOut[0], 100, 2, 300);
-        texts.push_back({szTextOut[0], 0.f, originY + 30, 190.f, false, color});
-        texts.push_back({szTextOut[1], 0.f, originY + 45, 190.f, false, color});
-        texts.push_back({I18N::Game::WillYouShowMeYourMirror, 0.f, originY + 60, 190.f, false, color});
-        texts.push_back({I18N::Game::MirrorOfDimensions, 0.f, originY + 120, 190.f, true, color});
-        texts.push_back({I18N::Game::EntryTime, 0.f, originY + 210, 190.f, false, color});
+        texts.push_back({szTextOut[0], 190.f});
+        texts.push_back({szTextOut[1], 190.f});
+        texts.push_back({I18N::Game::WillYouShowMeYourMirror, 190.f});
+        texts.push_back({I18N::Game::MirrorOfDimensions, 190.f, true});
+        texts.push_back({I18N::Game::EntryTime, 190.f});
         wchar_t szText[256] = {};
         if (m_iRemainTime == 0)
             mu_swprintf(szText, I18N::Game::YouMayNowEnter);
         else
             mu_swprintf(szText, I18N::Game::EnterAfterDMinutes, m_iRemainTime);
-        texts.push_back({szText, 0.f, originY + 230, 190.f, false, color});
+        texts.push_back({szText, 190.f});
         m_View.SetTexts(std::move(texts));
 
-        const float buttonX = static_cast<float>(INVENTORY_WIDTH) / 2 - 27;
-        m_View.SetButtons({{I18N::Game::Enter, buttonX, 190.f, m_bIsEnterButtonLocked == TRUE},
-                           {I18N::Game::Close388, buttonX, 360.f, false}});
+        m_View.SetButtons({{I18N::Game::Enter, m_bIsEnterButtonLocked == TRUE}, {I18N::Game::Close388, false}});
     }
     m_View.Sync(IsVisible(), m_Pos);
 }

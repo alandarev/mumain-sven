@@ -44,8 +44,9 @@
      that can be dragged to a specific real-pixel spot instead of always centering.
      `#window_shell_header` (the header rail, given a stable id here rather than only a class) is
      the drag handle a positioned consumer can pass to `UI::RmlBridge::MakeDraggable()`, same
-     pattern as `my_inventory.rml`'s `#title` -- `CGenericMenuDialog` doesn't do this today, native
-     menu dialogs were never draggable.
+     pattern as `my_inventory.rml`'s `#title`. The options window and the generic menu dialog drag
+     by any part that is not a control instead (legacy shows no title to grab); neither uses
+     `positioned`: the drag pins a `.center-both` panel where it is drawn.
 
      id="panel" set here, not by the consumer -- every current *_dialog.rcss defines its own
      document-scoped `#panel { width/height/... }` sizing rule (RmlUi CSS/IDs are per-document, so
@@ -74,17 +75,12 @@
 	<div id="window_shell_header" class="window-shell-header-rail" data-class-hidden="!has_title"></div>
 	<div class="window-shell-header-title" data-class-hidden="!has_title">{{title}}</div>
 	<div id="content" class="window-shell-content" data-class-has-title="has_title"></div>
-	<!-- Optional footer anchor, sibling of #content -- a direct #panel child, same relationship
-	     generic_confirm_dialog.rcss's own .gcd-btn-primary/etc have to #panel (not nested inside
-	     .gcd-body). #content is a single splice target (Template::ParseTemplate only resolves one
-	     content id), so a consumer can't author an element here directly; empty and inert by
-	     default (harmless for generic_menu_dialog, which never touches it) until a consumer builds
-	     into it in C++ (Rml::ElementDocument::CreateElement() + AppendChild(), NOT authored as
-	     `{{}}`-bound RML markup elsewhere and moved here after load -- that was tried first
-	     (option_window.rml's close button) and never rendered its label text: RmlUi's
-	     text-interpolation DataView is only created at an element's original XML parse, and
-	     re-attaching to a new parent doesn't recreate it, only re-scans attributes for data-*
-	     bindings) -- see COptionWindow::BuildRmlUi() for the current worked example. -->
+	<!-- A footer anchor for a consumer that needs an element outside #content (the template's only
+	     splice target). Currently unused: Options, its one former consumer, declares its close
+	     button in #content instead, whose fixed box already ends on this line. Build into it in C++
+	     (CreateElement() + AppendChild()) rather than authoring `{{}}`-bound markup elsewhere and
+	     moving it here -- a moved element never re-creates its text-interpolation binding, see
+	     engine-findings.md. -->
 	<div id="window_shell_footer" class="window-shell-footer"></div>
 </body>
 </template>

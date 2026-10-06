@@ -1,7 +1,7 @@
 #pragma once
 
 #include "UI/Dialogs/MessageBoxViewRmlModel.h"
-#include "UI/RmlBridge/RmlModelBinder.h"
+#include "UI/RmlBridge/RmlThemedView.h"
 
 #include <string>
 #include <vector>
@@ -41,38 +41,20 @@ public:
         float height = 0.f;
         bool enabled = true;
         bool okArt = false; // newui_button_ok's lettered art instead of a labelled newui_btn_empty_small
+        // Where it sits and how big it is are the theme's, by the box's kind (Create()); left, top,
+        // width and height are then unused.
+        bool placed = false;
     };
 
-    // A text list inside the box (CUIUnmixgemList), in the box's reference px: rows' tops are
-    // their 13 px boxes, the scroll parts as CUITextListBox's old-style scroll bar lays them out.
-    struct List
-    {
-        struct Row
-        {
-            std::wstring text;
-            float top = 0.f;
-            bool selected = false;
-        };
-        float left = 0.f;
-        float top = 0.f;
-        float width = 0.f;
-        float height = 0.f;
-        std::vector<Row> rows;
-        bool upPressed = false;
-        bool downPressed = false;
-        float trackTop = 0.f;
-        float trackHeight = 0.f;
-        float thumbTop = 0.f;
-        float thumbHeight = 0.f;
-        float thumbBottomTop = 0.f; // the thumb's 1 px bottom cap
-    };
+    using List = std::vector<MessageBoxViewListRowEntry>;
 
-    MessageBoxView() = default;
+    MessageBoxView();
     ~MessageBoxView();
     MessageBoxView(const MessageBoxView&) = delete;
     MessageBoxView& operator=(const MessageBoxView&) = delete;
 
-    void Create(int middleCount, float backHeight);
+    // `kind` names the box for a theme that places its buttons (Button::placed).
+    void Create(int middleCount, float backHeight, const char* kind = "");
     // A box whose size changes after Create() (CProgressMsgBox grows with its text). With
     // middlesAboveDivider >= 0 the 21-unit newui_Message_Line follows that many middle strips
     // (CDevilSquareRankMsgBox).
@@ -91,15 +73,17 @@ public:
     // The document is loaded: the box draws nothing natively.
     bool IsShown() const
     {
-        return m_pRmlDoc != nullptr;
+        return m_View.Document() != nullptr;
     }
 
     int TakePressedButton();
+    int TakePressedListRow();
 
 private:
-    std::string m_ModelName;
-    RmlModelBinder<MessageBoxViewRmlModel> m_RmlBinder;
-    Rml::ElementDocument* m_pRmlDoc = nullptr;
+    void BindModel(Rml::DataModelConstructor& c, MessageBoxViewRmlModel& model);
+    void BindList(Rml::DataModelConstructor& constructor, MessageBoxViewRmlModel& model);
+    UI::RmlBridge::ThemedView<MessageBoxViewRmlModel> m_View;
     int m_PressedButton = -1;
+    int m_PressedListRow = -1;
 };
 } // namespace mu::ui::window

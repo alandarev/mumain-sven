@@ -29,7 +29,10 @@ CInGameShopSystem::CInGameShopSystem()
     m_bIsShopOpenLock = true; //louis
     m_bIsBanner = false;
     m_bIsRequestEventPackage = false;
-    m_plistSelectPackage = NULL;
+    // Initalize() points this at the normal package list, but GetTotalPages() runs from
+    // RenderTexts() on every frame the shop is visible, which does not require Initalize() to
+    // have run. Start it where Initalize() leaves it so size() reads an empty list, not null.
+    m_plistSelectPackage = &m_listNormalPackage;
     m_bFirstScriptDownloaded = false;
     m_bFirstBannerDownloaded = false;
 }
@@ -769,6 +772,12 @@ void CInGameShopSystem::InitZoneInfo()
 {
     m_mapZoneSeqIndex.clear();
     m_listZoneName.clear();
+
+    // Null until a shop script arrives from the server, and NULL again after Release(). Every
+    // other reader reaches this pointer only through the zone map this fills, so this is the one
+    // place that has to check it.
+    if (m_pCategoryList == NULL)
+        return;
 
     m_pCategoryList->SetFirst();
     CShopCategory Zone;

@@ -2,11 +2,13 @@
 
 #include "UI/Widgets/Window/Tooltip.h"
 #include "UI/Core/WindowCommon.h"
-#include "UI/Widgets/UIControls.h"
+#include "UI/Social/SocialWindowBase.h"
 #include "UI/RmlBridge/RmlTooltip.h"
 #include "UI/Scaling/UITransform.h"
 #include "Core/Utilities/StringUtils.h"
 #include "I18N/All.h"
+
+using mu::ui::window::CheckMouseIn;   // WindowCommon.h
 
 mu::ui::window::CTooltip::~CTooltip()
 {

@@ -1,6 +1,15 @@
 
 #include "stdafx.h"
 #include "I18N/All.h"
+#include "Render/Text/CUIRenderText.h"
+#include "Render/RmlUi/RmlUiRuntime.h"
+#include "Core/Utilities/StringUtils.h"
+#include "UI/RmlBridge/RmlDocumentVisibility.h"
+#include "UI/RmlBridge/RmlRootTransform.h"
+#include "UI/RmlBridge/RmlSyncField.h"
+#include "UI/RmlBridge/RmlTheme.h"
+#include <RmlUi/Core/Context.h>
+#include <RmlUi/Core/ElementDocument.h>
 
 #ifdef KJH_ADD_INGAMESHOP_UI_SYSTEM
 
@@ -46,6 +55,8 @@ bool CMsgBoxIGSBuyPackageItem::Create(float fPriority)
     {
         g_pNewUI3DRenderMng->Add3DRenderObj(this);
     }
+
+    BuildRmlUi();
 
     CreateListBox();
     SetButtonInfo();
@@ -100,12 +111,15 @@ void CMsgBoxIGSBuyPackageItem::Initialize(CShopPackage* pPackage)
 
     for (int i = 0; i < nLine; ++i)
     {
-        m_PackageInfo.AddText(m_szDescription[i]);
+        if (m_szDescription[i][0] != L'\0')
+            m_DescriptionLines.emplace_back(m_szDescription[i]);
     }
 }
 
 void CMsgBoxIGSBuyPackageItem::Release()
 {
+    m_RmlView.Release();
+
     CMessageBoxBase::Release();
 
     if (g_pNewUI3DRenderMng)
@@ -122,6 +136,7 @@ bool CMsgBoxIGSBuyPackageItem::Update()
     m_BtnCancel.Update();
     m_BtnPresent.Update();
     ListBoxDoAction();
+    SyncRmlModel();
     return true;
 }
 
@@ -299,24 +314,55 @@ void CMsgBoxIGSBuyPackageItem::UnloadImages()
 
 void CMsgBoxIGSBuyPackageItem::CreateListBox()
 {
-    m_PackageInfo.SetPosition(GetPos().x + IGS_LISTBOX_POS_X, GetPos().y + IGS_LISTBOX_POS_Y);
-    m_PackageInfo.SetLineColorRender(false);
+    // Where the description sits is igs_buy_package.rcss's now.
 }
 
 void CMsgBoxIGSBuyPackageItem::RenderListBox()
 {
-    if (m_PackageInfo.GetLineNum() != 0)
-        m_PackageInfo.Render();
+    // igs_buy_package.rml draws the description.
 }
 
 void CMsgBoxIGSBuyPackageItem::ListBoxDoAction()
 {
-    m_PackageInfo.DoAction();
+    // RmlUi owns the wheel and the scrollbar drag.
 }
 
 void CMsgBoxIGSBuyPackageItem::ReleaseListBox()
 {
-    m_PackageInfo.Clear();
+    m_DescriptionLines.clear();
+}
+
+void CMsgBoxIGSBuyPackageItem::BindRmlModel(Rml::DataModelConstructor& c, BuyPackageRmlModel& model)
+{
+    c.Bind("root_x", &model.rootX);
+    c.Bind("root_y", &model.rootY);
+    c.Bind("root_scale", &model.rootScale);
+    c.Bind("text_px", &model.textPx);
+    auto line = c.RegisterStruct<DescriptionLine>();
+    line.RegisterMember("text", &DescriptionLine::text);
+    c.RegisterArray<std::vector<DescriptionLine>>();
+    c.Bind("description_lines", &model.descriptionLines);
+}
+
+void CMsgBoxIGSBuyPackageItem::BuildRmlUi()
+{
+    m_RmlView.Ensure();
+}
+
+void CMsgBoxIGSBuyPackageItem::SyncRmlModel()
+{
+    if (!m_RmlView.Document())
+        return;
+    UI::RmlBridge::SyncRootTransform(m_RmlView.Binder(), GetPos());
+    UI::RmlBridge::SyncNativeTextSize(m_RmlView.Binder());
+
+    std::vector<DescriptionLine> lines;
+    lines.reserve(m_DescriptionLines.size());
+    for (const std::wstring& text : m_DescriptionLines)
+        lines.push_back({StringUtils::WideToNarrow(text.c_str())});
+    SyncField(m_RmlView.Binder(), &BuyPackageRmlModel::descriptionLines, "description_lines", std::move(lines));
+
+    UI::RmlBridge::SyncDocumentVisibility(m_RmlView.Document(), IsVisible());
 }
 
 bool CMsgBoxBuyPackageItemLayout::SetLayout()

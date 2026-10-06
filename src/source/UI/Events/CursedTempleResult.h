@@ -8,7 +8,8 @@
 #include "UI/Core/WindowManager.h"
 #include "UI/Dialogs/MessageBox.h"
 #include "UI/Events/CursedTempleResultRmlModel.h"
-#include "UI/RmlBridge/RmlModelBinder.h"
+#include "UI/Events/CursedTempleUpdates.h"
+#include "UI/RmlBridge/RmlThemedView.h"
 
 namespace Rml
 {
@@ -18,7 +19,7 @@ class ElementDocument;
 namespace mu::ui::window
 {
 // The Illusion Temple result window. cursed_temple_result.rml draws it (frame, victory /
-// defeat banner, the two teams' rows, the notice and Close); C++ keeps the result packet,
+// defeat banner, the two teams' rows, the notice and Close); C++ keeps the result state,
 // Escape and the reward request on closing.
 class CCursedTempleResult : public CObject
 {
@@ -47,6 +48,7 @@ public:
     virtual ~CCursedTempleResult();
 
     bool Create(CManager* pNewUIMng, int x, int y);
+    Rml::ElementDocument* GetFillDocument() const override { return m_RmlView.Document(); }
 
 public:
     bool UpdateMouseEvent();
@@ -63,7 +65,6 @@ private:
 public:
     bool Render();
 
-    void ReloadRmlTheme();
 
 private:
     void BuildRmlUi();
@@ -79,7 +80,7 @@ public:
     void SetMyTeam(SEASON3A::eCursedTempleTeam myteam);
 
 public:
-    void ReceiveCursedTempleGameResult(const BYTE* ReceiveBuffer);
+    void SetResult(const UI::CursedTemple::MatchResult& result);
     void ResetGameResultInfo();
 
 private:
@@ -96,8 +97,10 @@ private:
 private:
     CManager* m_pNewUIMng;
     POINT m_Pos;
-    RmlModelBinder<CursedTempleResultRmlModel> m_RmlBinder;
-    Rml::ElementDocument* m_pRmlDoc = nullptr;
+    void BindRmlModel(Rml::DataModelConstructor& c, CursedTempleResultRmlModel& model);
+    UI::RmlBridge::ThemedView<CursedTempleResultRmlModel> m_RmlView{"cursed_temple_result",
+        [this](Rml::DataModelConstructor& c, CursedTempleResultRmlModel& model) { BindRmlModel(c, model); },
+        {{"Data/Interface/RmlUi/cursed_temple_result.rml"}}};
     bool m_PendingClose = false;
 
     std::wstring m_infoText;

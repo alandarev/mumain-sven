@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "UI/Diagnostics/DiagnosticsOverlay.h"
 #include "Core/Input/SyntheticInput.h"
 #include "RmlUiRuntime.h"
 #include "RmlUiRenderInterface.h"
@@ -24,8 +25,8 @@ namespace
     // responds to. Two multipliers, composed the same way
     // UI::Scaling's own legacy transforms compose them (UITransform.cpp):
     //   - GameConfig::GetUIScalePercent() -- the user's own preference dial.
-    //   - UI::Scaling::ViewportFitScale() -- auto-fit-to-window-size (the same formula the still-
-    //     legacy HUD band's bars_scale uses via BottomHudScale/BottomHudCenterTransform), which
+    //   - UI::Scaling::ViewportFitScale() -- auto-fit-to-window-size (the same formula
+    //     BottomHudScale uses for the dock row above the HUD), which
     //     already folds in UI::Scaling::GetWindowContentScale() (OS display-scale/pixel-density)
     //     internally -- do NOT also multiply GetWindowContentScale() here, it would double-count.
     //
@@ -158,12 +159,14 @@ void RmlUiRuntime::Create(int windowWidth, int windowHeight)
     // gameplay's mouse-gating checks (Selection.cpp, ZzzInterface.cpp) go through the router, not
     // this concrete type, from this point on.
     Core::Input::SetUiInputConsumer(this);
+    UI::Diagnostics::Initialize();
 }
 
 void RmlUiRuntime::Destroy()
 {
     if (!m_Context) return;
 
+    UI::Diagnostics::Release();
     Core::Input::Synthetic::CancelDelivery();
     Core::Input::SetUiInputConsumer(nullptr);
     mu::GetRenderer().SetPreSubmitCallback(nullptr);

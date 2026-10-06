@@ -7,7 +7,6 @@
 #include "Scenes/MainScene.h"
 #include "World/GameMaps/GMCrywolf1st.h"
 
-#include "UI/Widgets/UIControls.h"
 #include "UI/Windows/MsgWin.h"
 
 #if __has_include("UI/Core/WindowSystem.h")
@@ -18,7 +17,7 @@
 #include "UI/Dialogs/GenericMenuDialog.h"
 #include "UI/Dialogs/MessageBox.h"
 #include "UI/Inventory/InventoryCtrl.h"
-#include "UI/Party/FriendWindow.h"
+#include "UI/Social/FriendWindow.h"
 #else
 #define MU_OBSERVABILITY_RMLUI 0
 #include "UI/Legacy/UIManager.h"
@@ -31,6 +30,7 @@
 #endif
 
 #include "json.hpp"
+#include <RmlUi/Core.h>
 
 extern int LoadingWorld;
 
@@ -48,6 +48,23 @@ using EventRegistry = Windows::CNewUIManager;
 using CryWolf = Windows::CNewUICryWolf;
 using SiegeWarfare = Windows::CNewUISiegeWarfare;
 #endif
+
+bool TextFieldFocused()
+{
+    if (Rml::GetSystemInterface() == nullptr)
+        return false;
+    for (int index = 0; index < Rml::GetNumContexts(); ++index)
+    {
+        const Rml::Element* focused = Rml::GetContext(index)->GetFocusElement();
+        if (focused == nullptr || !focused->IsVisible(true))
+            continue;
+        const auto& tag = focused->GetTagName();
+        const auto type = focused->GetAttribute<Rml::String>("type", "text");
+        if (tag == "textarea" || (tag == "input" && (type == "text" || type == "password")))
+            return true;
+    }
+    return false;
+}
 
 constexpr DWORD InventoryTutorialQuest = 0x1000F;
 constexpr DWORD CharacterTutorialQuest = 0x10009;
@@ -170,10 +187,10 @@ std::string UiObservabilityObject()
     // hover acknowledgements alone cannot establish where a captured cursor drew.
     result["pointer"] = worldReady ? json::array({g_fWindowMouseX, g_fWindowMouseY, MouseX, MouseY}) : json(nullptr);
     result["helper_active"] = MUHelper::g_MuHelper.IsActive();
-    bool inputFocused = CUITextInputBox::IsAnyInputBoxFocused();
+    bool inputFocused = TextFieldFocused();
     result["input_focus_owner"] = nullptr;
 #if MU_OBSERVABILITY_RMLUI
-    // Ported windows type into RmlUi <input>s, which the native focus above does not see.
+    // Include the runtime's active-input policy beside observed document focus.
     inputFocused = inputFocused || RmlUiRuntime::Instance().IsTextInputActive();
     if (Registered(Windows::INTERFACE_CHATINPUTBOX, g_pChatInputBox) && g_pChatInputBox->OwnsFocusedInput())
     {
@@ -193,8 +210,13 @@ std::string UiObservabilityObject()
                                       g_QuestMng.IsEPRequestRewardState(InventoryTutorialQuest);
     result["character_open_effect"] = g_QuestMng.IsIndexInCurQuestIndexList(CharacterTutorialQuest) &&
                                       g_QuestMng.IsEPRequestRewardState(CharacterTutorialQuest);
+#if MU_OBSERVABILITY_RMLUI
+    // The obsolete native popup owner was retired upstream; themed dialogs are observed above.
+    result["legacy_popup_active"] = false;
+#else
     result["legacy_popup_active"] =
         ActivityValue(ObserveUiActivity(g_pUIPopup, true, [](auto& popup) { return popup.GetPopupID() != 0; }));
+#endif
     return result.dump();
 }
 } // namespace App::Control

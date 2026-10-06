@@ -38,7 +38,6 @@
 #include "GameLogic/Events/Event.h"
 #include "UI/Core/WindowSystem.h"
 #include "GameLogic/Events/w_CursedTemple.h"
-#include "UI/Widgets/UIControls.h"
 #include "GameLogic/Social/PartyManager.h"
 #include "UI/Dialogs/CommonMessageBox.h"
 #include "GameLogic/Skills/SummonSystem.h"
@@ -323,8 +322,7 @@ void SelectObjects()
     SelectedNpc = -1;
     SelectedOperate = -1;
 
-    const bool mouseOnHud = UI::Scaling::BottomHudContainsWindowPoint(
-        WindowWidth, WindowHeight, g_fWindowMouseX, g_fWindowMouseY);
+    const bool mouseOnHud = g_pMainFrame != nullptr && g_pMainFrame->IsMouseOverHud();
     // Core::Input::IsMouseOverUI() added as a 4th gate --
     // none of the other three flags know about RmlUi-rendered content (CSysMenuWin, already
     // reachable from gameplay via the ESC menu, plus any RmlUi-migrated NewUI-tier HUD

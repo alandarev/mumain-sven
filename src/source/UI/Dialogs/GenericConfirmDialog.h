@@ -5,12 +5,14 @@
 
 #include "UI/Core/WindowObject.h"
 #include "UI/Core/Window3DRenderMng.h"
-#include "UI/RmlBridge/RmlModelBinder.h"
+#include "Render/RmlUi/RmlUiRuntime.h"
+#include "UI/RmlBridge/RmlThemedView.h"
 
 #include <RmlUi/Core/EventListener.h>
 #include <RmlUi/Core/Types.h>
 
 #include <deque>
+#include <cstdint>
 #include <functional>
 #include <optional>
 #include <string>
@@ -117,6 +119,7 @@ namespace mu::ui::window
         std::function<void()> onPrimary;   // OK / Enter / progress-timer-elapsed
         std::function<void()> onSecondary; // fires only if secondaryLabel is set; never Esc-bound
         std::function<void()> onCancel;    // fires on the cancel button AND on Esc
+        std::function<bool()> isValid;     // expired requests are dismissed without callbacks
     };
 
     // Reusable RmlUi confirm dialog -- one document/model, one instance, shown with different
@@ -134,7 +137,7 @@ namespace mu::ui::window
     // post-RmlUi callback. RmlUi's main context always composites LAST in the frame, strictly
     // after the item3D render pass -- so with only one document, the item always rendered
     // *behind* the panel's own opaque background regardless of z-order. Fixed by moving the
-    // panel's own background art to a second document (`m_pRmlBgDoc`) in its own dedicated
+    // panel's own background art to a second document (`m_RmlBgView`) in its own dedicated
     // context, rendered by RmlUiRuntime::RenderDialogBackgroundLayer() at a point CManager::Render()
     // guarantees is after every ordinary window's own 2D Render() this frame but strictly before
     // item3D itself draws (sorted by GetLayerDepth(), just below the shared 3D camera's own
@@ -143,7 +146,7 @@ namespace mu::ui::window
     // no longer covers the item once the dedicated context has already painted it earlier the
     // same frame. See generic_confirm_dialog_bg.rml (both themes) for the actual markup split.
     // That context paints under every main-context document, so only an item3D dialog uses it;
-    // every other dialog shows the same chrome from the main context (m_pRmlChromeDoc).
+    // every other dialog shows the same chrome from the main context (m_RmlChromeView).
     class CGenericConfirmDialog : public CObject, public I3DRenderObj
     {
     public:
@@ -151,7 +154,12 @@ namespace mu::ui::window
         void Release();
 
         // Shows now if idle, otherwise queues (see class comment).
-        void Show(GenericDialogConfig cfg);
+        using DialogId = std::uint64_t;
+        DialogId Show(GenericDialogConfig cfg);
+        bool IsPending(DialogId id) const;
+        bool IsActive(DialogId id) const { return id != 0 && m_bActive && id == m_ActiveId; }
+        void Cancel(DialogId id);
+        void SetInputText(DialogId id, const std::wstring& text);
 
         // Only meaningful while an `input` field is configured and active; reads the live typed
         // value out of the RmlUi model (Mode::Text) or the on-screen keypad buffer
@@ -187,7 +195,6 @@ namespace mu::ui::window
         // the codebase today (highest existing tier is 10.0f, shared by CWindowMenu/
         // CMessageBoxMng/COptionWindow/etc.).
         float GetKeyEventOrder() override { return 100.0f; }
-        void ReloadRmlTheme();
 
         // I3DRenderObj. Window3DRenderMng.cpp's shared render loop dynamic_casts each registered
         // object to CObject first and uses its own GetLayoutMode() when that succeeds -- true
@@ -197,16 +204,22 @@ namespace mu::ui::window
 
     private:
         void BuildRmlUi();
+        void OnRmlBuilt();
+        void OnRmlReloaded();
         void SyncRmlModel();
         void ShowNext();            // pops m_Queue (if non-empty) and opens the document
+        void Activate(GenericDialogConfig cfg, DialogId id);
+        void DismissActive();
         // Which button resolved the dialog -- dispatches to cfg.onPrimary/onSecondary/onCancel.
         enum class ClickResult { Primary, Secondary, Cancel };
         void Resolve(ClickResult which); // hides the document, invokes the chosen callback, then ShowNext()
 
         void UpdateProgress();      // advances the progress-bar fraction, auto-resolves on elapse
-        // Pushes this invocation's Mode::Text settings onto #gcd_input (type/maxlength) and seeds
-        // its value -- this dialog is shared, so the field is reconfigured on every Show().
-        void ApplyInputFieldConfig();
+        // Pushes this invocation's Mode::Text settings onto #gcd_input (type/maxlength), then writes
+        // `value`: the initial text on Show(), the typed text on a theme reload. This dialog is
+        // shared, so the field is reconfigured on every Show().
+        void ApplyInputFieldConfig(const Rml::String& value);
+        Rml::String InitialInputText() const;
         // #panel is centered via `.center-both` (`left:50%; top:50%; transform:translate(-50%,-50%)`,
         // base.rcss) -- GetAbsoluteOffset() walks the ancestor chain summing offsets but does NOT
         // apply CSS `transform` at any level, so every element inside #panel is off by half the
@@ -283,36 +296,44 @@ namespace mu::ui::window
             // imperatively instead, see Show()/ShowNext()).
             bool hasTallPanel = false;
         };
-        RmlModelBinder<GenericDialogRmlModel> m_RmlBinder;
-        Rml::ElementDocument* m_pRmlDoc = nullptr;
+        void BindRmlModel(Rml::DataModelConstructor& c, GenericDialogRmlModel& model);
+        UI::RmlBridge::ThemedView<GenericDialogRmlModel> m_RmlView{"generic_confirm_dialog",
+            [this](Rml::DataModelConstructor& c, GenericDialogRmlModel& model) { BindRmlModel(c, model); },
+            {{"Data/Interface/RmlUi/generic_confirm_dialog.rml"}},
+            {.modal = Rml::ModalFlag::Modal, .focus = Rml::FocusFlag::Document,
+             .afterBuild = [this] { OnRmlBuilt(); }, .afterReload = [this] { OnRmlReloaded(); }}};
 
-        // Background-context companion to m_pRmlDoc -- see the class comment for the mechanism.
+        // Background-context companion to m_RmlView -- see the class comment for the mechanism.
         // No RmlModelBinder of its own: it's 100% static markup (this dialog centers via plain
         // CSS, never a per-frame C++-computed position). Lives in its OWN dedicated context
         // (RmlUiRuntime::GetDialogBackgroundContext()), not the shared one every ordinary window's
         // own bg doc uses -- a shared context renders once globally per frame, which would let
         // other windows' own foreground content paint over this dialog wherever they overlap.
-        // Shown/Hidden in lockstep with m_pRmlDoc at every transition point -- but only for a
+        // Shown/Hidden in lockstep with m_RmlView at every transition point -- but only for a
         // dialog with `item3D`, the one reason the chrome has to paint before the 3D pass.
-        Rml::ElementDocument* m_pRmlBgDoc = nullptr;
+        UI::RmlBridge::ThemedView<> m_RmlBgView{{{"Data/Interface/RmlUi/generic_confirm_dialog_bg.rml",
+            [] { return RmlUiRuntime::Instance().GetDialogBackgroundContext(); }}}};
 
         // The same background markup loaded a second time, into the main context, for every
         // dialog WITHOUT `item3D`. The dialog-background context paints before the main context,
         // so chrome there sits under every main-context document -- a full-screen RmlUi window
         // (the master skill tree) would cover the panel and leave only its text and buttons on
-        // top. In the main context the chrome is pulled to the front right under m_pRmlDoc, as
+        // top. In the main context the chrome is pulled to the front right under m_RmlView, as
         // native message boxes drew above every other window.
-        Rml::ElementDocument* m_pRmlChromeDoc = nullptr;
+        UI::RmlBridge::ThemedView<> m_RmlChromeView{{{"Data/Interface/RmlUi/generic_confirm_dialog_bg.rml"}},
+            {.afterBuild = [this] { m_RmlChromeView.Document()->SetProperty("pointer-events", "none"); }}};
 
-        // m_pRmlChromeDoc, or m_pRmlBgDoc while the active dialog has `item3D`.
+        // m_RmlChromeView, or m_RmlBgView while the active dialog has `item3D`.
         Rml::ElementDocument* ActiveChromeDocument() const;
         // Shows the active dialog's chrome document (hiding the other one) and mirrors
-        // tallPanel onto it; call before showing m_pRmlDoc so the text stays above it.
+        // tallPanel onto it; call before showing m_RmlView so the text stays above it.
         void ShowChrome();
         void HideChrome();
 
         // Set by RmlUi click bindings; polled and cleared in Update() -- never act synchronously
         // inside the RmlUi callback itself.
+        // Set once the player drags the panel; its chrome then follows the panel's drawn place.
+        bool m_bDragged = false;
         bool m_bPrimaryClicked = false;
         bool m_bSecondaryClicked = false;
         bool m_bCancelClicked = false;
@@ -324,15 +345,19 @@ namespace mu::ui::window
         // NumericKeypad's own click-accumulated digit buffer (never the real keyboard focus) --
         // shuffled mapping gives anti-shoulder-surfing behavior.
         std::wstring m_KeypadBuffer;
-        // Mode::Text's InputField::initialText, held between Show() and the ApplyInputFieldConfig()
-        // that seeds #gcd_input -- the element only exists once the document has been shown.
-        std::wstring m_PendingInputSeed;
         std::vector<int> m_KeypadMapping; // 10 entries, shuffled per Show()
 
         DWORD m_dwProgressStartTime = 0;
         DWORD m_dwProgressEndTime = 0;
 
-        std::deque<GenericDialogConfig> m_Queue;
+        struct PendingDialog
+        {
+            DialogId id;
+            GenericDialogConfig config;
+        };
+        std::deque<PendingDialog> m_Queue;
+        DialogId m_NextId = 1;
+        DialogId m_ActiveId = 0;
         GenericDialogConfig m_Active;
         bool m_bActive = false;
 
@@ -343,7 +368,8 @@ namespace mu::ui::window
     };
 
     // Convenience global for the scattered native call sites this primitive replaces (guild/quest
-    // UI code, network packet handlers) -- same convention as g_pUIPopup. Set once, in
+    // UI code, network packet handlers) -- the house convention for a single-instance dialog.
+    // Set once, in
     // CSystem::Create() (WindowSystem.cpp); never null after that point during normal play.
     extern CGenericConfirmDialog* g_pGenericConfirmDialog;
 }

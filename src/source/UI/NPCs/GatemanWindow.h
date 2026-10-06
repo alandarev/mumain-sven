@@ -7,7 +7,7 @@
 #include "UI/Core/WindowObject.h"
 #include "UI/Core/WindowManager.h"
 #include "UI/NPCs/GatemanRmlModel.h"
-#include "UI/RmlBridge/RmlModelBinder.h"
+#include "UI/RmlBridge/RmlThemedView.h"
 
 namespace Rml
 {
@@ -17,8 +17,7 @@ class ElementDocument;
 namespace mu::ui::window
 {
 // The castle gatekeeper, docked right: the guest, guild member or guild master page.
-// gateman.rml draws it; C++ keeps the gatekeeper state (CUIGateKeeper), the public toggle's
-// native hit test, Escape and every request.
+// gateman.rml draws it; C++ keeps the gatekeeper state (CUIGateKeeper), Escape and requests.
 class CGatemanWindow : public CObject
 {
 public:
@@ -43,15 +42,19 @@ private:
     CManager* m_pNewUIMng;
     POINT m_Pos;
 
-    RmlModelBinder<GatemanRmlModel> m_RmlBinder;
-    Rml::ElementDocument* m_pRmlDoc = nullptr;
+    void BindRmlModel(Rml::DataModelConstructor& c, GatemanRmlModel& model);
+    UI::RmlBridge::ThemedView<GatemanRmlModel> m_RmlView{"gateman",
+        [this](Rml::DataModelConstructor& c, GatemanRmlModel& model) { BindRmlModel(c, model); },
+        {{"Data/Interface/RmlUi/gateman.rml"}}};
     GATEMAN_BUTTON m_PendingButton = GATEMAN_BUTTON_NONE;
+    bool m_PendingPublicToggle = false;
 
 public:
     CGatemanWindow();
     virtual ~CGatemanWindow();
 
     bool Create(CManager* pNewUIMng, int x, int y);
+    Rml::ElementDocument* GetFillDocument() const override { return m_RmlView.Document(); }
     void Release();
 
     void SetPos(int x, int y);
@@ -66,7 +69,6 @@ public:
 
     float GetLayerDepth(); //. 5.0f
 
-    void ReloadRmlTheme();
 
 private:
     bool BtnProcess();

@@ -19,33 +19,39 @@
 		<div class="frame-piece frame-right"></div>
 		<div class="frame-piece frame-bottom"></div>
 
-		<span class="sharp-text cp-title" data-style-font-size="title_px + 'px'" data-style-width="(190 * root_scale) + 'px'"
+		<span class="sharp-text cp-title" data-style-font-size="title_px + 'px'" data-style-width="(panel_width * root_scale) + 'px'"
 		      data-style-transform="'scale(' + (1 / root_scale) + ')'">{{title}}</span>
-		<span class="sharp-text cp-line" data-for="l, i : lines" data-style-top="(50 + i * 15) + 'px'"
-		      data-style-font-size="l.text_px + 'px'" data-style-width="(190 * root_scale) + 'px'"
-		      data-style-transform="'scale(' + (1 / root_scale) + ')'">{{l.text}}</span>
+		<div class="cp-lines">
+			<span class="sharp-text cp-line" data-for="l : lines"
+			      data-style-font-size="l.text_px + 'px'" data-style-width="(panel_width * root_scale) + 'px'"
+			      data-style-transform="'scale(' + (1 / root_scale) + ')'">{{l.text}}</span>
+		</div>
 
-		<div class="t-corner t-tl" style="left: 12px; top: 116px;"></div>
-		<div class="t-corner t-tr" style="left: 166px; top: 116px;"></div>
-		<div class="t-edge-top" style="left: 25px; top: 116px; width: 141px;"></div>
-		<div class="t-edge-left" style="left: 12px; top: 129px; height: 100px;"></div>
-		<div class="t-edge-right" style="left: 166px; top: 129px; height: 100px;"></div>
-		<div class="t-corner t-bl" style="left: 12px; top: 223px;"></div>
-		<div class="t-corner t-br" style="left: 166px; top: 223px;"></div>
-		<div class="t-edge-bottom" style="left: 25px; top: 223px; width: 141px;"></div>
+		<!-- The target table's frame: one shape, each theme placing its own edges. -->
+		<div class="t-corner t-tl"></div>
+		<div class="t-corner t-tr"></div>
+		<div class="t-edge-top"></div>
+		<div class="t-edge-left"></div>
+		<div class="t-edge-right"></div>
+		<div class="t-corner t-bl"></div>
+		<div class="t-corner t-br"></div>
+		<div class="t-edge-bottom"></div>
 
-		<div class="cp-area" data-for="a : areas" data-class-big="a.big" data-class-locked="a.locked"
-		     data-style-left="a.left + 'px'" data-style-top="a.top + 'px'" data-event-click="catapult_area(a.index)">
-			<span class="sharp-text cp-label cp-area-label" data-style-font-size="a.label_px + 'px'"
-			      data-style-left="a.label_left + 'px'" data-style-top="a.label_top + 'px'"
-			      data-style-line-height="line_height_px + 'px'"
-			      data-style-transform="'scale(' + (1 / root_scale) + ')'">{{a.label}}</span>
+		<!-- The target areas. Which set is on screen depends on the mode, and the theme places
+		     each one; a label is centred on its own button. -->
+		<div class="cp-areas" data-class-attack="mode == 1" data-class-defense="mode == 2">
+			<div class="cp-area" data-for="a : areas" data-class-big="a.big" data-class-locked="a.locked"
+			     data-event-click="catapult_area(a.index)">
+				<span class="sharp-text sharp-middle cp-label cp-area-label" data-style-font-size="a.label_px + 'px'"
+				      data-style-line-height="line_height_px + 'px'"
+				      data-style-transform="'translateY(-50%) scale(' + (1 / root_scale) + ')'">{{a.label}}</span>
+			</div>
 		</div>
 
 		<div id="btn_fire" data-class-locked="fire_locked" data-event-click="catapult_fire">
-			<span class="sharp-text cp-label" data-style-font-size="text_px + 'px'" data-style-top="fire_label_top + 'px'"
+			<span class="sharp-text sharp-middle cp-label" data-style-font-size="text_px + 'px'"
 			      data-style-line-height="line_height_px + 'px'" data-style-width="(108 * root_scale) + 'px'"
-			      data-style-transform="'scale(' + (1 / root_scale) + ')'">{{fire_text}}</span>
+			      data-style-transform="'translateY(-50%) scale(' + (1 / root_scale) + ')'">{{fire_text}}</span>
 		</div>
 
 		<div id="btn_exit" data-event-click="catapult_exit"></div>

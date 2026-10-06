@@ -3,6 +3,7 @@
 #include "I18N/All.h"
 
 #include "UI/HUD/CommandWindow.h"
+#include "UI/RmlBridge/RmlPanelGeometry.h"
 
 #include "Audio/DSPlaySound.h"
 #include "UI/Core/WindowSystem.h"
@@ -11,18 +12,20 @@
 #include "GameLogic/Combat/DuelMgr.h"
 #include "GameLogic/Events/w_CursedTemple.h"
 #include "GameLogic/Items/PersonalShopTitleImp.h"
-#include "Guild/UIGuildInfo.h"
+#include "Guild/GuildTypes.h"
 #include "Engine/AI/ZzzAI.h"
 #include "World/MapInfra/MapManager.h"
 
 #include "Core/Utilities/StringUtils.h"
 #include "Render/RmlUi/RmlUiRuntime.h"
 #include "Render/Text/CUIRenderTextSDLTtf.h"
+#include "UI/RmlBridge/RmlSyncField.h"
 #include "UI/RmlBridge/RmlDocumentVisibility.h"
 #include "UI/RmlBridge/RmlRootTransform.h"
 #include "UI/RmlBridge/RmlTheme.h"
 
 #include <RmlUi/Core/ElementDocument.h>
+#include "Render/Text/CUIRenderText.h"
 
 using namespace SEASON3B;
 using namespace mu::ui::window;
@@ -32,7 +35,6 @@ namespace
 // The target box the original drew 5 units right of and below the pointer (newui_cursorid_wnd).
 constexpr int kTargetBoxOffset = 5;
 constexpr int kTitleBoxWidth = 72;
-constexpr int kButtonHeight = 29;
 
 // The button labels, in COMMAND_TYPE order.
 const wchar_t* const* const kCommandLabels[COMMAND_END] = {
@@ -41,15 +43,6 @@ const wchar_t* const* const kCommandLabels[COMMAND_END] = {
     &I18N::Game::AddFriend, &I18N::Game::Follow,   &I18N::Game::Duel,           &I18N::Game::SpecialCommands,
 };
 
-template <typename Model, typename Value>
-void SyncField(RmlModelBinder<Model>& binder, Value Model::* field, const char* name, const Value& value)
-{
-    Model& model = binder.GetModel();
-    if (model.*field == value)
-        return;
-    model.*field = value;
-    binder.MarkDirty(name);
-}
 } // namespace
 
 mu::ui::window::CCommandWindow::CCommandWindow()
@@ -78,7 +71,6 @@ bool mu::ui::window::CCommandWindow::Create(CManager* pNewUIMng, int x, int y)
     SetPos(x, y);
 
     BuildRmlUi();
-    UI::RmlBridge::RegisterForThemeReload(this, [this] { ReloadRmlTheme(); });
 
     Show(false);
 
@@ -87,13 +79,14 @@ bool mu::ui::window::CCommandWindow::Create(CManager* pNewUIMng, int x, int y)
 
 void mu::ui::window::CCommandWindow::Release()
 {
-    UI::RmlBridge::UnregisterForThemeReload(this);
 
     if (m_pNewUIMng)
     {
         m_pNewUIMng->RemoveUIObj(this);
         m_pNewUIMng = NULL;
     }
+
+    m_RmlView.Release();
 }
 
 void mu::ui::window::CCommandWindow::OpenningProcess()
@@ -135,7 +128,11 @@ bool mu::ui::window::CCommandWindow::UpdateMouseEvent()
         return false;
     }
 
-    if (mu::ui::window::WindowGeometry(m_Pos.x, m_Pos.y, COMMAND_WINDOW_WIDTH, COMMAND_WINDOW_HEIGHT).Contains(MouseX, MouseY))
+    float panelWidth = static_cast<float>(COMMAND_WINDOW_WIDTH);
+    float panelHeight = static_cast<float>(COMMAND_WINDOW_HEIGHT);
+    UI::RmlBridge::RefreshLogicalPanelSize(m_RmlView.Document(), "panel", panelWidth, panelHeight);
+    if (mu::ui::window::WindowGeometry(m_Pos.x, m_Pos.y, static_cast<int>(panelWidth),
+                                       static_cast<int>(panelHeight)).Contains(MouseX, MouseY))
     {
         SetMouseCursor(CURSOR_NORMAL);
         return false;
@@ -185,59 +182,46 @@ bool mu::ui::window::CCommandWindow::Render()
     return true;
 }
 
-void mu::ui::window::CCommandWindow::BuildRmlUi()
+void mu::ui::window::CCommandWindow::BindRmlModel(Rml::DataModelConstructor& c, CommandWindowRmlModel& model)
 {
-    if (m_pRmlDoc || !RmlUiRuntime::Instance().IsCreated())
-        return;
+    c.Bind("root_x", &model.rootX);
+    c.Bind("root_y", &model.rootY);
+    c.Bind("root_scale", &model.rootScale);
+    c.Bind("text_px", &model.textPx);
+    c.Bind("big_text_px", &model.bigTextPx);
+    c.Bind("title_text_px", &model.titleTextPx);
+    c.Bind("title_line_px", &model.titleLinePx);
+    c.Bind("title_text", &model.titleText);
+    c.Bind("exit_tooltip", &model.exitTooltip);
 
-    const bool modelCreated = m_RmlBinder.Create(
-        RmlUiRuntime::Instance().GetContext(), "command_window",
-        [this](Rml::DataModelConstructor& c, CommandWindowRmlModel& model)
-        {
-            c.Bind("root_x", &model.rootX);
-            c.Bind("root_y", &model.rootY);
-            c.Bind("root_scale", &model.rootScale);
-            c.Bind("text_px", &model.textPx);
-            c.Bind("big_text_px", &model.bigTextPx);
-            c.Bind("title_text_px", &model.titleTextPx);
-            c.Bind("title_line_px", &model.titleLinePx);
-            c.Bind("title_text", &model.titleText);
-            c.Bind("exit_tooltip", &model.exitTooltip);
+    auto button = c.RegisterStruct<CommandButtonEntry>();
+    button.RegisterMember("label", &CommandButtonEntry::label);
+    button.RegisterMember("index", &CommandButtonEntry::index);
+    button.RegisterMember("selected", &CommandButtonEntry::selected);
+    button.RegisterMember("label_line_px", &CommandButtonEntry::labelLinePx);
+    button.RegisterMember("label_text_px", &CommandButtonEntry::labelTextPx);
+    c.RegisterArray<std::vector<CommandButtonEntry>>();
+    c.Bind("buttons", &model.buttons);
 
-            auto button = c.RegisterStruct<CommandButtonEntry>();
-            button.RegisterMember("label", &CommandButtonEntry::label);
-            button.RegisterMember("index", &CommandButtonEntry::index);
-            button.RegisterMember("selected", &CommandButtonEntry::selected);
-            button.RegisterMember("label_top", &CommandButtonEntry::labelTop);
-            button.RegisterMember("label_line_px", &CommandButtonEntry::labelLinePx);
-            button.RegisterMember("label_text_px", &CommandButtonEntry::labelTextPx);
-            c.RegisterArray<std::vector<CommandButtonEntry>>();
-            c.Bind("buttons", &model.buttons);
+    c.Bind("target_visible", &model.targetVisible);
+    c.Bind("target_left", &model.targetLeft);
+    c.Bind("target_top", &model.targetTop);
+    c.Bind("target_name", &model.targetName);
+    c.Bind("target_in_range", &model.targetInRange);
 
-            c.Bind("target_visible", &model.targetVisible);
-            c.Bind("target_left", &model.targetLeft);
-            c.Bind("target_top", &model.targetTop);
-            c.Bind("target_name", &model.targetName);
-            c.Bind("target_in_range", &model.targetInRange);
+    c.BindEventCallback("command_press",
+                        [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& arguments)
+                        {
+                            if (arguments.size() == 1)
+                                m_PendingCommand = arguments[0].Get<int>(COMMAND_NONE);
+                        });
+    c.BindEventCallback("command_exit",
+                        [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&)
+                        {
+                            g_pNewUISystem->Hide(mu::ui::window::INTERFACE_COMMAND);
+                            PlayBuffer(SOUND_CLICK01);
+                        });
 
-            c.BindEventCallback("command_press",
-                                [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& arguments)
-                                {
-                                    if (arguments.size() == 1)
-                                        m_PendingCommand = arguments[0].Get<int>(COMMAND_NONE);
-                                });
-            c.BindEventCallback("command_exit",
-                                [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&)
-                                {
-                                    g_pNewUISystem->Hide(mu::ui::window::INTERFACE_COMMAND);
-                                    PlayBuffer(SOUND_CLICK01);
-                                });
-        });
-
-    if (!modelCreated)
-        return;
-
-    CommandWindowRmlModel& model = m_RmlBinder.GetModel();
     model.titleText = StringUtils::WideToNarrow(I18N::Game::CommandWindow);
     wchar_t exitText[256] = {};
     mu_swprintf(exitText, I18N::Game::CloseS, L"D");
@@ -245,38 +229,27 @@ void mu::ui::window::CCommandWindow::BuildRmlUi()
     model.buttons.clear();
     for (int i = COMMAND_TRADE; i < COMMAND_END; ++i)
         model.buttons.push_back({StringUtils::WideToNarrow(*kCommandLabels[i]), i});
-
-    m_pRmlDoc = UI::RmlBridge::LoadThemedDocument(RmlUiRuntime::Instance().GetContext(),
-                                                  "Data/Interface/RmlUi/command_window.rml");
 }
 
-void mu::ui::window::CCommandWindow::ReloadRmlTheme()
+void mu::ui::window::CCommandWindow::BuildRmlUi()
 {
-    if (!m_pRmlDoc)
-        return;
-
-    Rml::Context* context = RmlUiRuntime::Instance().GetContext();
-    m_RmlBinder.Destroy(context);
-    context->UnloadDocument(m_pRmlDoc);
-    m_pRmlDoc = nullptr;
-
-    BuildRmlUi();
+    m_RmlView.Ensure();
 }
 
 void mu::ui::window::CCommandWindow::SyncRmlModel()
 {
     BuildRmlUi();
-    if (!m_pRmlDoc)
+    if (!m_RmlView.Document())
         return;
 
-    UI::RmlBridge::SyncDocumentVisibilityInFront(m_pRmlDoc, IsVisible());
+    UI::RmlBridge::SyncDocumentVisibilityInFront(m_RmlView.Document(), IsVisible());
     if (!IsVisible())
         return;
 
-    UI::RmlBridge::SyncRootTransform(m_RmlBinder, m_Pos);
-    UI::RmlBridge::SyncNativeTextSize(m_RmlBinder);
+    UI::RmlBridge::SyncRootTransform(m_RmlView.Binder(), m_Pos);
+    UI::RmlBridge::SyncNativeTextSize(m_RmlView.Binder());
     const UI::Scaling::Transform transform = UI::Scaling::GetActiveTransform();
-    SyncField(m_RmlBinder, &CommandWindowRmlModel::bigTextPx, "big_text_px",
+    SyncField(m_RmlView.Binder(), &CommandWindowRmlModel::bigTextPx, "big_text_px",
               UI::Scaling::NativeTextPixelSize(UI::Scaling::FontRole::Big, transform));
     SyncTitle(transform);
 
@@ -292,37 +265,36 @@ void mu::ui::window::CCommandWindow::SyncTitle(const UI::Scaling::Transform& tra
         UI::Scaling::FontRole::Bold, transform, static_cast<float>(titleWidth), static_cast<float>(kTitleBoxWidth));
     // The shrunk text's box shrinks with it: its top stays at y + 12.
     const float shrink = titlePx / UI::Scaling::NativeTextPixelSize(UI::Scaling::FontRole::Bold, transform);
-    SyncField(m_RmlBinder, &CommandWindowRmlModel::titleTextPx, "title_text_px", titlePx);
-    SyncField(m_RmlBinder, &CommandWindowRmlModel::titleLinePx, "title_line_px",
+    SyncField(m_RmlView.Binder(), &CommandWindowRmlModel::titleTextPx, "title_text_px", titlePx);
+    SyncField(m_RmlView.Binder(), &CommandWindowRmlModel::titleLinePx, "title_line_px",
               static_cast<float>(CUIRenderTextSDLTtf::LineHeight(UI::Scaling::FontRole::Bold)) * transform.scaleY *
                   shrink);
 }
 
 void mu::ui::window::CCommandWindow::SyncButtons(const UI::Scaling::Transform& transform)
 {
-    // CButton::Render(): y + (29 / 2 - textHeight / 2), in whole units.
+    // CButton::Render(): the label, bold when selected, centred on its button.
     const int normalHeight = CUIRenderTextSDLTtf::LineHeight(UI::Scaling::FontRole::Normal);
     const int boldHeight = CUIRenderTextSDLTtf::LineHeight(UI::Scaling::FontRole::Bold);
     const float normalPx = UI::Scaling::NativeTextPixelSize(UI::Scaling::FontRole::Normal, transform);
     const float boldPx = UI::Scaling::NativeTextPixelSize(UI::Scaling::FontRole::Bold, transform);
 
-    CommandWindowRmlModel& model = m_RmlBinder.GetModel();
+    CommandWindowRmlModel& model = m_RmlView.GetModel();
     bool changed = false;
     for (CommandButtonEntry& button : model.buttons)
     {
         CommandButtonEntry updated = button;
         updated.selected = button.index == m_iCurSelectCommand;
         const int textHeight = updated.selected ? boldHeight : normalHeight;
-        updated.labelTop = static_cast<float>(kButtonHeight / 2 - textHeight / 2);
         updated.labelLinePx = static_cast<float>(textHeight) * transform.scaleY;
         updated.labelTextPx = updated.selected ? boldPx : normalPx;
 
-        changed = changed || updated.selected != button.selected || updated.labelTop != button.labelTop ||
+        changed = changed || updated.selected != button.selected ||
                   updated.labelLinePx != button.labelLinePx || updated.labelTextPx != button.labelTextPx;
         button = updated;
     }
     if (changed)
-        m_RmlBinder.MarkDirty("buttons");
+        m_RmlView.MarkDirty("buttons");
 }
 
 void mu::ui::window::CCommandWindow::SyncTarget()
@@ -333,18 +305,18 @@ void mu::ui::window::CCommandWindow::SyncTarget()
     const bool visible = target != nullptr && target->Object.Kind == KIND_PLAYER && target != Hero &&
                          (target->Object.Type == MODEL_PLAYER || target->Change);
 
-    SyncField(m_RmlBinder, &CommandWindowRmlModel::targetVisible, "target_visible", visible);
+    SyncField(m_RmlView.Binder(), &CommandWindowRmlModel::targetVisible, "target_visible", visible);
     if (!visible)
         return;
 
     // MouseX/MouseY are in this window's dock space while CManager runs it, like m_Pos.
-    SyncField(m_RmlBinder, &CommandWindowRmlModel::targetLeft, "target_left",
+    SyncField(m_RmlView.Binder(), &CommandWindowRmlModel::targetLeft, "target_left",
               static_cast<float>(MouseX + kTargetBoxOffset - m_Pos.x));
-    SyncField(m_RmlBinder, &CommandWindowRmlModel::targetTop, "target_top",
+    SyncField(m_RmlView.Binder(), &CommandWindowRmlModel::targetTop, "target_top",
               static_cast<float>(MouseY + kTargetBoxOffset - m_Pos.y));
-    SyncField(m_RmlBinder, &CommandWindowRmlModel::targetName, "target_name",
+    SyncField(m_RmlView.Binder(), &CommandWindowRmlModel::targetName, "target_name",
               Rml::String(StringUtils::WideToNarrow(target->ID)));
-    SyncField(m_RmlBinder, &CommandWindowRmlModel::targetInRange, "target_in_range", m_bCanCommand);
+    SyncField(m_RmlView.Binder(), &CommandWindowRmlModel::targetInRange, "target_in_range", m_bCanCommand);
 }
 
 void mu::ui::window::CCommandWindow::SetPos(int x, int y)

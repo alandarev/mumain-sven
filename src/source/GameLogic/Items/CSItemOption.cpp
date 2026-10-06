@@ -11,11 +11,12 @@
 #include "Engine/Object/ZzzInterface.h"
 #include "Engine/Object/ZzzInventory.h"
 #include "Character/CharacterManager.h"
-#include "UI/Widgets/UIControls.h"
+#include "UI/Social/SocialWindowBase.h"
 #include "UI/Core/WindowSystem.h"
 #include "GameLogic/Skills/SkillManager.h"
 #include "GameLogic/Items/CSItemOption.h"
 #include "I18N/All.h"
+#include "Render/Text/CUIRenderText.h"
 
 #include <algorithm>
 #include <array>

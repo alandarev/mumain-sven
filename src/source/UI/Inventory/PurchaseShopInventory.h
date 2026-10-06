@@ -4,9 +4,10 @@
 
 #pragma once
 
+#include "Render/RmlUi/RmlUiRuntime.h"
 #include "UI/Core/WindowObject.h"
 #include "UI/Inventory/InventoryCtrl.h"
-#include "UI/RmlBridge/RmlModelBinder.h"
+#include "UI/RmlBridge/RmlThemedView.h"
 
 namespace Rml { class ElementDocument; }
 
@@ -37,8 +38,6 @@ namespace mu::ui::window
         bool UpdateKeyEvent();
         bool Update();
         bool Render();
-
-        void ReloadRmlTheme();
 
         void ClosingProcess();
 
@@ -79,6 +78,7 @@ namespace mu::ui::window
         struct PurchaseShopRmlModel
         {
             float rootX = 0.f, rootY = 0.f, rootScale = 1.f;
+            float panelWidth = 190.f;
             float textPx = 0.f;         // native text size in physical px (RmlRootTransform.h)
             Rml::String title;			// static "Personal Store" label
             Rml::String shopOwnerText;	// dynamic shop-owner name (m_TitleText, via ChangeTitleText())
@@ -91,8 +91,10 @@ namespace mu::ui::window
             Rml::String allItemTradingLine;
             Rml::String zenOnlyLine;
         };
-        RmlModelBinder<PurchaseShopRmlModel> m_RmlBinder;
-        Rml::ElementDocument* m_pRmlDoc = nullptr;
+        void BindRmlModel(Rml::DataModelConstructor& c, PurchaseShopRmlModel& model);
+        UI::RmlBridge::ThemedView<PurchaseShopRmlModel> m_RmlView{"purchase_shop",
+            [this](Rml::DataModelConstructor& c, PurchaseShopRmlModel& model) { BindRmlModel(c, model); },
+            {{"Data/Interface/RmlUi/purchase_shop.rml"}}};
 
         // The frame background panel must render behind the grid's live 3D icons, but RmlUi's
         // main context always renders last -- so it goes through
@@ -102,8 +104,9 @@ namespace mu::ui::window
         {
             float rootX = 0.f, rootY = 0.f, rootScale = 1.f;
         };
-        RmlModelBinder<PurchaseShopBgRmlModel> m_BgRmlBinder;
-        Rml::ElementDocument* m_pRmlBgDoc = nullptr;
+        static void BindRmlBgModel(Rml::DataModelConstructor& c, PurchaseShopBgRmlModel& model);
+        UI::RmlBridge::ThemedView<PurchaseShopBgRmlModel> m_RmlBgView{"purchase_shop_bg", BindRmlBgModel,
+            {{"Data/Interface/RmlUi/purchase_shop_bg.rml", [] { return RmlUiRuntime::Instance().GetBackgroundContext(); }}}};
 
         void BuildRmlUi();
         void SyncRmlModel();

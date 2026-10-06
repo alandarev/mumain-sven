@@ -7,11 +7,10 @@
 #include "UI/Core/WindowObject.h"
 #include "UI/Dialogs/MessageBox.h"
 #include "UI/Widgets/Window/Button.h"
-#include "Network/Server/WSclient.h"
-#include "UI/Widgets/UIControls.h"
+#include "UI/Events/CursedTempleUpdates.h"
 #include "UI/HUD/MainFrameWindow.h"
 #include "UI/Events/CursedTempleSystemRmlModel.h"
-#include "UI/RmlBridge/RmlModelBinder.h"
+#include "UI/RmlBridge/RmlThemedView.h"
 
 namespace Rml
 {
@@ -99,7 +98,6 @@ private:
 public:
     bool Render();
 
-    void ReloadRmlTheme();
 
 private:
     void BuildRmlUi();
@@ -108,7 +106,7 @@ private:
     void SyncGameTime(std::vector<CursedTempleSpriteEntry>& sprites);
     void SyncMiniMap(std::vector<CursedTempleSpriteEntry>& sprites);
     void SyncSkill(std::vector<CursedTempleSpriteEntry>& sprites);
-    void SyncScore(std::vector<CursedTempleSpriteEntry>& sprites);
+    void SyncScore();
     void SyncTutorialStep(std::vector<CursedTempleTextEntry>& lines);
 
 public:
@@ -127,11 +125,10 @@ public:
 
 public:
     void SetCursedTempleSkill(CHARACTER* c, OBJECT* o, DWORD selectcharacterindex);
-    void ReceiveCursedTempRegisterSkill(const BYTE* ReceiveBuffer);
-    void ReceiveCursedTempUnRegisterSkill(const BYTE* ReceiveBuffer);
-    void ReceiveCursedTempleInfo(const BYTE* ReceiveBuffer);
-    void ReceiveCursedTempSkillPoint(const BYTE* ReceiveBuffer);
-    void ReceiveCursedTempleHolyItemRelics(const BYTE* ReceiveBuffer);
+    void ResolveSkill(const UI::CursedTemple::SkillResult& result);
+    void EndSkill(std::uint16_t skill, std::uint16_t targetKey);
+    void SetMatchStatus(const UI::CursedTemple::MatchStatus& status);
+    void SetSkillPoints(std::uint8_t points);
 
 private:
     void Initialize();
@@ -157,7 +154,7 @@ private:
     WORD m_IllusionPoint; // Illusion Cult score
 
     WORD m_CursedTempleMyTeamCount;
-    PMSG_CURSED_TAMPLE_PARTY_POS m_CursedTempleMyTeam[MAX_PARTYS];
+    UI::CursedTemple::PartyPosition m_CursedTempleMyTeam[MAX_PARTYS];
     // Team
     SEASON3A::eCursedTempleTeam m_MyTeam;
     // skillpoint
@@ -172,8 +169,12 @@ private:
     WORD m_TutorialStepState;
     DWORD m_TutorialStepTime;
 
-    RmlModelBinder<CursedTempleSystemRmlModel> m_RmlBinder;
-    Rml::ElementDocument* m_pRmlDoc = nullptr;
+    void BindRmlModel(Rml::DataModelConstructor& c, CursedTempleSystemRmlModel& model);
+    // The original drew the HUD at layer depth 1.5, under nearly every panel: the document sits in the
+    // background context, behind its other documents.
+    UI::RmlBridge::ThemedView<CursedTempleSystemRmlModel> m_RmlView{"cursed_temple_system",
+        [this](Rml::DataModelConstructor& c, CursedTempleSystemRmlModel& model) { BindRmlModel(c, model); },
+        {{"Data/Interface/RmlUi/cursed_temple_system.rml", UI::RmlBridge::BackgroundOrMainContext}}};
 };
 
     inline

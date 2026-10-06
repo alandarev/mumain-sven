@@ -6,11 +6,13 @@
 
 #include "UI/Core/WindowObject.h"
 #include "UI/Dialogs/MessageBox.h"
-#include "UI/Widgets/UIControls.h"
 #include "Guild/GuildInfoRmlModel.h"
 #include "GuildMakeWindow.h"
 #include "GuildConstants.h"
-#include "UI/RmlBridge/RmlModelBinder.h"
+#include "UI/RmlBridge/RmlThemedView.h"
+
+#include <string>
+#include <vector>
 
 namespace Rml
 {
@@ -30,10 +32,7 @@ namespace mu::ui::window
             s_byTargetUserIndexH(0), s_byTargetUserIndexL(0) {}
     };
 
-    // The guild window, docked right: the no-guild hint, or the Guild / Members / Alliance tabs.
-    // guild_info.rml draws it; the notice, member and alliance lists stay native controls for
-    // their data, scrolling and line clicks (their lines are drawn by the document), and the tab
-    // and scroll thumb hit tests stay native too. C++ keeps every request.
+    // RmlUi owns the guild window presentation and list input; C++ validates requests.
     class CGuildInfoWindow : public CObject
     {
     private:
@@ -45,7 +44,6 @@ namespace mu::ui::window
         enum EVENT_STATE
         {
             EVENT_NONE = 0,
-            EVENT_SCROLL_BTN_DOWN,
         };
         enum BUTTON_EVENT
         {
@@ -63,20 +61,41 @@ namespace mu::ui::window
         CManager* m_pNewUIMng;
         POINT					m_Pos;
         int						m_nCurrentTab;
-        int						m_Loc;
-        int						m_Loc_Bk;
-        int						m_BackUp;
-        int						m_CurrentListPos;
         int						m_Tot_Notice;
-        DWORD					m_dwPopupID;
 
-        RmlModelBinder<GuildInfoRmlModel> m_RmlBinder;
-        Rml::ElementDocument* m_pRmlDoc = nullptr;
+        void BindRmlModel(Rml::DataModelConstructor& c, GuildInfoRmlModel& model);
+        void OnRmlReloaded();
+        UI::RmlBridge::ThemedView<GuildInfoRmlModel> m_RmlView{"guild_info",
+            [this](Rml::DataModelConstructor& c, GuildInfoRmlModel& model) { BindRmlModel(c, model); },
+            {{"Data/Interface/RmlUi/guild_info.rml"}}, {.afterReload = [this] { OnRmlReloaded(); }}};
         int m_PendingButton = -1; // a BUTTON_EVENT, or BUTTON_EXIT
 
-        CUIGuildNoticeListBox		m_GuildNotice;
-        CUINewGuildMemberListBox	m_GuildMember;
-        CUIUnionGuildListBox		m_UnionListBox;
+        // Announcement lines in reading order; RmlUi owns scrolling.
+        std::vector<std::wstring>   m_NoticeLines;
+        // One guild member as the window holds it. Selection is kept by name, not by row index,
+        // so it survives the list being rebuilt when the server resends it.
+        struct MemberEntry
+        {
+            std::wstring name;
+            BYTE number = 0;
+            BYTE server = 255;
+            BYTE guildStatus = 0;
+        };
+        std::vector<MemberEntry>    m_Members;
+        std::wstring                m_SelectedMember;
+        // One allied guild as the window holds it. Selection is kept by name for the same
+        // reason the member list's is: the server resends the whole alliance list.
+        struct UnionEntry
+        {
+            std::wstring name;
+            int memberCount = 0;
+            BYTE mark[64] = {};
+        };
+        std::vector<UnionEntry>     m_Unions;
+        std::wstring                m_SelectedUnion;
+        bool m_ListsDirty = true;
+        float m_ListScale = -1.f;
+        float m_ListTextPx = -1.f;
         ServerMessageInfo		    m_MessageInfo;
 
         bool m_bRequestUnionList;
@@ -88,9 +107,14 @@ namespace mu::ui::window
         virtual ~CGuildInfoWindow();
 
         bool Create(CManager* pNewUIMng, int x, int y);
+        Rml::ElementDocument* GetFillDocument() const override { return m_RmlView.Document(); }
         void Release();
 
         void SetPos(int x, int y);
+
+        // The highlighted member, or nullptr when the selection no longer names a live row.
+        const MemberEntry* SelectedMember() const;
+        const UnionEntry* SelectedUnion() const;
 
         bool UpdateMouseEvent();
         bool UpdateKeyEvent();
@@ -107,6 +131,10 @@ namespace mu::ui::window
         void AddGuildNotice(wchar_t* szText);
         void SetRivalGuildName(wchar_t* szName);
         void AddGuildMember(GUILD_LIST_t* pInfo);
+        // Select a member from the displayed rows.
+        void SelectMember(int displayIndex);
+        // Select an alliance from the displayed rows.
+        void SelectUnion(int displayIndex);
         void GuildClear();
         void NoticeClear();
         void UnionGuildClear();
@@ -121,18 +149,19 @@ namespace mu::ui::window
         void ReceiveGuildRelationShip(GuildRelationshipType byRelationShipType, GuildRequestType byRequestType,
             BYTE  byTargetUserIndexH, BYTE byTargetUserIndexL);
 
-        void ReloadRmlTheme();
 
     private:
         bool Check_Mouse(int mx, int my);
         bool Check_Btn(int button);
-        void UpdateScrollThumb();
 
-        int GetGuildMemberIndex(wchar_t* szName);
+        int GetGuildMemberIndex(const wchar_t* szName);
 
         void BuildRmlUi();
         void SyncRmlModel();
         void SyncContent();
+        void SyncListContent();
+        std::vector<GuildMemberRow> BuildMemberRows() const;
+        std::vector<GuildUnionRow> BuildUnionRows() const;
     };
 
     inline

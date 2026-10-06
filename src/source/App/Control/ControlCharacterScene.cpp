@@ -14,7 +14,6 @@
 #include "Character/CharSelMainWin.h"
 #include "Render/RmlUi/RmlUiRuntime.h"
 #include "UI/Core/WindowSystem.h"
-#include "UI/Widgets/UIControls.h"
 #include "UI/Windows/MsgWin.h"
 #include "UI/Windows/SysMenuWin.h"
 #else
@@ -69,7 +68,7 @@ void ObserveSceneWindows(App::Control::CharacterSceneFacts& facts)
         facts.genericMenuVisible = g_pNewUISystem->IsVisible(mu::ui::window::INTERFACE_GENERIC_MENU_DIALOG);
     }
     // Ported windows type into RmlUi <input>s, which the native focus does not see.
-    facts.inputFocused = CUITextInputBox::IsAnyInputBoxFocused() || RmlUiRuntime::Instance().IsTextInputActive();
+    facts.inputFocused = RmlUiRuntime::Instance().IsTextInputActive();
 }
 #else
 CServerMsgWin& ServerMessageWindow()

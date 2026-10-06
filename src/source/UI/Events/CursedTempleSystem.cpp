@@ -15,7 +15,7 @@
 
 #include "GameLogic/Items/CSItemOption.h"
 #include "GameLogic/Events/CSChaosCastle.h"
-#include "UI/Widgets/UIControls.h"
+#include "UI/Social/SocialWindowBase.h"
 #include "Engine/AI/ZzzAI.h"
 #include "Render/Effects/ZzzEffect.h"
 #include "GameLogic/Events/w_CursedTemple.h"
@@ -24,12 +24,14 @@
 #include "UI/Core/WindowSystem.h"
 #include "GameLogic/Skills/SkillManager.h"
 #include "UI/Scaling/UITransform.h"
+#include "UI/Tooltip/LegacyTextListTooltip.h"
 
 #include "Core/Utilities/StringUtils.h"
 #include "Render/RmlUi/RmlUiRuntime.h"
-#include "UI/RmlBridge/RmlColor.h"
+#include "UI/RmlBridge/RmlSyncField.h"
 #include "UI/RmlBridge/RmlDocumentVisibility.h"
 #include "UI/RmlBridge/RmlTheme.h"
+#include "Render/Text/CUIRenderText.h"
 
 #include <RmlUi/Core/ElementDocument.h>
 #include <RmlUi/Core/StringUtilities.h>
@@ -264,7 +266,6 @@ bool mu::ui::window::CCursedTempleSystem::Create(CManager* pNewUIMng, int x, int
     SetButtonInfo();
 
     BuildRmlUi();
-    UI::RmlBridge::RegisterForThemeReload(this, [this] { ReloadRmlTheme(); });
 
     Show(false);
 
@@ -290,7 +291,6 @@ void mu::ui::window::CCursedTempleSystem::Initialize()
 
 void mu::ui::window::CCursedTempleSystem::Destroy()
 {
-    UI::RmlBridge::UnregisterForThemeReload(this);
     UnloadImages();
 
     if (m_pNewUIMng)
@@ -430,10 +430,10 @@ void mu::ui::window::CCursedTempleSystem::ResetCursedTempleSystemInfo()
 
     for (int i = 0; i < MAX_PARTYS; ++i)
     {
-        m_CursedTempleMyTeam[i].wPartyUserIndex = 0xffff;
-        m_CursedTempleMyTeam[i].btX = 0;
-        m_CursedTempleMyTeam[i].btY = 0;
-        m_CursedTempleMyTeam[i].byMapNumber = 0xff;
+        m_CursedTempleMyTeam[i].userIndex = 0xffff;
+        m_CursedTempleMyTeam[i].x = 0;
+        m_CursedTempleMyTeam[i].y = 0;
+        m_CursedTempleMyTeam[i].mapNumber = 0xff;
     }
 }
 
@@ -755,26 +755,16 @@ namespace
     void ShowSkillHoverTooltip(float sx, float sy, int textNum)
     {
         const UI::Scaling::Transform activeTransform = UI::Scaling::GetActiveTransform();
-        UI::RmlBridge::Tooltip::Config config;
-        config.lines = BuildTooltipLinesFromTextList(textNum);
-        config.anchorX = UI::Scaling::PositionX(activeTransform, sx);
-        config.anchorY = UI::Scaling::PositionY(activeTransform, sy);
-        config.centerHorizontally = true; // RenderTipTextList()'s own sx - fWidth/2 centering.
-        config.textAlign = UI::RmlBridge::Tooltip::Config::TextAlign::Center; // RT3_SORT_CENTER, RenderTipTextList()'s own default.
-        UI::RmlBridge::Tooltip::Show(config, &kSkillHoverTooltipOwner);
+        UI::Tooltip::ShowLegacyTextList(
+            textNum,
+            UI::Scaling::PositionX(activeTransform, sx),
+            UI::Scaling::PositionY(activeTransform, sy),
+            UI::Tooltip::Placement::Below, &kSkillHoverTooltipOwner);
     }
 }
 
 namespace
 {
-// The original drew the HUD at layer depth 1.5, under nearly every panel: the document sits in the
-// background context, behind its other documents.
-Rml::Context* CursedTempleContext()
-{
-    Rml::Context* context = RmlUiRuntime::Instance().GetBackgroundContext();
-    return context != nullptr ? context : RmlUiRuntime::Instance().GetContext();
-}
-
 // A file of Data/Interface, relative to cursed_temple_system.rml.
 Rml::String InterfaceImage(const std::string& file)
 {
@@ -786,12 +776,10 @@ Rml::String TexelRect(float x, float y, float width, float height)
     return Rml::CreateString("%g %g %g %g", x, y, width, height);
 }
 
-const Rml::String White = "rgba(255, 255, 255, 255)";
-
 void AddSprite(std::vector<CursedTempleSpriteEntry>& sprites, const Rml::Vector4f& box, const std::string& file,
-               const Rml::String& rect, const Rml::String& color = White)
+               const Rml::String& rect, float opacity = 1.f)
 {
-    sprites.push_back({box.x, box.y, box.z, box.w, InterfaceImage(file), rect, color});
+    sprites.push_back({box.x, box.y, box.z, box.w, InterfaceImage(file), rect, opacity});
 }
 
 // RenderNumber(x, y, number, scale): newui_number1's 12 x 14 texel digits, 12 x 16 units times
@@ -839,62 +827,53 @@ void AddButton(std::vector<CursedTempleSpriteEntry>& sprites, CButton& button, c
         frame = 1;
     else if (button.GetBTState() == BUTTON_STATE_DOWN)
         frame = 2;
-    const BYTE a = static_cast<BYTE>(255.f * alpha);
     AddSprite(
         sprites,
         {static_cast<float>(pos.x), static_cast<float>(pos.y), static_cast<float>(size.x), static_cast<float>(size.y)},
         file,
         TexelRect(0.f, static_cast<float>(frame * size.y), static_cast<float>(size.x), static_cast<float>(size.y)),
-        UI::RmlBridge::RgbaToCss(RGBA(255, 255, 255, a)));
+        alpha);
 }
 } // namespace
 
-void mu::ui::window::CCursedTempleSystem::BuildRmlUi()
+void mu::ui::window::CCursedTempleSystem::BindRmlModel(Rml::DataModelConstructor& c, CursedTempleSystemRmlModel& model)
 {
-    if (m_pRmlDoc || !RmlUiRuntime::Instance().IsCreated())
-        return;
+    auto sprite = c.RegisterStruct<CursedTempleSpriteEntry>();
+    sprite.RegisterMember("left", &CursedTempleSpriteEntry::left);
+    sprite.RegisterMember("top", &CursedTempleSpriteEntry::top);
+    sprite.RegisterMember("width", &CursedTempleSpriteEntry::width);
+    sprite.RegisterMember("height", &CursedTempleSpriteEntry::height);
+    sprite.RegisterMember("src", &CursedTempleSpriteEntry::src);
+    sprite.RegisterMember("rect", &CursedTempleSpriteEntry::rect);
+    sprite.RegisterMember("opacity", &CursedTempleSpriteEntry::opacity);
+    c.RegisterArray<std::vector<CursedTempleSpriteEntry>>();
+    auto line = c.RegisterStruct<CursedTempleTextEntry>();
+    line.RegisterMember("text", &CursedTempleTextEntry::text);
+    line.RegisterMember("text_px", &CursedTempleTextEntry::textPx);
+    line.RegisterMember("title", &CursedTempleTextEntry::title);
+    c.RegisterArray<std::vector<CursedTempleTextEntry>>();
 
-    const bool modelCreated = m_RmlBinder.Create(CursedTempleContext(), "cursed_temple_system",
-                                                 [](Rml::DataModelConstructor& c, CursedTempleSystemRmlModel& model)
-                                                 {
-                                                     auto sprite = c.RegisterStruct<CursedTempleSpriteEntry>();
-                                                     sprite.RegisterMember("left", &CursedTempleSpriteEntry::left);
-                                                     sprite.RegisterMember("top", &CursedTempleSpriteEntry::top);
-                                                     sprite.RegisterMember("width", &CursedTempleSpriteEntry::width);
-                                                     sprite.RegisterMember("height", &CursedTempleSpriteEntry::height);
-                                                     sprite.RegisterMember("src", &CursedTempleSpriteEntry::src);
-                                                     sprite.RegisterMember("rect", &CursedTempleSpriteEntry::rect);
-                                                     sprite.RegisterMember("color", &CursedTempleSpriteEntry::color);
-                                                     c.RegisterArray<std::vector<CursedTempleSpriteEntry>>();
-                                                     auto line = c.RegisterStruct<CursedTempleTextEntry>();
-                                                     line.RegisterMember("top", &CursedTempleTextEntry::top);
-                                                     line.RegisterMember("text", &CursedTempleTextEntry::text);
-                                                     line.RegisterMember("color", &CursedTempleTextEntry::color);
-                                                     line.RegisterMember("text_px", &CursedTempleTextEntry::textPx);
-                                                     c.RegisterArray<std::vector<CursedTempleTextEntry>>();
-
-                                                     c.Bind("scale_x", &model.scaleX);
-                                                     c.Bind("scale_y", &model.scaleY);
-                                                     c.Bind("inverse_scale_x", &model.inverseScaleX);
-                                                     c.Bind("inverse_scale_y", &model.inverseScaleY);
-                                                     c.Bind("sprites", &model.sprites);
-                                                     c.Bind("tutorial_lines", &model.tutorialLines);
-                                                 });
-    if (modelCreated)
-        m_pRmlDoc =
-            UI::RmlBridge::LoadThemedDocument(CursedTempleContext(), "Data/Interface/RmlUi/cursed_temple_system.rml");
+    c.Bind("scale_x", &model.scaleX);
+    c.Bind("scale_y", &model.scaleY);
+    c.Bind("inverse_scale_x", &model.inverseScaleX);
+    c.Bind("inverse_scale_y", &model.inverseScaleY);
+    c.Bind("panels_shown", &model.panelsShown);
+    c.Bind("score_shown", &model.scoreShown);
+    c.Bind("skill_icon_src", &model.skillIconSrc);
+    c.Bind("skill_icon_rect", &model.skillIconRect);
+    c.Bind("allied_tens_src", &model.alliedTensSrc);
+    c.Bind("allied_ones_src", &model.alliedOnesSrc);
+    c.Bind("illusion_tens_src", &model.illusionTensSrc);
+    c.Bind("illusion_ones_src", &model.illusionOnesSrc);
+    c.Bind("allied_two_digits", &model.alliedTwoDigits);
+    c.Bind("illusion_two_digits", &model.illusionTwoDigits);
+    c.Bind("sprites", &model.sprites);
+    c.Bind("tutorial_lines", &model.tutorialLines);
 }
 
-void mu::ui::window::CCursedTempleSystem::ReloadRmlTheme()
+void mu::ui::window::CCursedTempleSystem::BuildRmlUi()
 {
-    if (!m_pRmlDoc)
-        return;
-    Rml::Context* context = CursedTempleContext();
-    m_RmlBinder.Destroy(context);
-    context->UnloadDocument(m_pRmlDoc);
-    m_pRmlDoc = nullptr;
-
-    BuildRmlUi();
+    m_RmlView.Ensure();
 }
 
 // The original RenderSkill(): the current skill's icon (grey until enough kill points), the kill
@@ -906,7 +885,11 @@ void mu::ui::window::CCursedTempleSystem::SyncSkill(std::vector<CursedTempleSpri
 
     float x = 512.f + 27.f;
     float y = 258.f - 58.f;
-    AddSprite(sprites, {x, y, 20.f, 28.f}, m_SkillPoint >= MaxKillCount ? "newui_skill2.jpg" : "newui_non_skill2.jpg",
+    // The icon's own place is the theme's; which sheet and cell it shows is the current skill and
+    // whether the hero has the kill points for it.
+    SyncField(m_RmlView.Binder(), &CursedTempleSystemRmlModel::skillIconSrc, "skill_icon_src",
+              InterfaceImage(m_SkillPoint >= MaxKillCount ? "newui_skill2.jpg" : "newui_non_skill2.jpg"));
+    SyncField(m_RmlView.Binder(), &CursedTempleSystemRmlModel::skillIconRect, "skill_icon_rect",
               TexelRect(static_cast<float>((8 + (CursedTempleCurSkillType - 210)) * 20), 0.f, 20.f, 28.f));
     AddNumber<100>(sprites, {x + 55.f, y + 8.f}, MaxKillCount);
     AddNumber<100>(sprites, {x + 77.f, y + 8.f}, m_SkillPoint);
@@ -987,16 +970,13 @@ void mu::ui::window::CCursedTempleSystem::SyncSkill(std::vector<CursedTempleSpri
 
     if (!anyTooltipHovered)
     {
-        UI::RmlBridge::Tooltip::Hide(&kSkillHoverTooltipOwner);
+        UI::Tooltip::HideLegacyTextList(&kSkillHoverTooltipOwner);
     }
 }
 
 // The original RenderGameTime(): the frame, the colon dot, the minutes and the seconds.
 void mu::ui::window::CCursedTempleSystem::SyncGameTime(std::vector<CursedTempleSpriteEntry>& sprites)
 {
-    AddSprite(sprites, {506.f, 393.f, 134.f, 37.f}, "newui_ctgametimeframe.tga", TexelRect(0.f, 0.f, 134.f, 37.f));
-    AddSprite(sprites, {507.5f + (134.f / 2), 407.5f, 3.f, 9.f}, "dot.tga", TexelRect(0.f, 0.f, 3.f, 9.f));
-
     const int minute = static_cast<int>(m_EventMapTime / 60);
     const int second = static_cast<int>(m_EventMapTime % 60);
     const float x = 507.5f + (134.f / 2);
@@ -1015,10 +995,6 @@ void mu::ui::window::CCursedTempleSystem::SyncMiniMap(std::vector<CursedTempleSp
 {
     m_Scale = 1.56f;
 
-    AddSprite(sprites, {512.f, 232.f - 53.f, 128.f, 53.f}, "newui_ctskillframe.tga", TexelRect(0.f, 0.f, 128.f, 53.f));
-    AddSprite(sprites, {512.f, 263.f, 128.f, 128.f}, "newui_ctminmap.jpg", TexelRect(0.f, 0.f, 128.f, 128.f));
-    AddSprite(sprites, {512.f, 232.f, 128.f, 165.f}, "newui_ctminmapframe.tga", TexelRect(0.f, 0.f, 128.f, 165.f));
-
     const auto marker = [&](float tileX, float tileY, const Rml::Vector2f& size, const char* file)
     {
         AddSprite(
@@ -1033,15 +1009,15 @@ void mu::ui::window::CCursedTempleSystem::SyncMiniMap(std::vector<CursedTempleSp
 
     for (int k = 0; k < m_CursedTempleMyTeamCount; ++k)
     {
-        const PMSG_CURSED_TAMPLE_PARTY_POS* p = &m_CursedTempleMyTeam[k];
+        const UI::CursedTemple::PartyPosition* p = &m_CursedTempleMyTeam[k];
 
-        if (p->wPartyUserIndex == 0xffff)
+        if (p->userIndex == 0xffff)
             continue;
 
-        if (p->wPartyUserIndex != Hero->Key && p->wPartyUserIndex != m_HolyItemPlayerIndex)
+        if (p->userIndex != Hero->Key && p->userIndex != m_HolyItemPlayerIndex)
         {
-            const float pcX = MiniMapPos(p->btX, p->btY, m_Scale, AXIS_X);
-            const float pcY = MiniMapPos(p->btX, p->btY, m_Scale, AXIS_Y);
+            const float pcX = MiniMapPos(p->x, p->y, m_Scale, AXIS_X);
+            const float pcY = MiniMapPos(p->x, p->y, m_Scale, AXIS_Y);
             AddSprite(sprites, {pcX - 3.f, pcY - 3.f, 7.f, 7.f},
                       m_MyTeam == SEASON3A::eTeam_Allied ? "newui_ctminmap_TeamB_member.tga"
                                                          : "newui_ctminmap_TeamA_member.tga",
@@ -1073,52 +1049,29 @@ void mu::ui::window::CCursedTempleSystem::SyncMiniMap(std::vector<CursedTempleSp
 }
 
 // The original RenderScore(): the two teams' points in big digits between their banners, shown for
-// a while after a team scores.
-void mu::ui::window::CCursedTempleSystem::SyncScore(std::vector<CursedTempleSpriteEntry>& sprites)
+// a while after a team scores. Each theme places the digits and the banners; which digit image a
+// team shows is its points.
+void mu::ui::window::CCursedTempleSystem::SyncScore()
 {
-    if (!m_IsScoreEffect)
-        return;
+    const auto digit = [](const char* team, int value)
+    { return InterfaceImage(std::string("newui_ctscore") + team + "num" + std::to_string(value) + ".tga"); };
 
-    const Rml::String digitRect = TexelRect(0.f, 0.f, 56.f, 66.f);
-    const auto digit = [&](const char* team, int value, float left)
-    {
-        AddSprite(sprites, {left, 160.f, 56.f, 66.f},
-                  std::string("newui_ctscore") + team + "num" + std::to_string(value) + ".tga", digitRect);
-    };
-
-    if (m_AlliedPoint / 10 != 0)
-    {
-        digit("allied", m_AlliedPoint / 10 % 10, 196.f);
-        digit("allied", m_AlliedPoint % 10, 253.f);
-    }
-    else
-    {
-        digit("allied", m_AlliedPoint % 10, 224.f);
-    }
-
-    // The colon. The original picked the image after newui_ctscorevs1 by the illusion team's tens
-    // (a banner from ten points on); the colon is always drawn here.
-    AddSprite(sprites, {310.f, 168.f, 20.f, 45.f}, "newui_ctscorevs1.tga", TexelRect(0.f, 0.f, 20.f, 45.f));
-
-    if (m_IllusionPoint / 10 != 0)
-    {
-        digit("illusion", m_IllusionPoint / 10 % 10, 331.f);
-        digit("illusion", m_IllusionPoint % 10, 388.f);
-    }
-    else
-    {
-        digit("illusion", m_IllusionPoint % 10, 358.f);
-    }
-
-    AddSprite(sprites, {232.f, 115.f, 40.f, 36.f}, "newui_ctscorealliedgaail.tga", TexelRect(0.f, 0.f, 40.f, 36.f));
-    AddSprite(sprites, {292.f, 123.f, 49.f, 27.f}, "newui_ctscorevs0.tga", TexelRect(0.f, 0.f, 49.f, 27.f));
-    AddSprite(sprites, {367.f, 115.f, 40.f, 36.f}, "newui_ctscoreillsiongaail.tga", TexelRect(0.f, 0.f, 40.f, 36.f));
-    AddSprite(sprites, {133.f, 115.f, 67.f, 125.f}, "newui_ctscoreleft.tga", TexelRect(0.f, 0.f, 67.f, 125.f));
-    AddSprite(sprites, {445.f, 115.f, 67.f, 125.f}, "newui_ctscoreright.tga", TexelRect(0.f, 0.f, 67.f, 125.f));
+    const bool alliedTwo = m_AlliedPoint / 10 != 0;
+    const bool illusionTwo = m_IllusionPoint / 10 != 0;
+    SyncField(m_RmlView.Binder(), &CursedTempleSystemRmlModel::alliedTwoDigits, "allied_two_digits", alliedTwo);
+    SyncField(m_RmlView.Binder(), &CursedTempleSystemRmlModel::illusionTwoDigits, "illusion_two_digits", illusionTwo);
+    SyncField(m_RmlView.Binder(), &CursedTempleSystemRmlModel::alliedTensSrc, "allied_tens_src",
+              digit("allied", m_AlliedPoint / 10 % 10));
+    SyncField(m_RmlView.Binder(), &CursedTempleSystemRmlModel::alliedOnesSrc, "allied_ones_src",
+              digit("allied", m_AlliedPoint % 10));
+    SyncField(m_RmlView.Binder(), &CursedTempleSystemRmlModel::illusionTensSrc, "illusion_tens_src",
+              digit("illusion", m_IllusionPoint / 10 % 10));
+    SyncField(m_RmlView.Binder(), &CursedTempleSystemRmlModel::illusionOnesSrc, "illusion_ones_src",
+              digit("illusion", m_IllusionPoint % 10));
 }
 
-// The original RenderTutorialStep(): the step's title and three lines at (140, 50), 14 px apart,
-// each in a 300 px box.
+// The original RenderTutorialStep(): the step's title and three lines from (140, 50), 14 px apart
+// with the second row left empty, each in a 300 px box. The theme places and colours them.
 void mu::ui::window::CCursedTempleSystem::SyncTutorialStep(std::vector<CursedTempleTextEntry>& lines)
 {
     if (!m_IsTutorialStep)
@@ -1155,17 +1108,17 @@ void mu::ui::window::CCursedTempleSystem::SyncTutorialStep(std::vector<CursedTem
             continue;
         const std::wstring text = texts[j];
         const int width = g_pRenderText->MeasureText(text.c_str(), static_cast<int>(text.size())).cx;
-        lines.push_back({static_cast<float>(50 + (j * 14)), StringUtils::WideToNarrow(text.c_str()),
-                         UI::RmlBridge::RgbaToCss(j == 0 ? 0xFF49B0FF : 0xFFffffff),
+        lines.push_back({StringUtils::WideToNarrow(text.c_str()),
                          UI::Scaling::NativeTextPixelSizeInBox(UI::Scaling::FontRole::Normal, transform,
-                                                               static_cast<float>(width), 300.f)});
+                                                               static_cast<float>(width), 300.f),
+                         j == 0});
     }
 }
 
 void mu::ui::window::CCursedTempleSystem::SyncView()
 {
     BuildRmlUi();
-    if (!m_pRmlDoc)
+    if (!m_RmlView.Document())
         return;
 
     // The original's check for a map change out of the event without the event's own hide.
@@ -1173,39 +1126,37 @@ void mu::ui::window::CCursedTempleSystem::SyncView()
         g_pNewUISystem->Hide(mu::ui::window::INTERFACE_CURSEDTEMPLE_GAMESYSTEM);
 
     const bool visible = IsVisible();
-    UI::RmlBridge::SyncDocumentVisibilityBehind(m_pRmlDoc, visible);
+    UI::RmlBridge::SyncDocumentVisibilityBehind(m_RmlView.Document(), visible);
     if (!visible)
         return;
 
     std::vector<CursedTempleSpriteEntry> sprites;
     // The original's condition: drawn unless every one of these windows is open.
-    if (!g_pCharacterInfoWindow->IsVisible() || !g_pMyInventory->IsVisible() || !g_pGuildInfoWindow->IsVisible() ||
-        !g_pWindowMgr->IsVisible() || !g_pPartyInfoWindow->IsVisible() || !g_pMyQuestInfoWindow->IsVisible())
+    const bool panelsShown = !g_pCharacterInfoWindow->IsVisible() || !g_pMyInventory->IsVisible() ||
+                             !g_pGuildInfoWindow->IsVisible() || !g_pWindowMgr->IsVisible() ||
+                             !g_pPartyInfoWindow->IsVisible() || !g_pMyQuestInfoWindow->IsVisible();
+    SyncField(m_RmlView.Binder(), &CursedTempleSystemRmlModel::panelsShown, "panels_shown", panelsShown);
+    if (panelsShown)
     {
         SyncGameTime(sprites);
         SyncMiniMap(sprites);
         SyncSkill(sprites);
     }
-    SyncScore(sprites);
+    SyncField(m_RmlView.Binder(), &CursedTempleSystemRmlModel::scoreShown, "score_shown", m_IsScoreEffect);
+    if (m_IsScoreEffect)
+        SyncScore();
     std::vector<CursedTempleTextEntry> lines;
     SyncTutorialStep(lines);
 
     // CManager scopes LayoutMode::Hud around the window: W/640 x H/480, no offset.
     const UI::Scaling::Transform transform = UI::Scaling::GetActiveTransform();
-    CursedTempleSystemRmlModel& model = m_RmlBinder.GetModel();
-    const auto sync = [&](auto CursedTempleSystemRmlModel::* field, auto value, const char* name)
-    {
-        if (model.*field == value)
-            return;
-        model.*field = std::move(value);
-        m_RmlBinder.MarkDirty(name);
-    };
-    sync(&CursedTempleSystemRmlModel::scaleX, transform.scaleX, "scale_x");
-    sync(&CursedTempleSystemRmlModel::scaleY, transform.scaleY, "scale_y");
-    sync(&CursedTempleSystemRmlModel::inverseScaleX, 1.0f / transform.scaleX, "inverse_scale_x");
-    sync(&CursedTempleSystemRmlModel::inverseScaleY, 1.0f / transform.scaleY, "inverse_scale_y");
-    sync(&CursedTempleSystemRmlModel::sprites, std::move(sprites), "sprites");
-    sync(&CursedTempleSystemRmlModel::tutorialLines, std::move(lines), "tutorial_lines");
+    CursedTempleSystemRmlModel& model = m_RmlView.GetModel();
+    SyncField(m_RmlView.Binder(), &CursedTempleSystemRmlModel::scaleX, "scale_x", transform.scaleX);
+    SyncField(m_RmlView.Binder(), &CursedTempleSystemRmlModel::scaleY, "scale_y", transform.scaleY);
+    SyncField(m_RmlView.Binder(), &CursedTempleSystemRmlModel::inverseScaleX, "inverse_scale_x", 1.0f / transform.scaleX);
+    SyncField(m_RmlView.Binder(), &CursedTempleSystemRmlModel::inverseScaleY, "inverse_scale_y", 1.0f / transform.scaleY);
+    SyncField(m_RmlView.Binder(), &CursedTempleSystemRmlModel::sprites, "sprites", std::move(sprites));
+    SyncField(m_RmlView.Binder(), &CursedTempleSystemRmlModel::tutorialLines, "tutorial_lines", std::move(lines));
 }
 
 bool mu::ui::window::CCursedTempleSystem::Render()
@@ -1263,7 +1214,7 @@ void mu::ui::window::CCursedTempleSystem::SetCursedTempleSkill(CHARACTER* c, OBJ
         {
             for (int i = 0; i < m_CursedTempleMyTeamCount; ++i)
             {
-                if (m_CursedTempleMyTeam[i].wPartyUserIndex == CharactersClient[selectcharacterindex].Key)
+                if (m_CursedTempleMyTeam[i].userIndex == CharactersClient[selectcharacterindex].Key)
                 {
                     MouseRButtonPush = false;
                     return;
@@ -1317,14 +1268,11 @@ void mu::ui::window::CCursedTempleSystem::SetCursedTempleSkill(CHARACTER* c, OBJ
     }
 }
 
-void mu::ui::window::CCursedTempleSystem::ReceiveCursedTempRegisterSkill(const BYTE* ReceiveBuffer)
+void mu::ui::window::CCursedTempleSystem::ResolveSkill(const UI::CursedTemple::SkillResult& result)
 {
-    auto data = (LPPMSG_CURSED_TEMPLE_USE_MAGIC_RESULT)ReceiveBuffer;
-
-    WORD magNumber = ((WORD)(data->MagicH) << 8) + data->MagicL;
-
-    WORD sourceobjkey = data->wSourceObjIndex;
-    WORD targetobjkey = data->wTargetObjIndex;
+    WORD magNumber = result.skill;
+    WORD sourceobjkey = result.sourceKey;
+    WORD targetobjkey = result.targetKey;
 
     WORD sourceobjindex = FindCharacterIndex(sourceobjkey);
     WORD targetobjindex = FindCharacterIndex(targetobjkey);
@@ -1338,7 +1286,7 @@ void mu::ui::window::CCursedTempleSystem::ReceiveCursedTempRegisterSkill(const B
     CHARACTER* tc = &CharactersClient[targetobjindex];
     OBJECT* tco = &tc->Object;
 
-    if (data->MagicResult == 0)
+    if (!result.succeeded)
     {
         if (sc == Hero) Hero->m_CursedTempleCurSkillPacket = false;
         return;
@@ -1403,13 +1351,10 @@ void mu::ui::window::CCursedTempleSystem::ReceiveCursedTempRegisterSkill(const B
     }
 }
 
-void mu::ui::window::CCursedTempleSystem::ReceiveCursedTempUnRegisterSkill(const BYTE* ReceiveBuffer)
+void mu::ui::window::CCursedTempleSystem::EndSkill(std::uint16_t skill, std::uint16_t targetKey)
 {
-    auto data = (LPPMSG_CURSED_TEMPLE_SKILL_END)ReceiveBuffer;
-
-    WORD magNumber = ((WORD)(data->MagicH) << 8) + data->MagicL;
-
-    WORD targetobjkey = data->wObjIndex;
+    WORD magNumber = skill;
+    WORD targetobjkey = targetKey;
     WORD targetobjindex = FindCharacterIndex(targetobjkey);
 
     if (targetobjindex == MAX_CHARACTERS_CLIENT)
@@ -1443,34 +1388,32 @@ void mu::ui::window::CCursedTempleSystem::ReceiveCursedTempUnRegisterSkill(const
     }
 }
 
-void mu::ui::window::CCursedTempleSystem::ReceiveCursedTempleInfo(const BYTE* ReceiveBuffer)
+void mu::ui::window::CCursedTempleSystem::SetMatchStatus(const UI::CursedTemple::MatchStatus& status)
 {
-    auto data = (LPPMSG_CURSED_TAMPLE_STATE)ReceiveBuffer;
+    m_EventMapTime = status.remainingSeconds;
 
-    m_EventMapTime = data->wRemainSec;
-
-    if (data->btUserIndex == 0xffff)
+    if (status.relicHolderIndex == 0xffff)
     {
         memset(&m_HolyItemPlayerName, 0, sizeof(char));
     }
 
-    m_HolyItemPlayerIndex = data->btUserIndex;
-    m_HolyItemPlayerPosX = data->btX;
-    m_HolyItemPlayerPosY = data->btY;
-    m_MyTeam = static_cast<SEASON3A::eCursedTempleTeam>(data->btMyTeam);
+    m_HolyItemPlayerIndex = status.relicHolderIndex;
+    m_HolyItemPlayerPosX = status.relicX;
+    m_HolyItemPlayerPosY = status.relicY;
+    m_MyTeam = status.localTeam;
 
     wchar_t message[200];
     memset(&message, 0, sizeof(char));
 
     if (m_MyTeam == SEASON3A::eTeam_Allied)
     {
-        if (m_AlliedPoint != data->btAlliedPoint)
+        if (m_AlliedPoint != status.alliedPoints)
         {
             PlayBuffer(SOUND_CURSEDTEMPLE_GAMESYSTEM4);
             StartScoreEffect();
             g_pSystemLogBox->AddText(I18N::Game::TheAlliesAreAdvancingOnWeAreNotFarFromTheVictoryChargeOn, mu::ui::window::TYPE_ERROR_MESSAGE);
         }
-        else if (m_IllusionPoint != data->btIllusionPoint)
+        else if (m_IllusionPoint != status.illusionPoints)
         {
             PlayBuffer(SOUND_CURSEDTEMPLE_GAMESYSTEM4);
             StartScoreEffect();
@@ -1479,13 +1422,13 @@ void mu::ui::window::CCursedTempleSystem::ReceiveCursedTempleInfo(const BYTE* Re
     }
     else
     {
-        if (m_IllusionPoint != data->btIllusionPoint)
+        if (m_IllusionPoint != status.illusionPoints)
         {
             PlayBuffer(SOUND_CURSEDTEMPLE_GAMESYSTEM4);
             StartScoreEffect();
             g_pSystemLogBox->AddText(I18N::Game::HoorayForTheIllusionSorceryWe, mu::ui::window::TYPE_ERROR_MESSAGE);
         }
-        else if (m_AlliedPoint != data->btAlliedPoint)
+        else if (m_AlliedPoint != status.alliedPoints)
         {
             PlayBuffer(SOUND_CURSEDTEMPLE_GAMESYSTEM4);
             StartScoreEffect();
@@ -1493,47 +1436,27 @@ void mu::ui::window::CCursedTempleSystem::ReceiveCursedTempleInfo(const BYTE* Re
         }
     }
 
-    m_AlliedPoint = data->btAlliedPoint;
-    m_IllusionPoint = data->btIllusionPoint;
+    m_AlliedPoint = status.alliedPoints;
+    m_IllusionPoint = status.illusionPoints;
 
-    m_CursedTempleMyTeamCount = data->btPartyCount;
-
-    int Offset = sizeof(PMSG_CURSED_TAMPLE_STATE);
-
-    for (int i = 0; i < m_CursedTempleMyTeamCount; i++)
+    m_CursedTempleMyTeamCount = static_cast<WORD>(std::min(status.party.size(), std::size(m_CursedTempleMyTeam)));
+    for (int i = 0; i < m_CursedTempleMyTeamCount; ++i)
     {
-        auto data2 = (LPPMSG_CURSED_TAMPLE_PARTY_POS)(ReceiveBuffer + Offset);
-
-        if (data2->wPartyUserIndex != 0xffff)
-        {
-            PMSG_CURSED_TAMPLE_PARTY_POS* p = &m_CursedTempleMyTeam[i];
-
-            p->wPartyUserIndex = data2->wPartyUserIndex;
-            p->byMapNumber = data2->byMapNumber;
-            p->btX = data2->btX;
-            p->btY = data2->btY;
-        }
-
-        Offset += sizeof(PMSG_CURSED_TAMPLE_PARTY_POS);
+        if (status.party[i].userIndex != 0xffff)
+            m_CursedTempleMyTeam[i] = status.party[i];
     }
 }
 
-void mu::ui::window::CCursedTempleSystem::ReceiveCursedTempSkillPoint(const BYTE* ReceiveBuffer)
+void mu::ui::window::CCursedTempleSystem::SetSkillPoints(std::uint8_t points)
 {
-    auto data = (LPPMSG_CURSED_TEMPLE_SKILL_POINT)ReceiveBuffer;
-
-    if (m_SkillPoint < data->btSkillPoint)
+    if (m_SkillPoint < points)
     {
         wchar_t message[100];
         memset(&message, 0, sizeof(char));
-        mu_swprintf(message, I18N::Game::KillPointDAchieved, data->btSkillPoint - m_SkillPoint);
+        mu_swprintf(message, I18N::Game::KillPointDAchieved, points - m_SkillPoint);
         g_pSystemLogBox->AddText(message, mu::ui::window::TYPE_SYSTEM_MESSAGE);
     }
 
-    m_SkillPoint = data->btSkillPoint;
+    m_SkillPoint = points;
 }
 
-void mu::ui::window::CCursedTempleSystem::ReceiveCursedTempleHolyItemRelics(const BYTE* ReceiveBuffer)
-{
-    auto data = (LPPMSG_RELICS_GET_USER)ReceiveBuffer;
-}

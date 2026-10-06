@@ -63,14 +63,9 @@ bool CGoldBowmanWindow::Create(CManager* pNewUIMng, int x, int y)
     m_ExitTooltip.SetText(&I18N::Game::Close388);
     m_ExitTooltip.SetAnchorAbove(true);
 
+    // A new document's field is unfocused (a theme switch rebuilds it).
+    m_View.SetAfterBuild([this] { m_SerialFocusPending = IsVisible(); });
     m_View.Build();
-    UI::RmlBridge::RegisterForThemeReload(this,
-                                          [this]
-                                          {
-                                              // A new document: its field starts empty and unfocused.
-                                              m_View.ReloadTheme();
-                                              m_SerialFocusPending = IsVisible();
-                                          });
 
     Show(false);
 
@@ -79,7 +74,7 @@ bool CGoldBowmanWindow::Create(CManager* pNewUIMng, int x, int y)
 
 void CGoldBowmanWindow::Release()
 {
-    UI::RmlBridge::UnregisterForThemeReload(this);
+    m_View.Release();
     UI::RmlBridge::Tooltip::Hide(&m_ExitTooltip);
 
     if (m_pNewUIMng)
@@ -96,11 +91,9 @@ Rml::Element* CGoldBowmanWindow::GetSerialField() const
 
 void CGoldBowmanWindow::ClearSerialField()
 {
+    m_View.SetInputValue(Rml::String());
     if (Rml::Element* field = GetSerialField())
-    {
-        field->SetAttribute("value", Rml::String());
         field->Blur();
-    }
 }
 
 void CGoldBowmanWindow::OpeningProcess()
@@ -133,7 +126,14 @@ bool CGoldBowmanWindow::UpdateMouseEvent()
         return false;
     }
 
-    if (mu::ui::window::WindowGeometry(m_Pos.x, m_Pos.y, INVENTORY_WIDTH, INVENTORY_HEIGHT).Contains(MouseX, MouseY))
+    // #panel's own live RCSS size is the source of truth -- INVENTORY_WIDTH/HEIGHT only cover the
+    // first frame after Create()/Show(true)/ReloadRmlTheme(), before RmlUi's next layout pass.
+    float panelWidth = INVENTORY_WIDTH;
+    float panelHeight = INVENTORY_HEIGHT;
+    m_View.RefreshPanelSize(panelWidth, panelHeight);
+    if (mu::ui::window::WindowGeometry(m_Pos.x, m_Pos.y, static_cast<int>(panelWidth),
+                                      static_cast<int>(panelHeight))
+            .Contains(MouseX, MouseY))
     {
         if (mu::ui::window::IsPress(VK_RBUTTON))
         {
@@ -203,9 +203,8 @@ void CGoldBowmanWindow::SendSerial()
     }
 
     // The number as three groups of four characters, empty groups where it is shorter.
-    std::wstring serial;
-    if (Rml::Element* field = GetSerialField())
-        serial = StringUtils::NarrowToWide(field->GetAttribute<Rml::String>("value", Rml::String()));
+    // The model, not the element: data-value writes the typed serial back into it.
+    std::wstring serial = StringUtils::NarrowToWide(m_View.InputValue());
     serial.resize(MAXGOLDBOWMANSESERIAL, L'\0');
 
     wchar_t strSerial1[5] = {};
@@ -227,26 +226,26 @@ void CGoldBowmanWindow::SyncView()
         // The original's RenderTexts(): every line in the normal font, centred on the 190-unit
         // window; the example number green, the registered gift's name (from the server's answer)
         // at y 330.
-        const DWORD white = 0xFFFFFFFF;
         const float width = INVENTORY_WIDTH;
         std::vector<EventItemEntryView::Text> texts{
-            {getMonsterName(236), 0.f, 15.f, width, false, white},
-            {Formatted(I18N::Game::EnterThe12DigitLuckyNumber), 0.f, 80.f, width, false, white},
-            {Formatted(I18N::Game::WrittenOnThe100WinningCard), 0.f, 95.f, width, false, white},
-            {Formatted(I18N::Game::LuckyNumberRegistrationPeriod), 0.f, 110.f, width, false, white},
-            {Formatted(I18N::Game::Oct282003Nov30), 0.f, 125.f, width, false, white},
-            {Formatted(I18N::Game::EnterTheLuckyNumber), 0.f, 180.f, width, false, white},
-            {Formatted(I18N::Game::ExAUS919DKL2J9), 0.f, 195.f, width, false, 0xFF18FF00},
-            {Formatted(I18N::Game::PleaseMakeSureToDifferentiate), 0.f, 210.f, width, false, white},
-            {Formatted(I18N::Game::AlphabetOAndNumber0AndAlphabetIAndNumber1), 0.f, 225.f, width, false, white}};
+            {getMonsterName(236), width},
+            {Formatted(I18N::Game::EnterThe12DigitLuckyNumber), width},
+            {Formatted(I18N::Game::WrittenOnThe100WinningCard), width},
+            {Formatted(I18N::Game::LuckyNumberRegistrationPeriod), width},
+            {Formatted(I18N::Game::Oct282003Nov30), width},
+            {Formatted(I18N::Game::EnterTheLuckyNumber), width},
+            {Formatted(I18N::Game::ExAUS919DKL2J9), width},
+            {Formatted(I18N::Game::PleaseMakeSureToDifferentiate), width},
+            {Formatted(I18N::Game::AlphabetOAndNumber0AndAlphabetIAndNumber1), width}};
+        // The registered gift's name, from the server's answer -- always the last line, so the
+        // rows above it keep their own rules whether it is there or not.
         if (wcscmp(g_strGiftName, L"") != 0)
-            texts.push_back({g_strGiftName, 0.f, 330.f, width, false, 0xFFFFD200});
+            texts.push_back({g_strGiftName, width});
         m_View.SetTexts(std::move(texts));
 
-        // Register: newui_btn_empty (108 x 29) at (45, 285) with a normal label; the exit button.
-        m_View.SetButtons({{I18N::Game::LuckyNumberRegistered, 45.f, 285.f, false, MSGBOX_BTN_EMPTY_WIDTH,
-                            MSGBOX_BTN_EMPTY_HEIGHT, false, "wide"},
-                           {L"", kExitX, kExitY, false, kExitWidth, kExitHeight, false, "exit"}});
+        m_View.SetButtons({{I18N::Game::LuckyNumberRegistered, false, MSGBOX_BTN_EMPTY_WIDTH,
+                            MSGBOX_BTN_EMPTY_HEIGHT},
+                           {L"", false, kExitWidth, kExitHeight}});
     }
     m_View.Sync(IsVisible(), m_Pos);
 

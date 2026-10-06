@@ -2,7 +2,6 @@
 //  CSEventMatch.cpp
 //////////////////////////////////////////////////////////////////////////
 #include "stdafx.h"
-#include "UI/Party/UIWindows.h"
 #include "Render/Textures/ZzzOpenglUtil.h"
 #include "Render/Models/ZzzBMD.h"
 #include "Render/Terrain/ZzzLodTerrain.h"
@@ -13,6 +12,7 @@
 
 #include "UI/Dialogs/CustomMessageBox.h"
 #include "UI/Core/WindowSystem.h"
+#include "Render/Text/CUIRenderText.h"
 
 #include <algorithm>
 #include <chrono>

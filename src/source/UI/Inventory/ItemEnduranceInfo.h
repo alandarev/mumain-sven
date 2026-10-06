@@ -7,7 +7,7 @@
 #include "UI/Core/WindowObject.h"
 #include "UI/Core/WindowManager.h"
 #include "UI/Inventory/ItemEnduranceRmlModel.h"
-#include "UI/RmlBridge/RmlModelBinder.h"
+#include "UI/RmlBridge/RmlThemedView.h"
 
 namespace Rml
 {
@@ -76,7 +76,6 @@ namespace mu::ui::window
         void Release();
 
         void SetPos(int x, int y);
-        void SetPos(int x);
 
         bool UpdateMouseEvent();
         bool UpdateKeyEvent();
@@ -94,6 +93,8 @@ namespace mu::ui::window
         void SyncDocVisibility(bool sceneAllowsShow);
 
     private:
+        // Right-aligns the durability icons to the world the open windows leave uncovered.
+        void FollowUncoveredWorld();
         void LoadImages();
         void UnloadImages();
 
@@ -115,15 +116,15 @@ namespace mu::ui::window
         // original drew it at layer depth 3.5, under the panels). Render() fills it; the native
         // drawing is the fallback when RmlUi is not available.
         void BuildRmlUi();
-        void ReloadRmlTheme();
         void SyncView();
         void SyncLeftColumn();
         void SyncIcons();
         void SyncTooltip();
 
-        RmlModelBinder<UI::ItemEndurance::ItemEnduranceRmlModel> m_RmlBinder;
-        Rml::ElementDocument* m_pRmlDoc = nullptr;
-        bool m_themeReloadRegistered = false;
+        void BindRmlModel(Rml::DataModelConstructor& c, UI::ItemEndurance::ItemEnduranceRmlModel& model);
+        UI::RmlBridge::ThemedView<UI::ItemEndurance::ItemEnduranceRmlModel> m_RmlView{"item_endurance",
+            [this](Rml::DataModelConstructor& c, UI::ItemEndurance::ItemEnduranceRmlModel& model) { BindRmlModel(c, model); },
+            {{"Data/Interface/RmlUi/item_endurance.rml"}}};
         bool m_sceneAllowsShow = false;
     };
 }

@@ -5,9 +5,10 @@
 #pragma once
 
 #include "UI/Core/WindowObject.h"
+#include "UI/Combat/SiegeUpdates.h"
 #include "UI/Combat/GuardWindowRmlModel.h"
-#include "UI/RmlBridge/RmlModelBinder.h"
-#include "UI/Widgets/Window/Button.h"
+#include "UI/Combat/GuardGuildLists.h"
+#include "UI/RmlBridge/RmlThemedView.h"
 #include "UI/Dialogs/MessageBox.h"
 #include "UI/Inventory/MyInventory.h"
 #include "Guild/GuildInfoWindow.h"
@@ -22,22 +23,10 @@ class ElementDocument;
 namespace mu::ui::window
 {
 // The castle guardsman, docked right: the Status, Register / Announce and List tabs.
-// guard_window.rml draws it; the tab radio group and the two guild lists stay native controls
-// for their hit tests, data, scrolling and line clicks (their drawing is the document's); C++
-// keeps every request.
+// RmlUi owns guild lists and actions; C++ keeps their state and server requests.
 class CGuardWindow : public CObject
 {
 public:
-    // The scroll bar images, shared with the still-native windows that draw the same bar.
-    enum IMAGE_LIST
-    {
-        IMAGE_GUARDWINDOW_SCROLL_TOP = CChatLogWindow::IMAGE_SCROLL_TOP,
-        IMAGE_GUARDWINDOW_SCROLL_MIDDLE = CChatLogWindow::IMAGE_SCROLL_MIDDLE,
-        IMAGE_GUARDWINDOW_SCROLL_BOTTOM = CChatLogWindow::IMAGE_SCROLL_BOTTOM,
-        IMAGE_GUARDWINDOW_SCROLLBAR_ON = CChatLogWindow::IMAGE_SCROLLBAR_ON,
-        IMAGE_GUARDWINDOW_SCROLLBAR_OFF = CChatLogWindow::IMAGE_SCROLLBAR_OFF,
-    };
-
     // The buttons RmlUi reports (guard_button(n)).
     enum GUARD_BUTTON
     {
@@ -64,46 +53,54 @@ private:
     CManager* m_pNewUIMng;
     POINT m_Pos;
 
-    CRadioGroupButton m_TabBtn;
+    // The current page and highlight share this value. RmlUi owns the tab hit targets.
     int m_iNumCurOpenTab; // ���� �����ִ� �ǹ�ư��ȣ
 
-    RmlModelBinder<GuardWindowRmlModel> m_RmlBinder;
-    Rml::ElementDocument* m_pRmlDoc = nullptr;
+    void SetCurOpenTab(int iTab);
+
+    void BindRmlModel(Rml::DataModelConstructor& c, GuardWindowRmlModel& model);
+    void OnRmlReloaded();
+    UI::RmlBridge::ThemedView<GuardWindowRmlModel> m_RmlView{"guard_window",
+        [this](Rml::DataModelConstructor& c, GuardWindowRmlModel& model) { BindRmlModel(c, model); },
+        {{"Data/Interface/RmlUi/guard_window.rml"}}, {.afterReload = [this] { OnRmlReloaded(); }}};
     GUARD_BUTTON m_PendingButton = GUARD_BUTTON_NONE;
+    int m_PendingTab = -1;
 
     // ������ ��� ����Ʈ
-    CUIBCDeclareGuildListBox m_DeclareGuildListBox;
-    // Ȯ���� ��� ����Ʈ
-    CUIBCGuildListBox m_GuildListBox;
+    UI::Combat::GuardGuildLists m_GuildLists;
+    unsigned m_ListRevision = 0;
+    bool m_ListsDirty = true;
+    std::wstring m_ListGuild;
+    std::wstring m_ListAlliance;
 
-    // UI ��� ��
-    CASTLESIEGE_STATE m_eTimeType;
+    CASTLESIEGE_STATE m_eTimeType = CASTLESIEGE_STATE_NONE;
 
-    wchar_t m_szOwnerGuild[8 + 1];
-    wchar_t m_szOwnerGuildMaster[10 + 1];
+    wchar_t m_szOwnerGuild[8 + 1] = {};
+    wchar_t m_szOwnerGuildMaster[10 + 1] = {};
 
-    WORD m_wStartYear;
-    BYTE m_byStartMonth;
-    BYTE m_byStartDay;
-    BYTE m_byStartHour;
-    BYTE m_byStartMinute;
-    WORD m_wEndYear;
-    BYTE m_byEndMonth;
-    BYTE m_byEndDay;
-    BYTE m_byEndHour;
-    BYTE m_byEndMinute;
-    WORD m_wSiegeStartYear;
-    BYTE m_bySiegeStartMonth;
-    BYTE m_bySiegeStartDay;
-    BYTE m_bySiegeStartHour;
-    BYTE m_bySiegeStartMinute;
-    DWORD m_dwStateLeftSec;
+    WORD m_wStartYear = 0;
+    BYTE m_byStartMonth = 0;
+    BYTE m_byStartDay = 0;
+    BYTE m_byStartHour = 0;
+    BYTE m_byStartMinute = 0;
+    WORD m_wEndYear = 0;
+    BYTE m_byEndMonth = 0;
+    BYTE m_byEndDay = 0;
+    BYTE m_byEndHour = 0;
+    BYTE m_byEndMinute = 0;
+    WORD m_wSiegeStartYear = 0;
+    BYTE m_bySiegeStartMonth = 0;
+    BYTE m_bySiegeStartDay = 0;
+    BYTE m_bySiegeStartHour = 0;
+    BYTE m_bySiegeStartMinute = 0;
+    DWORD m_dwStateLeftSec = 0;
 
 public:
     CGuardWindow();
     virtual ~CGuardWindow();
 
     bool Create(CManager* pNewUIMng, int x, int y);
+    Rml::ElementDocument* GetFillDocument() const override { return m_RmlView.Document(); }
     void Release();
 
     void SetPos(int x, int y);
@@ -113,29 +110,22 @@ public:
     bool Update();
     bool Render();
 
-    // Shared with the still-native list boxes that draw the same scroll bar (UIControls.cpp);
-    // CGuardWindow loads its images (LoadScrollBarImages()).
-    void RenderScrollBarFrame(int iPos_x, int iPos_y, int iHeight);
-    void RenderScrollBar(int iPos_x, int iPos_y, BOOL bIsClicked);
 
     void OpeningProcess();
     void ClosingProcess();
 
     float GetLayerDepth(); //. 5.0f
 
-    void SetData(LPPMSG_ANS_CASTLESIEGESTATE Info); // �������� �޾� ȭ�� ǥ�� ����
+    void SetData(const UI::Siege::GuardStatus& status);
 
-    void AddDeclareGuildList(wchar_t* szGuildName, int nMarkCount, BYTE byIsGiveUP, BYTE bySeqNum);
+    void AddDeclareGuildList(std::wstring_view name, int markCount, bool gaveUp, BYTE sequence);
     void ClearDeclareGuildList();
     void SortDeclareGuildList();
-    void AddGuildList(wchar_t* szGuildName, BYTE byCsJoinSide, BYTE byGuildInvolved, int iGuildScore);
+    void AddGuildList(std::wstring_view name, BYTE side, BYTE involvement, int score);
     void ClearGuildList();
 
-    void ReloadRmlTheme();
 
 private:
-    void LoadScrollBarImages();
-    void UnloadScrollBarImages();
     bool BtnProcess();
 
     void UpdateRegisterTab(GUARD_BUTTON button);
@@ -146,6 +136,10 @@ private:
     void BuildRmlUi();
     void SyncRmlModel();
     void SyncContent();
+    void SyncGuildLists();
+    std::vector<GuardDeclareRow> BuildDeclareRows() const;
+    std::vector<GuardSiegeRow> BuildSiegeRows() const;
+    void SelectListGuild(bool declaration, const Rml::String& name);
 };
 }
 

@@ -47,27 +47,29 @@ UI::Scaling::LayoutMode UI::Layout::ForInterface(std::uint32_t interfaceKey)
     case INTERFACE_FRIEND:
         return LayoutMode::FloatingWorkspace;
 
-    case INTERFACE_CHATINPUTBOX:
-    case INTERFACE_WINDOW_MENU:
+    // The event HUDs, at the size the workspace's event-hud region gives their slots.
     case INTERFACE_KANTURU_INFO:
-    case INTERFACE_CHATLOGWINDOW:
     case INTERFACE_BLOODCASTLE_TIME:
     case INTERFACE_CHAOSCASTLE_TIME:
     case INTERFACE_BATTLE_SOCCER_SCORE:
+    case INTERFACE_DUEL_WINDOW:
+    case INTERFACE_DUELWATCH_USERLIST:
+    case INTERFACE_DOPPELGANGER_FRAME:
+    case INTERFACE_EMPIREGUARDIAN_TIMER:
+        return LayoutMode::HudFrame;
+
+    case INTERFACE_CHATINPUTBOX:
+    case INTERFACE_WINDOW_MENU:
+    case INTERFACE_CHATLOGWINDOW:
     case INTERFACE_SLIDEWINDOW:
     case INTERFACE_MU_HELPER_BAR:
-    case INTERFACE_DUEL_WINDOW:
     case INTERFACE_CRYWOLF:
     case INTERFACE_SIEGEWARFARE:
     case INTERFACE_MAINFRAME:
     case INTERFACE_BUFF_WINDOW:
     case INTERFACE_MASTER_LEVEL:
     case INTERFACE_DUELWATCH_MAINFRAME:
-    case INTERFACE_DUELWATCH_USERLIST:
-    case INTERFACE_DOPPELGANGER_FRAME:
-    case INTERFACE_EMPIREGUARDIAN_TIMER:
     case INTERFACE_MINI_MAP:
-    case INTERFACE_GENSRANKING:
     case INTERFACE_HOTKEY:
     case INTERFACE_SYSTEMLOGWINDOW:
     case INTERFACE_CURSEDTEMPLE_GAMESYSTEM:
@@ -118,6 +120,7 @@ UI::Scaling::LayoutMode UI::Layout::ForInterface(std::uint32_t interfaceKey)
     case INTERFACE_COMMAND_LIST:
     case INTERFACE_ITEM_ENDURANCE_INFO:
     case INTERFACE_PARTY_INFO_WINDOW:
+    case INTERFACE_GENSRANKING:
         return LayoutMode::DockRight;
 
     default:

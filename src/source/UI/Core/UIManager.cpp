@@ -5,6 +5,8 @@
 //////////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
+#include "Network/Server/WSclient.h"
+#include "UI/Core/UIManager.h"
 #include "Render/Textures/ZzzOpenglUtil.h"
 #include "Render/Textures/ZzzTexture.h"
 #include "Engine/Object/ZzzInterface.h"
@@ -13,7 +15,6 @@
 #include "GameLogic/Items/PersonalShopTitleImp.h"
 #include "GameLogic/Items/CComGem.h"
 #include "Audio/DSPlaySound.h"
-#include "UI/Widgets/UIControls.h"  // CUITextInputBox::GetFocusedPortable
 #include "UI/Dialogs/CustomMessageBox.h"
 #include "UI/NPCs/NPCShop.h"
 
@@ -24,7 +25,6 @@ extern DWORD g_dwMouseUseUIID;
 CUIGateKeeper* g_pUIGateKeeper = NULL;
 JewelHarmonyInfo* g_pUIJewelHarmonyinfo = NULL;
 ItemAddOptioninfo* g_pItemAddOptioninfo = NULL;
-CUIPopup* g_pUIPopup = NULL;
 
 extern int g_iCancelSkillTarget;
 extern int TextNum;
@@ -61,7 +61,6 @@ bool g_bServerDivisionEnable = false;
 CUIManager::CUIManager()
 {
     g_pUIGateKeeper = new CUIGateKeeper;
-    g_pUIPopup = new CUIPopup;
     g_pUIJewelHarmonyinfo = JewelHarmonyInfo::MakeInfo();
     g_pItemAddOptioninfo = ItemAddOptioninfo::MakeInfo();
 
@@ -73,12 +72,10 @@ CUIManager::~CUIManager()
     SAFE_DELETE(g_pItemAddOptioninfo);
     SAFE_DELETE(g_pUIJewelHarmonyinfo);
     SAFE_DELETE(g_pUIGateKeeper);
-    SAFE_DELETE(g_pUIPopup);
 }
 
 void CUIManager::Init()
 {
-    g_pUIPopup->Init();
     giPetManager::InitPetManager();
     ClearPersonalShop();
 }
@@ -139,10 +136,6 @@ bool CUIManager::IsInputEnable()
 {
     if (InputEnable || GuildInputEnable)
         return true;
-    // A focused portable text field captures the keyboard without taking Win32 focus,
-    // so report "input active" explicitly to suppress world/camera keys while typing.
-    if (CUITextInputBox::GetFocusedPortable() != nullptr)
-        return true;
     if (GetFocus() == g_hWnd)
         return false;
     return true;
@@ -166,7 +159,6 @@ void CUIManager::CloseAll()
         }
     }
 
-    g_pUIPopup->CancelPopup();
 }
 
 bool CUIManager::CloseInterface(std::list<DWORD>& dwInterfaceFlag, DWORD dwExtraData)

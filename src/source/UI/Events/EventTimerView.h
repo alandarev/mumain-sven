@@ -1,7 +1,7 @@
 #pragma once
 
 #include "UI/Events/EventTimerRmlModel.h"
-#include "UI/RmlBridge/RmlModelBinder.h"
+#include "UI/RmlBridge/RmlThemedView.h"
 
 #include <string>
 
@@ -24,12 +24,16 @@ public:
     EventTimerView(const char* modelName, const char* documentPath);
 
     void Build();
-    void ReloadTheme();
+    // Unloads the document; from the window's own Release().
+    void Release() { m_View.Release(); }
 
     struct Line
     {
-        std::wstring text;       // empty: not drawn
-        unsigned long color = 0; // the native text colour (RGBA())
+        std::wstring text; // empty: not drawn
+        // How pressing the line is, which every theme colours: "plain", "standby" before the
+        // event starts, "normal", then "closing", "imminent" and "expiring" as the clock runs
+        // down. The original set a colour per state directly.
+        const char* state = "normal";
     };
 
     // Per frame, inside the window's CManager transform scope. Every line is centred on the box
@@ -38,9 +42,6 @@ public:
               float boxLeft = 0.f, float boxWidth = 124.f);
 
 private:
-    const char* m_ModelName;
-    const char* m_DocumentPath;
-    RmlModelBinder<EventTimerRmlModel> m_RmlBinder;
-    Rml::ElementDocument* m_pRmlDoc = nullptr;
+    UI::RmlBridge::ThemedView<EventTimerRmlModel> m_View;
 };
 } // namespace mu::ui::window

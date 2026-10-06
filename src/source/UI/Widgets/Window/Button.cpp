@@ -2,13 +2,14 @@
 #include "stdafx.h"
 
 #include "UI/Widgets/Window/Button.h"
-#include "UI/Widgets/UIControls.h"
+#include "UI/Social/SocialWindowBase.h"
 #include "UI/Core/WindowGeometry.h"
 #include "UI/Scaling/UITransform.h"
 #include "Render/Sprites/GlobalBitmap.h"
 #include "Render/Textures/ZzzTexture.h"
 #include "Render/Textures/ZzzOpenglUtil.h"
 #include "I18N/All.h"
+#include "Render/Text/CUIRenderText.h"
 #include <vector>
 
 //////////////////////////////////////////////////////////////////////

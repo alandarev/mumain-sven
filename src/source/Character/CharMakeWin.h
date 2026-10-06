@@ -9,7 +9,7 @@
 
 #include "UI/Core/WindowObject.h"
 #include "Render/Sprites/Sprite.h"
-#include "UI/RmlBridge/RmlModelBinder.h"
+#include "UI/RmlBridge/RmlThemedView.h"
 
 #include <vector>
 
@@ -113,17 +113,14 @@ protected:
     void RenderCreateCharacter();
 
 private:
-    void BuildRmlUi();
-    void ReloadRmlTheme();
+    void OnRmlReloaded();
     void ApplyNameLimit();
 
     struct JobButtonEntry
     {
-        // Panel-relative, pushed once from SetPosition() (mirrors the legacy per-class layout
-        // math exactly -- not recomputed per frame, unlike CCharInfoBalloon's genuine 3D-tracking
-        // case).
-        int relLeft = 0;
-        int relTop = 0;
+        // Which class this button is, for the stylesheets to place it by ([job=...]). The set and
+        // its order are fixed (MAX_CLASS entries, CLASS_* order), so every position is static.
+        Rml::String key;
         bool checked = false;
         bool disabled = false;
         Rml::String label;
@@ -155,8 +152,11 @@ private:
         // (ApplyNameLimit()).
         Rml::String charName;
     };
-    RmlModelBinder<CharMakeRmlModel> m_RmlBinder;
-    Rml::ElementDocument* m_pRmlDoc = nullptr;
+    void BindRmlModel(Rml::DataModelConstructor& c, CharMakeRmlModel& model);
+    UI::RmlBridge::ThemedView<CharMakeRmlModel> m_RmlView{"char_make",
+        [this](Rml::DataModelConstructor& c, CharMakeRmlModel& model) { BindRmlModel(c, model); },
+        {{"Data/Interface/RmlUi/char_make.rml"}},
+        {.afterBuild = [this] { ApplyNameLimit(); }, .afterReload = [this] { OnRmlReloaded(); }}};
 
     int m_nOriginX = 0;
     int m_nOriginY = 0;

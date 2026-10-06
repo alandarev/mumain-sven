@@ -4,6 +4,7 @@
    OFF state, so an unlit button is invisible-but-present there, whereas here each button needs a
    visible resting state of its own. */
 
+#panel.workspace-placed { bottom: auto; transform-origin: left top; }
 #panel {
 	position: absolute;
 	left: 0;
@@ -76,7 +77,7 @@
 	font-size: 11dp;
 }
 
-.cib-whisper-field.blocked { color: token(text-disabled); }
+.cib-whisper-field:disabled { color: token(text-disabled); }
 #whisper_block {
 	position: absolute;
 	left: 2dp;

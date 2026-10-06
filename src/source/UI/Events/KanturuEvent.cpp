@@ -4,6 +4,7 @@
 #include "UI/Dialogs/CommonMessageBox.h"
 #include "UI/Core/WindowSystem.h"
 #include "UI/Core/WindowGeometry.h"
+#include "UI/RmlBridge/RmlPanelGeometry.h"
 #include "Engine/AI/ZzzAI.h"
 #include "Render/Effects/ZzzEffect.h"
 #include "I18N/All.h"
@@ -15,13 +16,16 @@
 #include "Core/Utilities/StringUtils.h"
 #include "Render/RmlUi/RmlUiRuntime.h"
 #include "Render/Text/CUIRenderTextSDLTtf.h"
+#include "UI/RmlBridge/RmlSyncField.h"
 #include "UI/RmlBridge/RmlDocumentVisibility.h"
 #include "UI/RmlBridge/RmlRootTransform.h"
 #include "UI/RmlBridge/RmlTheme.h"
+#include "Render/Text/CUIRenderText.h"
 
 #include <RmlUi/Core/ElementDocument.h>
 
 #include <algorithm>
+#include <cstring>
 #include <string>
 
 namespace
@@ -76,7 +80,6 @@ bool mu::ui::window::CKanturu2ndEnterNpc::Create(CManager* pNewUIMng, int x, int
     SetPos(x, y);
 
     BuildRmlUi();
-    UI::RmlBridge::RegisterForThemeReload(this, [this] { ReloadRmlTheme(); });
 
     Show(false);
 
@@ -85,7 +88,7 @@ bool mu::ui::window::CKanturu2ndEnterNpc::Create(CManager* pNewUIMng, int x, int
 
 void mu::ui::window::CKanturu2ndEnterNpc::Release()
 {
-    UI::RmlBridge::UnregisterForThemeReload(this);
+    m_RmlView.Release();
 
     if (m_pNewUIMng)
     {
@@ -103,7 +106,10 @@ void mu::ui::window::CKanturu2ndEnterNpc::SetPos(int x, int y)
 bool mu::ui::window::CKanturu2ndEnterNpc::UpdateMouseEvent()
 {
     // The Refresh, Enter and Close buttons are RmlUi's (see Update()); the window keeps the pointer.
-    if (mu::ui::window::WindowGeometry(m_Pos.x, m_Pos.y, KANTURU2ND_ENTER_WINDOW_WIDTH, KANTURU2ND_ENTER_WINDOW_HEIGHT).Contains(MouseX, MouseY))
+    float panelWidth = KANTURU2ND_ENTER_WINDOW_WIDTH;
+    float panelHeight = KANTURU2ND_ENTER_WINDOW_HEIGHT;
+    UI::RmlBridge::RefreshLogicalPanelSize(m_RmlView.Document(), "panel", panelWidth, panelHeight);
+    if (mu::ui::window::WindowGeometry(m_Pos.x, m_Pos.y, static_cast<int>(panelWidth), static_cast<int>(panelHeight)).Contains(MouseX, MouseY))
     {
         return false;
     }
@@ -206,34 +212,35 @@ void mu::ui::window::CKanturu2ndEnterNpc::SetEnterRequest(bool bValue)
     m_bEnterRequest = bValue;
 }
 
-void mu::ui::window::CKanturu2ndEnterNpc::CreateMessageBox(BYTE btResult)
+void mu::ui::window::CKanturu2ndEnterNpc::CreateMessageBox(MSGBOX_TYPE result)
 {
     wchar_t strMessage[256];
-    if (btResult == POPUP_FAILED || btResult == POPUP_FAILED2)
+    if (result == POPUP_FAILED || result == POPUP_FAILED2)
     {
         wcscpy(strMessage, I18N::Game::FailedToEnter);
     }
-    else if (btResult == POPUP_UNIRIA)
+    else if (result == POPUP_UNIRIA)
     {
         wcscpy(strMessage, I18N::Game::YouCannotWarpWhileRidingOnAUnicorn);
     }
-    else if (btResult == POPUP_CHANGERING)
+    else if (result == POPUP_CHANGERING)
     {
         wcscpy(strMessage, I18N::Game::YouCanTWarpWearingTheRingOfTransformation);
     }
-    else if (btResult == POPUP_NOT_HELPER)
+    else if (result == POPUP_NOT_HELPER)
     {
         wcscpy(strMessage, I18N::Game::YouCanOnlyWarpRidingA);
     }
     else
     {
-        wcscpy(strMessage, I18N::Game::Lookup(2170 + btResult));
+        wcscpy(strMessage, I18N::Game::Lookup(2170 + static_cast<int>(result)));
     }
 
     mu::ui::window::CreateOkMessageBox(strMessage);
 }
 
-void mu::ui::window::CKanturu2ndEnterNpc::ReceiveKanturu3rdInfo(BYTE btState, BYTE btDetailState, BYTE btEnter, BYTE btUserCount, int iRemainTime)
+void mu::ui::window::CKanturu2ndEnterNpc::ReceiveKanturu3rdInfo(UI::Kanturu::Stage stage, UI::Kanturu::Detail detail, bool canEnter,
+                                                                 BYTE userCount, int remainingSeconds)
 {
     if (m_pNpcObject && m_pNpcObject->CurrentAction == KANTURU2ND_NPC_ANI_ROT)
     {
@@ -247,17 +254,17 @@ void mu::ui::window::CKanturu2ndEnterNpc::ReceiveKanturu3rdInfo(BYTE btState, BY
 
     Initialize();
 
-    m_byState = btState;
+    m_byState = static_cast<BYTE>(stage);
 
-    m_EnterLocked = btEnter != 1;
+    m_EnterLocked = !canEnter;
 
-    if (btState == KANTURU_STATE_TOWER)
+    if (stage == UI::Kanturu::Stage::Tower)
     {
-        if (btDetailState == KANTURU_TOWER_REVITALIXATION || btDetailState == KANTURU_TOWER_NOTIFY)
+        if (detail == UI::Kanturu::Detail::TowerRevitalization || detail == UI::Kanturu::Detail::TowerNotify)
         {
             wcscpy(m_strSubject, I18N::Game::YouMayNowProceedToTheRefineryTower);
             wcscpy(m_strStateText[0], I18N::Game::PathToTheRefineryTowerIsNowOpened);
-            mu_swprintf(m_strStateText[1], I18N::Game::PathToTheRefineryTowerWillBeClosedInDHours, iRemainTime / 3600);
+            mu_swprintf(m_strStateText[1], I18N::Game::PathToTheRefineryTowerWillBeClosedInDHours, remainingSeconds / 3600);
             m_iStateTextNum = 2;
         }
         else
@@ -268,26 +275,26 @@ void mu::ui::window::CKanturu2ndEnterNpc::ReceiveKanturu3rdInfo(BYTE btState, BY
             m_iStateTextNum = 2;
         }
     }
-    else if (btState == KANTURU_STATE_MAYA_BATTLE)
+    else if (stage == UI::Kanturu::Stage::MayaBattle)
     {
-        if (btDetailState != KANTURU_MAYA_DIRECTION_STANBY1
-            && btDetailState != KANTURU_MAYA_DIRECTION_STANBY2
-            && btDetailState != KANTURU_MAYA_DIRECTION_STANBY3)
+        if (detail != UI::Kanturu::Detail::MayaStandby1
+            && detail != UI::Kanturu::Detail::MayaStandby2
+            && detail != UI::Kanturu::Detail::MayaStandby3)
         {
             wcscpy(m_strSubject, I18N::Game::BattleWithMayaIsOngoing);
-            mu_swprintf(m_strStateText[0], I18N::Game::DPlayersAreTryingToOpen, btUserCount);
+            mu_swprintf(m_strStateText[0], I18N::Game::DPlayersAreTryingToOpen, userCount);
         }
         else
         {
             wcscpy(m_strSubject, I18N::Game::MorePlayersAreNeededToOpenThePathToTheTower);
 
-            if (btDetailState == KANTURU_MAYA_DIRECTION_STANBY1)
+            if (detail == UI::Kanturu::Detail::MayaStandby1)
             {
-                if (btUserCount < 15)
+                if (userCount < 15)
                 {
                     wcscpy(m_strStateText[0], I18N::Game::YouMayNowEnter);
                 }
-                else if (btUserCount == 15)
+                else if (userCount == 15)
                 {
                     wcscpy(m_strStateText[0], I18N::Game::MoonstonePendantAuthenticationHasFailed);
                 }
@@ -304,29 +311,29 @@ void mu::ui::window::CKanturu2ndEnterNpc::ReceiveKanturu3rdInfo(BYTE btState, BY
                 }
                 m_iStateTextNum = 1;
             }
-            else if (btDetailState == KANTURU_MAYA_DIRECTION_STANBY2)
+            else if (detail == UI::Kanturu::Detail::MayaStandby2)
             {
-                if (btUserCount < 15)
+                if (userCount < 15)
                 {
-                    mu_swprintf(m_strStateText[0], I18N::Game::NightmareHasLostTheControlOf, btUserCount);
-                    mu_swprintf(m_strStateText[1], I18N::Game::MorePowerFromDPlayersAreNeeded, 15 - btUserCount);
+                    mu_swprintf(m_strStateText[0], I18N::Game::NightmareHasLostTheControlOf, userCount);
+                    mu_swprintf(m_strStateText[1], I18N::Game::MorePowerFromDPlayersAreNeeded, 15 - userCount);
                     m_iStateTextNum = 2;
                 }
-                else if (btUserCount == 15)
+                else if (userCount == 15)
                 {
                     wcscpy(m_strStateText[0], I18N::Game::NightmareHasLostTheControlOfMayaSLeftHand);
                     m_iStateTextNum = 1;
                 }
             }
-            else if (btDetailState == KANTURU_MAYA_DIRECTION_STANBY3)
+            else if (detail == UI::Kanturu::Detail::MayaStandby3)
             {
-                if (btUserCount < 15)
+                if (userCount < 15)
                 {
-                    mu_swprintf(m_strStateText[0], I18N::Game::NightmareHasLostTheControlOf2166, btUserCount);
-                    mu_swprintf(m_strStateText[1], I18N::Game::MorePowerFromDPlayersAreNeeded, 15 - btUserCount);
+                    mu_swprintf(m_strStateText[0], I18N::Game::NightmareHasLostTheControlOf2166, userCount);
+                    mu_swprintf(m_strStateText[1], I18N::Game::MorePowerFromDPlayersAreNeeded, 15 - userCount);
                     m_iStateTextNum = 2;
                 }
-                else if (btUserCount == 15)
+                else if (userCount == 15)
                 {
                     wcscpy(m_strStateText[0], I18N::Game::NightmareHasLostTheControlOfMayaSLeftHand);
                     m_iStateTextNum = 1;
@@ -343,43 +350,43 @@ void mu::ui::window::CKanturu2ndEnterNpc::ReceiveKanturu3rdInfo(BYTE btState, BY
             }
         }
 
-        if (btDetailState == KANTURU_MAYA_DIRECTION_NOTIFY || btDetailState == KANTURU_MAYA_DIRECTION_MONSTER1 || btDetailState == KANTURU_MAYA_DIRECTION_MAYA1
-            || btDetailState == KANTURU_MAYA_DIRECTION_END_MAYA1 || btDetailState == KANTURU_MAYA_DIRECTION_ENDCYCLE_MAYA1)
+        if (detail == UI::Kanturu::Detail::MayaNotify || detail == UI::Kanturu::Detail::MayaMonster1 || detail == UI::Kanturu::Detail::Maya1
+            || detail == UI::Kanturu::Detail::MayaEnd1 || detail == UI::Kanturu::Detail::MayaEndCycle1)
         {
-            mu_swprintf(m_strStateText[1], I18N::Game::CurrentlyDPlayersAreInBattleWithMayaSLefeHand, btUserCount);
+            mu_swprintf(m_strStateText[1], I18N::Game::CurrentlyDPlayersAreInBattleWithMayaSLefeHand, userCount);
             m_iStateTextNum = 2;
         }
-        else if (btDetailState == KANTURU_MAYA_DIRECTION_MONSTER2 || btDetailState == KANTURU_MAYA_DIRECTION_MAYA2
-            || btDetailState == KANTURU_MAYA_DIRECTION_END_MAYA2 || btDetailState == KANTURU_MAYA_DIRECTION_ENDCYCLE_MAYA2)
+        else if (detail == UI::Kanturu::Detail::MayaMonster2 || detail == UI::Kanturu::Detail::Maya2
+            || detail == UI::Kanturu::Detail::MayaEnd2 || detail == UI::Kanturu::Detail::MayaEndCycle2)
         {
-            mu_swprintf(m_strStateText[1], I18N::Game::CurrentlyDPlayersAreInBattleWithMayaSRightHand, btUserCount);
+            mu_swprintf(m_strStateText[1], I18N::Game::CurrentlyDPlayersAreInBattleWithMayaSRightHand, userCount);
             m_iStateTextNum = 2;
         }
-        else if (btDetailState == KANTURU_MAYA_DIRECTION_MONSTER3 || btDetailState == KANTURU_MAYA_DIRECTION_MAYA3
-            || btDetailState == KANTURU_MAYA_DIRECTION_END_MAYA3 || btDetailState == KANTURU_MAYA_DIRECTION_ENDCYCLE_MAYA3)
+        else if (detail == UI::Kanturu::Detail::MayaMonster3 || detail == UI::Kanturu::Detail::Maya3
+            || detail == UI::Kanturu::Detail::MayaEnd3 || detail == UI::Kanturu::Detail::MayaEndCycle3)
         {
-            mu_swprintf(m_strStateText[1], I18N::Game::CurrentlyDPlayersAreInBattleWithMayaSBothHands, btUserCount);
+            mu_swprintf(m_strStateText[1], I18N::Game::CurrentlyDPlayersAreInBattleWithMayaSBothHands, userCount);
             m_iStateTextNum = 2;
         }
-        else if (btDetailState == KANTURU_MAYA_DIRECTION_NONE || btDetailState == KANTURU_MAYA_DIRECTION_END
-            || btDetailState == KANTURU_MAYA_DIRECTION_ENDCYCLE)
+        else if (detail == UI::Kanturu::Detail::None || detail == UI::Kanturu::Detail::MayaEnd
+            || detail == UI::Kanturu::Detail::MayaEndCycle)
         {
             m_iStateTextNum = 1;
         }
     }
-    else if (btState == KANTURU_STATE_NIGHTMARE_BATTLE)
+    else if (stage == UI::Kanturu::Stage::NightmareBattle)
     {
         wcscpy(m_strSubject, I18N::Game::BattleWithMayaIsOngoing);
-        mu_swprintf(m_strStateText[0], I18N::Game::DPlayersAreTryingToOpen, btUserCount);
-        mu_swprintf(m_strStateText[1], I18N::Game::CurrentlyDPlayersAreInBattleWithNightmare, btUserCount);
+        mu_swprintf(m_strStateText[0], I18N::Game::DPlayersAreTryingToOpen, userCount);
+        mu_swprintf(m_strStateText[1], I18N::Game::CurrentlyDPlayersAreInBattleWithNightmare, userCount);
         m_iStateTextNum = 2;
     }
-    else if (btState == KANTURU_STATE_STANDBY)
+    else if (stage == UI::Kanturu::Stage::Standby)
     {
         wcscpy(m_strSubject, I18N::Game::BossBattleWillStartSoon);
-        if (btDetailState == 1)	// STANBY_START
+        if (detail == UI::Kanturu::Detail::StandbyStart)
         {
-            mu_swprintf(m_strStateText[0], I18N::Game::ForceOfTheNightmareHasInvaded, iRemainTime / 60);
+            mu_swprintf(m_strStateText[0], I18N::Game::ForceOfTheNightmareHasInvaded, remainingSeconds / 60);
         }
         else // STANBY_NONE || STANBY_NOTIFY || STANBY_END || STANBY_ENDCYCLE
         {
@@ -400,10 +407,10 @@ void mu::ui::window::CKanturu2ndEnterNpc::ReceiveKanturu3rdInfo(BYTE btState, BY
     }
 }
 
-void mu::ui::window::CKanturu2ndEnterNpc::ReceiveKanturu3rdEnter(BYTE btResult)
+void mu::ui::window::CKanturu2ndEnterNpc::ReceiveKanturu3rdEnter(UI::Kanturu::EntryResult result)
 {
     m_bEnterRequest = false;
-    CreateMessageBox(btResult);
+    CreateMessageBox(static_cast<MSGBOX_TYPE>(result));
 
     // The original dereferenced the gateway NPC unchecked: an entry answer before the client had
     // seen the NPC (the pointer is set when the NPC enters the viewport) crashed it.
@@ -496,85 +503,59 @@ void mu::ui::window::CKanturu2ndEnterNpc::ProcessEnter()
     }
 }
 
-void mu::ui::window::CKanturu2ndEnterNpc::BuildRmlUi()
+void mu::ui::window::CKanturu2ndEnterNpc::BindRmlModel(Rml::DataModelConstructor& c, KanturuEnterRmlModel& model)
 {
-    if (m_pRmlDoc || !RmlUiRuntime::Instance().IsCreated())
-        return;
-
-    const bool modelCreated = m_RmlBinder.Create(
-        RmlUiRuntime::Instance().GetContext(), "kanturu_enter",
-        [this](Rml::DataModelConstructor& c, KanturuEnterRmlModel& model)
-        {
-            c.Bind("root_x", &model.rootX);
-            c.Bind("root_y", &model.rootY);
-            c.Bind("root_scale", &model.rootScale);
-            c.Bind("text_px", &model.textPx);
-            auto line = c.RegisterStruct<KanturuEnterLineEntry>();
-            line.RegisterMember("text", &KanturuEnterLineEntry::text);
-            line.RegisterMember("top", &KanturuEnterLineEntry::top);
-            line.RegisterMember("text_px", &KanturuEnterLineEntry::textPx);
-            line.RegisterMember("bold", &KanturuEnterLineEntry::bold);
-            line.RegisterMember("tone", &KanturuEnterLineEntry::tone);
-            c.RegisterArray<std::vector<KanturuEnterLineEntry>>();
-            c.Bind("lines", &model.lines);
-            c.Bind("refresh_text", &model.refreshText);
-            c.Bind("enter_text", &model.enterText);
-            c.Bind("close_text", &model.closeText);
-            c.Bind("refresh_locked", &model.refreshLocked);
-            c.Bind("enter_locked", &model.enterLocked);
-            c.Bind("label_top", &model.labelTop);
-            c.Bind("label_line_px", &model.labelLinePx);
-            c.BindEventCallback("kanturu_refresh", [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&)
-                                { m_PendingRefresh = true; });
-            c.BindEventCallback("kanturu_enter", [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&)
-                                { m_PendingEnter = true; });
-            c.BindEventCallback("kanturu_close", [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&)
-                                { m_PendingClose = true; });
-        });
-
-    if (!modelCreated)
-        return;
-
-    m_pRmlDoc = UI::RmlBridge::LoadThemedDocument(RmlUiRuntime::Instance().GetContext(),
-                                                  "Data/Interface/RmlUi/kanturu_enter.rml");
+    c.Bind("root_x", &model.rootX);
+    c.Bind("root_y", &model.rootY);
+    c.Bind("root_scale", &model.rootScale);
+    c.Bind("text_px", &model.textPx);
+    auto line = c.RegisterStruct<KanturuEnterLineEntry>();
+    line.RegisterMember("text", &KanturuEnterLineEntry::text);
+    line.RegisterMember("top", &KanturuEnterLineEntry::top);
+    line.RegisterMember("text_px", &KanturuEnterLineEntry::textPx);
+    line.RegisterMember("kind", &KanturuEnterLineEntry::kind);
+    c.RegisterArray<std::vector<KanturuEnterLineEntry>>();
+    c.Bind("lines", &model.lines);
+    c.Bind("refresh_text", &model.refreshText);
+    c.Bind("enter_text", &model.enterText);
+    c.Bind("close_text", &model.closeText);
+    c.Bind("refresh_locked", &model.refreshLocked);
+    c.Bind("enter_locked", &model.enterLocked);
+    c.Bind("label_line_px", &model.labelLinePx);
+    c.BindEventCallback("kanturu_refresh", [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&)
+                        { m_PendingRefresh = true; });
+    c.BindEventCallback("kanturu_enter", [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&)
+                        { m_PendingEnter = true; });
+    c.BindEventCallback("kanturu_close", [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&)
+                        { m_PendingClose = true; });
 }
 
-void mu::ui::window::CKanturu2ndEnterNpc::ReloadRmlTheme()
+void mu::ui::window::CKanturu2ndEnterNpc::BuildRmlUi()
 {
-    if (!m_pRmlDoc)
-        return;
-    Rml::Context* context = RmlUiRuntime::Instance().GetContext();
-    m_RmlBinder.Destroy(context);
-    context->UnloadDocument(m_pRmlDoc);
-    m_pRmlDoc = nullptr;
-
-    BuildRmlUi();
+    m_RmlView.Ensure();
 }
 
 void mu::ui::window::CKanturu2ndEnterNpc::SyncRmlModel()
 {
     BuildRmlUi();
-    if (!m_pRmlDoc)
+    if (!m_RmlView.Document())
         return;
 
     // Layer depth 10.1: over the HUD and the panels.
-    UI::RmlBridge::SyncDocumentVisibilityInFront(m_pRmlDoc, IsVisible());
+    UI::RmlBridge::SyncDocumentVisibilityInFront(m_RmlView.Document(), IsVisible());
     if (!IsVisible())
         return;
 
-    UI::RmlBridge::SyncRootTransform(m_RmlBinder, m_Pos);
-    UI::RmlBridge::SyncNativeTextSize(m_RmlBinder);
+    UI::RmlBridge::SyncRootTransform(m_RmlView.Binder(), m_Pos);
+    UI::RmlBridge::SyncNativeTextSize(m_RmlView.Binder());
     SyncContent();
 }
 
 void mu::ui::window::CKanturu2ndEnterNpc::SyncContent()
 {
     const UI::Scaling::Transform transform = UI::Scaling::GetActiveTransform();
-    KanturuEnterRmlModel updated = m_RmlBinder.GetModel();
+    KanturuEnterRmlModel updated = m_RmlView.GetModel();
     const int lineHeight = CUIRenderTextSDLTtf::LineHeight(UI::Scaling::FontRole::Normal);
-    // CButton::Render()'s whole-unit centring.
-    const int labelTopUnits = 23 / 2 - lineHeight / 2;
-    updated.labelTop = static_cast<float>(labelTopUnits);
     updated.labelLinePx = static_cast<float>(lineHeight) * transform.scaleY;
     updated.refreshText = StringUtils::WideToNarrow(I18N::Game::Refresh);
     updated.enterText = StringUtils::WideToNarrow(I18N::Game::Enter);
@@ -586,18 +567,20 @@ void mu::ui::window::CKanturu2ndEnterNpc::SyncContent()
     // apart from y 30; 20 units below it the state texts, the first in green, the others bright
     // yellow, 15 units between two texts.
     updated.lines.clear();
-    auto addLine = [&](const wchar_t* text, float top, bool bold, int tone)
+    auto addLine = [&](const wchar_t* text, float top, const char* kind)
     {
-        const auto role = bold ? UI::Scaling::FontRole::Bold : UI::Scaling::FontRole::Normal;
+        // The subject is the one the original drew bold, so it is the one measured in that font.
+        const auto role = std::strcmp(kind, "subject") == 0 ? UI::Scaling::FontRole::Bold
+                                                            : UI::Scaling::FontRole::Normal;
         updated.lines.push_back({StringUtils::WideToNarrow(text), top,
-                                 KanturuTextPxInBox(role, transform, text, KANTURU2ND_ENTER_WINDOW_WIDTH), bold, tone});
+                                 KanturuTextPxInBox(role, transform, text, KANTURU2ND_ENTER_WINDOW_WIDTH), kind});
     };
     float textY = 30.f;
     wchar_t separated[3][52] = {};
     int lineCount = SeparateTextIntoLines(m_strSubject, separated[0], 3, 52);
     for (int i = 0; i < lineCount; i++)
     {
-        addLine(separated[i], textY, true, 0);
+        addLine(separated[i], textY, "subject");
         textY += 12.f;
     }
     textY += 20.f;
@@ -607,39 +590,24 @@ void mu::ui::window::CKanturu2ndEnterNpc::SyncContent()
         lineCount = SeparateTextIntoLines(m_strStateText[i], separated[0], 3, 52);
         for (int j = 0; j < lineCount; j++)
         {
-            addLine(separated[j], textY, false, i == 0 ? 1 : 2);
+            addLine(separated[j], textY, i == 0 ? "state" : "note");
             textY += 12.f;
         }
         textY += 15.f;
     }
 
-    KanturuEnterRmlModel& model = m_RmlBinder.GetModel();
-    auto sync = [&](auto field, const char* name)
-    {
-        if (!(model.*field == updated.*field))
-        {
-            model.*field = updated.*field;
-            m_RmlBinder.MarkDirty(name);
-        }
-    };
-    sync(&KanturuEnterRmlModel::labelTop, "label_top");
-    sync(&KanturuEnterRmlModel::labelLinePx, "label_line_px");
-    sync(&KanturuEnterRmlModel::refreshText, "refresh_text");
-    sync(&KanturuEnterRmlModel::enterText, "enter_text");
-    sync(&KanturuEnterRmlModel::closeText, "close_text");
-    sync(&KanturuEnterRmlModel::refreshLocked, "refresh_locked");
-    sync(&KanturuEnterRmlModel::enterLocked, "enter_locked");
-    const bool sameLines = model.lines.size() == updated.lines.size() &&
-                           std::equal(model.lines.begin(), model.lines.end(), updated.lines.begin(),
-                                      [](const KanturuEnterLineEntry& a, const KanturuEnterLineEntry& b)
-                                      {
-                                          return a.text == b.text && a.top == b.top && a.textPx == b.textPx &&
-                                                 a.bold == b.bold && a.tone == b.tone;
-                                      });
+    KanturuEnterRmlModel& model = m_RmlView.GetModel();
+    SyncFieldFrom(m_RmlView.Binder(), &KanturuEnterRmlModel::labelLinePx, "label_line_px", updated);
+    SyncFieldFrom(m_RmlView.Binder(), &KanturuEnterRmlModel::refreshText, "refresh_text", updated);
+    SyncFieldFrom(m_RmlView.Binder(), &KanturuEnterRmlModel::enterText, "enter_text", updated);
+    SyncFieldFrom(m_RmlView.Binder(), &KanturuEnterRmlModel::closeText, "close_text", updated);
+    SyncFieldFrom(m_RmlView.Binder(), &KanturuEnterRmlModel::refreshLocked, "refresh_locked", updated);
+    SyncFieldFrom(m_RmlView.Binder(), &KanturuEnterRmlModel::enterLocked, "enter_locked", updated);
+    const bool sameLines = model.lines == updated.lines;
     if (!sameLines)
     {
         model.lines = std::move(updated.lines);
-        m_RmlBinder.MarkDirty("lines");
+        m_RmlView.MarkDirty("lines");
     }
 }
 
@@ -669,7 +637,6 @@ bool mu::ui::window::CKanturuInfoWindow::Create(CManager* pNewUIMng, int x, int 
     SetPos(x, y);
 
     BuildRmlUi();
-    UI::RmlBridge::RegisterForThemeReload(this, [this] { ReloadRmlTheme(); });
 
     Show(false);
 
@@ -678,7 +645,7 @@ bool mu::ui::window::CKanturuInfoWindow::Create(CManager* pNewUIMng, int x, int 
 
 void mu::ui::window::CKanturuInfoWindow::Release()
 {
-    UI::RmlBridge::UnregisterForThemeReload(this);
+    m_RmlView.Release();
 
     if (m_pNewUIMng)
     {
@@ -726,14 +693,6 @@ bool mu::ui::window::CKanturuInfoWindow::Render()
 
 namespace
 {
-// The original drew the HUD under every panel (layer depth 1.92): the document sits in the
-// background context, behind its other documents.
-Rml::Context* KanturuInfoContext()
-{
-    Rml::Context* context = RmlUiRuntime::Instance().GetBackgroundContext();
-    return context != nullptr ? context : RmlUiRuntime::Instance().GetContext();
-}
-
 template <typename T>
 void SyncInfoField(RmlModelBinder<mu::ui::window::KanturuInfoRmlModel>& binder,
                    T mu::ui::window::KanturuInfoRmlModel::* field, const char* name, T value)
@@ -764,71 +723,55 @@ void AddNumberDigits(std::vector<mu::ui::window::KanturuInfoDigitEntry>& digits,
 }
 } // namespace
 
-void mu::ui::window::CKanturuInfoWindow::BuildRmlUi()
+void mu::ui::window::CKanturuInfoWindow::BindRmlModel(Rml::DataModelConstructor& c, KanturuInfoRmlModel& model)
 {
-    if (m_pRmlDoc || !RmlUiRuntime::Instance().IsCreated())
-        return;
-
-    const bool modelCreated = m_RmlBinder.Create(KanturuInfoContext(), "kanturu_info",
-                                                 [](Rml::DataModelConstructor& c, KanturuInfoRmlModel& model)
-                                                 {
-                                                     c.Bind("scale_x", &model.scaleX);
-                                                     c.Bind("scale_y", &model.scaleY);
-                                                     c.Bind("inverse_scale_x", &model.inverseScaleX);
-                                                     c.Bind("inverse_scale_y", &model.inverseScaleY);
-                                                     c.Bind("bold_text_px", &model.boldTextPx);
-                                                     c.Bind("panel_x", &model.panelX);
-                                                     c.Bind("panel_y", &model.panelY);
-                                                     c.Bind("users_text", &model.usersText);
-                                                     c.Bind("monsters_text", &model.monstersText);
-                                                     c.Bind("colon_visible", &model.colonVisible);
-                                                     auto digit = c.RegisterStruct<KanturuInfoDigitEntry>();
-                                                     digit.RegisterMember("left", &KanturuInfoDigitEntry::left);
-                                                     digit.RegisterMember("rect", &KanturuInfoDigitEntry::rect);
-                                                     c.RegisterArray<std::vector<KanturuInfoDigitEntry>>();
-                                                     c.Bind("digits", &model.digits);
-                                                 });
-    if (modelCreated)
-        m_pRmlDoc = UI::RmlBridge::LoadThemedDocument(KanturuInfoContext(), "Data/Interface/RmlUi/kanturu_info.rml");
+    c.Bind("scale_x", &model.scaleX);
+    c.Bind("scale_y", &model.scaleY);
+    c.Bind("inverse_scale_x", &model.inverseScaleX);
+    c.Bind("inverse_scale_y", &model.inverseScaleY);
+    c.Bind("bold_text_px", &model.boldTextPx);
+    c.Bind("panel_x", &model.panelX);
+    c.Bind("panel_y", &model.panelY);
+    c.Bind("users_text", &model.usersText);
+    c.Bind("monsters_text", &model.monstersText);
+    c.Bind("colon_visible", &model.colonVisible);
+    auto digit = c.RegisterStruct<KanturuInfoDigitEntry>();
+    digit.RegisterMember("left", &KanturuInfoDigitEntry::left);
+    digit.RegisterMember("rect", &KanturuInfoDigitEntry::rect);
+    c.RegisterArray<std::vector<KanturuInfoDigitEntry>>();
+    c.Bind("digits", &model.digits);
 }
 
-void mu::ui::window::CKanturuInfoWindow::ReloadRmlTheme()
+void mu::ui::window::CKanturuInfoWindow::BuildRmlUi()
 {
-    if (!m_pRmlDoc)
-        return;
-    Rml::Context* context = KanturuInfoContext();
-    m_RmlBinder.Destroy(context);
-    context->UnloadDocument(m_pRmlDoc);
-    m_pRmlDoc = nullptr;
-
-    BuildRmlUi();
+    m_RmlView.Ensure();
 }
 
 void mu::ui::window::CKanturuInfoWindow::SyncView()
 {
     BuildRmlUi();
-    if (!m_pRmlDoc)
+    if (!m_RmlView.Document())
         return;
 
-    UI::RmlBridge::SyncDocumentVisibilityBehind(m_pRmlDoc, IsVisible());
+    UI::RmlBridge::SyncDocumentVisibilityBehind(m_RmlView.Document(), IsVisible());
     if (!IsVisible())
         return;
 
-    // CManager scopes LayoutMode::Hud around the window: W/640 x H/480, no offset.
+    // CManager scopes LayoutMode::HudFrame around the window: the bottom HUD's uniform scale, no offset.
     const UI::Scaling::Transform transform = UI::Scaling::GetActiveTransform();
-    SyncInfoField(m_RmlBinder, &KanturuInfoRmlModel::scaleX, "scale_x", transform.scaleX);
-    SyncInfoField(m_RmlBinder, &KanturuInfoRmlModel::scaleY, "scale_y", transform.scaleY);
-    SyncInfoField(m_RmlBinder, &KanturuInfoRmlModel::inverseScaleX, "inverse_scale_x", 1.0f / transform.scaleX);
-    SyncInfoField(m_RmlBinder, &KanturuInfoRmlModel::inverseScaleY, "inverse_scale_y", 1.0f / transform.scaleY);
-    SyncInfoField(m_RmlBinder, &KanturuInfoRmlModel::boldTextPx, "bold_text_px",
+    SyncInfoField(m_RmlView.Binder(), &KanturuInfoRmlModel::scaleX, "scale_x", transform.scaleX);
+    SyncInfoField(m_RmlView.Binder(), &KanturuInfoRmlModel::scaleY, "scale_y", transform.scaleY);
+    SyncInfoField(m_RmlView.Binder(), &KanturuInfoRmlModel::inverseScaleX, "inverse_scale_x", 1.0f / transform.scaleX);
+    SyncInfoField(m_RmlView.Binder(), &KanturuInfoRmlModel::inverseScaleY, "inverse_scale_y", 1.0f / transform.scaleY);
+    SyncInfoField(m_RmlView.Binder(), &KanturuInfoRmlModel::boldTextPx, "bold_text_px",
                   UI::Scaling::NativeTextPixelSize(UI::Scaling::FontRole::Bold, transform));
-    SyncInfoField(m_RmlBinder, &KanturuInfoRmlModel::panelX, "panel_x", static_cast<float>(m_Pos.x));
-    SyncInfoField(m_RmlBinder, &KanturuInfoRmlModel::panelY, "panel_y", static_cast<float>(m_Pos.y));
+    SyncInfoField(m_RmlView.Binder(), &KanturuInfoRmlModel::panelX, "panel_x", static_cast<float>(m_Pos.x));
+    SyncInfoField(m_RmlView.Binder(), &KanturuInfoRmlModel::panelY, "panel_y", static_cast<float>(m_Pos.y));
 
     // The original's RenderInfo(): the characters, then the monsters or, while Maya fights, the boss.
     wchar_t strText[256];
     mu_swprintf(strText, I18N::Game::CharacterD, UserCount);
-    SyncInfoField(m_RmlBinder, &KanturuInfoRmlModel::usersText, "users_text", StringUtils::WideToNarrow(strText));
+    SyncInfoField(m_RmlView.Binder(), &KanturuInfoRmlModel::usersText, "users_text", StringUtils::WideToNarrow(strText));
     if (g_Direction.m_CKanturu.m_iMayaState == KANTURU_MAYA_DIRECTION_MAYA1 ||
         g_Direction.m_CKanturu.m_iMayaState == KANTURU_MAYA_DIRECTION_MAYA2 ||
         g_Direction.m_CKanturu.m_iMayaState == KANTURU_MAYA_DIRECTION_MAYA3)
@@ -839,7 +782,7 @@ void mu::ui::window::CKanturuInfoWindow::SyncView()
     {
         mu_swprintf(strText, I18N::Game::MonsterD, MonsterCount);
     }
-    SyncInfoField(m_RmlBinder, &KanturuInfoRmlModel::monstersText, "monsters_text", StringUtils::WideToNarrow(strText));
+    SyncInfoField(m_RmlView.Binder(), &KanturuInfoRmlModel::monstersText, "monsters_text", StringUtils::WideToNarrow(strText));
 
     // The time left since the last SetTime(). The original showed 0 seconds for the whole last
     // minute (it took the seconds modulo 60 * minutes); the seconds are taken modulo 60 here.
@@ -853,12 +796,12 @@ void mu::ui::window::CKanturuInfoWindow::SyncView()
         m_dwColonTime = timeGetTime();
         m_bColonVisible = !m_bColonVisible;
     }
-    SyncInfoField(m_RmlBinder, &KanturuInfoRmlModel::colonVisible, "colon_visible", m_bColonVisible);
+    SyncInfoField(m_RmlView.Binder(), &KanturuInfoRmlModel::colonVisible, "colon_visible", m_bColonVisible);
 
     std::vector<KanturuInfoDigitEntry> digits;
     AddNumberDigits(digits, 35.f, m_iMinute);
     AddNumberDigits(digits, 65.f, iSecond);
-    auto& model = m_RmlBinder.GetModel();
+    auto& model = m_RmlView.GetModel();
     const bool same = model.digits.size() == digits.size() &&
                       std::equal(model.digits.begin(), model.digits.end(), digits.begin(),
                                  [](const KanturuInfoDigitEntry& a, const KanturuInfoDigitEntry& b)
@@ -866,7 +809,7 @@ void mu::ui::window::CKanturuInfoWindow::SyncView()
     if (!same)
     {
         model.digits = std::move(digits);
-        m_RmlBinder.MarkDirty("digits");
+        m_RmlView.MarkDirty("digits");
     }
 }
 

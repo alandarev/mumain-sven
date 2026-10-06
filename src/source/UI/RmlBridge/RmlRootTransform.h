@@ -1,6 +1,7 @@
 #pragma once
 
 #include "UI/RmlBridge/RmlModelBinder.h"
+#include "UI/RmlBridge/RmlPanelGeometry.h"
 #include "UI/Scaling/UITransform.h"
 
 // Shared "root transform" sync for every RmlUi window whose position tracks a native, legacy-
@@ -19,13 +20,39 @@ namespace UI::RmlBridge
     void SyncRootTransform(RmlModelBinder<Model>& binder, const POINT& pos)
     {
         const auto transform = UI::Scaling::GetActiveTransform();
+        const float rootX = static_cast<float>(pos.x) * transform.scaleX + transform.offsetX;
+        const float rootY = static_cast<float>(pos.y) * transform.scaleY + transform.offsetY;
+        const float rootScale = transform.scaleX;
+
+        // Dirty only on change, like SyncNativeTextSize() below. This is the most-called sync in the
+        // UI -- every docked and inventory window, every frame -- and each dirtied root_* re-runs
+        // every view bound to it, which on a window that binds its layout is dozens of writes for a
+        // panel that has not moved. The three change together, so one comparison covers them.
         Model& model = binder.GetModel();
-        model.rootX = static_cast<float>(pos.x) * transform.scaleX + transform.offsetX;
-        model.rootY = static_cast<float>(pos.y) * transform.scaleY + transform.offsetY;
-        model.rootScale = transform.scaleX;
+        if (model.rootX == rootX && model.rootY == rootY && model.rootScale == rootScale)
+            return;
+
+        model.rootX = rootX;
+        model.rootY = rootY;
+        model.rootScale = rootScale;
         binder.MarkDirty("root_x");
         binder.MarkDirty("root_y");
         binder.MarkDirty("root_scale");
+    }
+
+    // The width the theme gives #panel, in its layout units, for leaves that counter-scale out of
+    // the root transform and so need the width as a number (a centring box as wide as the panel).
+    // `Model` must expose `float panelWidth` bound to "panel_width"; it keeps its previous value
+    // until the document has laid out.
+    template <typename Model> void SyncPanelWidth(RmlModelBinder<Model>& binder, Rml::ElementDocument* doc)
+    {
+        Model& model = binder.GetModel();
+        float width = model.panelWidth;
+        float height = 0.f;
+        if (!RefreshLogicalPanelSize(doc, "panel", width, height) || width == model.panelWidth)
+            return;
+        model.panelWidth = width;
+        binder.MarkDirty("panel_width");
     }
 
     // Legacy-theme text that must match the native text renderer's size (and be rasterised at it)

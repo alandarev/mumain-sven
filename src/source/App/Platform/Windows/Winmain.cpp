@@ -2,6 +2,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 #include "stdafx.h"
 #include "Core/Input/KeyState.h"
+#include "Core/Utilities/FrameProfiler.h"
 #include "Core/Input/SyntheticInput.h"
 #include "Core/Input/UiInputRouter.h"
 #include "App/Control/ControlServer.h"
@@ -27,7 +28,6 @@
 #include <vector>
 #include "Core/Platform/WinIni.h" // private-profile (.ini) API
 #include "Data/GameConfig/GameConfig.h"
-#include "UI/Party/UIWindows.h"
 #include "UI/Core/UIManager.h"
 #include "Render/Textures/ZzzOpenglUtil.h"
 #include "Render/Textures/ZzzTexture.h"
@@ -53,6 +53,7 @@
 #include "Audio/DSPlaySound.h"
 
 #include "Core/Platform/Imm.h"
+#include "Core/Platform/ProcessLocale.h"
 #include "Core/Platform/ServerPort.h"
 #include "Core/Platform/sdl3/SDLWindowFlags.h"
 #include "Core/Platform/BundledFonts.h"
@@ -86,6 +87,8 @@
 #include "UI/Windows/SysMenuWin.h"
 #include "UI/Windows/LoginWin.h"
 #include "UI/Dialogs/GenericConfirmDialog.h"
+#include "UI/RmlBridge/RmlOverlayRender.h"
+#include "UI/RmlBridge/RmlRenderTarget.h"
 
 #include "World/MapInfra/w_MapHeaders.h"
 
@@ -104,10 +107,7 @@
 #include "../MuEditor/Config/MuEditorConfig.h"
 #endif
 
-CUITextInputBox* g_pSingleTextInputBox = nullptr;
-CUITextInputBox* g_pSinglePasswdInputBox = nullptr;
 int g_iChatInputType = 1;
-extern BOOL g_bIMEBlock;
 
 CMultiLanguage* pMultiLanguage = nullptr;
 
@@ -169,6 +169,8 @@ BOOL g_bUseFullscreenMode = FALSE;
 bool g_bDisableAnimationTaskPool = true;
 
 #include "Audio/AudioPlayer.h"
+#include "Render/Text/CUIRenderText.h"
+#include "Core/Input/ImeInput.h"
 
 extern int LogIn;
 extern wchar_t LogInID[];
@@ -591,8 +593,6 @@ void DestroyWindow()
     DeleteAllFrustrum();
 #endif // DYNAMIC_FRUSTRUM
 
-    SAFE_DELETE(g_pSingleTextInputBox);
-    SAFE_DELETE(g_pSinglePasswdInputBox);
 
     SAFE_DELETE(g_pUIMapName); // rozy
     SAFE_DELETE(g_pTimer);
@@ -871,6 +871,20 @@ bool ExceptionCallback(_EXCEPTION_POINTERS* pExceptionInfo)
 }
 
 double CPU_AVG = 0.0;
+static void RenderProfiledFrame()
+{
+    {
+        FRAME_PROFILE(RendererBegin);
+        mu::GetRenderer().BeginFrame();
+    }
+    RenderScene(g_hDC);
+    {
+        FRAME_PROFILE(RendererEnd);
+        mu::GetRenderer().EndFrame();
+    }
+    FrameProfiler::CompleteFrame();
+}
+
 void RecordCpuUsage()
 {
     constexpr int max_recordings = 60;
@@ -1159,35 +1173,6 @@ void HandleFocusChange(bool active)
     }
 }
 
-// --- Portable text field input routing (issue #447) -------------------
-// Map the SDL keys a single-line text field reacts to onto the Win32 VK
-// codes the field already understands. Returns 0 for keys it ignores.
-int MapScancodeToEditVk(SDL_Scancode sc)
-{
-    switch (sc)
-    {
-    case SDL_SCANCODE_LEFT:
-        return VK_LEFT;
-    case SDL_SCANCODE_RIGHT:
-        return VK_RIGHT;
-    case SDL_SCANCODE_HOME:
-        return VK_HOME;
-    case SDL_SCANCODE_END:
-        return VK_END;
-    case SDL_SCANCODE_BACKSPACE:
-        return VK_BACK;
-    case SDL_SCANCODE_DELETE:
-        return VK_DELETE;
-    case SDL_SCANCODE_RETURN:
-    case SDL_SCANCODE_KP_ENTER:
-        return VK_RETURN;
-    case SDL_SCANCODE_TAB:
-        return VK_TAB;
-    default:
-        return 0;
-    }
-}
-
 // UTF-8 <-> UTF-16 conversions sized to the input, so text of any length
 // (typed, copied or pasted) round-trips without truncation (issue #447).
 std::wstring Utf8ToWide(const char* utf8)
@@ -1214,76 +1199,6 @@ std::string WideToUtf8(const std::wstring& wide)
     return utf8;
 }
 
-void FeedPortableTextInput(const char* utf8)
-{
-    auto* box = CUITextInputBox::GetFocusedPortable();
-    if (box == nullptr || utf8 == nullptr)
-        return;
-
-    const std::wstring wide = Utf8ToWide(utf8);
-    if (!wide.empty())
-        box->OnTextInput(wide.c_str());
-}
-
-// Handle a key for the focused portable field. Returns true if consumed.
-bool FeedPortableKey(const SDL_KeyboardEvent& key)
-{
-    auto* box = CUITextInputBox::GetFocusedPortable();
-    if (box == nullptr)
-        return false;
-
-    const bool ctrl = (key.mod & SDL_KMOD_CTRL) != 0;
-    const bool shift = (key.mod & SDL_KMOD_SHIFT) != 0;
-
-    // Clipboard lives in SDL on this side of the boundary, keeping the text
-    // field itself free of SDL; the field only exposes selection helpers.
-    if (ctrl)
-    {
-        switch (key.scancode)
-        {
-        case SDL_SCANCODE_A:
-            box->SelectAll();
-            return true;
-        case SDL_SCANCODE_C:
-        case SDL_SCANCODE_X:
-        {
-            const std::wstring selection = box->GetSelectedText();
-            if (!selection.empty())
-            {
-                const std::string utf8 = WideToUtf8(selection);
-                if (!utf8.empty())
-                {
-                    SDL_SetClipboardText(utf8.c_str());
-                    if (key.scancode == SDL_SCANCODE_X)
-                        box->DeleteSelection();
-                }
-            }
-            return true;
-        }
-        case SDL_SCANCODE_V:
-        {
-            char* clip = SDL_GetClipboardText();
-            if (clip != nullptr)
-            {
-                const std::wstring wide = Utf8ToWide(clip);
-                if (!wide.empty())
-                    box->OnTextInput(wide.c_str());
-                SDL_free(clip);
-            }
-            return true;
-        }
-        default:
-            break;
-        }
-    }
-
-    const int vk = MapScancodeToEditVk(key.scancode);
-    if (vk == 0)
-        return false;
-
-    box->OnEditKey(vk, ctrl, shift);
-    return true;
-}
 } // namespace
 
 std::vector<std::pair<int, int>> MuGetSupportedDisplayResolutions()
@@ -1340,11 +1255,23 @@ void MuApplyWindowResolution(unsigned int width, unsigned int height, bool windo
     const int w = static_cast<int>(width);
     const int h = static_cast<int>(height);
 
+    // Whether this call actually moves the window anywhere. COptionWindow::ApplyPendingUIScale()
+    // calls here with the size the window already has, purely to drive the resize that makes a new
+    // UI scale take effect -- so centering unconditionally made the whole app window jump to the
+    // middle of the display every time the user touched the scale dial. Centering is right when the
+    // size really changes (the old position may not fit any more) or when leaving fullscreen, and
+    // wrong otherwise.
+    int currentW = 0, currentH = 0;
+    SDL_GetWindowSize(g_sdlWindow, &currentW, &currentH);
+    const bool leavingFullscreen = (SDL_GetWindowFlags(g_sdlWindow) & SDL_WINDOW_FULLSCREEN) != 0;
+    const bool repositions = currentW != w || currentH != h || leavingFullscreen;
+
     if (windowed)
     {
         SDL_SetWindowFullscreen(g_sdlWindow, false);
         SDL_SetWindowSize(g_sdlWindow, w, h);
-        SDL_SetWindowPosition(g_sdlWindow, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
+        if (repositions)
+            SDL_SetWindowPosition(g_sdlWindow, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
     }
     else
     {
@@ -1418,8 +1345,6 @@ bool RouteActionInput(SDL_Event& event, bool synthetic, bool& propagates)
         return true;
     case SDL_EVENT_TEXT_INPUT:
         propagates = Core::Input::RouteToUi(event, g_sdlWindow);
-        if (propagates)
-            FeedPortableTextInput(event.text.text);
         return true;
     case SDL_EVENT_KEY_UP:
         // RmlUi needs the release even though legacy has no key-up reader.
@@ -1442,9 +1367,6 @@ bool RouteActionInput(SDL_Event& event, bool synthetic, bool& propagates)
         if (synthetic && event.key.scancode == SDL_SCANCODE_F10 && !event.key.repeat)
             CameraManager::Instance().ToggleZoomLock();
 #endif
-        if (!propagates)
-            return true;
-        FeedPortableKey(event.key);
         return true;
     default:
         return false;
@@ -1540,15 +1462,10 @@ MSG MainLoop()
                 break;
             }
             case SDL_EVENT_TEXT_EDITING:
-                // RmlUi first (whenever an RmlUi <input> is focused -- IsTextInputActive() is
-                // driven by RmlUiSystemInterface::ActivateKeyboard/DeactivateKeyboard, which
-                // WidgetTextInput's own Focus/Blur handling already calls), CUITextInputBox
-                // fallback otherwise -- same precedence SDL_EVENT_TEXT_INPUT already uses via
-                // RouteActionInput()'s Core::Input::RouteToUi()-then-FeedPortableTextInput() order.
+                // IsTextInputActive() is driven by RmlUiSystemInterface::ActivateKeyboard/
+                // DeactivateKeyboard, which WidgetTextInput's own Focus/Blur handling calls.
                 if (RmlUiRuntime::Instance().IsTextInputActive())
                     RmlUiRuntime::Instance().ProcessTextEditing(event);
-                else if (auto* box = CUITextInputBox::GetFocusedPortable())
-                    box->OnTextEditing(Utf8ToWide(event.edit.text).c_str());
                 break;
             default:
                 break;
@@ -1558,60 +1475,6 @@ MSG MainLoop()
             if (g_MaxMessagePerCycle > 0 && messageProcessed >= g_MaxMessagePerCycle)
             {
                 break;
-            }
-        }
-
-        // Start/stop SDL text input as a portable text field gains or loses
-        // focus, so SDL only emits SDL_EVENT_TEXT_INPUT while one is active (#447).
-        //
-        // RmlUi owns SDL's text-input state itself whenever an RmlUi <input> is focused (see
-        // RmlUiSystemInterface::ActivateKeyboard/DeactivateKeyboard) -- this block must not also
-        // call SDL_StartTextInput/StopTextInput in that case, or the two would race the same
-        // frame's transition (RmlUi's own Focus/Blur handling already ran earlier this frame,
-        // inside the SDL_PollEvent loop above). wantTextInput below is false whenever RmlUi
-        // currently owns it, so the Start branch never double-starts; the Stop branch is further
-        // guarded so it never undoes a Start that RmlUi itself just issued this same frame.
-        {
-            static bool s_textInputActive = false;
-            auto* focusedField = CUITextInputBox::GetFocusedPortable();
-            const bool rmlOwnsTextInput = RmlUiRuntime::Instance().IsTextInputActive();
-            const bool wantTextInput = !rmlOwnsTextInput && focusedField != nullptr;
-            if (wantTextInput != s_textInputActive && g_sdlWindow != nullptr)
-            {
-                if (wantTextInput)
-                    SDL_StartTextInput(g_sdlWindow);
-                else if (!rmlOwnsTextInput)
-                    SDL_StopTextInput(g_sdlWindow);
-                s_textInputActive = wantTextInput;
-            }
-
-            // Anchor the IME candidate window at the caret (reference px -> window
-            // px) so composition UI appears next to the text being typed (#447).
-            int cx, cy, cw, ch;
-            if (wantTextInput && g_sdlWindow != nullptr && focusedField->GetCaretArea(cx, cy, cw, ch))
-            {
-                auto transform = UI::Scaling::PanelTransform(WindowWidth, WindowHeight);
-                mu::ui::window::CManager* manager =
-                    g_pNewUISystem != nullptr ? g_pNewUISystem->GetNewUIManager() : nullptr;
-                mu::ui::window::CObject* owner =
-                    manager != nullptr ? manager->FindUIObjByRelatedWnd(reinterpret_cast<HWND>(focusedField)) : nullptr;
-                if (owner != nullptr)
-                {
-                    transform = UI::Scaling::TransformForLayout(owner->GetLayoutMode(), WindowWidth, WindowHeight);
-                }
-                const SDL_Rect area = {static_cast<int>(UI::Scaling::PositionX(transform, static_cast<float>(cx))),
-                                       static_cast<int>(UI::Scaling::PositionY(transform, static_cast<float>(cy))),
-                                       static_cast<int>(UI::Scaling::SizeX(transform, static_cast<float>(cw))),
-                                       static_cast<int>(UI::Scaling::SizeY(transform, static_cast<float>(ch)))};
-                // Only push when the caret rect actually moves; resending every
-                // frame is wasteful and can flicker the candidate window.
-                static SDL_Rect s_lastArea = {0, 0, 0, 0};
-                if (area.x != s_lastArea.x || area.y != s_lastArea.y || area.w != s_lastArea.w ||
-                    area.h != s_lastArea.h)
-                {
-                    SDL_SetTextInputArea(g_sdlWindow, &area, 0);
-                    s_lastArea = area;
-                }
             }
         }
 
@@ -1661,9 +1524,7 @@ MSG MainLoop()
                 RequestDiagnosticFrameCapture();
                 ApplyPendingVSyncPreference();
                 App::Control::BeginUiFrame();
-                mu::GetRenderer().BeginFrame();
-                RenderScene(g_hDC);
-                mu::GetRenderer().EndFrame();
+                RenderProfiledFrame();
                 App::Control::CompleteUiFrame();
                 ConsumeDiagnosticFrameCapture();
             }
@@ -2265,9 +2126,18 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR szCmdLine, int nC
     // LoginWin/CharMakeWin/MsgWin's own IsShow() guards make it safe to leave their calls
     // unconditional across every scene this callback now covers -- those windows are never shown
     // outside LOG_IN_SCENE/CHARACTER_SCENE regardless.
+    // Native drawing a document shows as an image: recorded last in the frame and rendered into its
+    // own textures before the main pass, so RmlUi samples this frame's drawing.
+    mu::GetRenderer().SetOffscreenRenderCallback([]
+    {
+        FRAME_PROFILE(UI);
+        UI::RmlBridge::RenderTarget::RenderAll();
+    });
+
     mu::GetRenderer().SetPostRmlUiCallback(
         []()
         {
+            FRAME_PROFILE(UI);
             extern EGameScene SceneFlag;
 
             // CSystem's own RmlUi-backed HUD (MU Helper bar, buff strip) needs a real per-scene
@@ -2283,6 +2153,10 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR szCmdLine, int nC
             // special-cases -- correctly hides them.
             if (g_pNewUISystem)
                 g_pNewUISystem->SyncMainSceneHudVisibility();
+
+            // Native 3D that belongs on top of its own RmlUi panel rather than under every
+            // panel in the frame. Before the cursor, which stays above everything.
+            UI::RmlBridge::OverlayRender::RenderAll();
 
             if (SceneFlag == LOG_IN_SCENE || SceneFlag == CHARACTER_SCENE || SceneFlag == MAIN_SCENE)
             {
@@ -2358,7 +2232,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR szCmdLine, int nC
     g_ErrorReport.WriteFontInfo();
     g_ErrorReport.AddSeparator();
 
-    setlocale(LC_ALL, "");
+    Core::Platform::ApplyProcessLocale();
 
     CInput::Instance().Create(g_hWnd, WindowWidth, WindowHeight);
 
@@ -2419,12 +2293,6 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR szCmdLine, int nC
     CharacterMachine->Init();
     Hero = &CharactersClient[0];
 
-    if (g_iChatInputType == 1)
-    {
-        g_pSingleTextInputBox = new CUITextInputBox;
-        g_pSinglePasswdInputBox = new CUITextInputBox;
-    }
-
     g_pUIManager = new CUIManager;
     g_pUIMapName = new CUIMapName; // rozy
 
@@ -2439,14 +2307,6 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR szCmdLine, int nC
 
     if (g_iChatInputType == 1)
     {
-        g_pSingleTextInputBox->Init(g_hWnd, 200, 20);
-        g_pSinglePasswdInputBox->Init(g_hWnd, 200, 20, 9, TRUE);
-        g_pSingleTextInputBox->SetState(UISTATE_HIDE);
-        g_pSinglePasswdInputBox->SetState(UISTATE_HIDE);
-
-        g_pSingleTextInputBox->SetFont(g_hFont);
-        g_pSinglePasswdInputBox->SetFont(g_hFont);
-
         g_bIMEBlock = FALSE;
         HIMC hIMC = ImmGetContext(g_hWnd);
         ImmSetConversionStatus(hIMC, IME_CMODE_ALPHANUMERIC, IME_SMODE_NONE);

@@ -53,7 +53,7 @@ TEST_CASE(
     REQUIRE(SDL_Init(SDL_INIT_EVENTS));
     {
         Windows::UiLifecycleFixture fixture;
-        fixture.PreparePopup();
+        fixture.PrepareMessageWindow();
         REQUIRE(fixture.PrepareModalPrerequisites());
         fixture.chat.CObject::Show(false);
         fixture.friends.CObject::Show(false);

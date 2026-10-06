@@ -1,10 +1,6 @@
 #ifndef __ZZZINVENTORY_H__
 #define __ZZZINVENTORY_H__
 
-#include "UI/RmlBridge/RmlTooltip.h"
-
-#include <vector>
-
 enum _COLUMN_TYPE
 {
     _COLUMN_TYPE_LEVEL = 0,
@@ -159,12 +155,6 @@ void RepairAllGold(void);
 WORD CalcMaxDurability(const ITEM* ip, ITEM_ATTRIBUTE* p, int Level);
 void RenderTipTextList(const int sx, const int sy, int TextNum, int Tab, int iSort = RT3_SORT_CENTER, int iRenderPoint = STRP_NONE, BOOL bUseBG = TRUE);
 
-// Converts the TextList/TextListColor/TextBold globals above (as any RenderTipTextList() caller
-// already populates them) into UI::RmlBridge::Tooltip's own Line list -- shared by every tooltip
-// call site still building its content the legacy TextList way, so each one doesn't hand-roll the
-// same TEXT_COLOR_*-to-LineColor switch and spacer-marker (leading '\n'/lone ' ') detection.
-std::vector<UI::RmlBridge::Tooltip::Line> BuildTooltipLinesFromTextList(int textNum);
-
 void SendRequestUse(int Index, int Target, bool addPoints = true);
 bool SendRequestEquipmentItem(STORAGE_TYPE iSrcType, int iSrcIndex, ITEM* pItem, STORAGE_TYPE iDstType, int iDstIndex);
 bool IsCanUseItem();
@@ -188,6 +178,9 @@ bool ShouldAnimatePreview(bool pointerInside, bool pickedItemActive, bool render
 }
 
 void RenderItem3D(float sx, float sy, float Width, float Height, int Type, int Level, int excellentFlags, int ancientDiscriminator, bool PickUp = false);
+// For a slot that already knows whether it is hovered -- an RmlUi element -- instead of testing the
+// legacy mouse globals against the rectangle, which need not be where the item is shown.
+void RenderItem3DWithHover(float sx, float sy, float Width, float Height, int Type, int Level, int excellentFlags, int ancientDiscriminator, bool hovered);
 void RenderObjectScreen(int Type, int ItemLevel, int excellentFlags, int ancientDiscriminator, vec3_t Target, int Select, bool PickUp);
 bool GetAttackDamage(int* iMinDamage, int* iMaxDamage);
 void GetItemName(int iType, int iLevel, wchar_t* Text);

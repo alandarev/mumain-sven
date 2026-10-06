@@ -3,7 +3,6 @@
 #include "UI/Dialogs/MessageBox.h"	// self
 #include "UI/Core/WindowManager.h"
 #include "UI/Core/WindowGeometry.h"
-#include "UI/Widgets/UIControls.h"
 #include "UI/Scaling/UITransform.h"
 #include "Render/Textures/ZzzOpenglUtil.h"
 
@@ -135,7 +134,7 @@ void mu::ui::window::CMessageBoxBase::RenderMsgBackColor(bool _bRender)
             | (toByte(m_vColor[1]) << 8)
             | toByte(m_vColor[2]);
         RenderColorQuadARGB(0.0f, 0.0f, static_cast<float>(REFERENCE_WIDTH),
-                            UI::Scaling::ScreenOverlayContentHeight(WindowWidth, WindowHeight), color);
+                            UI::Scaling::ScreenOverlayFullHeight(WindowWidth, WindowHeight), color);
 
         DisableAlphaBlend();
         EnableAlphaTest();
@@ -300,12 +299,7 @@ bool mu::ui::window::CMessageBoxMng::UpdateKeyEvent()
         SendEvent(pCurMsgBox, MSGBOX_EVENT_PRESSKEY_RETURN);
     }
 
-    if (!IsEmpty())
-    {
-        return false;
-    }
-
-    return true;
+    return IsEmpty();
 }
 
 bool mu::ui::window::CMessageBoxMng::Update()

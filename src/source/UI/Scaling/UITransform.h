@@ -48,6 +48,9 @@ namespace UI::Scaling
     enum class LayoutMode
     {
         Hud,
+        // An event HUD standing on the bottom HUD (the workspace's event-hud region): the HUD's
+        // own uniform, UI-scaled scale, no offset, so it is drawn at the size its slot was given.
+        HudFrame,
         HudLeft,
         HudCenter,
         HudRight,
@@ -67,6 +70,9 @@ namespace UI::Scaling
         // global MouseX/MouseY into that same wrong reference space, breaking click hit-testing
         // too. TransformForLayout() maps this to a genuine identity transform instead.
         Legacy,
+        // Placed by the theme's workspace: the window's own transform maps it onto its slot
+        // (CObject::PlaceInSlot()). TransformForLayout() cannot know it.
+        Slot,
     };
 
     class ScopedActiveTransform
@@ -99,11 +105,12 @@ namespace UI::Scaling
     Transform DockRightTransform(int windowWidth, int windowHeight);
     Transform FloatingWorkspaceTransform(int windowWidth, int windowHeight);
     Viewport FloatingWorkspaceBounds(int windowWidth, int windowHeight);
-    float ScreenOverlayContentHeight(int windowWidth, int windowHeight);
+    // The whole window's height in ScreenOverlayTransform()'s units: a map's weather or a screen dim
+    // covers the strip beside a HUD narrower than the window too, and the HUD draws over the rest.
+    float ScreenOverlayFullHeight(int windowWidth, int windowHeight);
     float FloatingWorkspaceContentHeight(int windowWidth, int windowHeight);
     Viewport WorldViewport(int windowWidth, int windowHeight, bool topViewEnabled);
     float WorldViewportAspect(int windowWidth, int windowHeight, bool topViewEnabled);
-    bool BottomHudContainsWindowPoint(int windowWidth, int windowHeight, float windowX, float windowY);
     Transform TransformForLayout(LayoutMode mode, int windowWidth, int windowHeight);
     float PositionX(const Transform& transform, float x);
     float PositionY(const Transform& transform, float y);

@@ -1,9 +1,17 @@
 
 #pragma once
 #ifdef KJH_ADD_INGAMESHOP_UI_SYSTEM
-#include "UI/Widgets/UIControls.h"
 #include "UI/Dialogs/MessageBox.h"
 #include "UI/Dialogs/CommonMessageBox.h"
+#include "UI/RmlBridge/RmlThemedView.h"
+#include "UI/RmlBridge/RmlRootTransform.h"
+
+#include <RmlUi/Core/Types.h>
+
+namespace Rml
+{
+class ElementDocument;
+}
 
 using namespace SEASON3B;
 using namespace mu::ui::window;
@@ -76,8 +84,8 @@ public:
     bool Update();
     bool Render();
 
-    void Initialize(int iPackageSeq, int iDisplaySeq, int iPriceSeq, DWORD wItemCode, int iCashType, wchar_t* pszName,
-                    wchar_t* pszPrice, wchar_t* pszPeriod);
+    void Initialize(int iPackageSeq, int iDisplaySeq, int iPriceSeq, DWORD wItemCode, int iCashType, const wchar_t* pszName,
+                    const wchar_t* pszPrice, const wchar_t* pszPeriod);
 
     static CALLBACK_RESULT LButtonUp(class CMessageBoxBase* pOwner, const leaf::xstreambuf& xParam);
     static CALLBACK_RESULT OKButtonDown(class CMessageBoxBase* pOwner, const leaf::xstreambuf& xParam);
@@ -103,8 +111,23 @@ private:
     CMessageBoxButton m_BtnOk;
     CMessageBoxButton m_BtnCancel;
 
-    CUITextInputBox m_IDInputBox;
-    CUITextInputBox m_MessageInputBox;
+    // The recipient and the message, as RmlUi fields of igs_send_gift.rml. The dialog's frame,
+    // texts and buttons are still native, the same split igs_buy_select.rml's list uses.
+    struct SendGiftRmlModel
+    {
+        float rootX = 0.f, rootY = 0.f, rootScale = 1.f;
+        float textPx = 0.f;
+        Rml::String recipient;
+        Rml::String message;
+    };
+    void BindRmlModel(Rml::DataModelConstructor& c, SendGiftRmlModel& model);
+    UI::RmlBridge::ThemedView<SendGiftRmlModel> m_RmlView{"igs_send_gift",
+        [this](Rml::DataModelConstructor& c, SendGiftRmlModel& model) { BindRmlModel(c, model); },
+        {{"Data/Interface/RmlUi/igs_send_gift.rml"}}};
+
+    void BuildRmlUi();
+    void SyncRmlModel();
+    bool FieldHasFocus(const char* id) const;
 
     int m_iPackageSeq;
     int m_iDisplaySeq;

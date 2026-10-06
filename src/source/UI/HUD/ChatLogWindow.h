@@ -4,9 +4,10 @@
 #pragma once
 
 #include "UI/Core/WindowObject.h"
+#include "UI/Chat/MessageType.h"
 #include "Render/Textures/ZzzTexture.h"
-#include "UI/Widgets/Window/ChatInputBox.h"
-#include "UI/RmlBridge/RmlModelBinder.h"
+#include "UI/HUD/ChatInputBox.h"
+#include "UI/RmlBridge/RmlThemedView.h"
 
 #pragma warning(disable : 4786)
 #include <string>
@@ -20,23 +21,6 @@ namespace Rml
 namespace mu::ui::window
 {
     class CManager;
-
-    enum MESSAGE_TYPE
-    {
-        TYPE_ALL_MESSAGE = 0,
-        TYPE_CHAT_MESSAGE,
-        TYPE_WHISPER_MESSAGE,
-        TYPE_SYSTEM_MESSAGE,
-        TYPE_ERROR_MESSAGE,
-        TYPE_PARTY_MESSAGE,
-        TYPE_GUILD_MESSAGE,
-        TYPE_UNION_MESSAGE,
-        TYPE_GENS_MESSAGE,
-        TYPE_GM_MESSAGE,
-
-        NUMBER_OF_TYPES,
-        TYPE_UNKNOWN = 0xFFFFFFFF
-    };
 
     template <class T>
     class TMessageText
@@ -94,9 +78,9 @@ namespace mu::ui::window
     {
         float panelHeight = 100.0f;  // dp -- 15 * showing lines + 10, native's own UpdateWndSize()
         float clientHeight = 90.0f;  // dp -- the scrolling well inside it
-        // Frame state and the user's transparency setting composed into one CSS colour, so no
-        // static RCSS rule competes with either -- see legacy/chat_log.rcss.
-        Rml::String backColor = "rgba(0,0,0,0)";
+        // The user's transparency setting on its own, 0..1. Frame state is showFrame below and
+        // the backdrop's colour is the theme's -- three separate owners, not one composed string.
+        float backAlpha = 0.f;
         bool showFrame = false;
         // Index of the line under the cursor, or -1. Drives .chat-line--pointed; C++ resolves it
         // because the lines themselves are pointer-events:none (see chat_log.rcss).
@@ -203,8 +187,14 @@ namespace mu::ui::window
         void ApplyLogicalScroll();
         void SyncLogicalScrollFromView();
 
-        RmlModelBinder<ChatLogRmlModel> m_RmlBinder;
-        Rml::ElementDocument* m_pRmlDoc = nullptr;
+        void BindRmlModel(Rml::DataModelConstructor& c, ChatLogRmlModel& model);
+        void OnRmlReloaded();
+        UI::RmlBridge::ThemedView<ChatLogRmlModel> m_RmlView{"chat_log",
+            [this](Rml::DataModelConstructor& c, ChatLogRmlModel& model) { BindRmlModel(c, model); },
+            {{"Data/Interface/RmlUi/chat_log.rml"}},
+            {.afterReload = [this] { OnRmlReloaded(); }}};
+        // Where Create() put the window, kept while the theme gives it no slot.
+        POINT m_HomePos{};
         bool m_bLinesDirty = true;
         bool m_bFollowTail = true;
         // One-shot, set when the line list changes and consumed on the next frame once RmlUi has
@@ -218,7 +208,6 @@ namespace mu::ui::window
         bool m_bScrollRequest = false;
 
     public:
-        void ReloadRmlTheme();
 
         CChatLogWindow();
         ~CChatLogWindow() override;
@@ -289,14 +278,12 @@ namespace mu::ui::window
     {
         // Native applies the user's transparency setting to every line's own background quad, so
         // this is a per-line colour, not a panel fill.
-        Rml::String backColor = "rgba(0,0,0,153)";
+        float backAlpha = 0.6f; // the player's own transparency setting, 0 .. 1
         Rml::Vector<ChatLogLineEntry> lines;
 
         // The native renderer's geometry under the window's layout, in physical px (the legacy
-        // theme's system_log.rml): the first line's origin, the row pitch, each line's background
+        // theme's system_log.rml): the row pitch, each line's background
         // height and the text size.
-        float panelX = 0.f;
-        float panelY = 0.f;
         float rowPx = 0.f;
         float linePx = 0.f;
         float textPx = 0.f;
@@ -340,15 +327,21 @@ namespace mu::ui::window
         void SyncNativeGeometry();
         void RebuildLineModel();
 
-        RmlModelBinder<SystemLogRmlModel> m_RmlBinder;
-        Rml::ElementDocument* m_pRmlDoc = nullptr;
+        void BindRmlModel(Rml::DataModelConstructor& c, SystemLogRmlModel& model);
+        void OnRmlBuilt();
+        void OnRmlReloaded();
+        UI::RmlBridge::ThemedView<SystemLogRmlModel> m_RmlView{"system_log",
+            [this](Rml::DataModelConstructor& c, SystemLogRmlModel& model) { BindRmlModel(c, model); },
+            {{"Data/Interface/RmlUi/system_log.rml"}},
+            {.afterBuild = [this] { OnRmlBuilt(); }, .afterReload = [this] { OnRmlReloaded(); }}};
         bool m_bLinesDirty = true;
+        float m_LastPanelHeight = -1.f;
+        void TrackPanelSize();
 
         void RemoveFrontLine();
         int GetCurrentRenderEndLine() const;
 
     public:
-        void ReloadRmlTheme();
 
         CSystemLogWindow();
         ~CSystemLogWindow() override;

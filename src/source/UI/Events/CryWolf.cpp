@@ -7,9 +7,7 @@
 #include "UI/Dialogs/GenericConfirmDialog.h"
 #include "Character/CharacterManager.h"
 #include "Audio/DSPlaySound.h"
-#include "Guild/UIGuildInfo.h"
-#include "UI/Widgets/UIControls.h"
-#include "UI/Dialogs/UIPopup.h"
+#include "Guild/GuildTypes.h"
 #include "Engine/Object/ZzzInterface.h"
 #include "Engine/Object/ZzzInventory.h"
 #include "I18N/All.h"
@@ -17,7 +15,7 @@
 #include "Core/Utilities/StringUtils.h"
 #include "Render/RmlUi/RmlUiRuntime.h"
 #include "Render/Text/CUIRenderTextSDLTtf.h"
-#include "UI/RmlBridge/RmlColor.h"
+#include "UI/RmlBridge/RmlSyncField.h"
 #include "UI/RmlBridge/RmlDocumentVisibility.h"
 #include "UI/RmlBridge/RmlTheme.h"
 #include "UI/Scaling/UITransform.h"
@@ -67,16 +65,6 @@ extern int m_StatueHP;
 using namespace SEASON3B;
 using namespace mu::ui::window;
 
-namespace
-{
-// The original drew the HUD at layer depth 10, over the inventory, the chat and the other panels:
-// the document sits in the main context, pulled to the front when it is shown.
-Rml::Context* CryWolfContext()
-{
-    return RmlUiRuntime::Instance().GetContext();
-}
-} // namespace
-
 mu::ui::window::CCryWolf::CCryWolf()
 {
     m_pNewUIMng = NULL;
@@ -107,7 +95,6 @@ bool mu::ui::window::CCryWolf::Create(CManager* pNewUIMng, int x, int y)
 
     LoadImages();
     BuildRmlUi();
-    UI::RmlBridge::RegisterForThemeReload(this, [this] { ReloadRmlTheme(); });
     return true;
 }
 
@@ -133,14 +120,7 @@ void mu::ui::window::CCryWolf::OpenningProcess()
 
 void mu::ui::window::CCryWolf::Release()
 {
-    UI::RmlBridge::UnregisterForThemeReload(this);
-    if (m_pRmlDoc && RmlUiRuntime::Instance().IsCreated())
-    {
-        Rml::Context* context = CryWolfContext();
-        m_RmlBinder.Destroy(context);
-        context->UnloadDocument(m_pRmlDoc);
-        m_pRmlDoc = nullptr;
-    }
+    m_RmlView.Release();
     UnloadImages();
 
     if (m_pNewUIMng)
@@ -212,78 +192,60 @@ bool SameSprites(const std::vector<CryWolfSpriteEntry>& a, const std::vector<Cry
                       { return l.left == r.left && l.top == r.top && l.src == r.src && l.rect == r.rect; });
 }
 
-bool SameNotices(const std::vector<CryWolfNoticeEntry>& a, const std::vector<CryWolfNoticeEntry>& b)
-{
-    return a.size() == b.size() &&
-           std::equal(a.begin(), a.end(), b.begin(), [](const CryWolfNoticeEntry& l, const CryWolfNoticeEntry& r)
-                      { return l.top == r.top && l.text == r.text && l.color == r.color; });
-}
 } // namespace
+
+void mu::ui::window::CCryWolf::BindRmlModel(Rml::DataModelConstructor& c, CryWolfRmlModel& model)
+{
+    auto sprite = c.RegisterStruct<CryWolfSpriteEntry>();
+    sprite.RegisterMember("left", &CryWolfSpriteEntry::left);
+    sprite.RegisterMember("top", &CryWolfSpriteEntry::top);
+    sprite.RegisterMember("src", &CryWolfSpriteEntry::src);
+    sprite.RegisterMember("rect", &CryWolfSpriteEntry::rect);
+    c.RegisterArray<std::vector<CryWolfSpriteEntry>>();
+    auto image = c.RegisterStruct<CryWolfImageEntry>();
+    image.RegisterMember("shown", &CryWolfImageEntry::shown);
+    image.RegisterMember("src", &CryWolfImageEntry::src);
+    image.RegisterMember("rect", &CryWolfImageEntry::rect);
+    c.RegisterArray<std::vector<CryWolfImageEntry>>();
+    auto notice = c.RegisterStruct<CryWolfNoticeEntry>();
+    notice.RegisterMember("text", &CryWolfNoticeEntry::text);
+    notice.RegisterMember("heading", &CryWolfNoticeEntry::heading);
+    c.RegisterArray<std::vector<CryWolfNoticeEntry>>();
+
+    c.Bind("scale_x", &model.scaleX);
+    c.Bind("scale_y", &model.scaleY);
+    c.Bind("inverse_scale_x", &model.inverseScaleX);
+    c.Bind("inverse_scale_y", &model.inverseScaleY);
+    c.Bind("normal_text_px", &model.normalTextPx);
+    c.Bind("bold_text_px", &model.boldTextPx);
+    c.Bind("bold_line_px", &model.boldLinePx);
+    c.Bind("result_visible", &model.resultVisible);
+    c.Bind("banner_left", &model.bannerLeft);
+    c.Bind("banner_src", &model.bannerSrc);
+    c.Bind("banner_opacity", &model.bannerOpacity);
+    c.Bind("rank_label_left", &model.rankLabelLeft);
+    c.Bind("rank_details_visible", &model.rankDetailsVisible);
+    c.Bind("rank_letter_src", &model.rankLetterSrc);
+    c.Bind("exp_digits", &model.expDigits);
+    c.Bind("hud_visible", &model.hudVisible);
+    c.Bind("altars", &model.altars);
+    c.Bind("dark_elf_icon_src", &model.darkElfIconSrc);
+    c.Bind("dark_elf_text", &model.darkElfText);
+    c.Bind("balgass_visible", &model.balgassVisible);
+    c.Bind("balgass_text", &model.balgassText);
+    c.Bind("balgass_bar_width", &model.balgassBarWidth);
+    c.Bind("balgass_bar_rect", &model.balgassBarRect);
+    c.Bind("timer_digits", &model.timerDigits);
+    c.Bind("timer_urgent", &model.timerUrgent);
+    c.Bind("statue_bar_left", &model.statueBarLeft);
+    c.Bind("statue_bar_width", &model.statueBarWidth);
+    c.Bind("statue_bar_rect", &model.statueBarRect);
+    c.Bind("notices", &model.notices);
+}
 
 void mu::ui::window::CCryWolf::BuildRmlUi()
 {
-    if (m_pRmlDoc || !RmlUiRuntime::Instance().IsCreated())
-        return;
-
-    const bool modelCreated = m_RmlBinder.Create(CryWolfContext(), "crywolf",
-                                                 [](Rml::DataModelConstructor& c, CryWolfRmlModel& model)
-                                                 {
-                                                     auto sprite = c.RegisterStruct<CryWolfSpriteEntry>();
-                                                     sprite.RegisterMember("left", &CryWolfSpriteEntry::left);
-                                                     sprite.RegisterMember("top", &CryWolfSpriteEntry::top);
-                                                     sprite.RegisterMember("src", &CryWolfSpriteEntry::src);
-                                                     sprite.RegisterMember("rect", &CryWolfSpriteEntry::rect);
-                                                     c.RegisterArray<std::vector<CryWolfSpriteEntry>>();
-                                                     auto notice = c.RegisterStruct<CryWolfNoticeEntry>();
-                                                     notice.RegisterMember("top", &CryWolfNoticeEntry::top);
-                                                     notice.RegisterMember("text", &CryWolfNoticeEntry::text);
-                                                     notice.RegisterMember("color", &CryWolfNoticeEntry::color);
-                                                     c.RegisterArray<std::vector<CryWolfNoticeEntry>>();
-
-                                                     c.Bind("scale_x", &model.scaleX);
-                                                     c.Bind("scale_y", &model.scaleY);
-                                                     c.Bind("inverse_scale_x", &model.inverseScaleX);
-                                                     c.Bind("inverse_scale_y", &model.inverseScaleY);
-                                                     c.Bind("normal_text_px", &model.normalTextPx);
-                                                     c.Bind("bold_text_px", &model.boldTextPx);
-                                                     c.Bind("bold_line_px", &model.boldLinePx);
-                                                     c.Bind("result_visible", &model.resultVisible);
-                                                     c.Bind("banner_left", &model.bannerLeft);
-                                                     c.Bind("banner_src", &model.bannerSrc);
-                                                     c.Bind("banner_color", &model.bannerColor);
-                                                     c.Bind("rank_label_left", &model.rankLabelLeft);
-                                                     c.Bind("rank_details_visible", &model.rankDetailsVisible);
-                                                     c.Bind("rank_letter_src", &model.rankLetterSrc);
-                                                     c.Bind("exp_digits", &model.expDigits);
-                                                     c.Bind("hud_visible", &model.hudVisible);
-                                                     c.Bind("altars", &model.altars);
-                                                     c.Bind("dark_elf_icon_src", &model.darkElfIconSrc);
-                                                     c.Bind("dark_elf_text", &model.darkElfText);
-                                                     c.Bind("balgass_visible", &model.balgassVisible);
-                                                     c.Bind("balgass_text", &model.balgassText);
-                                                     c.Bind("balgass_bar_width", &model.balgassBarWidth);
-                                                     c.Bind("balgass_bar_rect", &model.balgassBarRect);
-                                                     c.Bind("timer_digits", &model.timerDigits);
-                                                     c.Bind("timer_color", &model.timerColor);
-                                                     c.Bind("statue_bar_left", &model.statueBarLeft);
-                                                     c.Bind("statue_bar_width", &model.statueBarWidth);
-                                                     c.Bind("statue_bar_rect", &model.statueBarRect);
-                                                     c.Bind("notices", &model.notices);
-                                                 });
-    if (modelCreated)
-        m_pRmlDoc = UI::RmlBridge::LoadThemedDocument(CryWolfContext(), "Data/Interface/RmlUi/crywolf.rml");
-}
-
-void mu::ui::window::CCryWolf::ReloadRmlTheme()
-{
-    if (!m_pRmlDoc)
-        return;
-    Rml::Context* context = CryWolfContext();
-    m_RmlBinder.Destroy(context);
-    context->UnloadDocument(m_pRmlDoc);
-    m_pRmlDoc = nullptr;
-
-    BuildRmlUi();
+    m_RmlView.Ensure();
 }
 
 // The original Render()'s first part: the result banner slides in from the left, holds for 400
@@ -320,8 +282,7 @@ void mu::ui::window::CCryWolf::SyncResult(CryWolfRmlModel& updated)
 
     updated.resultVisible = true;
     updated.bannerSrc = InterfaceImage(Add_Num == 11 ? "icon_success.tga" : "icon_failure.tga");
-    const BYTE alpha = static_cast<BYTE>(std::clamp(A_Value, 0.f, 1.f) * 255.f);
-    updated.bannerColor = UI::RmlBridge::RgbaToCss(RGBA(255, 255, 255, alpha));
+    updated.bannerOpacity = std::clamp(A_Value, 0.f, 1.f);
     if ((Delay * 15) > 479)
     {
         updated.bannerLeft = 150.f;
@@ -403,8 +364,7 @@ void mu::ui::window::CCryWolf::SyncResult(CryWolfRmlModel& updated)
     for (int i = 0; i < 9; i++)
     {
         const Rml::String file = "icon_Rank_" + std::to_string(Exp_val[i]) + ".tga";
-        updated.expDigits.push_back({static_cast<float>(250 + 10 + 29 + 15 * i), 235.f, InterfaceImage(file.c_str()),
-                                     TexelRect(0.f, 0.f, 15.f, 19.f)});
+        updated.expDigits.push_back({true, InterfaceImage(file.c_str()), TexelRect(0.f, 0.f, 15.f, 19.f)});
     }
 }
 
@@ -416,8 +376,8 @@ void mu::ui::window::CCryWolf::SyncHud(CryWolfRmlModel& updated)
 
     updated.hudVisible = true;
 
-    static const float AltarPos[5][2] = {
-        {565.f, 280.f}, {582.f, 282.f}, {598.f, 286.f}, {613.f, 294.f}, {625.f, 306.f}};
+    // All five altars travel, shown or not, so each stays on its own place in the theme's row
+    // whatever the others are doing.
     for (int ia = 0; ia < 5; ia++)
     {
         const BYTE Use = (m_AltarState[ia] & 0xf0) >> 4;
@@ -431,9 +391,8 @@ void mu::ui::window::CCryWolf::SyncHud(CryWolfRmlModel& updated)
             file = "in_main_number1.tga";
         else if (State == 2)
             file = "in_main_number2.tga";
-        if (file != nullptr)
-            updated.altars.push_back(
-                {AltarPos[ia][0], AltarPos[ia][1], InterfaceImage(file), TexelRect(0.f, 0.f, 12.f, 12.f)});
+        updated.altars.push_back({file != nullptr, file != nullptr ? InterfaceImage(file) : Rml::String(),
+                                  TexelRect(0.f, 0.f, 12.f, 12.f)});
     }
 
     updated.darkElfIconSrc = InterfaceImage(Dark_elf_Num == 0 ? "in_main_icon_dl2.tga" : "in_main_icon_dl1.tga");
@@ -464,7 +423,7 @@ void mu::ui::window::CCryWolf::SyncHud(CryWolfRmlModel& updated)
 
     if (m_bTimeStart == true && m_CrywolfState == CRYWOLF_STATE_START)
     {
-        updated.timerColor = UI::RmlBridge::RgbaToCss(View_Bal ? RGBA(255, 77, 77, 255) : RGBA(255, 255, 255, 255));
+        updated.timerUrgent = View_Bal;
         m_iSecond = m_iSecond - static_cast<int>(GetTickCount() - m_dwSyncTime);
         m_dwSyncTime = GetTickCount();
 
@@ -487,7 +446,7 @@ void mu::ui::window::CCryWolf::SyncHud(CryWolfRmlModel& updated)
     }
     else
     {
-        updated.timerColor = UI::RmlBridge::RgbaToCss(RGBA(255, 255, 255, 255));
+        updated.timerUrgent = false;
         AddTimerDigits(updated.timerDigits, {570.f, 402.f}, 0);
         AddTimerDigits(updated.timerDigits, {580.f, 402.f}, 0);
         AddTimerDigits(updated.timerDigits, {597.f, 402.f}, 0);
@@ -507,9 +466,7 @@ void mu::ui::window::CCryWolf::SyncHud(CryWolfRmlModel& updated)
     {
         for (int i = 0; i < 4; i++)
         {
-            updated.notices.push_back(
-                {static_cast<float>(63 + i * 13), StringUtils::WideToNarrow(texts[i].c_str()),
-                 UI::RmlBridge::RgbaToCss(i == 0 ? RGBA(100, 200, 255, 255) : RGBA(100, 150, 255, 255))});
+            updated.notices.push_back({StringUtils::WideToNarrow(texts[i].c_str()), i == 0});
         }
     }
 }
@@ -517,7 +474,7 @@ void mu::ui::window::CCryWolf::SyncHud(CryWolfRmlModel& updated)
 void mu::ui::window::CCryWolf::SyncView()
 {
     BuildRmlUi();
-    if (!m_pRmlDoc)
+    if (!m_RmlView.Document())
         return;
 
     CryWolfRmlModel updated;
@@ -529,7 +486,7 @@ void mu::ui::window::CCryWolf::SyncView()
     }
 
     const bool visible = updated.resultVisible || updated.hudVisible;
-    UI::RmlBridge::SyncDocumentVisibilityInFront(m_pRmlDoc, visible);
+    UI::RmlBridge::SyncDocumentVisibilityInFront(m_RmlView.Document(), visible);
     if (!visible)
         return;
 
@@ -544,53 +501,53 @@ void mu::ui::window::CCryWolf::SyncView()
     updated.boldLinePx =
         static_cast<float>(CUIRenderTextSDLTtf::LineHeight(UI::Scaling::FontRole::Bold)) * transform.scaleY;
 
-    CryWolfRmlModel& model = m_RmlBinder.GetModel();
-    auto sync = [&](auto CryWolfRmlModel::* field, const char* name)
-    {
-        if (model.*field == updated.*field)
-            return;
-        model.*field = std::move(updated.*field);
-        m_RmlBinder.MarkDirty(name);
-    };
-    sync(&CryWolfRmlModel::scaleX, "scale_x");
-    sync(&CryWolfRmlModel::scaleY, "scale_y");
-    sync(&CryWolfRmlModel::inverseScaleX, "inverse_scale_x");
-    sync(&CryWolfRmlModel::inverseScaleY, "inverse_scale_y");
-    sync(&CryWolfRmlModel::normalTextPx, "normal_text_px");
-    sync(&CryWolfRmlModel::boldTextPx, "bold_text_px");
-    sync(&CryWolfRmlModel::boldLinePx, "bold_line_px");
-    sync(&CryWolfRmlModel::resultVisible, "result_visible");
-    sync(&CryWolfRmlModel::bannerLeft, "banner_left");
-    sync(&CryWolfRmlModel::bannerSrc, "banner_src");
-    sync(&CryWolfRmlModel::bannerColor, "banner_color");
-    sync(&CryWolfRmlModel::rankLabelLeft, "rank_label_left");
-    sync(&CryWolfRmlModel::rankDetailsVisible, "rank_details_visible");
-    sync(&CryWolfRmlModel::rankLetterSrc, "rank_letter_src");
-    sync(&CryWolfRmlModel::hudVisible, "hud_visible");
-    sync(&CryWolfRmlModel::darkElfIconSrc, "dark_elf_icon_src");
-    sync(&CryWolfRmlModel::darkElfText, "dark_elf_text");
-    sync(&CryWolfRmlModel::balgassVisible, "balgass_visible");
-    sync(&CryWolfRmlModel::balgassText, "balgass_text");
-    sync(&CryWolfRmlModel::balgassBarWidth, "balgass_bar_width");
-    sync(&CryWolfRmlModel::balgassBarRect, "balgass_bar_rect");
-    sync(&CryWolfRmlModel::timerColor, "timer_color");
-    sync(&CryWolfRmlModel::statueBarLeft, "statue_bar_left");
-    sync(&CryWolfRmlModel::statueBarWidth, "statue_bar_width");
-    sync(&CryWolfRmlModel::statueBarRect, "statue_bar_rect");
+    CryWolfRmlModel& model = m_RmlView.GetModel();
+    SyncFieldFrom(m_RmlView.Binder(), &CryWolfRmlModel::scaleX, "scale_x", updated);
+    SyncFieldFrom(m_RmlView.Binder(), &CryWolfRmlModel::scaleY, "scale_y", updated);
+    SyncFieldFrom(m_RmlView.Binder(), &CryWolfRmlModel::inverseScaleX, "inverse_scale_x", updated);
+    SyncFieldFrom(m_RmlView.Binder(), &CryWolfRmlModel::inverseScaleY, "inverse_scale_y", updated);
+    SyncFieldFrom(m_RmlView.Binder(), &CryWolfRmlModel::normalTextPx, "normal_text_px", updated);
+    SyncFieldFrom(m_RmlView.Binder(), &CryWolfRmlModel::boldTextPx, "bold_text_px", updated);
+    SyncFieldFrom(m_RmlView.Binder(), &CryWolfRmlModel::boldLinePx, "bold_line_px", updated);
+    SyncFieldFrom(m_RmlView.Binder(), &CryWolfRmlModel::resultVisible, "result_visible", updated);
+    SyncFieldFrom(m_RmlView.Binder(), &CryWolfRmlModel::bannerLeft, "banner_left", updated);
+    SyncFieldFrom(m_RmlView.Binder(), &CryWolfRmlModel::bannerSrc, "banner_src", updated);
+    SyncFieldFrom(m_RmlView.Binder(), &CryWolfRmlModel::bannerOpacity, "banner_opacity", updated);
+    SyncFieldFrom(m_RmlView.Binder(), &CryWolfRmlModel::rankLabelLeft, "rank_label_left", updated);
+    SyncFieldFrom(m_RmlView.Binder(), &CryWolfRmlModel::rankDetailsVisible, "rank_details_visible", updated);
+    SyncFieldFrom(m_RmlView.Binder(), &CryWolfRmlModel::rankLetterSrc, "rank_letter_src", updated);
+    SyncFieldFrom(m_RmlView.Binder(), &CryWolfRmlModel::hudVisible, "hud_visible", updated);
+    SyncFieldFrom(m_RmlView.Binder(), &CryWolfRmlModel::darkElfIconSrc, "dark_elf_icon_src", updated);
+    SyncFieldFrom(m_RmlView.Binder(), &CryWolfRmlModel::darkElfText, "dark_elf_text", updated);
+    SyncFieldFrom(m_RmlView.Binder(), &CryWolfRmlModel::balgassVisible, "balgass_visible", updated);
+    SyncFieldFrom(m_RmlView.Binder(), &CryWolfRmlModel::balgassText, "balgass_text", updated);
+    SyncFieldFrom(m_RmlView.Binder(), &CryWolfRmlModel::balgassBarWidth, "balgass_bar_width", updated);
+    SyncFieldFrom(m_RmlView.Binder(), &CryWolfRmlModel::balgassBarRect, "balgass_bar_rect", updated);
+    SyncFieldFrom(m_RmlView.Binder(), &CryWolfRmlModel::timerUrgent, "timer_urgent", updated);
+    SyncFieldFrom(m_RmlView.Binder(), &CryWolfRmlModel::statueBarLeft, "statue_bar_left", updated);
+    SyncFieldFrom(m_RmlView.Binder(), &CryWolfRmlModel::statueBarWidth, "statue_bar_width", updated);
+    SyncFieldFrom(m_RmlView.Binder(), &CryWolfRmlModel::statueBarRect, "statue_bar_rect", updated);
     auto syncSprites = [&](std::vector<CryWolfSpriteEntry> CryWolfRmlModel::* field, const char* name)
     {
         if (SameSprites(model.*field, updated.*field))
             return;
         model.*field = std::move(updated.*field);
-        m_RmlBinder.MarkDirty(name);
+        m_RmlView.MarkDirty(name);
     };
-    syncSprites(&CryWolfRmlModel::expDigits, "exp_digits");
-    syncSprites(&CryWolfRmlModel::altars, "altars");
     syncSprites(&CryWolfRmlModel::timerDigits, "timer_digits");
-    if (!SameNotices(model.notices, updated.notices))
+    auto syncImages = [&](std::vector<CryWolfImageEntry> CryWolfRmlModel::* field, const char* name)
+    {
+        if (model.*field == updated.*field)
+            return;
+        model.*field = std::move(updated.*field);
+        m_RmlView.MarkDirty(name);
+    };
+    syncImages(&CryWolfRmlModel::expDigits, "exp_digits");
+    syncImages(&CryWolfRmlModel::altars, "altars");
+    if (model.notices != updated.notices)
     {
         model.notices = std::move(updated.notices);
-        m_RmlBinder.MarkDirty("notices");
+        m_RmlView.MarkDirty("notices");
     }
 }
 

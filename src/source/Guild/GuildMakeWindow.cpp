@@ -2,6 +2,7 @@
 #include "stdafx.h"
 #include "GuildMakeWindow.h"
 #include "UI/Core/WindowManager.h"
+#include "UI/RmlBridge/RmlPanelGeometry.h"
 #include "UI/Core/WindowGeometry.h"
 #include "UI/Dialogs/CommonMessageBox.h"
 #include "Audio/DSPlaySound.h"
@@ -16,9 +17,11 @@
 #include "Guild/GuildMarkPalette.h"
 #include "Render/RmlUi/RmlUiRuntime.h"
 #include "Render/Text/CUIRenderTextSDLTtf.h"
+#include "UI/RmlBridge/RmlSyncField.h"
 #include "UI/RmlBridge/RmlDocumentVisibility.h"
 #include "UI/RmlBridge/RmlRootTransform.h"
 #include "UI/RmlBridge/RmlTheme.h"
+#include "Render/Text/CUIRenderText.h"
 
 #include <RmlUi/Core/ElementDocument.h>
 
@@ -105,21 +108,6 @@ namespace
         return {color, false};
     }
 
-    template <typename Model, typename T>
-    void SyncField(RmlModelBinder<Model>& binder, T Model::* field, const char* name, T value)
-    {
-        Model& model = binder.GetModel();
-        if (model.*field == value)
-            return;
-        model.*field = std::move(value);
-        binder.MarkDirty(name);
-    }
-
-    bool SameCell(const mu::ui::window::GuildMakeCellEntry& a, const mu::ui::window::GuildMakeCellEntry& b)
-    {
-        return a.color == b.color && a.empty == b.empty && a.left == b.left && a.top == b.top;
-    }
-
     // RenderText() shrinks a text wider than its box to fit it: the size it drew `text` at.
     float TextPxInBox(const UI::Scaling::Transform& transform, const wchar_t* text, float boxWidth)
     {
@@ -150,7 +138,6 @@ bool CGuildMakeWindow::Create(CManager* pNewUIMng, int x, int y)
     SetPos(x, y);
 
     BuildRmlUi();
-    UI::RmlBridge::RegisterForThemeReload(this, [this] { ReloadRmlTheme(); });
 
     Show(false);
 
@@ -159,13 +146,14 @@ bool CGuildMakeWindow::Create(CManager* pNewUIMng, int x, int y)
 
 void CGuildMakeWindow::Release()
 {
-    UI::RmlBridge::UnregisterForThemeReload(this);
 
     if (m_pNewUIMng)
     {
         m_pNewUIMng->RemoveUIObj(this);
         m_pNewUIMng = NULL;
     }
+
+    m_RmlView.Release();
 }
 
 float CGuildMakeWindow::GetLayerDepth()
@@ -210,19 +198,17 @@ void CGuildMakeWindow::ChangeEditBox(const UISTATES type)
     if (type == UISTATE_NORMAL)
     {
         // Restore guild name if it exists BEFORE setting state
-        if (field != nullptr)
-            field->SetAttribute("value", StringUtils::WideToNarrow(GuildMark[MARK_EDIT].GuildName));
+        SyncField(m_RmlView.Binder(), &GuildMakeRmlModel::guildName, "guild_name",
+                  Rml::String(StringUtils::WideToNarrow(GuildMark[MARK_EDIT].GuildName)));
         m_NameFieldShown = true;
         // Focused once the document shows it (SyncRmlModel()), as GiveFocus() did.
         m_NameFieldFocusPending = true;
     }
     else
     {
+        SyncField(m_RmlView.Binder(), &GuildMakeRmlModel::guildName, "guild_name", Rml::String());
         if (field != nullptr)
-        {
-            field->SetAttribute("value", Rml::String());
             field->Blur();
-        }
         m_NameFieldShown = false;
         m_NameFieldFocusPending = false;
     }
@@ -230,15 +216,15 @@ void CGuildMakeWindow::ChangeEditBox(const UISTATES type)
 
 Rml::Element* CGuildMakeWindow::GetNameField() const
 {
-    return m_pRmlDoc != nullptr ? m_pRmlDoc->GetElementById("name_field") : nullptr;
+    return m_RmlView.Document() != nullptr ? m_RmlView.Document()->GetElementById("name_field") : nullptr;
 }
 
 void CGuildMakeWindow::ReadNameField(wchar_t* text, int length) const
 {
-    Rml::Element* field = GetNameField();
-    if (field == nullptr || length <= 0)
+    if (length <= 0)
         return;
-    const std::wstring value = StringUtils::NarrowToWide(field->GetAttribute<Rml::String>("value", Rml::String()));
+    // The model, not the element: data-value writes the typed text back into it.
+    const std::wstring value = StringUtils::NarrowToWide(m_RmlView.GetModel().guildName);
     wcsncpy(text, value.c_str(), static_cast<size_t>(length - 1));
     text[length - 1] = L'\0';
 }
@@ -392,7 +378,11 @@ bool CGuildMakeWindow::UpdateMouseEvent()
         UpdateEditGuildMark(m_Pos.x, m_Pos.y);
     }
 
-    if (mu::ui::window::WindowGeometry(m_Pos.x, m_Pos.y, GUILDMAKE_WIDTH, GUILDMAKE_HEIGHT).Contains(MouseX, MouseY))
+    float panelWidth = static_cast<float>(GUILDMAKE_WIDTH);
+    float panelHeight = static_cast<float>(GUILDMAKE_HEIGHT);
+    UI::RmlBridge::RefreshLogicalPanelSize(m_RmlView.Document(), "panel", panelWidth, panelHeight);
+    if (mu::ui::window::WindowGeometry(m_Pos.x, m_Pos.y, static_cast<int>(panelWidth),
+                                       static_cast<int>(panelHeight)).Contains(MouseX, MouseY))
     {
         if (mu::ui::window::IsPress(VK_RBUTTON))
         {
@@ -414,90 +404,75 @@ bool CGuildMakeWindow::Render()
     return true;
 }
 
-void CGuildMakeWindow::BuildRmlUi()
+void CGuildMakeWindow::BindRmlModel(Rml::DataModelConstructor& c, GuildMakeRmlModel& model)
 {
-    if (m_pRmlDoc || !RmlUiRuntime::Instance().IsCreated())
-        return;
-
-    const bool modelCreated = m_RmlBinder.Create(
-        RmlUiRuntime::Instance().GetContext(), "guild_make",
-        [this](Rml::DataModelConstructor& c, GuildMakeRmlModel& model)
-        {
-            c.Bind("root_x", &model.rootX);
-            c.Bind("root_y", &model.rootY);
-            c.Bind("root_scale", &model.rootScale);
-            c.Bind("text_px", &model.textPx);
-            c.Bind("page", &model.page);
-            c.Bind("title_text", &model.titleText);
-            c.Bind("title_px", &model.titlePx);
-            c.Bind("info_text", &model.infoText);
-            c.Bind("info_px", &model.infoPx);
-            c.Bind("make_text", &model.makeText);
-            c.Bind("back_text", &model.backText);
-            c.Bind("next_text", &model.nextText);
-            c.Bind("name_text", &model.nameText);
-            c.Bind("result_text", &model.resultText);
-            c.Bind("result_px", &model.resultPx);
-            c.Bind("palette_hint_1", &model.paletteHint1);
-            c.Bind("palette_hint_2", &model.paletteHint2);
-            c.Bind("exit_tooltip", &model.exitTooltip);
-            c.Bind("label_top", &model.labelTop);
-            c.Bind("label_line_px", &model.labelLinePx);
-            auto cell = c.RegisterStruct<GuildMakeCellEntry>();
-            cell.RegisterMember("color", &GuildMakeCellEntry::color);
-            cell.RegisterMember("empty", &GuildMakeCellEntry::empty);
-            cell.RegisterMember("left", &GuildMakeCellEntry::left);
-            cell.RegisterMember("top", &GuildMakeCellEntry::top);
-            c.RegisterArray<std::vector<GuildMakeCellEntry>>();
-            c.Bind("cells", &model.cells);
-            c.Bind("palette", &model.palette);
-            c.Bind("selected", &model.selected);
-            c.RegisterArray<std::vector<Rml::String>>();
-            c.Bind("mark_cells", &model.markCells);
-            c.BindEventCallback("guild_make_button",
-                                [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& arguments)
-                                {
-                                    if (arguments.size() == 1)
-                                        m_PendingButton = static_cast<GUILDMAKE_BUTTON>(arguments[0].Get<int>(-1));
-                                });
-        });
-    if (!modelCreated)
-        return;
-
-    m_pRmlDoc =
-        UI::RmlBridge::LoadThemedDocument(RmlUiRuntime::Instance().GetContext(), "Data/Interface/RmlUi/guild_make.rml");
+    c.Bind("root_x", &model.rootX);
+    c.Bind("root_y", &model.rootY);
+    c.Bind("root_scale", &model.rootScale);
+    c.Bind("panel_width", &model.panelWidth);
+    c.Bind("text_px", &model.textPx);
+    c.Bind("page", &model.page);
+    c.Bind("title_text", &model.titleText);
+    c.Bind("title_px", &model.titlePx);
+    c.Bind("info_text", &model.infoText);
+    c.Bind("info_px", &model.infoPx);
+    c.Bind("make_text", &model.makeText);
+    c.Bind("back_text", &model.backText);
+    c.Bind("next_text", &model.nextText);
+    c.Bind("name_text", &model.nameText);
+    c.Bind("result_text", &model.resultText);
+    c.Bind("result_px", &model.resultPx);
+    c.Bind("palette_hint_1", &model.paletteHint1);
+    c.Bind("palette_hint_2", &model.paletteHint2);
+    c.Bind("exit_tooltip", &model.exitTooltip);
+    c.Bind("guild_name", &model.guildName);
+    c.Bind("label_line_px", &model.labelLinePx);
+    auto cell = c.RegisterStruct<GuildMakeCellEntry>();
+    cell.RegisterMember("color", &GuildMakeCellEntry::color);
+    cell.RegisterMember("empty", &GuildMakeCellEntry::empty);
+    c.RegisterArray<std::vector<GuildMakeCellEntry>>();
+    c.Bind("cells", &model.cells);
+    c.Bind("palette", &model.palette);
+    c.Bind("selected", &model.selected);
+    c.RegisterArray<std::vector<Rml::String>>();
+    c.Bind("mark_cells", &model.markCells);
+    c.BindEventCallback("guild_make_button",
+                        [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& arguments)
+                        {
+                            if (arguments.size() == 1)
+                                m_PendingButton = static_cast<GUILDMAKE_BUTTON>(arguments[0].Get<int>(-1));
+                        });
 }
 
-void CGuildMakeWindow::ReloadRmlTheme()
+// The typed name stays in the model across a theme switch; the rebuilt field takes the focus again.
+void CGuildMakeWindow::OnRmlReloaded()
 {
-    if (!m_pRmlDoc)
-        return;
-    Rml::Context* context = RmlUiRuntime::Instance().GetContext();
-    m_RmlBinder.Destroy(context);
-    context->UnloadDocument(m_pRmlDoc);
-    m_pRmlDoc = nullptr;
-
-    BuildRmlUi();
     if (m_NameFieldShown)
-        ChangeEditBox(UISTATE_NORMAL);
+        m_NameFieldFocusPending = true;
+}
+
+void CGuildMakeWindow::BuildRmlUi()
+{
+    m_RmlView.Ensure();
 }
 
 void CGuildMakeWindow::SyncRmlModel()
 {
     BuildRmlUi();
-    if (!m_pRmlDoc)
+    if (!m_RmlView.Document())
         return;
 
     // Layer depth 4.3: over the HUD like every panel the original opened.
-    UI::RmlBridge::SyncDocumentVisibilityInFront(m_pRmlDoc, IsVisible());
+    UI::RmlBridge::SyncDocumentVisibilityInFront(m_RmlView.Document(), IsVisible());
     if (!IsVisible())
         return;
 
-    UI::RmlBridge::SyncRootTransform(m_RmlBinder, m_Pos);
-    UI::RmlBridge::SyncNativeTextSize(m_RmlBinder);
+    UI::RmlBridge::SyncRootTransform(m_RmlView.Binder(), m_Pos);
+    UI::RmlBridge::SyncPanelWidth(m_RmlView.Binder(), m_RmlView.Document());
+    UI::RmlBridge::SyncNativeTextSize(m_RmlView.Binder());
     SyncContent();
 
-    if (m_NameFieldFocusPending && m_pRmlDoc->IsVisible() && m_RmlBinder.GetModel().page == GUILDMAKE_MARK)
+    if (m_NameFieldFocusPending && m_RmlView.Document()->IsVisible() && m_RmlView.GetModel().page == GUILDMAKE_MARK)
     {
         if (Rml::Element* field = GetNameField())
         {
@@ -511,33 +486,31 @@ void CGuildMakeWindow::SyncRmlModel()
 void CGuildMakeWindow::SyncContent()
 {
     const UI::Scaling::Transform transform = UI::Scaling::GetActiveTransform();
-    SyncField(m_RmlBinder, &GuildMakeRmlModel::page, "page", static_cast<int>(m_GuildMakeState));
-    SyncField(m_RmlBinder, &GuildMakeRmlModel::titleText, "title_text", StringUtils::WideToNarrow(I18N::Game::Guild));
-    SyncField(m_RmlBinder, &GuildMakeRmlModel::titlePx, "title_px", TextPxInBox(transform, I18N::Game::Guild, 190.f));
-    SyncField(m_RmlBinder, &GuildMakeRmlModel::infoText, "info_text",
+    SyncField(m_RmlView.Binder(), &GuildMakeRmlModel::page, "page", static_cast<int>(m_GuildMakeState));
+    SyncField(m_RmlView.Binder(), &GuildMakeRmlModel::titleText, "title_text", StringUtils::WideToNarrow(I18N::Game::Guild));
+    SyncField(m_RmlView.Binder(), &GuildMakeRmlModel::titlePx, "title_px", TextPxInBox(transform, I18N::Game::Guild, 190.f));
+    SyncField(m_RmlView.Binder(), &GuildMakeRmlModel::infoText, "info_text",
               StringUtils::WideToNarrow(I18N::Game::DoYouWishToBeTheGuildMaster));
-    SyncField(m_RmlBinder, &GuildMakeRmlModel::infoPx, "info_px",
+    SyncField(m_RmlView.Binder(), &GuildMakeRmlModel::infoPx, "info_px",
               TextPxInBox(transform, I18N::Game::DoYouWishToBeTheGuildMaster, 190.f));
-    SyncField(m_RmlBinder, &GuildMakeRmlModel::makeText, "make_text",
+    SyncField(m_RmlView.Binder(), &GuildMakeRmlModel::makeText, "make_text",
               StringUtils::WideToNarrow(I18N::Game::CreateGuild));
-    SyncField(m_RmlBinder, &GuildMakeRmlModel::backText, "back_text", StringUtils::WideToNarrow(I18N::Game::Back));
-    SyncField(m_RmlBinder, &GuildMakeRmlModel::nextText, "next_text", StringUtils::WideToNarrow(I18N::Game::Next));
-    SyncField(m_RmlBinder, &GuildMakeRmlModel::nameText, "name_text", StringUtils::WideToNarrow(I18N::Game::NAME));
-    SyncField(m_RmlBinder, &GuildMakeRmlModel::paletteHint1, "palette_hint_1",
+    SyncField(m_RmlView.Binder(), &GuildMakeRmlModel::backText, "back_text", StringUtils::WideToNarrow(I18N::Game::Back));
+    SyncField(m_RmlView.Binder(), &GuildMakeRmlModel::nextText, "next_text", StringUtils::WideToNarrow(I18N::Game::Next));
+    SyncField(m_RmlView.Binder(), &GuildMakeRmlModel::nameText, "name_text", StringUtils::WideToNarrow(I18N::Game::NAME));
+    SyncField(m_RmlView.Binder(), &GuildMakeRmlModel::paletteHint1, "palette_hint_1",
               StringUtils::WideToNarrow(I18N::Game::AfterSelectingAColorWith));
-    SyncField(m_RmlBinder, &GuildMakeRmlModel::paletteHint2, "palette_hint_2",
+    SyncField(m_RmlView.Binder(), &GuildMakeRmlModel::paletteHint2, "palette_hint_2",
               StringUtils::WideToNarrow(I18N::Game::TheMousePleaseDraw));
-    SyncField(m_RmlBinder, &GuildMakeRmlModel::exitTooltip, "exit_tooltip",
+    SyncField(m_RmlView.Binder(), &GuildMakeRmlModel::exitTooltip, "exit_tooltip",
               StringUtils::WideToNarrow(I18N::Game::Close388));
     wchar_t result[100] = {};
     mu_swprintf(result, L"%ls : %ls", I18N::Game::NAME, GuildMark[MARK_EDIT].GuildName);
-    SyncField(m_RmlBinder, &GuildMakeRmlModel::resultText, "result_text", StringUtils::WideToNarrow(result));
-    SyncField(m_RmlBinder, &GuildMakeRmlModel::resultPx, "result_px", TextPxInBox(transform, result, 190.f));
+    SyncField(m_RmlView.Binder(), &GuildMakeRmlModel::resultText, "result_text", StringUtils::WideToNarrow(result));
+    SyncField(m_RmlView.Binder(), &GuildMakeRmlModel::resultPx, "result_px", TextPxInBox(transform, result, 190.f));
 
     const int lineHeight = CUIRenderTextSDLTtf::LineHeight(UI::Scaling::FontRole::Normal);
-    const int labelTop = 29 / 2 - lineHeight / 2;
-    SyncField(m_RmlBinder, &GuildMakeRmlModel::labelTop, "label_top", static_cast<float>(labelTop));
-    SyncField(m_RmlBinder, &GuildMakeRmlModel::labelLinePx, "label_line_px",
+    SyncField(m_RmlView.Binder(), &GuildMakeRmlModel::labelLinePx, "label_line_px",
               static_cast<float>(lineHeight) * transform.scaleY);
 
     if (m_GuildMakeState == GUILDMAKE_INFO)
@@ -545,47 +518,30 @@ void CGuildMakeWindow::SyncContent()
 
     // The mark: CreateGuildMark(MARK_EDIT) fills MarkColor[], which the editor's cells read.
     CreateGuildMark(MARK_EDIT);
-    GuildMakeRmlModel& model = m_RmlBinder.GetModel();
+    GuildMakeRmlModel& model = m_RmlView.GetModel();
     std::vector<GuildMakeCellEntry> cells;
     std::vector<Rml::String> markCells;
-    // RenderEditGuildMark(): the 8 x 8 grid of 15-unit cells from (50, 100), the palette's two
-    // rows of 20-unit cells from (15, 260), the selected colour at (15, 230).
+    // RenderEditGuildMark(): the grid's cells row by row, then the palette's; the theme lays both
+    // out, and the selected colour has its own swatch.
     for (int i = 0; i < Guild::MarkPalette::CellCount; ++i)
     {
-        GuildMakeCellEntry cell = EditorCell(GuildMark[MARK_EDIT].Mark[i]);
-        cell.left = static_cast<float>(50 + (i % 8) * 15);
-        cell.top = static_cast<float>(100 + (i / 8) * 15);
-        cells.push_back(std::move(cell));
+        cells.push_back(EditorCell(GuildMark[MARK_EDIT].Mark[i]));
         markCells.push_back(Guild::MarkPalette::CellColor(GuildMark[MARK_EDIT].Mark[i]));
     }
     std::vector<GuildMakeCellEntry> palette;
     for (int i = 0; i < Guild::MarkPalette::ColorCount; ++i)
-    {
-        GuildMakeCellEntry cell = EditorCell(i);
-        cell.left = static_cast<float>(15 + (i % 8) * 20);
-        cell.top = static_cast<float>(260 + (i / 8) * 20);
-        palette.push_back(std::move(cell));
-    }
-    GuildMakeCellEntry selected = EditorCell(SelectMarkColor);
-    selected.left = 15.f;
-    selected.top = 230.f;
+        palette.push_back(EditorCell(i));
 
-    if (model.cells.size() != cells.size() ||
-        !std::equal(model.cells.begin(), model.cells.end(), cells.begin(), SameCell))
+    if (model.cells != cells)
     {
         model.cells = std::move(cells);
-        m_RmlBinder.MarkDirty("cells");
+        m_RmlView.MarkDirty("cells");
     }
-    if (model.palette.size() != palette.size() ||
-        !std::equal(model.palette.begin(), model.palette.end(), palette.begin(), SameCell))
+    if (model.palette != palette)
     {
         model.palette = std::move(palette);
-        m_RmlBinder.MarkDirty("palette");
+        m_RmlView.MarkDirty("palette");
     }
-    if (!SameCell(model.selected, selected))
-    {
-        model.selected = selected;
-        m_RmlBinder.MarkDirty("selected");
-    }
-    SyncField(m_RmlBinder, &GuildMakeRmlModel::markCells, "mark_cells", std::move(markCells));
+    SyncField(m_RmlView.Binder(), &GuildMakeRmlModel::selected, "selected", EditorCell(SelectMarkColor));
+    SyncField(m_RmlView.Binder(), &GuildMakeRmlModel::markCells, "mark_cells", std::move(markCells));
 }

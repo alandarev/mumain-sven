@@ -20,7 +20,7 @@ extern bool SelectFlag;
 #include "Engine/Object/ZzzInventory.h"
 #include "Render/Terrain/ZzzLodTerrain.h"
 #include "GameLogic/Quests/CSQuest.h"
-#include "Guild/UIGuildInfo.h"
+#include "Guild/GuildTypes.h"
 #include "UI/Core/UIManager.h"
 #include "GameLogic/Items/CSItemOption.h"
 #include "World/MapInfra/MapManager.h"
@@ -114,170 +114,134 @@ bool CMyInventory::Create(CManager* pNewUIMng, C3DRenderMng* pNewUI3DRenderMng, 
     SetEquipmentSlotInfo();
 
     BuildRmlUi();
-    UI::RmlBridge::RegisterForThemeReload(this, [this] { ReloadRmlTheme(); });
 
     Show(false);
     return true;
 }
 
-void CMyInventory::BuildRmlUi()
+void CMyInventory::BindRmlModel(Rml::DataModelConstructor& c, MyInventoryRmlModel& model)
 {
-    // Guarded so the document/model are created once, even if Create() re-runs on resolution change.
-    if (!m_pRmlDoc && RmlUiRuntime::Instance().IsCreated())
+    c.Bind("root_x", &model.rootX);
+    c.Bind("root_y", &model.rootY);
+    c.Bind("root_scale", &model.rootScale);
+    model.textPx =
+        UI::Scaling::NativeTextPixelSize(UI::Scaling::FontRole::Normal, UI::Scaling::GetActiveTransform());
+    c.Bind("text_px", &model.textPx);
+
+    c.Bind("title", &model.title);
+    c.Bind("gold_text", &model.goldText);
+    c.Bind("gold_tier", &model.goldTier);
+
+    c.Bind("repair_visible", &model.repairVisible);
+    c.Bind("repair_tooltip", &model.repairTooltip);
+
+    c.Bind("myshop_visible", &model.myShopVisible);
+    c.Bind("myshop_mode_open", &model.myShopModeOpen);
+    c.Bind("myshop_locked", &model.myShopLocked);
+    c.Bind("myshop_tooltip", &model.myShopTooltip);
+
+    c.Bind("exit_tooltip", &model.exitTooltip);
+    c.Bind("expand_tooltip", &model.expandTooltip);
+
+    c.Bind("set_option_label", &model.setOptionLabel);
+    c.Bind("socket_option_label", &model.socketOptionLabel);
+    c.Bind("set_option_active", &model.setOptionActive);
+    c.Bind("socket_option_active", &model.socketOptionActive);
+
+    c.BindEventCallback("my_inventory_set_option_hover",
+        [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&)
+        {
+            m_RmlView.GetModel().setOptionHovered = true;
+        });
+    c.BindEventCallback("my_inventory_set_option_unhover",
+        [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&)
+        {
+            m_RmlView.GetModel().setOptionHovered = false;
+        });
+    c.BindEventCallback("my_inventory_socket_option_hover",
+        [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&)
+        {
+            m_RmlView.GetModel().socketOptionHovered = true;
+        });
+    c.BindEventCallback("my_inventory_socket_option_unhover",
+        [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&)
+        {
+            m_RmlView.GetModel().socketOptionHovered = false;
+        });
+
+    c.BindEventCallback("my_inventory_exit_click",
+        [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&)
+        {
+            if (g_pNewUISystem->IsVisible(INTERFACE_MYSHOP_INVENTORY))
+                g_pNewUISystem->Hide(INTERFACE_MYSHOP_INVENTORY);
+            g_pNewUISystem->Hide(INTERFACE_INVENTORY);
+        });
+    c.BindEventCallback("my_inventory_repair_click",
+        [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) { ToggleRepairMode(); });
+    c.BindEventCallback("my_inventory_myshop_click",
+        [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&)
+        {
+            if (m_bMyShopLocked) return;
+            if (m_MyShopMode == MYSHOP_MODE_OPEN)
+            {
+                ChangeMyShopButtonStateClose();
+                g_pNewUISystem->Show(INTERFACE_MYSHOP_INVENTORY);
+            }
+            else if (m_MyShopMode == MYSHOP_MODE_CLOSE)
+            {
+                ChangeMyShopButtonStateOpen();
+                g_pNewUISystem->Hide(INTERFACE_MYSHOP_INVENTORY);
+                g_pNewUISystem->Hide(INTERFACE_PURCHASESHOP_INVENTORY);
+            }
+        });
+    c.BindEventCallback("my_inventory_expand_click",
+        [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) { g_pNewUISystem->Toggle(INTERFACE_INVENTORY_EXT); });
+}
+
+void CMyInventory::BindRmlBgModel(Rml::DataModelConstructor& c, MyInventoryBgRmlModel& model)
+{
+    c.Bind("root_x", &model.rootX);
+    c.Bind("root_y", &model.rootY);
+    c.Bind("root_scale", &model.rootScale);
+}
+
+// #title is the drag handle (MakeDraggable). onMove reads this window's own layout transform
+// instead of the ambient active one, since this callback fires from RmlUi's own event
+// processing, outside this window's ScopedActiveTransform scope. SetPos() keeps the native
+// paperdoll/grid in sync automatically.
+void CMyInventory::OnRmlBuilt()
+{
+    Rml::Element* panelEl = m_RmlView.Document()->GetElementById("panel");
+    Rml::Element* titleEl = m_RmlView.Document()->GetElementById("title");
+    if (panelEl && titleEl)
     {
-        const bool modelCreated = m_RmlBinder.Create(RmlUiRuntime::Instance().GetContext(), "my_inventory",
-            [this](Rml::DataModelConstructor& c, MyInventoryRmlModel& model)
+        UI::RmlBridge::MakeDraggable(titleEl, panelEl,
+            [this](float newLeftPx, float newTopPx)
             {
-                c.Bind("root_x", &model.rootX);
-                c.Bind("root_y", &model.rootY);
-                c.Bind("root_scale", &model.rootScale);
-                model.textPx =
-                    UI::Scaling::NativeTextPixelSize(UI::Scaling::FontRole::Normal, UI::Scaling::GetActiveTransform());
-                c.Bind("text_px", &model.textPx);
-
-                c.Bind("title", &model.title);
-                c.Bind("gold_text", &model.goldText);
-                c.Bind("gold_tier", &model.goldTier);
-
-                c.Bind("repair_visible", &model.repairVisible);
-                c.Bind("repair_tooltip", &model.repairTooltip);
-
-                c.Bind("myshop_visible", &model.myShopVisible);
-                c.Bind("myshop_mode_open", &model.myShopModeOpen);
-                c.Bind("myshop_locked", &model.myShopLocked);
-                c.Bind("myshop_tooltip", &model.myShopTooltip);
-
-                c.Bind("exit_tooltip", &model.exitTooltip);
-                c.Bind("expand_tooltip", &model.expandTooltip);
-
-                c.Bind("set_option_label", &model.setOptionLabel);
-                c.Bind("socket_option_label", &model.socketOptionLabel);
-                c.Bind("set_option_active", &model.setOptionActive);
-                c.Bind("socket_option_active", &model.socketOptionActive);
-
-                c.BindEventCallback("my_inventory_set_option_hover",
-                    [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&)
-                    {
-                        m_RmlBinder.GetModel().setOptionHovered = true;
-                    });
-                c.BindEventCallback("my_inventory_set_option_unhover",
-                    [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&)
-                    {
-                        m_RmlBinder.GetModel().setOptionHovered = false;
-                    });
-                c.BindEventCallback("my_inventory_socket_option_hover",
-                    [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&)
-                    {
-                        m_RmlBinder.GetModel().socketOptionHovered = true;
-                    });
-                c.BindEventCallback("my_inventory_socket_option_unhover",
-                    [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&)
-                    {
-                        m_RmlBinder.GetModel().socketOptionHovered = false;
-                    });
-
-                c.BindEventCallback("my_inventory_exit_click",
-                    [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&)
-                    {
-                        if (g_pNewUISystem->IsVisible(INTERFACE_MYSHOP_INVENTORY))
-                            g_pNewUISystem->Hide(INTERFACE_MYSHOP_INVENTORY);
-                        g_pNewUISystem->Hide(INTERFACE_INVENTORY);
-                    });
-                c.BindEventCallback("my_inventory_repair_click",
-                    [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) { ToggleRepairMode(); });
-                c.BindEventCallback("my_inventory_myshop_click",
-                    [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&)
-                    {
-                        if (m_bMyShopLocked) return;
-                        if (m_MyShopMode == MYSHOP_MODE_OPEN)
-                        {
-                            ChangeMyShopButtonStateClose();
-                            g_pNewUISystem->Show(INTERFACE_MYSHOP_INVENTORY);
-                        }
-                        else if (m_MyShopMode == MYSHOP_MODE_CLOSE)
-                        {
-                            ChangeMyShopButtonStateOpen();
-                            g_pNewUISystem->Hide(INTERFACE_MYSHOP_INVENTORY);
-                            g_pNewUISystem->Hide(INTERFACE_PURCHASESHOP_INVENTORY);
-                        }
-                    });
-                c.BindEventCallback("my_inventory_expand_click",
-                    [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) { g_pNewUISystem->Toggle(INTERFACE_INVENTORY_EXT); });
+                const auto transform = GetLayoutTransform();
+                const int newX = static_cast<int>(std::lround(UI::Scaling::LogicalX(transform, newLeftPx)));
+                const int newY = static_cast<int>(std::lround(UI::Scaling::LogicalY(transform, newTopPx)));
+                SetPos(newX, newY);
+            },
+            [this]()
+            {
+                // Saved in the original docked windows' space, wherever the workspace placed
+                // the inventory.
+                const auto from = GetLayoutTransform();
+                const auto dock = UI::Scaling::DockRightTransform(WindowWidth, WindowHeight);
+                const int savedX = static_cast<int>(std::lround(
+                    UI::Scaling::LogicalX(dock, UI::Scaling::PositionX(from, static_cast<float>(m_Pos.x)))));
+                const int savedY = static_cast<int>(std::lround(
+                    UI::Scaling::LogicalY(dock, UI::Scaling::PositionY(from, static_cast<float>(m_Pos.y)))));
+                GameConfig::GetInstance().SetWindowPosition(L"my_inventory", savedX, savedY);
             });
-
-        if (modelCreated)
-            m_pRmlDoc = UI::RmlBridge::LoadThemedDocument(RmlUiRuntime::Instance().GetContext(), "Data/Interface/RmlUi/my_inventory.rml");
-
-        // #title is the drag handle (MakeDraggable). onMove recomputes DockRightTransform directly
-        // instead of reading the ambient active transform, since this callback fires from RmlUi's
-        // own event processing, outside this window's ScopedActiveTransform scope. SetPos() keeps
-        // the native paperdoll/grid in sync automatically.
-        if (m_pRmlDoc)
-        {
-            Rml::Element* panelEl = m_pRmlDoc->GetElementById("panel");
-            Rml::Element* titleEl = m_pRmlDoc->GetElementById("title");
-            if (panelEl && titleEl)
-            {
-                UI::RmlBridge::MakeDraggable(titleEl, panelEl,
-                    [this](float newLeftPx, float newTopPx)
-                    {
-                        const auto transform = UI::Scaling::DockRightTransform(WindowWidth, WindowHeight);
-                        const int newX = static_cast<int>(std::lround(UI::Scaling::LogicalX(transform, newLeftPx)));
-                        const int newY = static_cast<int>(std::lround(UI::Scaling::LogicalY(transform, newTopPx)));
-                        SetPos(newX, newY);
-                    },
-                    [this]()
-                    {
-                        // Persist immediately -- m_Pos already holds the drag's final resolved position.
-                        GameConfig::GetInstance().SetWindowPosition(L"my_inventory", m_Pos.x, m_Pos.y);
-                    });
-            }
-        }
-
-        // Frame background panel uses the background context -- see MyInventoryBgRmlModel (MyInventory.h).
-        if (Rml::Context* bgContext = RmlUiRuntime::Instance().GetBackgroundContext())
-        {
-            const bool bgModelCreated = m_BgRmlBinder.Create(bgContext, "my_inventory_bg",
-                [](Rml::DataModelConstructor& c, MyInventoryBgRmlModel& model)
-                {
-                    c.Bind("root_x", &model.rootX);
-                    c.Bind("root_y", &model.rootY);
-                    c.Bind("root_scale", &model.rootScale);
-                });
-            if (bgModelCreated)
-            {
-                // Starts hidden -- CreateBackgroundDocument() no longer Show()s eagerly (see its
-                // own comment, RmlTheme.h); SyncRmlModel() below is what shows/hides it.
-                m_pRmlBgDoc = UI::RmlBridge::CreateBackgroundDocument("Data/Interface/RmlUi/my_inventory_bg.rml");
-            }
-        }
-
-        // Not Show()n here -- m_pRmlDoc's visibility follows this window's own Show()/Hide() via
-        // SyncRmlModel(), not an eager Show() at Create() time.
     }
 }
 
-void CMyInventory::ReloadRmlTheme()
+void CMyInventory::BuildRmlUi()
 {
-    if (!m_pRmlDoc) return; // never opened -- BuildRmlUi() will simply pick up the new theme whenever it first is
-
-    Rml::Context* context = RmlUiRuntime::Instance().GetContext();
-    m_RmlBinder.Destroy(context);
-    context->UnloadDocument(m_pRmlDoc);
-    m_pRmlDoc = nullptr;
-
-    if (m_pRmlBgDoc)
-    {
-        if (Rml::Context* bgContext = RmlUiRuntime::Instance().GetBackgroundContext())
-        {
-            m_BgRmlBinder.Destroy(bgContext);
-            bgContext->UnloadDocument(m_pRmlBgDoc);
-        }
-        m_pRmlBgDoc = nullptr;
-    }
-
-    BuildRmlUi();
-    // Next frame's Update()/SyncRmlModel() self-corrects live state/visibility for both docs.
+    m_RmlView.Ensure();
+    m_RmlBgView.Ensure();
 }
 
 void CMyInventory::Release()
@@ -300,15 +264,11 @@ void CMyInventory::Release()
     if (m_pNewUIMng)
     {
         m_pNewUIMng->RemoveUIObj(this);
-        UI::RmlBridge::UnregisterForThemeReload(this);
         m_pNewUIMng = nullptr;
     }
 
-    // Hide explicitly -- Release() has no other way to hide these once created.
-    if (m_pRmlDoc)
-        m_pRmlDoc->Hide();
-    if (m_pRmlBgDoc)
-        m_pRmlBgDoc->Hide();
+    m_RmlView.Release();
+    m_RmlBgView.Release();
 }
 
 bool CMyInventory::EquipItem(int iIndex, std::span<const BYTE> pbyItemPacket)
@@ -617,14 +577,55 @@ void CMyInventory::SetPos(int x, int y)
     SetEquipmentSlotInfo();
 
     m_pNewInventoryCtrl->SetPos(x + 15, y + 200);
+    SyncNativeLayout();
 }
 
-void CMyInventory::RestoreDefaultOrUserPosition(int defaultX, int defaultY)
+void CMyInventory::SyncNativeLayout()
 {
-    int x = defaultX;
-    int y = defaultY;
-    GameConfig::GetInstance().GetWindowPosition(L"my_inventory", x, y); // no-op (x/y stay at the defaults) if nothing was ever saved
-    SetPos(x, y);
+    struct SlotAnchor
+    {
+        int slot;
+        const char* id;
+    };
+    static constexpr SlotAnchor SlotAnchors[] = {
+        {EQUIPMENT_HELPER, "slot_helper"},
+        {EQUIPMENT_HELM, "slot_helm"},
+        {EQUIPMENT_WING, "slot_wing"},
+        {EQUIPMENT_WEAPON_LEFT, "slot_weapon_left"},
+        {EQUIPMENT_ARMOR, "slot_armor"},
+        {EQUIPMENT_WEAPON_RIGHT, "slot_weapon_right"},
+        {EQUIPMENT_GLOVES, "slot_gloves"},
+        {EQUIPMENT_PANTS, "slot_pants"},
+        {EQUIPMENT_BOOTS, "slot_boots"},
+        {EQUIPMENT_RING_LEFT, "slot_ring_left"},
+        {EQUIPMENT_AMULET, "slot_amulet"},
+        {EQUIPMENT_RING_RIGHT, "slot_ring_right"},
+    };
+    for (const SlotAnchor& anchor : SlotAnchors)
+    {
+        auto& slot = m_EquipmentSlots[anchor.slot];
+        float x = static_cast<float>(slot.x);
+        float y = static_cast<float>(slot.y);
+        float width = static_cast<float>(slot.width);
+        float height = static_cast<float>(slot.height);
+        if (UI::RmlBridge::RefreshLogicalAnchorRect(m_RmlView.Document(), "panel", anchor.id, m_Pos, x, y, width, height))
+        {
+            slot.x = static_cast<int>(std::lround(x));
+            slot.y = static_cast<int>(std::lround(y));
+            slot.width = static_cast<int>(std::lround(width));
+            slot.height = static_cast<int>(std::lround(height));
+        }
+    }
+
+    float gridX = static_cast<float>(m_Pos.x + 15);
+    float gridY = static_cast<float>(m_Pos.y + 200);
+    if (UI::RmlBridge::RefreshLogicalAnchorPosition(m_RmlView.Document(), "panel", "item_grid", m_Pos, gridX, gridY))
+    {
+        const int x = static_cast<int>(std::lround(gridX));
+        const int y = static_cast<int>(std::lround(gridY));
+        if (m_pNewInventoryCtrl->GetPos().x != x || m_pNewInventoryCtrl->GetPos().y != y)
+            m_pNewInventoryCtrl->SetPos(x, y);
+    }
 }
 
 const POINT& CMyInventory::GetPos() const
@@ -673,8 +674,7 @@ bool CMyInventory::UpdateMouseEvent()
 
     CPickedItem* pPickedItem = CInventoryCtrl::GetPickedItem();
     if (pPickedItem && IsPress(VK_LBUTTON)
-        && !UI::Scaling::BottomHudContainsWindowPoint(WindowWidth, WindowHeight,
-                                                       g_fWindowMouseX, g_fWindowMouseY))
+        && !(g_pMainFrame != nullptr && g_pMainFrame->IsMouseOverHud()))
     {
         if (g_pNewUISystem->IsVisible(INTERFACE_NPCSHOP) == true
             || g_pNewUISystem->IsVisible(INTERFACE_TRADE) == true
@@ -822,10 +822,10 @@ bool CMyInventory::UpdateKeyEvent()
     }
 
     // #panel's own live RCSS size is the source of truth -- INVENTORY_WIDTH/HEIGHT only cover the
-    // first frame after Create()/Show(true)/ReloadRmlTheme(), before RmlUi's next layout pass.
+    // first frame after Create()/Show(true)/a theme switch, before RmlUi's next layout pass.
     float panelWidth = INVENTORY_WIDTH;
     float panelHeight = INVENTORY_HEIGHT;
-    UI::RmlBridge::RefreshLogicalPanelSize(m_pRmlDoc, "panel", panelWidth, panelHeight);
+    UI::RmlBridge::RefreshLogicalPanelSize(m_RmlView.Document(), "panel", panelWidth, panelHeight);
     if (mu::ui::window::WindowGeometry(m_Pos.x, m_Pos.y, static_cast<int>(panelWidth), static_cast<int>(panelHeight)).Contains(MouseX, MouseY) == false)
     {
         return true;
@@ -903,28 +903,29 @@ bool CMyInventory::Update()
 
 void CMyInventory::SyncRmlModel()
 {
-    if (m_pRmlBgDoc)
+    if (m_RmlBgView.Document())
     {
-        UI::RmlBridge::SyncRootTransform(m_BgRmlBinder, m_Pos);
+        UI::RmlBridge::SyncRootTransform(m_RmlBgView.Binder(), m_Pos);
 
         // RenderBackgroundLayer() renders whatever's shown in the shared background context
         // regardless of caller, so this Hide()/Show() is what keeps the bg panel hidden when closed.
-        UI::RmlBridge::SyncDocumentVisibility(m_pRmlBgDoc, IsVisible());
+        UI::RmlBridge::SyncDocumentVisibility(m_RmlBgView.Document(), IsVisible());
     }
 
-    if (!m_pRmlDoc) return;
-    UI::RmlBridge::SyncDocumentVisibility(m_pRmlDoc, IsVisible());
+    if (!m_RmlView.Document()) return;
+    UI::RmlBridge::SyncDocumentVisibility(m_RmlView.Document(), IsVisible());
 
-    UI::RmlBridge::SyncRootTransform(m_RmlBinder, m_Pos);
-    UI::RmlBridge::SyncNativeTextSize(m_RmlBinder);
+    UI::RmlBridge::SyncRootTransform(m_RmlView.Binder(), m_Pos);
+    UI::RmlBridge::SyncNativeTextSize(m_RmlView.Binder());
+    SyncNativeLayout();
 
     auto syncBool = [this](bool MyInventoryRmlModel::* field, const char* boundName, bool value)
     {
-        if (m_RmlBinder.GetModel().*field != value) { m_RmlBinder.GetModel().*field = value; m_RmlBinder.MarkDirty(boundName); }
+        if (m_RmlView.GetModel().*field != value) { m_RmlView.GetModel().*field = value; m_RmlView.MarkDirty(boundName); }
     };
     auto syncText = [this](Rml::String MyInventoryRmlModel::* field, const char* boundName, const Rml::String& value)
     {
-        if (m_RmlBinder.GetModel().*field != value) { m_RmlBinder.GetModel().*field = value; m_RmlBinder.MarkDirty(boundName); }
+        if (m_RmlView.GetModel().*field != value) { m_RmlView.GetModel().*field = value; m_RmlView.MarkDirty(boundName); }
     };
     auto syncWide = [&](Rml::String MyInventoryRmlModel::* field, const char* boundName, const wchar_t* text)
     {
@@ -978,7 +979,7 @@ void CMyInventory::SyncRmlModel()
     // BuildXxxTooltipModel() reuses the same content resolution as the old native-drawing code,
     // minus the drawing; the destination is now UI::RmlBridge::Tooltip's own shared document, not
     // a per-window RML block, consolidated onto it the same way the item/skill tooltips were.
-    auto& model = m_RmlBinder.GetModel();
+    auto& model = m_RmlView.GetModel();
     bool tooltipBuilt = false;
     UI::Inventory::Tooltip::Model tooltipModel;
     if (model.setOptionHovered)
@@ -996,10 +997,9 @@ void CMyInventory::SyncRmlModel()
             UI::RmlBridge::Tooltip::Line line;
             // BuildSetOptionTooltipModel()/BuildSocketOptionTooltipModel() reuse the old native
             // TextList convention of sniffing a leading '\n' (half-height spacer) or a lone ' '
-            // (full-height spacer) rather than an explicit field -- same detection as
-            // ZzzInventory.cpp's own BuildTooltipLinesFromTextList(). Left as literal text here
-            // once (before this was noticed) rendered as a raw embedded newline character inside a
-            // `white-space: nowrap` .tt-line, which broke RmlUi's own text layout for the whole
+            // (full-height spacer) rather than an explicit field -- the same detection as the
+            // shared legacy TextList tooltip conversion. A raw newline inside a
+            // `white-space: nowrap` .tt-line broke RmlUi's own text layout for the whole
             // panel badly enough that nothing in it rendered.
             if (src.text[0] == L'\n')
             {
@@ -1030,8 +1030,12 @@ void CMyInventory::SyncRmlModel()
         // 95 was its horizontal center, 40 its top edge. Converted through the ambient transform
         // like every other MyInventory-relative anchor (see SyncRootTransform()).
         const UI::Scaling::Transform activeTransform = UI::Scaling::GetActiveTransform();
-        config.anchorX = UI::Scaling::PositionX(activeTransform, static_cast<float>(m_Pos.x + 95));
-        config.anchorY = UI::Scaling::PositionY(activeTransform, static_cast<float>(m_Pos.y + 40));
+        float tooltipX = static_cast<float>(m_Pos.x + 95);
+        float tooltipY = static_cast<float>(m_Pos.y + 40);
+        UI::RmlBridge::RefreshLogicalAnchorPosition(m_RmlView.Document(), "panel", "option_tooltip_anchor", m_Pos, tooltipX,
+                                                    tooltipY);
+        config.anchorX = UI::Scaling::PositionX(activeTransform, tooltipX);
+        config.anchorY = UI::Scaling::PositionY(activeTransform, tooltipY);
         config.centerHorizontally = true;
         config.textAlign = UI::RmlBridge::Tooltip::Config::TextAlign::Center;
         config.fixedWidth = model.setOptionHovered ? kSetOptionTooltipWidth : kSocketOptionTooltipWidth;
@@ -1743,10 +1747,10 @@ bool CMyInventory::EquipmentWindowProcess()
 bool CMyInventory::InventoryProcess() const
 {
     // #panel's own live RCSS size is the source of truth -- INVENTORY_WIDTH/HEIGHT only cover the
-    // first frame after Create()/Show(true)/ReloadRmlTheme(), before RmlUi's next layout pass.
+    // first frame after Create()/Show(true)/a theme switch, before RmlUi's next layout pass.
     float panelWidth = INVENTORY_WIDTH;
     float panelHeight = INVENTORY_HEIGHT;
-    UI::RmlBridge::RefreshLogicalPanelSize(m_pRmlDoc, "panel", panelWidth, panelHeight);
+    UI::RmlBridge::RefreshLogicalPanelSize(m_RmlView.Document(), "panel", panelWidth, panelHeight);
     if (mu::ui::window::WindowGeometry(m_Pos.x, m_Pos.y, static_cast<int>(panelWidth), static_cast<int>(panelHeight)).Contains(MouseX, MouseY) == false)
     {
         return false;
@@ -1763,10 +1767,10 @@ bool CMyInventory::InventoryProcess() const
 bool CMyInventory::WindowProcess()
 {
     // #panel's own live RCSS size is the source of truth -- INVENTORY_WIDTH/HEIGHT only cover the
-    // first frame after Create()/Show(true)/ReloadRmlTheme(), before RmlUi's next layout pass.
+    // first frame after Create()/Show(true)/a theme switch, before RmlUi's next layout pass.
     float panelWidth = INVENTORY_WIDTH;
     float panelHeight = INVENTORY_HEIGHT;
-    UI::RmlBridge::RefreshLogicalPanelSize(m_pRmlDoc, "panel", panelWidth, panelHeight);
+    UI::RmlBridge::RefreshLogicalPanelSize(m_RmlView.Document(), "panel", panelWidth, panelHeight);
     if (mu::ui::window::WindowGeometry(m_Pos.x, m_Pos.y, static_cast<int>(panelWidth), static_cast<int>(panelHeight)).Contains(MouseX, MouseY) == false)
     {
         return false;

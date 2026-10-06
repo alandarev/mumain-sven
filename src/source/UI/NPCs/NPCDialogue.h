@@ -6,7 +6,8 @@
 #include "UI/Core/WindowObject.h"
 #include "UI/Core/WindowManager.h"
 #include "UI/NPCs/NPCDialogueRmlModel.h"
-#include "UI/RmlBridge/RmlModelBinder.h"
+#include "UI/NPCs/NpcDialogueUpdates.h"
+#include "UI/RmlBridge/RmlThemedView.h"
 #include "GameLogic/Quests/QuestMng.h"
 
 namespace Rml { class ElementDocument; }
@@ -71,14 +72,17 @@ namespace mu::ui::window
         bool	m_bCanClick;
         DWORD	m_dwContributePoint;
 
-        RmlModelBinder<NPCDialogueRmlModel> m_RmlBinder;
-        Rml::ElementDocument* m_pRmlDoc = nullptr;
+        void BindRmlModel(Rml::DataModelConstructor& c, NPCDialogueRmlModel& model);
+        UI::RmlBridge::ThemedView<NPCDialogueRmlModel> m_RmlView{"npc_dialogue",
+            [this](Rml::DataModelConstructor& c, NPCDialogueRmlModel& model) { BindRmlModel(c, model); },
+            {{"Data/Interface/RmlUi/npc_dialogue.rml"}}};
 
     public:
         CNPCDialogue();
         virtual ~CNPCDialogue();
 
         bool Create(CManager* pNewUIMng, int x, int y);
+        Rml::ElementDocument* GetFillDocument() const override { return m_RmlView.Document(); }
         void Release();
 
         void SetPos(int x, int y);
@@ -99,14 +103,11 @@ namespace mu::ui::window
         void SetContents(DWORD dwDlgIndex);
         void SetContributePoint(DWORD dwContributePoint);
 
-        void ProcessQuestListReceive(DWORD* adwSrcQuestIndex, int nIndexCount);
-        void ProcessGensJoiningReceive(BYTE byResult, BYTE byInfluence);
-        void ProcessGensSecessionReceive(BYTE byResult);
-#ifdef PBG_ADD_GENSRANKING
-        void ProcessGensRewardReceive(BYTE byResult);
-#endif //PBG_ADD_GENSRANKING
+        void ProcessQuestListReceive(std::span<const std::uint32_t> questIndices);
+        void ProcessGensJoiningReceive(UI::Npc::GensJoinResult result, BYTE byInfluence);
+        void ProcessGensSecessionReceive(UI::Npc::GensLeaveResult result);
+        void ProcessGensRewardReceive(UI::Npc::GensRewardResult result);
 
-        void ReloadRmlTheme();
 
         // Invoked directly from RmlUi data-event-click bindings (see BuildRmlUi()), not polled.
         void RmlClickClose();
@@ -122,7 +123,7 @@ namespace mu::ui::window
 
         void SetCurNPCWords(int nQuestListCount = 0);
         void SetCurSelTexts();
-        void SetQuestListText(DWORD* adwSrcQuestIndex, int nIndexCount);
+        void SetQuestListText(std::span<const std::uint32_t> questIndices);
         void CalculateSelTextMaxPage(int nSelTextCount, int nMaxLinePerPage);
 
         // Reads npc_dialogue.rml's #npc_lines_container/#answers_container (live width, and the

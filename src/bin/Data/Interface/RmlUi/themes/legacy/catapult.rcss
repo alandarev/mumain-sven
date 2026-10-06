@@ -37,6 +37,10 @@
 .sharp-text { display: block; position: absolute; white-space: nowrap; text-align: center; pointer-events: none; }
 .cp-title { left: 0; top: 13px; font-weight: bold; color: #dcdcdc; }
 .cp-line { left: 0; font-weight: bold; color: #dcdcdc; }
+.cp-lines { position: static; }
+.cp-line:nth-child(1) { top: 50px; }
+.cp-line:nth-child(2) { top: 65px; }
+.cp-line:nth-child(3) { top: 80px; }
 
 .t-edge-top, .t-edge-bottom, .t-edge-left, .t-edge-right, .t-corner { position: absolute; }
 .t-edge-top { height: 14px; decorator: image(cp-edge-top); }
@@ -64,7 +68,28 @@
 #btn_fire.locked, #btn_fire.locked:hover, #btn_fire.locked:active { decorator: image(cp-fire-up); image-color: #646464; }
 
 .cp-label { left: 0; color: #ffffff; }
-.cp-area-label { text-align: left; }
 .locked .cp-label { color: #646464; }
 .tooltip { display: none; }
 #btn_exit:hover ~ .tooltip-exit { display: block; }
+
+/* The two modes' own target areas (kAttackAreas / kDefenseAreas). A label is centred on its
+   button, where C++ used to measure the text and halve the remainder. */
+.cp-areas { position: static; }
+.cp-area-label { left: 0; text-align: center; }
+.cp-areas.attack .cp-area:nth-child(1) { left: 22px; top: 135px; }
+.cp-areas.attack .cp-area:nth-child(2) { left: 74px; top: 135px; }
+.cp-areas.attack .cp-area:nth-child(3) { left: 126px; top: 135px; }
+.cp-areas.attack .cp-area:nth-child(4) { left: 59px; top: 182px; }
+.cp-areas.defense .cp-area:nth-child(1) { left: 18px; top: 125px; }
+.cp-areas.defense .cp-area:nth-child(2) { left: 97px; top: 125px; }
+.cp-areas.defense .cp-area:nth-child(3) { left: 56px; top: 179px; }
+
+/* The target table's frame, the shape the original drew it as. */
+.t-tl { left: 12px; top: 116px; }
+.t-tr { left: 166px; top: 116px; }
+.t-edge-top { left: 25px; top: 116px; width: 141px; }
+.t-edge-left { left: 12px; top: 129px; height: 100px; }
+.t-edge-right { left: 166px; top: 129px; height: 100px; }
+.t-bl { left: 12px; top: 223px; }
+.t-br { left: 166px; top: 223px; }
+.t-edge-bottom { left: 25px; top: 223px; width: 141px; }

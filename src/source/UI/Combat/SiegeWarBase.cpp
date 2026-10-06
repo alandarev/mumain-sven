@@ -7,7 +7,8 @@ using namespace mu::ui::window;
 #include "UI/Combat/SiegeWarBase.h"
 #include "Engine/Object/ZzzInterface.h"
 #include "Engine/Object/ZzzInventory.h"
-#include "Guild/UIGuildInfo.h"
+#include "Engine/Object/ZzzCharacter.h"
+#include "Guild/GuildTypes.h"
 #include "Character/CharacterManager.h"
 #include "GameLogic/Skills/SkillManager.h"
 #include "UI/HUD/Skills/SkillTooltip.h"
@@ -426,7 +427,7 @@ void mu::ui::window::CSiegeWarBase::FillSkill(SiegeWarfareRmlModel& model)
     const int selectedSkill = *m_iterCurBattleSkill;
     model.skillRect = std::to_string(((selectedSkill - 57) % 8) * 20) + " " +
                       std::to_string(((selectedSkill - 57) / 8) * 28) + " 20 28";
-    model.skillColor = Hero->GuildMasterKillCount < killsNeeded ? "rgb(255, 127, 127)" : "rgb(255, 255, 255)";
+    model.skillAffordable = Hero->GuildMasterKillCount >= killsNeeded;
     model.killsNeeded = std::to_string(killsNeeded);
     model.kills = std::to_string(Hero->GuildMasterKillCount);
     model.scrollUpFrame = ButtonFrame(m_BtnSkillScroll[0]);

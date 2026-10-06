@@ -21,10 +21,8 @@ CEnterDevilSquare::CEnterDevilSquare() : m_View("devil_square_enter", "Data/Inte
 {
     m_pNewUIMng = NULL;
     memset(&m_Pos, 0, sizeof(POINT));
-    memset(&m_EnterUITextPos, 0, sizeof(POINT));
 
     m_iNumActiveBtn = 1;
-    m_BtnEnterStartPos.x = m_BtnEnterStartPos.y = 0;
 
     m_iDevilSquareLimitLevel[0][0] = 15; m_iDevilSquareLimitLevel[0][1] = 130;
     m_iDevilSquareLimitLevel[1][0] = 131; m_iDevilSquareLimitLevel[1][1] = 180;
@@ -59,7 +57,6 @@ bool CEnterDevilSquare::Create(CManager* pNewUIMng, int x, int y)
     SetPos(x, y);
 
     m_View.Build();
-    UI::RmlBridge::RegisterForThemeReload(this, [this] { ReloadRmlTheme(); });
 
     Show(false);
 
@@ -68,7 +65,7 @@ bool CEnterDevilSquare::Create(CManager* pNewUIMng, int x, int y)
 
 void CEnterDevilSquare::Release()
 {
-    UI::RmlBridge::UnregisterForThemeReload(this);
+    m_View.Release();
 
     if (m_pNewUIMng)
     {
@@ -81,17 +78,6 @@ void CEnterDevilSquare::SetPos(int x, int y)
 {
     m_Pos.x = x;
     m_Pos.y = y;
-    m_EnterUITextPos.x = m_Pos.x + 3;
-    m_EnterUITextPos.y = m_Pos.y + 45;
-
-    SetBtnPos(m_Pos.x + 6, m_Pos.y + 155);
-
-}
-
-void CEnterDevilSquare::SetBtnPos(int x, int y)
-{
-    m_BtnEnterStartPos.x = x;
-    m_BtnEnterStartPos.y = y;
 }
 
 bool CEnterDevilSquare::UpdateMouseEvent()
@@ -99,7 +85,11 @@ bool CEnterDevilSquare::UpdateMouseEvent()
     if (true == BtnProcess())
         return false;
 
-    if (mu::ui::window::WindowGeometry(m_Pos.x, m_Pos.y, ENTERDS_BASE_WINDOW_WIDTH, ENTERDS_BASE_WINDOW_HEIGHT).Contains(MouseX, MouseY))
+    float panelWidth = static_cast<float>(ENTERDS_BASE_WINDOW_WIDTH);
+    float panelHeight = static_cast<float>(ENTERDS_BASE_WINDOW_HEIGHT);
+    m_View.PanelSize(panelWidth, panelHeight);
+    if (mu::ui::window::WindowGeometry(m_Pos.x, m_Pos.y, static_cast<int>(panelWidth),
+                                       static_cast<int>(panelHeight)).Contains(MouseX, MouseY))
         return false;
 
     return true;
@@ -239,17 +229,9 @@ void CEnterDevilSquare::ClosingProcess()
 }
 
 
-//---------------------------------------------------------------------------------------------
-// UnloadImages
-
-void CEnterDevilSquare::ReloadRmlTheme()
-{
-    m_View.ReloadTheme();
-}
-
 void CEnterDevilSquare::SetViewContent(const std::vector<EventEntryView::Button>& buttons)
 {
-    // Six description lines, 15 units apart.
+    // Six description lines.
     const std::vector<std::wstring> lines = {
         I18N::Game::YouVeBeenGivenAChanceToProveYourBravery,
         I18N::Game::NoOneHasEverEnteredTheDevilSquareYet,
@@ -259,6 +241,5 @@ void CEnterDevilSquare::SetViewContent(const std::vector<EventEntryView::Button>
         I18N::Game::OnlyYourBraveryAndStrengthWillKeepYouAlive,
     };
 
-    m_View.SetContent(I18N::Game::DevilSquare, lines, float(m_EnterUITextPos.y - m_Pos.y), 15.f, buttons,
-                      float(m_BtnEnterStartPos.y - m_Pos.y), float(ENTER_BTN_VAL));
+    m_View.SetContent(I18N::Game::DevilSquare, lines, buttons);
 }

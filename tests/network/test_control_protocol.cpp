@@ -90,6 +90,7 @@ TEST_CASE("Control protocol serves the documented command vocabulary [network][c
         "party",       "halt",          "hotkey", "click-ui", "type",   "inject",   "net",
         "ui",          "window",        "hover",  "render",   "wheel",  "drag",     "select-slot",
         "server-list", "select-server",
+        "drag-ui", "hover-ui",
     };
 
     for (const std::string& command : expected)

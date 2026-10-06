@@ -7,8 +7,7 @@
 #include "UI/Core/WindowObject.h"
 #include "UI/Core/WindowManager.h"
 #include "UI/Combat/CastleWindowRmlModel.h"
-#include "UI/RmlBridge/RmlModelBinder.h"
-#include "UI/Widgets/Window/Button.h"
+#include "UI/RmlBridge/RmlThemedView.h"
 
 #include <string>
 #include <vector>
@@ -21,8 +20,7 @@ class ElementDocument;
 namespace mu::ui::window
 {
 // The Senatus (castle lord's NPC), docked right: the Castle Gate, Guardian Statue, Tax and
-// Store tabs. castle_window.rml draws it; the tab radio group and the gate / statue icon picks
-// stay native hit tests, C++ keeps every request.
+// Store tabs. castle_window.rml owns tab and map-icon hit targets; C++ keeps every request.
 class CCastleWindow : public CObject
 {
 public:
@@ -77,19 +75,26 @@ private:
     CManager* m_pNewUIMng;
     POINT m_Pos;
 
-    CRadioGroupButton m_TabBtn;
+    // The current page and highlight share this value. RmlUi owns the tab hit targets.
     int m_iNumCurOpenTab;
     int m_iCurrMsgBoxRequest;
 
-    RmlModelBinder<CastleWindowRmlModel> m_RmlBinder;
-    Rml::ElementDocument* m_pRmlDoc = nullptr;
+    void SetCurOpenTab(int iTab);
+
+    void BindRmlModel(Rml::DataModelConstructor& c, CastleWindowRmlModel& model);
+    UI::RmlBridge::ThemedView<CastleWindowRmlModel> m_RmlView{"castle_window",
+        [this](Rml::DataModelConstructor& c, CastleWindowRmlModel& model) { BindRmlModel(c, model); },
+        {{"Data/Interface/RmlUi/castle_window.rml"}}};
     SENATUS_BUTTON m_PendingButton = SENATUS_BUTTON_NONE;
+    int m_PendingTab = -1;
+    int m_PendingPick = -1;
 
 public:
     CCastleWindow();
     virtual ~CCastleWindow();
 
     bool Create(CManager* pNewUIMng, int x, int y);
+    Rml::ElementDocument* GetFillDocument() const override { return m_RmlView.Document(); }
     void Release();
 
     void SetPos(int x, int y);
@@ -109,7 +114,6 @@ public:
         return m_iCurrMsgBoxRequest;
     }
 
-    void ReloadRmlTheme();
 
 private:
     bool BtnProcess();
@@ -123,7 +127,6 @@ private:
     void UpdateGateManagingTab(SENATUS_BUTTON button);
     void UpdateStatueManagingTab(SENATUS_BUTTON button);
     void UpdateTaxManagingTab(SENATUS_BUTTON button);
-    void UpdateIconPick();
     bool ButtonLocked(SENATUS_BUTTON button) const;
 
     void BuildRmlUi();

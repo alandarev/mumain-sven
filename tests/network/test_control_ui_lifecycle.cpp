@@ -72,8 +72,7 @@ void PrepareModalPrerequisites(UiLifecycleFixture& fixture)
     REQUIRE(g_iChatInputType == 1);
     REQUIRE(g_dwTopWindow == 0);
     REQUIRE(g_pCryWolfInterface == nullptr);
-    REQUIRE(g_pUIPopup == nullptr);
-    fixture.PreparePopup();
+    fixture.PrepareMessageWindow();
     REQUIRE(g_MessageBox->IsEmpty());
     REQUIRE_FALSE(g_MessageBox->HasPendingEvents());
     REQUIRE(fixture.PrepareModalPrerequisites());
@@ -94,7 +93,6 @@ void RequireUnownedSystem()
     REQUIRE(g_pChatInputBox == nullptr);
     REQUIRE(g_pQuickCommand == nullptr);
     REQUIRE(g_pNewUIHotKey == nullptr);
-    REQUIRE_FALSE(CUITextInputBox::IsAnyInputBoxFocused());
 }
 } // namespace
 
@@ -145,7 +143,6 @@ TEST_CASE("Registered chat producer distinguishes owned whisper ordinary and unr
         REQUIRE(input->Focus());
         fixture.Settle();
         CHECK(fixture.chat.OwnsFocusedInput());
-        CHECK_FALSE(CUITextInputBox::IsAnyInputBoxFocused()); // Seen only through the chat document.
         const auto focused = List();
         CHECK(focused["observability"]["input_focused"] == true);
         CHECK(focused["observability"]["input_focus_owner"] == "chatinputbox");
@@ -155,22 +152,23 @@ TEST_CASE("Registered chat producer distinguishes owned whisper ordinary and unr
         fixture.registry.RemoveUIObj(mu::ui::window::INTERFACE_CHATINPUTBOX);
         CHECK(List()["observability"]["input_focus_owner"].is_null());
         RefuseStale(focused);
-        // Unowned RmlUi focus is reported live by RmlUiRuntime::IsTextInputActive(), which this
-        // headless fixture does not start; unowned native focus is covered below.
+        // Document focus remains observable even without the runtime or registered owner.
         fixture.registry.AddUIObj(mu::ui::window::INTERFACE_CHATINPUTBOX, &fixture.chat);
         input->Blur();
         fixture.Settle();
         CHECK_FALSE(fixture.chat.OwnsFocusedInput());
         CHECK(List()["observability"]["input_focused"] == false);
     }
-    CUITextInputBox unrelated;
-    unrelated.SetState(UISTATE_NORMAL);
-    unrelated.GiveFocus();
+    auto* unrelated = fixture.UnrelatedInput();
+    REQUIRE(unrelated != nullptr);
+    REQUIRE(unrelated->Focus());
+    fixture.Settle();
     const auto focused = List();
     CHECK(focused["observability"]["input_focused"] == true);
     CHECK(focused["observability"]["input_focus_owner"].is_null());
     RefuseFresh("active or unknown prerequisite: input_focused");
-    unrelated.SetState(UISTATE_HIDE);
+    unrelated->Blur();
+    fixture.Settle();
 }
 
 TEST_CASE("Registered Friends producer retains delayed message blocker after child retirement [network][control-ui]")
@@ -179,8 +177,7 @@ TEST_CASE("Registered Friends producer retains delayed message blocker after chi
     REQUIRE(g_iChatInputType == 1); // Ordinary Reset cannot send logout in this fixture.
     REQUIRE(g_dwTopWindow == 0);
     UiLifecycleFixture fixture;
-    REQUIRE(g_pUIPopup == nullptr);
-    fixture.PreparePopup();
+    fixture.PrepareMessageWindow();
     // Create only this subsystem, never the Friends main window or its network requests.
     auto destroy = [](mu::ui::window::CFriendWindow* friends)
     {
@@ -194,7 +191,7 @@ TEST_CASE("Registered Friends producer retains delayed message blocker after chi
     auto* manager = const_cast<CUIWindowMgr*>(friends->GetWindowManager());
     const auto empty = List();
     CHECK(empty["observability"]["friend_children_active"] == false);
-    const auto child = manager->AddWindow(UIWNDTYPE_EMPTY, 0, 0, L"owned test child", 0, UIADDWND_FORCEPOSITION);
+    const auto child = manager->AddWindow(UIWNDTYPE_CHAT_READY, 0, 0, L"owned test child", 0, UIADDWND_FORCEPOSITION);
     REQUIRE(child != 0);
     CHECK(List()["observability"]["friend_children_active"] == true);
     RefuseFresh("active or unknown prerequisite: friend_children_active");

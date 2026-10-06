@@ -1,7 +1,7 @@
 ﻿
 #include "stdafx.h"
 #include "UI/Combat/SiegeWarCommander.h"
-#include "UI/Widgets/UIControls.h"
+#include "UI/Social/SocialWindowBase.h"
 #include "Render/Textures/ZzzTexture.h"
 
 #include "Engine/Object/ZzzCharacter.h"

@@ -27,6 +27,7 @@
 #include "World/MapInfra/w_MapHeaders.h"
 #include "UI/Core/UIManager.h"
 #include "CameraDebugLog.h"
+#include "Render/Text/CUIRenderText.h"
 
 // External variable declarations
 extern short g_shCameraLevel;

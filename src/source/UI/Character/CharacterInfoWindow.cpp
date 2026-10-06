@@ -8,7 +8,6 @@
 #include "GameLogic/Items/CSItemOption.h"
 #include "Audio/DSPlaySound.h"
 #include "Engine/Object/ZzzCharacter.h"
-#include "UI/Widgets/UIControls.h"
 #include "Engine/Object/ZzzInterface.h"
 #include "Scenes/SceneCore.h"
 #include "Engine/Object/ZzzInventory.h"
@@ -20,6 +19,7 @@
 #include "Core/Utilities/StringUtils.h"
 #include "UI/Scaling/UITransform.h"
 #include "Render/RmlUi/RmlUiRuntime.h"
+#include "UI/RmlBridge/RmlSyncField.h"
 #include "UI/RmlBridge/RmlPanelGeometry.h"
 #include "UI/RmlBridge/RmlRootTransform.h"
 #include "UI/RmlBridge/RmlTheme.h"
@@ -71,28 +71,18 @@ namespace
         return multiplier;
     }
 
-    Rml::String MakeColorRgba(int r, int g, int b, int a)
+    // Which of the three states RenderAttribute() coloured an attribute's value for. The states
+    // are the meaning; each theme's character_info.rcss decides what they look like.
+    const char* AttributeSource(bool potionBuffed, bool boosted)
     {
-        wchar_t buf[32];
-        mu_swprintf(buf, L"rgba(%d,%d,%d,%d)", r, g, b, a);
-        return StringUtils::WideToNarrow(buf);
+        if (potionBuffed)
+            return "potion";
+        return boosted ? "boosted" : "base";
     }
 
-    // Mirrors UI::Chat::SetPlayerColor(BYTE) -- that function sets g_pRenderText's live text
-    // color state rather than returning one, which this binding needs instead.
-    Rml::String GetPlayerColorRgba(BYTE pk)
-    {
-        switch (pk)
-        {
-        case 0: return MakeColorRgba(150, 255, 240, 255); // npc
-        case 1: return MakeColorRgba(100, 120, 255, 255);
-        case 2: return MakeColorRgba(140, 180, 255, 255);
-        case 3: return MakeColorRgba(200, 220, 255, 255); // normal
-        case 4: return MakeColorRgba(255, 150, 60, 255);  // pk1
-        case 5: return MakeColorRgba(255, 80, 30, 255);   // pk2
-        default: return MakeColorRgba(255, 0, 0, 255);    // pk3
-        }
-    }
+    // The derived rows use the same vocabulary: "boosted" is the pale blue an item or set adds
+    // (the primary stats' own .attr-boosted), "buffed" the colour a consumable buff sets, and
+    // each theme's character_info.rcss decides what they look like.
 }
 
 mu::ui::window::CCharacterInfoWindow::CCharacterInfoWindow()
@@ -121,7 +111,6 @@ bool mu::ui::window::CCharacterInfoWindow::Create(CManager* pNewUIMng, int x, in
     if (RmlUiRuntime::Instance().IsCreated())
     {
         BuildRmlUi();
-        UI::RmlBridge::RegisterForThemeReload(this, [this] { ReloadRmlTheme(); });
     }
 
     Show(false);
@@ -129,126 +118,104 @@ bool mu::ui::window::CCharacterInfoWindow::Create(CManager* pNewUIMng, int x, in
     return true;
 }
 
-void mu::ui::window::CCharacterInfoWindow::BuildRmlUi()
+void mu::ui::window::CCharacterInfoWindow::BindRmlModel(Rml::DataModelConstructor& c, CharacterInfoRmlModel& model)
 {
-    const bool modelCreated = m_RmlBinder.Create(RmlUiRuntime::Instance().GetContext(), "character_info",
-            [this](Rml::DataModelConstructor& c, CharacterInfoRmlModel& model)
-            {
-                c.Bind("root_x", &model.rootX);
-                c.Bind("root_y", &model.rootY);
-                c.Bind("root_scale", &model.rootScale);
-                model.textPx =
-                    UI::Scaling::NativeTextPixelSize(UI::Scaling::FontRole::Normal, UI::Scaling::GetActiveTransform());
-                c.Bind("text_px", &model.textPx);
+    c.Bind("root_x", &model.rootX);
+    c.Bind("root_y", &model.rootY);
+    c.Bind("root_scale", &model.rootScale);
+    c.Bind("panel_width", &model.panelWidth);
 
-                c.Bind("can_level_up", &model.canLevelUp);
-                c.Bind("show_charisma", &model.showCharisma);
+    model.textPx =
+        UI::Scaling::NativeTextPixelSize(UI::Scaling::FontRole::Normal, UI::Scaling::GetActiveTransform());
+    c.Bind("text_px", &model.textPx);
 
-                c.Bind("name_text", &model.nameText);
-                c.Bind("name_color", &model.nameColor);
-                c.Bind("classname_text", &model.classNameText);
-                c.Bind("servername_text", &model.serverNameText);
-                c.Bind("classname_opacity", &model.classNameOpacity);
-                c.Bind("servername_opacity", &model.serverNameOpacity);
+    c.Bind("can_level_up", &model.canLevelUp);
+    c.Bind("show_charisma", &model.showCharisma);
 
-                c.Bind("level_text", &model.levelText);
-                c.Bind("levelup_point_text", &model.levelUpPointText);
-                c.Bind("exp_text", &model.expText);
-                c.Bind("point_probability_text", &model.pointProbabilityText);
-                c.Bind("point_text", &model.pointText);
+    c.Bind("name_text", &model.nameText);
+    c.Bind("pk_level", &model.pkLevel);
+    c.Bind("classname_text", &model.classNameText);
+    c.Bind("servername_text", &model.serverNameText);
+    c.Bind("classname_opacity", &model.classNameOpacity);
+    c.Bind("servername_opacity", &model.serverNameOpacity);
 
-                c.Bind("str_label", &model.strLabel);
-                c.Bind("agi_label", &model.agiLabel);
-                c.Bind("vit_label", &model.vitLabel);
-                c.Bind("ene_label", &model.eneLabel);
-                c.Bind("cmd_label", &model.cmdLabel);
-                c.Bind("str_value_text", &model.strValueText);
-                c.Bind("str_value_color", &model.strValueColor);
-                c.Bind("agi_value_text", &model.agiValueText);
-                c.Bind("agi_value_color", &model.agiValueColor);
-                c.Bind("vit_value_text", &model.vitValueText);
-                c.Bind("vit_value_color", &model.vitValueColor);
-                c.Bind("ene_value_text", &model.eneValueText);
-                c.Bind("ene_value_color", &model.eneValueColor);
-                c.Bind("cmd_value_text", &model.cmdValueText);
-                c.Bind("cmd_value_color", &model.cmdValueColor);
+    c.Bind("level_text", &model.levelText);
+    c.Bind("levelup_point_text", &model.levelUpPointText);
+    c.Bind("exp_text", &model.expText);
+    c.Bind("point_probability_text", &model.pointProbabilityText);
+    c.Bind("point_text", &model.pointText);
 
-                auto statLine = c.RegisterStruct<StatLine>();
-                statLine.RegisterMember("text", &StatLine::text);
-                statLine.RegisterMember("color", &StatLine::color);
-                c.RegisterArray<std::vector<StatLine>>();
-                c.Bind("str_lines", &model.strLines);
-                c.Bind("agi_lines", &model.agiLines);
-                c.Bind("vit_lines", &model.vitLines);
-                c.Bind("ene_lines", &model.eneLines);
+    c.Bind("str_label", &model.strLabel);
+    c.Bind("agi_label", &model.agiLabel);
+    c.Bind("vit_label", &model.vitLabel);
+    c.Bind("ene_label", &model.eneLabel);
+    c.Bind("cmd_label", &model.cmdLabel);
+    c.Bind("str_value_text", &model.strValueText);
+    c.Bind("str_value_source", &model.strValueSource);
+    c.Bind("agi_value_text", &model.agiValueText);
+    c.Bind("agi_value_source", &model.agiValueSource);
+    c.Bind("vit_value_text", &model.vitValueText);
+    c.Bind("vit_value_source", &model.vitValueSource);
+    c.Bind("ene_value_text", &model.eneValueText);
+    c.Bind("ene_value_source", &model.eneValueSource);
+    c.Bind("cmd_value_text", &model.cmdValueText);
+    c.Bind("cmd_value_source", &model.cmdValueSource);
 
-                c.Bind("master_level_enabled", &model.masterLevelEnabled);
+    auto statLine = c.RegisterStruct<StatLine>();
+    statLine.RegisterMember("text", &StatLine::text);
+    statLine.RegisterMember("source", &StatLine::source);
+    c.RegisterArray<std::vector<StatLine>>();
+    c.Bind("str_lines", &model.strLines);
+    c.Bind("agi_lines", &model.agiLines);
+    c.Bind("vit_lines", &model.vitLines);
+    c.Bind("ene_lines", &model.eneLines);
 
-                c.Bind("exit_tooltip", &model.exitTooltip);
-                c.Bind("quest_tooltip", &model.questTooltip);
-                c.Bind("pet_tooltip", &model.petTooltip);
-                c.Bind("masterlevel_tooltip", &model.masterLevelTooltip);
+    c.Bind("master_level_enabled", &model.masterLevelEnabled);
 
-                c.BindEventCallback("chainfo_increase_stat",
-                    [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& arguments)
-                    {
-                        if (arguments.size() == 1)
-                            RmlClickIncreaseStat(arguments[0].Get<int>(-1));
-                    });
-                c.BindEventCallback("chainfo_click_exit",
-                    [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) { RmlClickExit(); });
-                c.BindEventCallback("chainfo_click_quest",
-                    [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) { RmlClickQuest(); });
-                c.BindEventCallback("chainfo_click_pet",
-                    [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) { RmlClickPet(); });
-                c.BindEventCallback("chainfo_click_masterlevel",
-                    [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) { RmlClickMasterLevel(); });
-            });
+    c.Bind("exit_tooltip", &model.exitTooltip);
+    c.Bind("quest_tooltip", &model.questTooltip);
+    c.Bind("pet_tooltip", &model.petTooltip);
+    c.Bind("masterlevel_tooltip", &model.masterLevelTooltip);
 
-        if (modelCreated)
+    c.BindEventCallback("chainfo_increase_stat",
+        [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& arguments)
         {
-            auto& model = m_RmlBinder.GetModel();
-            model.strLabel = StringUtils::WideToNarrow(I18N::Game::STR);
-            model.agiLabel = StringUtils::WideToNarrow(I18N::Game::AGI);
-            model.vitLabel = StringUtils::WideToNarrow(I18N::Game::STA);
-            model.eneLabel = StringUtils::WideToNarrow(I18N::Game::ENG);
-            model.cmdLabel = StringUtils::WideToNarrow(I18N::Game::Command);
+            if (arguments.size() == 1)
+                RmlClickIncreaseStat(arguments[0].Get<int>(-1));
+        });
+    c.BindEventCallback("chainfo_click_exit",
+        [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) { RmlClickExit(); });
+    c.BindEventCallback("chainfo_click_quest",
+        [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) { RmlClickQuest(); });
+    c.BindEventCallback("chainfo_click_pet",
+        [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) { RmlClickPet(); });
+    c.BindEventCallback("chainfo_click_masterlevel",
+        [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) { RmlClickMasterLevel(); });
+    model.strLabel = StringUtils::WideToNarrow(I18N::Game::STR);
+    model.agiLabel = StringUtils::WideToNarrow(I18N::Game::AGI);
+    model.vitLabel = StringUtils::WideToNarrow(I18N::Game::STA);
+    model.eneLabel = StringUtils::WideToNarrow(I18N::Game::ENG);
+    model.cmdLabel = StringUtils::WideToNarrow(I18N::Game::Command);
 
-            wchar_t strText[256];
-            mu_swprintf(strText, I18N::Game::CloseS, L"C");
-            model.exitTooltip = StringUtils::WideToNarrow(strText);
-            mu_swprintf(strText, L"%ls(%ls)", I18N::Game::Quest, L"T");
-            model.questTooltip = StringUtils::WideToNarrow(strText);
-            model.petTooltip = StringUtils::WideToNarrow(I18N::Game::Pet);
-            model.masterLevelTooltip = StringUtils::WideToNarrow(I18N::Game::MasterSkillTreeA);
-        }
-
-    m_pRmlDoc = UI::RmlBridge::LoadThemedDocument(RmlUiRuntime::Instance().GetContext(),
-        "Data/Interface/RmlUi/character_info.rml");
+    wchar_t strText[256];
+    mu_swprintf(strText, I18N::Game::CloseS, L"C");
+    model.exitTooltip = StringUtils::WideToNarrow(strText);
+    mu_swprintf(strText, L"%ls(%ls)", I18N::Game::Quest, L"T");
+    model.questTooltip = StringUtils::WideToNarrow(strText);
+    model.petTooltip = StringUtils::WideToNarrow(I18N::Game::Pet);
+    model.masterLevelTooltip = StringUtils::WideToNarrow(I18N::Game::MasterSkillTreeA);
 }
 
-void mu::ui::window::CCharacterInfoWindow::ReloadRmlTheme()
+void mu::ui::window::CCharacterInfoWindow::BuildRmlUi()
 {
-    if (!m_pRmlDoc) return; // never opened -- BuildRmlUi() will simply pick up the new theme whenever it first is
-
-    Rml::Context* context = RmlUiRuntime::Instance().GetContext();
-    m_RmlBinder.Destroy(context);
-    context->UnloadDocument(m_pRmlDoc);
-    m_pRmlDoc = nullptr;
-
-    BuildRmlUi();
-    // Next frame's SyncRmlModel() self-corrects visibility/live model state.
+    m_RmlView.Ensure();
 }
 
 void mu::ui::window::CCharacterInfoWindow::Release()
 {
     UnloadImages();
 
-    if (m_pRmlDoc)
-    {
-        m_pRmlDoc->Close();
-        m_pRmlDoc = nullptr;
-    }
+    m_RmlView.Release();
 
     if (m_pNewUIMng)
     {
@@ -256,7 +223,6 @@ void mu::ui::window::CCharacterInfoWindow::Release()
         m_pNewUIMng = NULL;
     }
 
-    UI::RmlBridge::UnregisterForThemeReload(this);
 }
 
 void mu::ui::window::CCharacterInfoWindow::SetPos(int x, int y)
@@ -268,24 +234,21 @@ void mu::ui::window::CCharacterInfoWindow::SetPos(int x, int y)
 void mu::ui::window::CCharacterInfoWindow::Show(bool bShow)
 {
     mu::ui::window::CObject::Show(bShow);
-    if (m_pRmlDoc)
+    if (m_RmlView.Document())
     {
-        if (bShow) m_pRmlDoc->Show();
-        else m_pRmlDoc->Hide();
+        if (bShow) m_RmlView.Document()->Show();
+        else m_RmlView.Document()->Hide();
     }
 }
 
 bool mu::ui::window::CCharacterInfoWindow::UpdateMouseEvent()
 {
-    // Top-right corner close "X" (shared frame). Hides + swallows the click.
-    if (g_pNewUISystem->HandleFrameCornerClose(m_Pos, mu::ui::window::INTERFACE_CHARACTER))
-        return false;
-
+    // RmlUi handles both close targets; the corner target follows the theme-sized panel edge.
     // #panel's own live RCSS size is the source of truth -- CHAINFO_WINDOW_WIDTH/HEIGHT only cover
     // the first frame after Create()/Show(true)/ReloadRmlTheme(), before RmlUi's next layout pass.
     float panelWidth = CHAINFO_WINDOW_WIDTH;
     float panelHeight = CHAINFO_WINDOW_HEIGHT;
-    UI::RmlBridge::RefreshLogicalPanelSize(m_pRmlDoc, "panel", panelWidth, panelHeight);
+    UI::RmlBridge::RefreshLogicalPanelSize(m_RmlView.Document(), "panel", panelWidth, panelHeight);
 
     if (mu::ui::window::WindowGeometry(m_Pos.x, m_Pos.y, static_cast<int>(panelWidth), static_cast<int>(panelHeight)).Contains(MouseX, MouseY))
         return false;
@@ -331,11 +294,8 @@ void mu::ui::window::CCharacterInfoWindow::OpenningProcess()
     ResetEquipmentLevel();
 
     const bool masterLevelEnabled = gCharacterManager.IsMasterLevel(Hero->Class) == true && Hero->Class != CLASS_TEMPLENIGHT;
-    if (m_RmlBinder.GetModel().masterLevelEnabled != masterLevelEnabled)
-    {
-        m_RmlBinder.GetModel().masterLevelEnabled = masterLevelEnabled;
-        m_RmlBinder.MarkDirty("master_level_enabled");
-    }
+    SyncField(m_RmlView.Binder(), &CharacterInfoRmlModel::masterLevelEnabled, "master_level_enabled",
+              masterLevelEnabled);
 
     g_csItemOption.init();
 
@@ -458,18 +418,18 @@ void mu::ui::window::CCharacterInfoWindow::ResetEquipmentLevel()
 
 void mu::ui::window::CCharacterInfoWindow::SyncRmlModel()
 {
-    if (!m_pRmlDoc)
+    if (!m_RmlView.Document())
         return;
 
-    auto& model = m_RmlBinder.GetModel();
+    auto& model = m_RmlView.GetModel();
 
-    UI::RmlBridge::SyncRootTransform(m_RmlBinder, m_Pos);
-    UI::RmlBridge::SyncNativeTextSize(m_RmlBinder);
+    UI::RmlBridge::SyncRootTransform(m_RmlView.Binder(), m_Pos);
+    UI::RmlBridge::SyncPanelWidth(m_RmlView.Binder(), m_RmlView.Document());
+    UI::RmlBridge::SyncNativeTextSize(m_RmlView.Binder());
 
-    model.canLevelUp = CharacterAttribute->LevelUpPoint > 0;
-    m_RmlBinder.MarkDirty("can_level_up");
-    model.showCharisma = gCharacterManager.GetBaseClass(Hero->Class) == CLASS_DARK_LORD;
-    m_RmlBinder.MarkDirty("show_charisma");
+    SyncField(m_RmlView.Binder(), &CharacterInfoRmlModel::canLevelUp, "can_level_up", CharacterAttribute->LevelUpPoint > 0);
+    SyncField(m_RmlView.Binder(), &CharacterInfoRmlModel::showCharisma, "show_charisma",
+              gCharacterManager.GetBaseClass(Hero->Class) == CLASS_DARK_LORD);
 
     BuildSubjectTexts();
     BuildTableTexts();
@@ -478,36 +438,34 @@ void mu::ui::window::CCharacterInfoWindow::SyncRmlModel()
 
 void mu::ui::window::CCharacterInfoWindow::BuildSubjectTexts()
 {
-    auto& model = m_RmlBinder.GetModel();
+    auto& model = m_RmlView.GetModel();
 
-    model.nameText = StringUtils::WideToNarrow(CharacterAttribute->Name);
-    model.nameColor = GetPlayerColorRgba(Hero->PK);
-    m_RmlBinder.MarkDirty("name_text");
-    m_RmlBinder.MarkDirty("name_color");
+    SyncField(m_RmlView.Binder(), &CharacterInfoRmlModel::nameText, "name_text",
+              StringUtils::WideToNarrow(CharacterAttribute->Name));
+    SyncField(m_RmlView.Binder(), &CharacterInfoRmlModel::pkLevel, "pk_level", static_cast<int>(Hero->PK));
 
     wchar_t strClassName[256];
     mu_swprintf(strClassName, L"(%ls)", gCharacterManager.GetCharacterClassText(CharacterAttribute->Class));
-    model.classNameText = StringUtils::WideToNarrow(strClassName);
-    m_RmlBinder.MarkDirty("classname_text");
+    SyncField(m_RmlView.Binder(), &CharacterInfoRmlModel::classNameText, "classname_text",
+              StringUtils::WideToNarrow(strClassName));
 
     wchar_t strServerName[MAX_TEXT_LENGTH];
     const wchar_t* apszGlobalText[4]
         = { I18N::Game::SDServer, I18N::Game::SDNonPvPServer, I18N::Game::SDGoldPvPServer, I18N::Game::SDGoldServer };
     mu_swprintf(strServerName, apszGlobalText[g_ServerListManager->GetNonPVPInfo()],
         g_ServerListManager->GetSelectServerName(), g_ServerListManager->GetSelectServerIndex());
-    model.serverNameText = StringUtils::WideToNarrow(strServerName);
-    m_RmlBinder.MarkDirty("servername_text");
+    SyncField(m_RmlView.Binder(), &CharacterInfoRmlModel::serverNameText, "servername_text",
+              StringUtils::WideToNarrow(strServerName));
 
     const float fAlpha = sinf(WorldTime * 0.001f) + 1.f;
-    model.classNameOpacity = (127 * (2.f - fAlpha)) / 255.f;
-    model.serverNameOpacity = (127 * fAlpha) / 255.f;
-    m_RmlBinder.MarkDirty("classname_opacity");
-    m_RmlBinder.MarkDirty("servername_opacity");
+    SyncField(m_RmlView.Binder(), &CharacterInfoRmlModel::classNameOpacity, "classname_opacity",
+              (127 * (2.f - fAlpha)) / 255.f);
+    SyncField(m_RmlView.Binder(), &CharacterInfoRmlModel::serverNameOpacity, "servername_opacity", (127 * fAlpha) / 255.f);
 }
 
 void mu::ui::window::CCharacterInfoWindow::BuildTableTexts()
 {
-    auto& model = m_RmlBinder.GetModel();
+    auto& model = m_RmlView.GetModel();
 
     wchar_t strLevel[128];
     wchar_t strExp[128];
@@ -540,23 +498,20 @@ void mu::ui::window::CCharacterInfoWindow::BuildTableTexts()
         mu_swprintf(strPoint, L"%ls %d/%d | %ls %d/%d", I18N::Game::Create, 0, 0, I18N::Game::Decrease, 0, 0);
     }
 
-    model.levelText = StringUtils::WideToNarrow(strLevel);
-    m_RmlBinder.MarkDirty("level_text");
+    SyncField(m_RmlView.Binder(), &CharacterInfoRmlModel::levelText, "level_text", StringUtils::WideToNarrow(strLevel));
 
+    // Empty when there is nothing to spend, which is what the else branch used to clear it to.
+    Rml::String levelUpPointText;
     if (CharacterAttribute->LevelUpPoint > 0)
     {
         wchar_t strLevelUpPoint[128];
         mu_swprintf(strLevelUpPoint, I18N::Game::PointD, CharacterAttribute->LevelUpPoint);
-        model.levelUpPointText = StringUtils::WideToNarrow(strLevelUpPoint);
+        levelUpPointText = StringUtils::WideToNarrow(strLevelUpPoint);
     }
-    else
-    {
-        model.levelUpPointText.clear();
-    }
-    m_RmlBinder.MarkDirty("levelup_point_text");
+    SyncField(m_RmlView.Binder(), &CharacterInfoRmlModel::levelUpPointText, "levelup_point_text",
+              std::move(levelUpPointText));
 
-    model.expText = StringUtils::WideToNarrow(strExp);
-    m_RmlBinder.MarkDirty("exp_text");
+    SyncField(m_RmlView.Binder(), &CharacterInfoRmlModel::expText, "exp_text", StringUtils::WideToNarrow(strExp));
 
     int iAddPoint, iMinusPoint;
 
@@ -621,41 +576,28 @@ void mu::ui::window::CCharacterInfoWindow::BuildTableTexts()
 
     wchar_t strPointProbability[128];
     mu_swprintf(strPointProbability, I18N::Game::DD1907, iAddPoint, iMinusPoint);
-    model.pointProbabilityText = StringUtils::WideToNarrow(strPointProbability);
-    m_RmlBinder.MarkDirty("point_probability_text");
+    SyncField(m_RmlView.Binder(), &CharacterInfoRmlModel::pointProbabilityText, "point_probability_text",
+              StringUtils::WideToNarrow(strPointProbability));
 
-    model.pointText = StringUtils::WideToNarrow(strPoint);
-    m_RmlBinder.MarkDirty("point_text");
+    SyncField(m_RmlView.Binder(), &CharacterInfoRmlModel::pointText, "point_text", StringUtils::WideToNarrow(strPoint));
 }
 
 void mu::ui::window::CCharacterInfoWindow::BuildAttributeLines()
 {
-    auto& model = m_RmlBinder.GetModel();
+    auto& model = m_RmlView.GetModel();
 
     WORD wStrength;
 
     wStrength = CharacterAttribute->Strength + CharacterAttribute->AddStrength;
 
-    Rml::String strengthColor;
-    if (g_isCharacterBuff((&Hero->Object), eBuff_SecretPotion1))
-    {
-        strengthColor = MakeColorRgba(255, 120, 0, 255);
-    }
-    else if (CharacterAttribute->AddStrength)
-    {
-        strengthColor = MakeColorRgba(100, 150, 255, 255);
-    }
-    else
-    {
-        strengthColor = MakeColorRgba(230, 230, 0, 255);
-    }
+    const char* strengthSource = AttributeSource(g_isCharacterBuff((&Hero->Object), eBuff_SecretPotion1),
+                                                 CharacterAttribute->AddStrength != 0);
 
     wchar_t strStrength[32];
     mu_swprintf(strStrength, L"%d", wStrength);
-    model.strValueText = StringUtils::WideToNarrow(strStrength);
-    model.strValueColor = strengthColor;
-    m_RmlBinder.MarkDirty("str_value_text");
-    m_RmlBinder.MarkDirty("str_value_color");
+    SyncField(m_RmlView.Binder(), &CharacterInfoRmlModel::strValueText, "str_value_text",
+              StringUtils::WideToNarrow(strStrength));
+    SyncField(m_RmlView.Binder(), &CharacterInfoRmlModel::strValueSource, "str_value_source", Rml::String(strengthSource));
 
     wchar_t strAttakMamage[256];
     int iAttackDamageMin = 0;
@@ -933,23 +875,23 @@ void mu::ui::window::CCharacterInfoWindow::BuildAttributeLines()
         }
     }
 
-    Rml::String attackDamageColor = bAttackDamage ? MakeColorRgba(100, 150, 255, 255) : MakeColorRgba(255, 255, 255, 255);
+    const char* attackDamageSource = bAttackDamage ? "boosted" : "base";
 
     if (g_isCharacterBuff((&Hero->Object), eBuff_Hellowin2))
     {
-        attackDamageColor = MakeColorRgba(255, 0, 240, 255);
+        attackDamageSource = "buffed";
     }
     if (g_isCharacterBuff((&Hero->Object), eBuff_EliteScroll3))
     {
-        attackDamageColor = MakeColorRgba(255, 0, 240, 255);
+        attackDamageSource = "buffed";
     }
     if (g_isCharacterBuff((&Hero->Object), eBuff_CherryBlossom_Petal))
     {
-        attackDamageColor = MakeColorRgba(255, 0, 240, 255);
+        attackDamageSource = "buffed";
     }
 
     model.strLines.clear();
-    model.strLines.push_back({ StringUtils::WideToNarrow(strAttakMamage), attackDamageColor });
+    model.strLines.push_back({ StringUtils::WideToNarrow(strAttakMamage), attackDamageSource });
 
     if (iAttackRatingPK > 0)
     {
@@ -962,31 +904,19 @@ void mu::ui::window::CCharacterInfoWindow::BuildAttributeLines()
             mu_swprintf(strAttakMamage, I18N::Game::AttackRateD, iAttackRatingPK);
         }
 
-        model.strLines.push_back({ StringUtils::WideToNarrow(strAttakMamage), attackDamageColor });
+        model.strLines.push_back({ StringUtils::WideToNarrow(strAttakMamage), attackDamageSource });
     }
-    m_RmlBinder.MarkDirty("str_lines");
+    m_RmlView.MarkDirty("str_lines");
 
-    Rml::String dexterityColor;
-    if (g_isCharacterBuff((&Hero->Object), eBuff_SecretPotion2))
-    {
-        dexterityColor = MakeColorRgba(255, 120, 0, 255);
-    }
-    else if (CharacterAttribute->AddDexterity)
-    {
-        dexterityColor = MakeColorRgba(100, 150, 255, 255);
-    }
-    else
-    {
-        dexterityColor = MakeColorRgba(230, 230, 0, 255);
-    }
+    const char* dexteritySource = AttributeSource(g_isCharacterBuff((&Hero->Object), eBuff_SecretPotion2),
+                                                  CharacterAttribute->AddDexterity != 0);
 
     wchar_t strDexterity[32];
     WORD wDexterity = CharacterAttribute->Dexterity + CharacterAttribute->AddDexterity;
     mu_swprintf(strDexterity, L"%d", wDexterity);
-    model.agiValueText = StringUtils::WideToNarrow(strDexterity);
-    model.agiValueColor = dexterityColor;
-    m_RmlBinder.MarkDirty("agi_value_text");
-    m_RmlBinder.MarkDirty("agi_value_color");
+    SyncField(m_RmlView.Binder(), &CharacterInfoRmlModel::agiValueText, "agi_value_text",
+              StringUtils::WideToNarrow(strDexterity));
+    SyncField(m_RmlView.Binder(), &CharacterInfoRmlModel::agiValueSource, "agi_value_source", Rml::String(dexteritySource));
 
     bool bDexSuccess = true;
     int iBaseClass = gCharacterManager.GetBaseClass(Hero->Class);
@@ -1177,34 +1107,34 @@ void mu::ui::window::CCharacterInfoWindow::BuildAttributeLines()
 
     model.agiLines.clear();
 
-    Rml::String defenseColor = MakeColorRgba(255, 255, 255, 255);
+    const char* defenseSource = "base";
     if (g_isCharacterBuff((&Hero->Object), eBuff_Hellowin3))
     {
-        defenseColor = MakeColorRgba(255, 0, 240, 255);
+        defenseSource = "buffed";
     }
     if (g_isCharacterBuff((&Hero->Object), eBuff_EliteScroll2))
     {
-        defenseColor = MakeColorRgba(255, 0, 240, 255);
+        defenseSource = "buffed";
     }
     if (g_isCharacterBuff((&Hero->Object), eBuff_Def_up_Ourforces))
     {
-        defenseColor = MakeColorRgba(100, 150, 255, 255);
+        defenseSource = "boosted";
     }
-    model.agiLines.push_back({ StringUtils::WideToNarrow(strBlocking), defenseColor });
+    model.agiLines.push_back({ StringUtils::WideToNarrow(strBlocking), defenseSource });
 
     WORD wAttackSpeed = CLASS_WIZARD == iBaseClass || CLASS_SUMMONER == iBaseClass
         ? CharacterAttribute->MagicSpeed : CharacterAttribute->AttackSpeed;
 
     mu_swprintf(strBlocking, I18N::Game::AttackSpeedD, wAttackSpeed);
 
-    Rml::String attackSpeedColor = MakeColorRgba(255, 255, 255, 255);
+    const char* attackSpeedSource = "base";
     if (g_isCharacterBuff((&Hero->Object), eBuff_Hellowin1))
     {
-        attackSpeedColor = MakeColorRgba(255, 0, 240, 255);
+        attackSpeedSource = "buffed";
     }
     if (g_isCharacterBuff((&Hero->Object), eBuff_EliteScroll1))
     {
-        attackSpeedColor = MakeColorRgba(255, 0, 240, 255);
+        attackSpeedSource = "buffed";
     }
 
     ITEM* phelper = &CharacterMachine->Equipment[EQUIPMENT_HELPER];
@@ -1215,11 +1145,11 @@ void mu::ui::window::CCharacterInfoWindow::BuildAttributeLines()
         {
             if (false == pItemHelper->bExpiredPeriod)
             {
-                attackSpeedColor = MakeColorRgba(255, 0, 240, 255);
+                attackSpeedSource = "buffed";
             }
         }
     }
-    model.agiLines.push_back({ StringUtils::WideToNarrow(strBlocking), attackSpeedColor });
+    model.agiLines.push_back({ StringUtils::WideToNarrow(strBlocking), attackSpeedSource });
 
     if (itemoption380Defense != 0 || iDefenseRate != 0)
     {
@@ -1229,37 +1159,35 @@ void mu::ui::window::CCharacterInfoWindow::BuildAttributeLines()
     {
         mu_swprintf(strBlocking, I18N::Game::DefenseRateD, CharacterAttribute->SuccessfulBlockingPK + add_defense_success_rate_pvp);
     }
-    model.agiLines.push_back({ StringUtils::WideToNarrow(strBlocking), MakeColorRgba(255, 255, 255, 255) });
-    m_RmlBinder.MarkDirty("agi_lines");
+    model.agiLines.push_back({ StringUtils::WideToNarrow(strBlocking), "base" });
+    m_RmlView.MarkDirty("agi_lines");
 
     WORD wVitality = CharacterAttribute->Vitality + CharacterAttribute->AddVitality;
 
-    Rml::String vitalityColor;
+    // The Our-Forces HP buff counts as boosted like an item bonus does, but it also has to
+    // recompute the total first, so this one keeps its branches rather than folding into
+    // AttributeSource()'s two conditions.
+    const char* vitalitySource = "base";
     if (g_isCharacterBuff((&Hero->Object), eBuff_SecretPotion3))
     {
-        vitalityColor = MakeColorRgba(255, 120, 0, 255);
+        vitalitySource = "potion";
     }
     else if (g_isCharacterBuff((&Hero->Object), eBuff_Hp_up_Ourforces))
     {
         CharacterMachine->CalculateAll();
         wVitality = CharacterAttribute->Vitality + CharacterAttribute->AddVitality;
-        vitalityColor = MakeColorRgba(100, 150, 255, 255);
+        vitalitySource = "boosted";
     }
     else if (CharacterAttribute->AddVitality)
     {
-        vitalityColor = MakeColorRgba(100, 150, 255, 255);
-    }
-    else
-    {
-        vitalityColor = MakeColorRgba(230, 230, 0, 255);
+        vitalitySource = "boosted";
     }
 
     wchar_t strVitality[256];
     mu_swprintf(strVitality, L"%d", wVitality);
-    model.vitValueText = StringUtils::WideToNarrow(strVitality);
-    model.vitValueColor = vitalityColor;
-    m_RmlBinder.MarkDirty("vit_value_text");
-    m_RmlBinder.MarkDirty("vit_value_color");
+    SyncField(m_RmlView.Binder(), &CharacterInfoRmlModel::vitValueText, "vit_value_text",
+              StringUtils::WideToNarrow(strVitality));
+    SyncField(m_RmlView.Binder(), &CharacterInfoRmlModel::vitValueSource, "vit_value_source", Rml::String(vitalitySource));
 
     if (gCharacterManager.IsMasterLevel(Hero->Class) == true)
     {
@@ -1270,18 +1198,18 @@ void mu::ui::window::CCharacterInfoWindow::BuildAttributeLines()
         mu_swprintf(strVitality, I18N::Game::HPDD, CharacterAttribute->Life, CharacterAttribute->LifeMax);
     }
 
-    Rml::String hpColor = MakeColorRgba(255, 255, 255, 255);
+    const char* hpSource = "base";
     if (g_isCharacterBuff((&Hero->Object), eBuff_Hellowin4))
     {
-        hpColor = MakeColorRgba(255, 0, 240, 255);
+        hpSource = "buffed";
     }
     if (g_isCharacterBuff((&Hero->Object), eBuff_EliteScroll5))
     {
-        hpColor = MakeColorRgba(255, 0, 240, 255);
+        hpSource = "buffed";
     }
     if (g_isCharacterBuff((&Hero->Object), eBuff_CherryBlossom_RiceCake))
     {
-        hpColor = MakeColorRgba(255, 0, 240, 255);
+        hpSource = "buffed";
     }
     if (phelper->Durability != 0 && phelper->Type == ITEM_SPIRIT_OF_GUARDIAN)
     {
@@ -1289,43 +1217,31 @@ void mu::ui::window::CCharacterInfoWindow::BuildAttributeLines()
         {
             if (false == pItemHelper->bExpiredPeriod)
             {
-                hpColor = MakeColorRgba(255, 0, 240, 255);
+                hpSource = "buffed";
             }
         }
     }
 
     model.vitLines.clear();
-    model.vitLines.push_back({ StringUtils::WideToNarrow(strVitality), hpColor });
+    model.vitLines.push_back({ StringUtils::WideToNarrow(strVitality), hpSource });
 
     if (iBaseClass == CLASS_RAGEFIGHTER)
     {
         mu_swprintf(strVitality, I18N::Game::MeleeDamageD, 50 + (wVitality / 10));
-        model.vitLines.push_back({ StringUtils::WideToNarrow(strVitality), MakeColorRgba(255, 255, 255, 255) });
+        model.vitLines.push_back({ StringUtils::WideToNarrow(strVitality), "base" });
     }
-    m_RmlBinder.MarkDirty("vit_lines");
+    m_RmlView.MarkDirty("vit_lines");
 
     WORD wEnergy = CharacterAttribute->Energy + CharacterAttribute->AddEnergy;
 
-    Rml::String energyColor;
-    if (g_isCharacterBuff((&Hero->Object), eBuff_SecretPotion4))
-    {
-        energyColor = MakeColorRgba(255, 120, 0, 255);
-    }
-    else if (CharacterAttribute->AddEnergy)
-    {
-        energyColor = MakeColorRgba(100, 150, 255, 255);
-    }
-    else
-    {
-        energyColor = MakeColorRgba(230, 230, 0, 255);
-    }
+    const char* energySource = AttributeSource(g_isCharacterBuff((&Hero->Object), eBuff_SecretPotion4),
+                                               CharacterAttribute->AddEnergy != 0);
 
     wchar_t strEnergy[256];
     mu_swprintf(strEnergy, L"%d", wEnergy);
-    model.eneValueText = StringUtils::WideToNarrow(strEnergy);
-    model.eneValueColor = energyColor;
-    m_RmlBinder.MarkDirty("ene_value_text");
-    m_RmlBinder.MarkDirty("ene_value_color");
+    SyncField(m_RmlView.Binder(), &CharacterInfoRmlModel::eneValueText, "ene_value_text",
+              StringUtils::WideToNarrow(strEnergy));
+    SyncField(m_RmlView.Binder(), &CharacterInfoRmlModel::eneValueSource, "ene_value_source", Rml::String(energySource));
 
     model.eneLines.clear();
 
@@ -1336,20 +1252,20 @@ void mu::ui::window::CCharacterInfoWindow::BuildAttributeLines()
     else
         mu_swprintf(strEnergy, I18N::Game::ManaDD, CharacterAttribute->Mana, CharacterAttribute->ManaMax);
 
-    Rml::String manaColor = MakeColorRgba(255, 255, 255, 255);
+    const char* manaSource = "base";
     if (g_isCharacterBuff((&Hero->Object), eBuff_Hellowin5))
     {
-        manaColor = MakeColorRgba(255, 0, 240, 255);
+        manaSource = "buffed";
     }
     if (g_isCharacterBuff((&Hero->Object), eBuff_EliteScroll6))
     {
-        manaColor = MakeColorRgba(255, 0, 240, 255);
+        manaSource = "buffed";
     }
     if (g_isCharacterBuff((&Hero->Object), eBuff_CherryBlossom_Liguor))
     {
-        manaColor = MakeColorRgba(255, 0, 240, 255);
+        manaSource = "buffed";
     }
-    model.eneLines.push_back({ StringUtils::WideToNarrow(strEnergy), manaColor });
+    model.eneLines.push_back({ StringUtils::WideToNarrow(strEnergy), manaSource });
 
     if (iBaseClass == CLASS_WIZARD || iBaseClass == CLASS_DARK || iBaseClass == CLASS_SUMMONER)
     {
@@ -1488,20 +1404,20 @@ void mu::ui::window::CCharacterInfoWindow::BuildAttributeLines()
             mu_swprintf(strEnergy, I18N::Game::WizardryDmgDD216, iMagicDamageMin + maxMg, iMagicDamageMax + maxMg);
         }
 
-        Rml::String magicDamageColor = MakeColorRgba(255, 255, 255, 255);
+        const char* magicDamageSource = "base";
         if (g_isCharacterBuff((&Hero->Object), eBuff_Hellowin2))
         {
-            magicDamageColor = MakeColorRgba(255, 0, 240, 255);
+            magicDamageSource = "buffed";
         }
         if (g_isCharacterBuff((&Hero->Object), eBuff_EliteScroll4))
         {
-            magicDamageColor = MakeColorRgba(255, 0, 240, 255);
+            magicDamageSource = "buffed";
         }
         if (g_isCharacterBuff((&Hero->Object), eBuff_CherryBlossom_Petal))
         {
-            magicDamageColor = MakeColorRgba(255, 0, 240, 255);
+            magicDamageSource = "buffed";
         }
-        model.eneLines.push_back({ StringUtils::WideToNarrow(strEnergy), magicDamageColor });
+        model.eneLines.push_back({ StringUtils::WideToNarrow(strEnergy), magicDamageSource });
     }
 
     if (iBaseClass == CLASS_SUMMONER)
@@ -1589,33 +1505,33 @@ void mu::ui::window::CCharacterInfoWindow::BuildAttributeLines()
                 iCurseDamageMin, iCurseDamageMax);
         }
 
-        model.eneLines.push_back({ StringUtils::WideToNarrow(strEnergy), MakeColorRgba(255, 255, 255, 255) });
+        model.eneLines.push_back({ StringUtils::WideToNarrow(strEnergy), "base" });
     }
 
     if (iBaseClass == CLASS_KNIGHT)
     {
         mu_swprintf(strEnergy, I18N::Game::SkillDamageD, 200 + (wEnergy / 10));
-        model.eneLines.push_back({ StringUtils::WideToNarrow(strEnergy), MakeColorRgba(255, 255, 255, 255) });
+        model.eneLines.push_back({ StringUtils::WideToNarrow(strEnergy), "base" });
     }
     if (iBaseClass == CLASS_DARK)
     {
         mu_swprintf(strEnergy, I18N::Game::SkillDamageD, 200);
-        model.eneLines.push_back({ StringUtils::WideToNarrow(strEnergy), MakeColorRgba(255, 255, 255, 255) });
+        model.eneLines.push_back({ StringUtils::WideToNarrow(strEnergy), "base" });
     }
     if (iBaseClass == CLASS_DARK_LORD)
     {
         mu_swprintf(strEnergy, I18N::Game::SkillDamageD, 200 + (wEnergy / 20));
-        model.eneLines.push_back({ StringUtils::WideToNarrow(strEnergy), MakeColorRgba(255, 255, 255, 255) });
+        model.eneLines.push_back({ StringUtils::WideToNarrow(strEnergy), "base" });
     }
 
     if (iBaseClass == CLASS_RAGEFIGHTER)
     {
         mu_swprintf(strEnergy, I18N::Game::DivineDamageRoarSlasherD, 50 + (wEnergy / 10));
-        model.eneLines.push_back({ StringUtils::WideToNarrow(strEnergy), MakeColorRgba(255, 255, 255, 255) });
+        model.eneLines.push_back({ StringUtils::WideToNarrow(strEnergy), "base" });
         mu_swprintf(strEnergy, I18N::Game::AOEDamageDarkSideD, 100 + (wDexterity / 8 + wEnergy / 10));
-        model.eneLines.push_back({ StringUtils::WideToNarrow(strEnergy), MakeColorRgba(255, 255, 255, 255) });
+        model.eneLines.push_back({ StringUtils::WideToNarrow(strEnergy), "base" });
     }
-    m_RmlBinder.MarkDirty("ene_lines");
+    m_RmlView.MarkDirty("ene_lines");
 
     if (iBaseClass == CLASS_DARK_LORD)
     {
@@ -1623,25 +1539,13 @@ void mu::ui::window::CCharacterInfoWindow::BuildAttributeLines()
 
         wCharisma = CharacterAttribute->Charisma + CharacterAttribute->AddCharisma;
 
-        Rml::String charismaColor;
-        if (g_isCharacterBuff((&Hero->Object), eBuff_SecretPotion5))
-        {
-            charismaColor = MakeColorRgba(255, 120, 0, 255);
-        }
-        else if (CharacterAttribute->AddCharisma)
-        {
-            charismaColor = MakeColorRgba(100, 150, 255, 255);
-        }
-        else
-        {
-            charismaColor = MakeColorRgba(230, 230, 0, 255);
-        }
+        const char* charismaSource = AttributeSource(g_isCharacterBuff((&Hero->Object), eBuff_SecretPotion5),
+                                                     CharacterAttribute->AddCharisma != 0);
 
         wchar_t strCharisma[256];
         mu_swprintf(strCharisma, L"%d", wCharisma);
-        model.cmdValueText = StringUtils::WideToNarrow(strCharisma);
-        model.cmdValueColor = charismaColor;
-        m_RmlBinder.MarkDirty("cmd_value_text");
-        m_RmlBinder.MarkDirty("cmd_value_color");
+        SyncField(m_RmlView.Binder(), &CharacterInfoRmlModel::cmdValueText, "cmd_value_text",
+                  StringUtils::WideToNarrow(strCharisma));
+        SyncField(m_RmlView.Binder(), &CharacterInfoRmlModel::cmdValueSource, "cmd_value_source", Rml::String(charismaSource));
     }
 }

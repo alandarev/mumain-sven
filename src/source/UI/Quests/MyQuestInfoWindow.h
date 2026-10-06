@@ -5,7 +5,7 @@
 
 #include "UI/Core/WindowObject.h"
 #include "UI/Core/WindowManager.h"
-#include "UI/RmlBridge/RmlModelBinder.h"
+#include "UI/RmlBridge/RmlThemedView.h"
 #include "GameLogic/Quests/QuestMng.h"
 #include "UI/Dialogs/MessageBox.h"
 #include "UI/Inventory/MyInventory.h"
@@ -60,6 +60,7 @@ namespace mu::ui::window
         virtual ~CMyQuestInfoWindow();
 
         bool Create(CManager* pNewUIMng, int x, int y);
+        Rml::ElementDocument* GetFillDocument() const override { return m_RmlView.Document(); }
         void Release();
 
         void SetPos(int x, int y);
@@ -93,7 +94,6 @@ namespace mu::ui::window
         void RmlClickGiveUp();
         void RmlClickExit();
 
-        void ReloadRmlTheme();
 
     private:
         // Populates the shared IMAGE_LIST texture slots sibling windows alias onto (see IMAGE_LIST above).
@@ -101,19 +101,19 @@ namespace mu::ui::window
         void UnloadImages();
         void BuildRmlUi();
 
-        // One quest-list row; mirrors SCurQuestItem (UIControls.h) minus legacy scroll/render bookkeeping.
+        // One quest-list row. The native list's row carried scroll/render bookkeeping beside
+        // the data; this carries only the data.
         struct QuestEntry
         {
             Rml::String text;
             int index = 0; // real DWORD quest index (LOWORD=questNumber, HIWORD=questGroup), narrowed to int
             bool selected = false;
         };
-        // One quest-contents/reward row -- mirrors SQuestContents (UIControls.h).
+        // One quest-contents/reward row.
         struct ContentEntry
         {
             Rml::String text;
             Rml::String style; // UI::Quests::RewardModel::StyleKey()
-            bool bold = false;
             int index = 0; // position within m_ContentRows -- passed back to RmlClickSelectContent
             bool clickable = false; // true for a reward/request-item row (data-event-click target)
         };
@@ -153,8 +153,11 @@ namespace mu::ui::window
             Rml::String castleTitle, castleLine0, castleLine1;
             Rml::String templeTitle, templeLine0, templeLine1;
         };
-        RmlModelBinder<MyQuestInfoRmlModel> m_RmlBinder;
-        Rml::ElementDocument* m_pRmlDoc = nullptr;
+
+        void BindRmlModel(Rml::DataModelConstructor& c, MyQuestInfoRmlModel& model);
+        UI::RmlBridge::ThemedView<MyQuestInfoRmlModel> m_RmlView{"my_quest_info",
+            [this](Rml::DataModelConstructor& c, MyQuestInfoRmlModel& model) { BindRmlModel(c, model); },
+            {{"Data/Interface/RmlUi/my_quest_info.rml"}}};
 
     private:
         CManager* m_pNewUIMng;

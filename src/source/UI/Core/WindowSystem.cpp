@@ -7,6 +7,7 @@
 #include "GameLogic/Items/PersonalShopTitleImp.h"
 #include "World/MapInfra/MapManager.h"
 #include "Scenes/SceneCore.h"
+#include "UI/Placement/WindowPlacement.h"
 
 // Defined in Winmain.cpp; only ever declared at file scope (see MainScene.cpp).
 extern int LoadingWorld;
@@ -181,6 +182,7 @@ void CSystem::Release()
     }
 
     UnloadMainSceneInterface();
+    UI::Placement::Release();
     g_MessageBox->Release();
 
     SAFE_DELETE(m_pNewSlideWindow);
@@ -229,7 +231,7 @@ bool CSystem::LoadMainSceneInterface()
         return false;
 
     m_pNewMainFrameWindow = new CMainFrameWindow;
-    if (m_pNewMainFrameWindow->Create(m_pNewUIMng, m_pNewUI3DRenderMng) == false)
+    if (m_pNewMainFrameWindow->Create(m_pNewUIMng) == false)
         return false;
 
     m_pNewSkillList = new CSkillList;
@@ -539,7 +541,7 @@ bool CSystem::LoadMainSceneInterface()
 #endif //PBG_MOD_STAMINA_UI
 
     m_pNewGensRanking = new CGensRanking;
-    if (m_pNewGensRanking->Create(m_pNewUIMng, 640, 480) == false)
+    if (m_pNewGensRanking->Create(m_pNewUIMng, PanelColumnX(1), 0) == false)
         return false;
 
     m_pNewUnitedMarketPlaceWindow = new CUnitedMarketPlaceWindow;
@@ -569,6 +571,95 @@ bool CSystem::LoadMainSceneInterface()
     m_pMuHelperSkillPicker = new CMuHelperSkillPicker;
     if (m_pMuHelperSkillPicker->Create(m_pNewUIMng) == false)
         return false;
+
+    // Windows the theme's workspace places. The members are re-created per main scene, so each
+    // setter reads the member when it runs.
+    const auto slot = [](DWORD windowId, const char* slotName, auto*& window, const char* document = nullptr)
+    {
+        UI::Placement::RegisterWindow(
+            windowId, slotName, [&window]() -> CObject* { return window; },
+            [&window](int x, int y)
+            {
+                if (window != nullptr)
+                    window->SetPos(x, y);
+            },
+            document);
+    };
+    slot(INTERFACE_CHARACTER, "character", m_pNewCharacterInfoWindow, "character_info.rml");
+    slot(INTERFACE_MUHELPER, "mu_helper", m_pMuHelperConfig, "mu_helper_config.rml");
+    slot(INTERFACE_MUHELPER_EXT, "mu_helper_detail", m_pMuHelperDetail, "mu_helper_detail.rml");
+    slot(INTERFACE_PARTY, "party", m_pNewPartyInfoWindow, "party_info.rml");
+    slot(INTERFACE_GUILDINFO, "guild_info", m_pNewGuildInfoWindow, "guild_info.rml");
+    slot(INTERFACE_COMMAND, "command", m_pNewCommandWindow, "command_window.rml");
+    slot(INTERFACE_COMMAND_LIST, "command_list", m_pNewChatCommandWindow, "chat_command.rml");
+    slot(INTERFACE_GOLD_BOWMAN, "gold_bowman", m_pNewGoldBowman, "gold_bowman.rml");
+    slot(INTERFACE_GOLD_BOWMAN_LENA, "gold_bowman_lena", m_pNewGoldBowmanLena, "gold_bowman_lena.rml");
+    slot(INTERFACE_NPC_DIALOGUE, "npc_dialogue", m_pNewNPCDialogue, "npc_dialogue.rml");
+    slot(INTERFACE_QUEST_PROGRESS, "quest_progress", m_pNewQuestProgress, "quest_progress.rml");
+    slot(INTERFACE_NPCQUEST, "npc_quest", m_pNewNPCQuest, "npc_quest.rml");
+    slot(INTERFACE_BLOODCASTLE, "blood_castle_entry", m_pNewEnterBloodCastle, "blood_castle_enter.rml");
+    slot(INTERFACE_DEVILSQUARE, "devil_square_entry", m_pNewEnterDevilSquare, "devil_square_enter.rml");
+    slot(INTERFACE_SENATUS, "castle", m_pNewCastleWindow, "castle_window.rml");
+    slot(INTERFACE_GUARDSMAN, "guard", m_pNewGuardWindow, "guard_window.rml");
+    slot(INTERFACE_GATEKEEPER, "gatekeeper", m_pNewGatemanWindow, "gateman.rml");
+    slot(INTERFACE_GATESWITCH, "gate_switch", m_pNewGateSwitchWindow, "gate_switch.rml");
+    slot(INTERFACE_NPCGUILDMASTER, "guild_make", m_pNewGuildMakeWindow, "guild_make.rml");
+    slot(INTERFACE_CATAPULT, "catapult", m_pNewCatapultWindow, "catapult.rml");
+    slot(INTERFACE_DUELWATCH, "duel_watch", m_pNewDuelWatchWindow, "duel_watch.rml");
+    slot(INTERFACE_DOPPELGANGER_NPC, "doppelganger_entry", m_pNewDoppelGangerWindow, "doppelganger_enter.rml");
+    slot(INTERFACE_EMPIREGUARDIAN_NPC, "empire_guardian_entry", m_pNewEmpireGuardianNPC, "empire_guardian_enter.rml");
+    slot(INTERFACE_UNITEDMARKETPLACE_NPC_JULIA, "united_marketplace", m_pNewUnitedMarketPlaceWindow, "united_market_place.rml");
+    slot(INTERFACE_MYQUEST, "my_quest", m_pNewMyQuestInfoWindow, "my_quest_info.rml");
+    slot(INTERFACE_PET, "pet", m_pNewPetInfoWindow, "pet_info.rml");
+    slot(INTERFACE_QUEST_PROGRESS_ETC, "quest_progress_etc", m_pNewQuestProgressByEtc, "quest_progress_etc.rml");
+    slot(INTERFACE_INVENTORY, "inventory", m_pNewMyInventory, "my_inventory.rml");
+    slot(INTERFACE_INVENTORY_EXT, "inventory_extension", m_pNewMyInventoryExt, "inventory_extension.rml");
+    slot(INTERFACE_STORAGE, "storage", m_pNewStorageInventory, "storage.rml");
+    slot(INTERFACE_STORAGE_EXT, "storage_extension", m_pNewStorageInventoryExt, "storage_ext.rml");
+    slot(INTERFACE_NPCSHOP, "npc_shop", m_pNewNPCShop, "npc_shop.rml");
+    slot(INTERFACE_MIXINVENTORY, "mix", m_pNewMixInventory, "mix_inventory.rml");
+    slot(INTERFACE_TRADE, "trade", m_pNewTrade, "trade.rml");
+    slot(INTERFACE_MYSHOP_INVENTORY, "my_shop", m_pNewMyShopInventory, "my_shop.rml");
+    slot(INTERFACE_PURCHASESHOP_INVENTORY, "purchase_shop", m_pNewPurchaseShopInventory, "purchase_shop.rml");
+    slot(INTERFACE_LUCKYCOIN_REGISTRATION, "lucky_coin_registration", m_pNewLuckyCoinRegistration, "lucky_coin_registration.rml");
+    slot(INTERFACE_EXCHANGE_LUCKYCOIN, "lucky_coin_exchange", m_pNewExchangeLuckyCoinWindow, "lucky_coin_exchange.rml");
+    slot(INTERFACE_LUCKYITEMWND, "lucky_item", m_pNewUILuckyItemWnd, "lucky_item.rml");
+    slot(INTERFACE_GENSRANKING, "gens_ranking", m_pNewGensRanking, "gens_ranking.rml");
+    slot(INTERFACE_MOVEMAP, "move_map", m_pNewMoveCommandWindow, "move_command.rml");
+    slot(INTERFACE_KANTURU2ND_ENTERNPC, "kanturu_entry", m_pNewKanturu2ndEnterNpc, "kanturu_enter.rml");
+    slot(INTERFACE_CURSEDTEMPLE_NPC, "cursed_temple_entry", m_pNewCursedTempleEnterWindow, "cursed_temple_enter.rml");
+    slot(INTERFACE_CURSEDTEMPLE_RESULT, "cursed_temple_result", m_pNewCursedTempleResultWindow,
+         "cursed_temple_result.rml");
+
+    // Event HUDs drawn from their own HUD-space position; sizes are each window's own constants,
+    // homes the positions created above.
+    const auto hudSlot = [](DWORD windowId, const char* slotName, auto*& window, float width, float height,
+                            int homeX, int homeY)
+    {
+        UI::Placement::RegisterHudWindow(
+            slotName, windowId,
+            [&window](int x, int y)
+            {
+                if (window != nullptr)
+                    window->SetPos(x, y);
+            },
+            width, height, homeX, homeY);
+    };
+    hudSlot(INTERFACE_BLOODCASTLE_TIME, "blood_castle_time", m_pNewBloodCastle, 124.f, 81.f, 640 - 127, 480 - 132);
+    hudSlot(INTERFACE_CHAOSCASTLE_TIME, "chaos_castle_time", m_pNewChaosCastleTime, 124.f, 81.f, 640 - 127, 480 - 132);
+    hudSlot(INTERFACE_BATTLE_SOCCER_SCORE, "battle_soccer", m_pNewBattleSoccerScore, 131.f, 70.f, 509, 359);
+    hudSlot(INTERFACE_DUEL_WINDOW, "duel", m_pNewDuelWindow, 131.f, 70.f, 509, 359);
+    hudSlot(INTERFACE_KANTURU_INFO, "kanturu_info", m_pNewKanturuInfoWindow, 99.f, 78.f, 541, 351);
+    hudSlot(INTERFACE_EMPIREGUARDIAN_TIMER, "empire_guardian_timer", m_pNewEmpireGuardianTimer, 124.f, 81.f, 507, 342);
+    hudSlot(INTERFACE_DOPPELGANGER_FRAME, "doppelganger_frame", m_pNewDoppelGangerFrame, 227.f, 87.f, 640 - 227,
+            480 - 51 - 87);
+    // Its position is the list's bottom-left corner; the spectators stack upwards from it.
+    hudSlot(INTERFACE_DUELWATCH_USERLIST, "duel_watch_users", m_pNewDuelWatchUserListWindow, 57.f, 0.f, 640 - 57,
+            480 - 51);
+    // Named only in data-closes.
+    UI::Placement::RegisterName(INTERFACE_MUHELPER_SKILL_LIST, "mu_helper_skill_list");
+    // Places itself; its slot is only where it first opens (UI::Placement::InitialPosition()).
+    UI::Placement::RegisterName(INTERFACE_FRIEND, "friends");
 
     return true;
 }
@@ -691,7 +782,7 @@ void CSystem::Show(DWORD dwKey)
         return;
     }
 
-    // TODO: fixed priority order per window, and a max open-window count based on resolution.
+    UI::Placement::CloseForOpening(dwKey);
 
     if (dwKey == INTERFACE_FRIEND)
     {
@@ -704,125 +795,51 @@ void CSystem::Show(DWORD dwKey)
     }
     else if (dwKey == INTERFACE_INVENTORY)
     {
-        HideGroupBeforeOpenInterface();
-
         g_pMainFrame->SetBtnState(MAINFRAME_BTN_MYINVEN, true);
-
-        if (IsVisible(INTERFACE_CHARACTER))
-        {
-            g_pMyInventory->SetPos(PanelColumnX(2), 0);
-        }
-        if (IsVisible(INTERFACE_MYQUEST))
-        {
-            Hide(INTERFACE_MYQUEST);
-        }
         g_pMyInventory->OpenningProcess();
     }
     else if (dwKey == INTERFACE_INVENTORY_EXT)
     {
-        if (IsVisible(INTERFACE_STORAGE_EXT))
-        {
-            Hide(INTERFACE_STORAGE_EXT);
-        }
-
         if (IsVisible(INTERFACE_STORAGE))
         {
-            g_pStorageInventory->SetPos(PanelColumnX(3), 0);
             Hide(INTERFACE_MU_HELPER_BAR);
         }
 
         if (IsVisible(INTERFACE_MYSHOP_INVENTORY))
         {
-            g_pMyShopInventory->SetPos(PanelColumnX(3), 0);
             Hide(INTERFACE_MU_HELPER_BAR);
-            if (IsVisible(INTERFACE_MYQUEST))
-            {
-                Hide(INTERFACE_MYQUEST);
-            }
-
-            if (IsVisible(INTERFACE_CHARACTER))
-            {
-                Hide(INTERFACE_CHARACTER);
-            }
-        }
-        if (IsVisible(INTERFACE_MYQUEST))
-        {
-            Hide(INTERFACE_MYQUEST);
-        }
-        if (IsVisible(INTERFACE_CHARACTER))
-        {
-            Hide(INTERFACE_CHARACTER);
         }
         if (IsVisible(INTERFACE_NPCSHOP))
         {
-            g_pNPCShop->SetPos(PanelColumnX(3), 0);
             Hide(INTERFACE_MU_HELPER_BAR);
         }
         if (IsVisible(INTERFACE_MIXINVENTORY))
         {
-            g_pMixInventory->SetPos(PanelColumnX(3), 0);
             Hide(INTERFACE_MU_HELPER_BAR);
         }
         if (IsVisible(INTERFACE_TRADE))
         {
-            g_pTrade->SetPos(PanelColumnX(3), 0);
             Hide(INTERFACE_MU_HELPER_BAR);
         }
     }
     else if (dwKey == INTERFACE_CHARACTER)
     {
-        HideGroupBeforeOpenInterface();
-
         g_pMainFrame->SetBtnState(MAINFRAME_BTN_CHAINFO, true);
 
-        if (IsVisible(INTERFACE_INVENTORY))
+        if (IsVisible(INTERFACE_INVENTORY) && IsVisible(INTERFACE_INVENTORY_EXT))
         {
-            g_pMyInventory->SetPos(PanelColumnX(2), 0);
-            if (IsVisible(INTERFACE_INVENTORY_EXT))
-            {
-                g_pMyInventory->SetPos(PanelColumnX(3), 0);
-                Hide(INTERFACE_MU_HELPER_BAR);
-            }
-        }
-        else if (IsVisible(INTERFACE_MYQUEST))
-        {
-            g_pMyQuestInfoWindow->SetPos(PanelColumnX(2), 0);
+            Hide(INTERFACE_MU_HELPER_BAR);
         }
         g_pCharacterInfoWindow->OpenningProcess();
     }
     else if (dwKey == INTERFACE_PET)
     {
-        if (IsVisible(INTERFACE_INVENTORY))
-        {
-            Hide(INTERFACE_INVENTORY);
-        }
-        if (IsVisible(INTERFACE_MYQUEST))
-        {
-            Hide(INTERFACE_MYQUEST);
-        }
-
-        HideGroupBeforeOpenInterface();
-
         m_pNewUIMng->ShowInterface(INTERFACE_CHARACTER);
         g_pMainFrame->SetBtnState(MAINFRAME_BTN_CHAINFO, true);
         m_pNewPetInfoWindow->OpenningProcess();
     }
     else if (dwKey == INTERFACE_MYQUEST)
     {
-        HideGroupBeforeOpenInterface();
-
-        if (IsVisible(INTERFACE_CHARACTER))
-        {
-            g_pMyQuestInfoWindow->SetPos(PanelColumnX(2), 0);
-        }
-        if (IsVisible(INTERFACE_INVENTORY))
-        {
-            Hide(INTERFACE_INVENTORY);
-        }
-        if (IsVisible(INTERFACE_PET))
-        {
-            Hide(INTERFACE_PET);
-        }
         g_pMyQuestInfoWindow->OpenningProcess();
     }
     else if (dwKey == INTERFACE_MIXINVENTORY)
@@ -837,7 +854,6 @@ void CSystem::Show(DWORD dwKey)
         HideAllGroupA();
         g_pNPCShop->OpenningProcess();
         m_pNewUIMng->ShowInterface(INTERFACE_INVENTORY);
-        g_pNPCShop->SetPos(PanelColumnX(2), 0);
         g_pMainFrame->SetBtnState(MAINFRAME_BTN_MYINVEN, true);
     }
     else if (dwKey == INTERFACE_STORAGE)
@@ -848,12 +864,10 @@ void CSystem::Show(DWORD dwKey)
         if (isExtendedInventoryOpen)
         {
             Show(INTERFACE_INVENTORY_EXT);
-            g_pStorageInventory->SetPos(PanelColumnX(3), 0);
             Hide(INTERFACE_MU_HELPER_BAR);
         }
         else
         {
-            g_pStorageInventory->SetPos(PanelColumnX(2), 0);
             Show(INTERFACE_MU_HELPER_BAR);
         }
 
@@ -867,8 +881,6 @@ void CSystem::Show(DWORD dwKey)
         }
 
         Hide(INTERFACE_MU_HELPER_BAR);
-        g_pStorageInventory->SetPos(PanelColumnX(2), 0);
-        g_pStorageInventoryExt->SetPos(PanelColumnX(3), 0);
 
         m_pNewUIMng->ShowInterface(INTERFACE_STORAGE_EXT);
         g_pMainFrame->SetBtnState(MAINFRAME_BTN_MYINVEN, true);
@@ -881,12 +893,10 @@ void CSystem::Show(DWORD dwKey)
         if (isExtendedInventoryOpen)
         {
             Show(INTERFACE_INVENTORY_EXT);
-            g_pMyShopInventory->SetPos(PanelColumnX(3), 0);
             Hide(INTERFACE_MU_HELPER_BAR);
         }
         else
         {
-            g_pMyShopInventory->SetPos(PanelColumnX(2), 0);
             Show(INTERFACE_MU_HELPER_BAR);
         }
 
@@ -1122,15 +1132,6 @@ void CSystem::Show(DWORD dwKey)
     }
     else if (dwKey == INTERFACE_QUEST_PROGRESS_ETC)
     {
-        if (IsVisible(INTERFACE_INVENTORY))
-            Hide(INTERFACE_INVENTORY);
-        if (IsVisible(INTERFACE_MYQUEST))
-        {
-            Hide(INTERFACE_MYQUEST);
-            g_pQuestProgressByEtc->SetPos(PanelColumnX(1), 0);
-        }
-        if (IsVisible(INTERFACE_CHARACTER))
-            g_pQuestProgressByEtc->SetPos(PanelColumnX(2), 0);
         g_pQuestProgressByEtc->ProcessOpening();
     }
     else if (dwKey == INTERFACE_EMPIREGUARDIAN_NPC)
@@ -1149,7 +1150,6 @@ void CSystem::Show(DWORD dwKey)
     {
         HideAllGroupA();
         g_pNewUIGensRanking->OpenningProcess();
-        g_pNewUIGensRanking->SetPos(PanelColumnX(1), 0);
     }
     else if (dwKey == INTERFACE_UNITEDMARKETPLACE_NPC_JULIA)
     {
@@ -1167,13 +1167,10 @@ void CSystem::Show(DWORD dwKey)
     }
 
     m_pNewUIMng->ShowInterface(dwKey);
+    UI::Placement::Arrange();
 
     UpdateMuHelperBarVisibilityForLayoutChange(dwKey);
 
-    int iScreenWidth = GetScreenWidth();
-    m_pNewItemEnduranceInfo->SetPos(iScreenWidth);
-    m_pBuffStrip->SetPos(iScreenWidth);
-    m_pNewPartyListWindow->SetPos(iScreenWidth);
 }
 
 void CSystem::Hide(DWORD dwKey)
@@ -1191,51 +1188,13 @@ void CSystem::Hide(DWORD dwKey)
     else if (dwKey == INTERFACE_CHARACTER)
     {
         g_pMainFrame->SetBtnState(MAINFRAME_BTN_CHAINFO, false);
-        if (IsVisible(INTERFACE_MYQUEST))
-        {
-            g_pMyQuestInfoWindow->SetPos(PanelColumnX(1), 0);
-        }
-        if (IsVisible((INTERFACE_INVENTORY)))
-        {
-            g_pMyInventory->RestoreDefaultOrUserPosition(PanelColumnX(1), 0);
-        }
         if (IsVisible((INTERFACE_PET)))
         {
             Hide(INTERFACE_PET);
         }
-        if (IsVisible((INTERFACE_QUEST_PROGRESS_ETC)))
-        {
-            g_pQuestProgressByEtc->SetPos(PanelColumnX(1), 0);
-        }
     }
     else if (dwKey == INTERFACE_INVENTORY_EXT)
     {
-        constexpr auto secondColumnX = PanelColumnX(2);
-        if (IsVisible(INTERFACE_MYSHOP_INVENTORY))
-        {
-            g_pMyShopInventory->SetPos(secondColumnX, 0);
-        }
-
-        if (IsVisible(INTERFACE_TRADE))
-        {
-            g_pTrade->SetPos(secondColumnX, 0);
-        }
-
-        if (IsVisible(INTERFACE_STORAGE))
-        {
-            g_pStorageInventory->SetPos(secondColumnX, 0);
-        }
-
-        if (IsVisible(INTERFACE_NPCSHOP))
-        {
-            g_pNPCShop->SetPos(secondColumnX, 0);
-        }
-
-        if (IsVisible(INTERFACE_MIXINVENTORY))
-        {
-            g_pMixInventory->SetPos(secondColumnX, 0);
-        }
-
         Show(INTERFACE_MU_HELPER_BAR);
     }
     else if (dwKey == INTERFACE_INVENTORY)
@@ -1305,7 +1264,6 @@ void CSystem::Hide(DWORD dwKey)
             m_pNewUIMng->ShowInterface(mu::ui::window::INTERFACE_LUCKYITEMWND, false);
         }
 
-        g_pMyInventory->RestoreDefaultOrUserPosition(PanelColumnX(1), 0);
         g_pMyInventory->ClosingProcess();
     }
     else if (dwKey == INTERFACE_MIXINVENTORY)
@@ -1339,7 +1297,6 @@ void CSystem::Hide(DWORD dwKey)
         {
             g_pPurchaseShopInventory->ClosingProcess();
         }
-        g_pMyInventory->RestoreDefaultOrUserPosition(PanelColumnX(1), 0);
         Show(INTERFACE_MU_HELPER_BAR);
     }
     else if (dwKey == INTERFACE_STORAGE)
@@ -1370,8 +1327,6 @@ void CSystem::Hide(DWORD dwKey)
     else if (dwKey == INTERFACE_MYQUEST)
     {
         m_pNewMyQuestInfoWindow->ClosingProcess();
-
-        m_pNewMyQuestInfoWindow->SetPos(PanelColumnX(1), 0);
     }
     else if (dwKey == INTERFACE_SENATUS)
     {
@@ -1599,13 +1554,10 @@ void CSystem::Hide(DWORD dwKey)
     }
 
     m_pNewUIMng->ShowInterface(dwKey, false);
+    UI::Placement::Arrange();
 
     UpdateMuHelperBarVisibilityForLayoutChange(dwKey);
 
-    int iScreenWidth = GetScreenWidth();
-    m_pNewItemEnduranceInfo->SetPos(iScreenWidth);
-    m_pBuffStrip->SetPos(iScreenWidth);
-    m_pNewPartyListWindow->SetPos(iScreenWidth);
 }
 
 void CSystem::Toggle(DWORD dwKey)
@@ -1735,30 +1687,6 @@ void CSystem::HideAllGroupB()
         }
     }
 }
-void CSystem::HideGroupBeforeOpenInterface()
-{
-    DWORD dwGroupC[] = {
-        INTERFACE_PARTY,
-        INTERFACE_COMMAND,
-        INTERFACE_COMMAND_LIST,
-        INTERFACE_GUILDINFO,
-        INTERFACE_GOLD_BOWMAN,
-        INTERFACE_GOLD_BOWMAN_LENA,
-        INTERFACE_GENSRANKING,
-        INTERFACE_MUHELPER,
-        INTERFACE_MUHELPER_EXT,
-        INTERFACE_MUHELPER_SKILL_LIST,
-        0,
-    };
-
-    if (m_pNewUIMng)
-    {
-        for (int i = 0; dwGroupC[i] != 0; i++)
-        {
-            m_pNewUIMng->ShowInterface(dwGroupC[i], false);
-        }
-    }
-}
 
 void CSystem::SyncMainSceneHudVisibility()
 {
@@ -1867,11 +1795,17 @@ bool CSystem::CheckKeyUse()
 
 bool CSystem::HandleFrameCornerClose(const POINT& winPos, DWORD dwKey)
 {
-    // Hit-box of the close "X" glyph in the shared 190-wide frame.
-    constexpr int X_OFFSET = 169, Y_OFFSET = 7, WIDTH = 13, HEIGHT = 12;
+    // Hit-box of the close "X" glyph in the shared frame: 21 in from the panel's right edge (169 in
+    // the original 190-wide panel), so it follows a theme-sized panel.
+    constexpr int RIGHT_INSET = 21, Y_OFFSET = 7, WIDTH = 13, HEIGHT = 12;
+    if (!IsPress(VK_LBUTTON))
+        return false;
 
-    if (IsPress(VK_LBUTTON)
-        && CheckMouseIn(winPos.x + X_OFFSET, winPos.y + Y_OFFSET, WIDTH, HEIGHT))
+    float panelWidth = 190.f;
+    float panelHeight = 429.f;
+    UI::Placement::PanelSizeOf(dwKey, panelWidth, panelHeight);
+    const int xOffset = static_cast<int>(std::lround(panelWidth)) - RIGHT_INSET;
+    if (CheckMouseIn(winPos.x + xOffset, winPos.y + Y_OFFSET, WIDTH, HEIGHT))
     {
         Hide(dwKey);
         // World movement reads MouseLButtonPush directly, so clear it or the click walks the character.
@@ -1887,6 +1821,7 @@ bool CSystem::Update()
 {
     // Before any window syncs its document: see ResumeMainSceneDocuments().
     UI::RmlBridge::ResumeMainSceneDocuments();
+    UI::Placement::Update();
 
     if (m_pNewItemMng)
     {

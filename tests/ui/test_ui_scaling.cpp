@@ -11,7 +11,7 @@
 #include "Data/GameConfig/GameConfig.h"
 #include "Data/GameConfig/GameConfigConstants.h"
 #include "Engine/Object/ZzzInventory.h"
-#include "UI/Widgets/UIControls.h"
+#include "UI/Social/SocialWindowBase.h"
 #include "UI/HUD/UIMapName.h"
 #include "UI/Dialogs/ChatCommandWindow.h"
 #include "UI/HUD/CommandWindow.h"
@@ -91,6 +91,16 @@ TEST_CASE("teleport layout uses stable width and fits above the dock [ui][scalin
     CHECK(1 + layout.windowHeight <= UI::Scaling::DockLogicalBottom);
 }
 
+TEST_CASE("teleport layout takes a theme slot's height and width [ui][scaling]")
+{
+    const auto layout = UI::MoveCommand::CalculateLayout(0, 14, 200, 300);
+    CHECK(layout.windowWidth == 300);
+    CHECK(layout.visibleRows == 10);
+    CHECK(layout.windowHeight == 200);
+    CHECK(layout.listTop == 38);
+    CHECK(layout.closeTop == 180);
+}
+
 TEST_CASE("teleport width is independent of measured row height [ui][scaling]")
 {
     CHECK(UI::MoveCommand::CalculateLayout(1, 12).windowWidth == 230);
@@ -122,6 +132,12 @@ TEST_CASE("HUD fills the viewport while dialogs stay capped [ui][scaling]")
     const auto hud = UI::Scaling::TransformForLayout(UI::Scaling::LayoutMode::Hud, 1920, 1080);
     CHECK(UI::Scaling::PositionX(hud, 640.0f) == doctest::Approx(1920.0f));
     CHECK(UI::Scaling::PositionY(hud, 480.0f) == doctest::Approx(1080.0f));
+
+    const auto frame = UI::Scaling::TransformForLayout(UI::Scaling::LayoutMode::HudFrame, 1920, 1080);
+    CHECK(frame.scaleX == doctest::Approx(UI::Scaling::BottomHudScale(1920, 1080)));
+    CHECK(frame.scaleY == doctest::Approx(frame.scaleX));
+    CHECK(frame.offsetX == doctest::Approx(0.0f));
+    CHECK(frame.offsetY == doctest::Approx(0.0f));
 
     const auto dialog = UI::Scaling::TransformForLayout(UI::Scaling::LayoutMode::Dialog, 1920, 1080);
     CHECK(dialog.scaleX == doctest::Approx(2.0f));
@@ -664,30 +680,6 @@ TEST_CASE("world viewport clamps zero and tiny dimensions before deriving aspect
     CHECK(UI::Scaling::WorldViewportAspect(640, 1, true) == doctest::Approx(640.0f));
 }
 
-TEST_CASE("bottom HUD hit-region edges block controls and preserve wide gaps [ui][scaling]")
-{
-    CHECK_FALSE(UI::Scaling::BottomHudContainsWindowPoint(1280, 720, 100.0f, 643.49f));
-    CHECK(UI::Scaling::BottomHudContainsWindowPoint(1280, 720, 100.0f, 643.5f));
-
-    CHECK(UI::Scaling::BottomHudContainsWindowPoint(1280, 720, 227.99f, 660.0f));
-    CHECK_FALSE(UI::Scaling::BottomHudContainsWindowPoint(1280, 720, 228.0f, 660.0f));
-    CHECK_FALSE(UI::Scaling::BottomHudContainsWindowPoint(1280, 720, 300.0f, 660.0f));
-    CHECK_FALSE(UI::Scaling::BottomHudContainsWindowPoint(1280, 720, 387.99f, 660.0f));
-    CHECK(UI::Scaling::BottomHudContainsWindowPoint(1280, 720, 388.0f, 660.0f));
-    CHECK(UI::Scaling::BottomHudContainsWindowPoint(1280, 720, 891.99f, 660.0f));
-    CHECK_FALSE(UI::Scaling::BottomHudContainsWindowPoint(1280, 720, 892.0f, 660.0f));
-    CHECK_FALSE(UI::Scaling::BottomHudContainsWindowPoint(1280, 720, 980.0f, 660.0f));
-    CHECK_FALSE(UI::Scaling::BottomHudContainsWindowPoint(1280, 720, 1051.99f, 660.0f));
-    CHECK(UI::Scaling::BottomHudContainsWindowPoint(1280, 720, 1052.0f, 660.0f));
-
-    CHECK(UI::Scaling::BottomHudContainsWindowPoint(1280, 720, 0.0f, 705.0f));
-    CHECK(UI::Scaling::BottomHudContainsWindowPoint(1280, 720, 300.0f, 710.0f));
-    CHECK(UI::Scaling::BottomHudContainsWindowPoint(1280, 720, 980.0f, 710.0f));
-    CHECK(UI::Scaling::BottomHudContainsWindowPoint(1280, 720, 1279.99f, 719.99f));
-    CHECK_FALSE(UI::Scaling::BottomHudContainsWindowPoint(1280, 720, 1280.0f, 710.0f));
-    CHECK_FALSE(UI::Scaling::BottomHudContainsWindowPoint(1280, 720, 640.0f, 720.0f));
-}
-
 TEST_CASE("legacy UI preserves logical input and world-overlay coordinates [ui][scaling]")
 {
     const auto legacy = UI::Scaling::LegacyUiTransform(1280, 720);
@@ -705,6 +697,7 @@ TEST_CASE("interface policy selects viewport dock and dialog layouts [ui][scalin
     CHECK(UI::Layout::ForInterface(mu::ui::window::INTERFACE_MAINFRAME) == LayoutMode::Hud);
     CHECK(UI::Layout::ForInterface(mu::ui::window::INTERFACE_SKILL_LIST) == LayoutMode::HudCenter);
     CHECK(UI::Layout::ForInterface(mu::ui::window::INTERFACE_HOTKEY) == LayoutMode::Hud);
+    CHECK(UI::Layout::ForInterface(mu::ui::window::INTERFACE_BATTLE_SOCCER_SCORE) == LayoutMode::HudFrame);
     CHECK(UI::Layout::ForInterface(mu::ui::window::INTERFACE_ITEM_ENDURANCE_INFO) == LayoutMode::DockRight);
     CHECK(UI::Layout::ForInterface(mu::ui::window::INTERFACE_PARTY_INFO_WINDOW) == LayoutMode::DockRight);
     CHECK(UI::Layout::ForInterface(mu::ui::window::INTERFACE_INVENTORY) == LayoutMode::DockRight);
@@ -729,14 +722,15 @@ TEST_CASE("floating windows keep uniform scale across the full viewport [ui][sca
     CHECK(UI::Scaling::PositionY(transform, static_cast<float>(bounds.height)) <= 2160.0f);
 }
 
-TEST_CASE("screen coverage follows the capped HUD boundary [ui][scaling]")
+// A HUD narrower than the window leaves a strip beside it; a full-screen overlay (a map's weather, a
+// message box's dim) stopped at the HUD's top left that strip unlit below 100 % UI scale.
+TEST_CASE("screen overlays cover the whole window [ui][scaling]")
 {
     const auto screen = UI::Scaling::ScreenOverlayTransform(3840, 2160);
-    const float screenHeight = UI::Scaling::ScreenOverlayContentHeight(3840, 2160);
+    const float screenHeight = UI::Scaling::ScreenOverlayFullHeight(3840, 2160);
 
-    CHECK(screenHeight == doctest::Approx(457.333333f));
-    CHECK(UI::Scaling::SizeY(screen, screenHeight) == doctest::Approx(2058.0f));
-    CHECK(UI::Scaling::ScreenOverlayContentHeight(640, 480) == doctest::Approx(429.0f));
+    CHECK(UI::Scaling::SizeY(screen, screenHeight) == doctest::Approx(2160.0f));
+    CHECK(UI::Scaling::ScreenOverlayFullHeight(640, 480) == doctest::Approx(480.0f));
     CHECK(UI::Scaling::FloatingWorkspaceContentHeight(3840, 2160) == doctest::Approx(914.666667f));
 }
 
@@ -760,18 +754,6 @@ TEST_CASE("letter preview viewport includes active layout offsets [ui][scaling]"
     CHECK(viewport.y == 346);
     CHECK(viewport.width == 268);
     CHECK(viewport.height == 317);
-}
-
-TEST_CASE("focused letter input owns its parent window selection [ui][input]")
-{
-    CUITextInputBox input;
-    input.SetParentUIID(42);
-    input.GiveFocus(FALSE);
-
-    CHECK(CUITextInputBox::IsFocusedForParent(42));
-    CHECK_FALSE(CUITextInputBox::IsFocusedForParent(41));
-
-    CUITextInputBox::ReleaseFocus();
 }
 
 TEST_CASE("screen overlays fill the window [ui][scaling]")

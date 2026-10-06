@@ -25,10 +25,8 @@ namespace Rml
 // (e.g. the `$theme <name>` chat command) -- GameConfig's own value only changes what a *relaunch*
 // picks up; the cache here is the actual "what's on screen right now" source of truth. Changing it
 // alone does nothing visually: a window's Rml::ElementDocument/DataModel was already built against
-// whatever theme was active when LoadThemedDocument() last ran for it, so a caller that wants the
-// change to be visible must also tear down and rebuild every currently-open themed window's
-// document -- see RegisterForThemeReload()/ReloadAllThemedDocuments() below -- after calling
-// SetActiveThemeName().
+// whatever theme was active when it was loaded, so a caller that wants the change to be visible
+// must also call ReloadAllThemedDocuments() (below) after SetActiveThemeName().
 namespace UI::RmlBridge
 {
     // Cached on first call from GameConfig::GetRmlTheme() (e.g. "legacy", "modern", or any
@@ -36,7 +34,7 @@ namespace UI::RmlBridge
     // writes to, not necessarily GameConfig's current value.
     const std::string& GetActiveThemeName();
 
-    // Overwrites the live active-theme cache GetActiveThemeName()/ThemeProvidesOwnIconChrome() read
+    // Overwrites the live active-theme cache GetActiveThemeName() reads
     // from (lowercased, same normalization GetActiveThemeName() has always applied). Does not touch
     // GameConfig and does not rebuild any window's document by itself -- see this file's top comment.
     // Does clear RmlUi's own template cache (Rml::Factory::ClearTemplateCache()), since two themes'
@@ -64,18 +62,10 @@ namespace UI::RmlBridge
     // modder-supplied theme with no theme.ini at all.
     std::string GetThemeDisplayName(const std::string& themeName);
 
-    // A declared theme capability (C++ must never branch on a theme's NAME -- a theme wanting
-    // non-default behavior states that want itself, via an optional themes/<name>/theme.ini,
-    // [Capabilities] section, key "ProvidesOwnIconChrome").
-    // True means the active theme supplies its own RmlUi border/fill/highlight treatment for the
-    // still-legacy-2D-rendered skill/potion icon chrome (MainFrameWindow.cpp), so C++ should
-    // skip drawing the legacy sprite fill/highlight there. Missing file or missing key both
-    // default to false (draw the real legacy sprite) -- the safe default for any theme that
-    // hasn't declared an opinion, including a future modder-supplied one.
-    bool ThemeProvidesOwnIconChrome();
-
+    // Declared theme capabilities: an optional themes/<name>/theme.ini [Capabilities] section,
+    // missing keys false. C++ never branches on a theme's name.
     // Whether the active theme sizes opted-in documents' text like the original client's
-    // (theme.ini [Capabilities] NativeTextSize=1) -- see RmlNativeText.h.
+    // (NativeTextSize=1) -- see RmlNativeText.h.
     bool ThemeUsesNativeTextSize();
 
     // Builds the virtual source URL a themed document should be loaded against, e.g.
@@ -85,28 +75,31 @@ namespace UI::RmlBridge
     // does exist, per Rml::Context::LoadDocumentFromMemory's source_url contract.
     std::string ThemedDocumentSourceUrl(const char* documentName, const std::string& themeName);
 
-    // True if the active theme has its own themes/<theme>/<documentName> markup. For a document only
-    // some themes have (the modern top-right button row, main_frame_top.rml): its owner loads it
-    // only when this says so, by directory convention rather than by theme name.
-    bool ThemeProvidesDocument(const char* documentName);
+    class ThemedDocuments;
 
-    // Reads `documentPath` (e.g. "Data/Interface/RmlUi/login.rml") from disk and instantiates it
-    // against the currently active theme's stylesheet via LoadDocumentFromMemory. This is the one
-    // entry point every migrated window should use instead of calling Context::LoadDocument
-    // directly -- "add a new theme" stays a drop-a-folder-of-RCSS operation for every window
-    // built on this helper, not a per-window special case. Returns nullptr if the file couldn't
-    // be read or the document failed to parse (logged via g_ErrorReport either way).
-    Rml::ElementDocument* LoadThemedDocument(Rml::Context* context, const char* documentPath);
+    // Loading a document against the active theme belongs to ThemedView (RmlThemedView.h): only
+    // ThemedDocuments may call this, so no window can load a themed document no view owns.
+    class ThemedDocumentLoader
+    {
+        friend class ThemedDocuments;
 
-    // LoadThemedDocument() for a document instantiated once per window (the friends family's
-    // chat rooms and letters): every occurrence of `modelPlaceholder` in the markup (its
-    // data-model name) becomes `modelName`, so each instance binds its own data model.
-    Rml::ElementDocument* LoadThemedDocument(Rml::Context* context, const char* documentPath,
-                                             const std::string& modelPlaceholder, const std::string& modelName);
+        // Reads `documentPath` (e.g. "Data/Interface/RmlUi/login.rml") and instantiates it against
+        // the active theme's stylesheet via LoadDocumentFromMemory, so "add a new theme" stays a
+        // drop-a-folder-of-RCSS operation. Sets the document's stacking depth and scene (below).
+        // Returns nullptr if the file couldn't be read or the document failed to parse (logged via
+        // g_ErrorReport either way).
+        static Rml::ElementDocument* Load(Rml::Context* context, const char* documentPath);
+
+        // Load() for a document instantiated once per window (the friends family's chat rooms and
+        // letters): every occurrence of `modelPlaceholder` in the markup becomes `modelName`, so
+        // each instance binds its own data model.
+        static Rml::ElementDocument* Load(Rml::Context* context, const char* documentPath,
+                                          const std::string& modelPlaceholder, const std::string& modelName);
+    };
 
     // Sets the original's layer depth of `documentName` (e.g. "loading.rml", RmlStackingOrder.h)
-    // as the document's z-index. LoadThemedDocument() does this for every document it loads; call
-    // it only for a document loaded some other way.
+    // as the document's z-index. Every themed document gets it when it loads; call it only for a
+    // document loaded some other way.
     void ApplyStackingDepth(Rml::ElementDocument* document, const std::string& documentName);
 
     // Scene gate (RmlStackingOrder.h, DocumentScene). The original drew CNewUIManager's windows
@@ -116,8 +109,8 @@ namespace UI::RmlBridge
     // (display: none -- never drawn, never hit; its own Show()/Hide() state is kept, and a Show()
     // while suspended has no effect).
     //
-    // Marks `documentName`'s document as a main-scene one when the stacking table says so;
-    // LoadThemedDocument() does this for every document it loads.
+    // Marks `documentName`'s document as a main-scene one when the stacking table says so; every
+    // themed document gets it when it loads.
     void ApplyDocumentScene(Rml::ElementDocument* document, const std::string& documentName);
     // Every frame before RmlUi updates and renders (RmlUiRuntime::Update()): outside the main
     // scene, suspends every marked document, including one loaded since (a theme switch).
@@ -127,51 +120,28 @@ namespace UI::RmlBridge
     // showing it for one.
     void ResumeMainSceneDocuments();
 
-    // LoadThemedDocument() against RmlUiRuntime::Instance().GetBackgroundContext(). Starts hidden,
-    // same as LoadThemedDocument() itself -- the caller's own SyncRmlModel() shows/hides it against
-    // IsVisible(), same as its root_x/root_y/root_scale sync (MyInventory.h's MyInventoryBgRmlModel
-    // comment). Used to Show() eagerly here instead, since these documents are driven by
-    // RmlUiRuntime::RenderBackgroundLayer() rather than their owner's own Show()/Hide() -- but every
-    // one of these is created once at boot (LoadMainSceneInterface()), before CSystem::Update() ever
-    // runs its first correcting SyncRmlModel() (gated to SceneFlag == MAIN_SCENE), so the eager
-    // Show() left it visible at its model's zero-initialized default (unscaled, top-left) for the
-    // first few MAIN_SCENE frames of a client's very first login. Returns nullptr (silently) if the
-    // background context doesn't exist yet.
-    Rml::ElementDocument* CreateBackgroundDocument(const char* documentPath);
+    // Following theme switches belongs to ThemedView too: only ThemedDocuments may register.
+    class ThemeReloadRegistry
+    {
+    public:
+        using Callback = std::function<void()>;
+        // The owner's document, for where it sits among its context's documents; null while it has
+        // none.
+        using Document = std::function<Rml::ElementDocument*()>;
 
-    // Same as CreateBackgroundDocument(const char*) but against an explicit context instead of
-    // always GetBackgroundContext() -- e.g. RmlUiRuntime::Instance().GetDialogBackgroundContext()
-    // for CGenericConfirmDialog's own panel, which needs to render at a different point in the
-    // frame than every ordinary window's own bg doc (see RenderDialogBackgroundLayer()'s own
-    // comment for why). Returns nullptr (silently) if `context` is null.
-    Rml::ElementDocument* CreateBackgroundDocument(const char* documentPath, Rml::Context* context);
+    private:
+        friend class ThemedDocuments;
 
-    // Tier-agnostic theme-reload registry. Any owner of a themed document -- a window (keyed by
-    // `this`) or a free-function module with no `this` (keyed by the address of a private static
-    // token) -- registers one callback here, right next to the code that already creates its first
-    // document, instead of overriding a virtual and hoping every sweep call site reaches it.
-    using ThemeReloadCallback = std::function<void()>;
+        // Registers or replaces `owner`'s callback. A reloaded document goes on top of its context,
+        // so the owners that name their document reload from the bottom of its context's stack up,
+        // and the stacking survives a theme switch. Owners without one keep registration order.
+        static void Register(const void* owner, Callback callback, Document document = {});
+        // A no-op if `owner` isn't registered.
+        static void Unregister(const void* owner);
+    };
 
-    // Registers-or-replaces `owner`'s callback (same shape as
-    // Core::Time::FrameTimerScheduler::SetRepeating() -- calling again for an already-registered
-    // owner just replaces its callback, it does not duplicate). Safe, and expected, to call on
-    // every Create()/BuildRmlUi() re-entry, including repeated calls across an object's lifetime
-    // (e.g. a window whose Create() re-runs across scene transitions) -- always leaves exactly one
-    // live callback per owner.
-    void RegisterForThemeReload(const void* owner, ThemeReloadCallback callback);
-
-    // Removes `owner`'s callback, if any -- a no-op if `owner` isn't registered (same shape as
-    // FrameTimerScheduler::Kill()), so it's safe to call from a Release()/destructor path that may
-    // run more than once. Call this ONLY where the owner already unhooks from its CManager
-    // (RemoveUIObj(this)) -- an owner that never does that (a handful of app/scene-lifetime
-    // singleton windows) must never call this either, so its registration outlives every Release()
-    // the same way its CManager registration already does.
-    void UnregisterForThemeReload(const void* owner);
-
-    // Calls every registered callback, rebuilding every currently-open themed document/model
-    // against whatever SetActiveThemeName() most recently set. The one call a theme switch needs
-    // after SetActiveThemeName(). Copies the registry before iterating -- cheap at this scale and
-    // removes any reliance on no callback ever registering/unregistering another owner while this
-    // sweep is in progress.
+    // Rebuilds every themed document against whatever SetActiveThemeName() most recently set: the
+    // one call a theme switch needs after SetActiveThemeName(). Works on a copy of the registry, so
+    // an owner registering or unregistering another during the sweep is safe.
     void ReloadAllThemedDocuments();
 }

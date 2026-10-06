@@ -1,5 +1,6 @@
 
 #include "stdafx.h"
+#include "UI/Placement/WindowPlacement.h"
 #include "I18N/All.h"
 
 #include "UI/HUD/MiniMap.h"
@@ -20,6 +21,7 @@
 #include "UI/RmlBridge/RmlRootTransform.h"
 #include "UI/RmlBridge/RmlTheme.h"
 #include "UI/RmlBridge/RmlTooltip.h"
+#include "Render/Text/CUIRenderText.h"
 
 #include <RmlUi/Core/ElementDocument.h>
 
@@ -47,12 +49,9 @@ constexpr float kPortalSize = 30.f;
 constexpr float kTileWidth = 35.f;
 constexpr float kTileHeight = 6.f;
 constexpr int kSideTiles = 20;
-constexpr int kEdgeTiles = 25;
 // .edge-side's element size in mini_map.rcss (the tile's texel rectangle).
 constexpr float kSideElementWidth = 41.7f;
 constexpr float kSideElementHeight = 8.f;
-// The bottom HUD band the native HUD art covers, in BottomHudCenterTransform reference units.
-constexpr float kHudBandTop = 429.f;
 
 template <typename Model, typename T>
 void Sync(RmlModelBinder<Model>& binder, T Model::* field, const char* name, T value)
@@ -123,7 +122,6 @@ bool mu::ui::window::CMiniMap::Create(CManager* pNewUIMng, int x, int y)
     m_bSuccess = false;
 
     BuildRmlUi();
-    UI::RmlBridge::RegisterForThemeReload(this, [this] { ReloadRmlTheme(); });
     return true;
 }
 
@@ -145,7 +143,6 @@ void mu::ui::window::CMiniMap::OpenningProcess()
 
 void mu::ui::window::CMiniMap::Release()
 {
-    UI::RmlBridge::UnregisterForThemeReload(this);
     UI::RmlBridge::Tooltip::Hide(&m_ExitTooltip);
 
     if (m_pNewUIMng)
@@ -153,6 +150,8 @@ void mu::ui::window::CMiniMap::Release()
         m_pNewUIMng->RemoveUIObj(this);
         m_pNewUIMng = NULL;
     }
+
+    m_RmlView.Release();
 }
 
 void mu::ui::window::CMiniMap::SetPos(int x, int y)
@@ -286,89 +285,62 @@ bool mu::ui::window::CMiniMap::UpdateMouseEvent()
     return true;
 }
 
-void mu::ui::window::CMiniMap::BuildRmlUi()
+void mu::ui::window::CMiniMap::BindRmlModel(Rml::DataModelConstructor& c, MiniMapRmlModel& model)
 {
-    if (m_pRmlDoc || !RmlUiRuntime::Instance().IsCreated())
-        return;
+    c.Bind("scale_x", &model.scaleX);
+    c.Bind("scale_y", &model.scaleY);
+    c.Bind("text_px", &model.textPx);
 
-    const bool modelCreated = m_RmlBinder.Create(
-        RmlUiRuntime::Instance().GetContext(), "mini_map",
-        [this](Rml::DataModelConstructor& c, MiniMapRmlModel& model)
-        {
-            c.Bind("scale_x", &model.scaleX);
-            c.Bind("scale_y", &model.scaleY);
-            c.Bind("text_px", &model.textPx);
+    auto clip = c.RegisterStruct<MiniMapClipEntry>();
+    clip.RegisterMember("left", &MiniMapClipEntry::left);
+    clip.RegisterMember("top", &MiniMapClipEntry::top);
+    clip.RegisterMember("width", &MiniMapClipEntry::width);
+    clip.RegisterMember("height", &MiniMapClipEntry::height);
+    clip.RegisterMember("world_left", &MiniMapClipEntry::worldLeft);
+    clip.RegisterMember("world_top", &MiniMapClipEntry::worldTop);
+    c.RegisterArray<std::vector<MiniMapClipEntry>>();
+    c.Bind("clips", &model.clips);
 
-            auto clip = c.RegisterStruct<MiniMapClipEntry>();
-            clip.RegisterMember("left", &MiniMapClipEntry::left);
-            clip.RegisterMember("top", &MiniMapClipEntry::top);
-            clip.RegisterMember("width", &MiniMapClipEntry::width);
-            clip.RegisterMember("height", &MiniMapClipEntry::height);
-            clip.RegisterMember("world_left", &MiniMapClipEntry::worldLeft);
-            clip.RegisterMember("world_top", &MiniMapClipEntry::worldTop);
-            c.RegisterArray<std::vector<MiniMapClipEntry>>();
-            c.Bind("clips", &model.clips);
+    c.Bind("map_source", &model.mapSource);
+    c.Bind("map_transform", &model.mapTransform);
 
-            c.Bind("map_source", &model.mapSource);
-            c.Bind("map_transform", &model.mapTransform);
+    auto marker = c.RegisterStruct<MiniMapMarkerEntry>();
+    marker.RegisterMember("portal", &MiniMapMarkerEntry::portal);
+    marker.RegisterMember("size", &MiniMapMarkerEntry::size);
+    marker.RegisterMember("transform", &MiniMapMarkerEntry::transform);
+    c.RegisterArray<std::vector<MiniMapMarkerEntry>>();
+    c.Bind("markers", &model.markers);
 
-            auto marker = c.RegisterStruct<MiniMapMarkerEntry>();
-            marker.RegisterMember("portal", &MiniMapMarkerEntry::portal);
-            marker.RegisterMember("size", &MiniMapMarkerEntry::size);
-            marker.RegisterMember("transform", &MiniMapMarkerEntry::transform);
-            c.RegisterArray<std::vector<MiniMapMarkerEntry>>();
-            c.Bind("markers", &model.markers);
+    c.RegisterArray<std::vector<Rml::String>>();
+    c.Bind("side_lines", &model.sideLines);
+    c.RegisterArray<std::vector<float>>();
 
-            c.RegisterArray<std::vector<Rml::String>>();
-            c.Bind("side_lines", &model.sideLines);
-            c.RegisterArray<std::vector<float>>();
-            c.Bind("edge_tiles", &model.edgeTiles);
+    c.Bind("hint_visible", &model.hintVisible);
+    c.Bind("hint_text", &model.hintText);
+    c.Bind("hint_left", &model.hintLeft);
+    c.Bind("hint_top", &model.hintTop);
+    c.Bind("hint_width", &model.hintWidth);
+    c.Bind("hint_height", &model.hintHeight);
 
-            c.Bind("hint_visible", &model.hintVisible);
-            c.Bind("hint_text", &model.hintText);
-            c.Bind("hint_left", &model.hintLeft);
-            c.Bind("hint_top", &model.hintTop);
-            c.Bind("hint_width", &model.hintWidth);
-            c.Bind("hint_height", &model.hintHeight);
-
-            c.BindEventCallback("minimap_close", [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&)
-                                { m_PendingClose = true; });
-        });
-
-    if (modelCreated)
-    {
-        MiniMapRmlModel& model = m_RmlBinder.GetModel();
-        model.edgeTiles.clear();
-        for (int i = 0; i < kEdgeTiles; ++i)
-            model.edgeTiles.push_back(static_cast<float>(i) * kTileWidth);
-
-        m_pRmlDoc = UI::RmlBridge::LoadThemedDocument(RmlUiRuntime::Instance().GetContext(),
-                                                      "Data/Interface/RmlUi/mini_map.rml");
-    }
+    c.BindEventCallback("minimap_close", [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&)
+                        { m_PendingClose = true; });
 }
 
-void mu::ui::window::CMiniMap::ReloadRmlTheme()
+void mu::ui::window::CMiniMap::BuildRmlUi()
 {
-    if (!m_pRmlDoc)
-        return;
-    Rml::Context* context = RmlUiRuntime::Instance().GetContext();
-    m_RmlBinder.Destroy(context);
-    context->UnloadDocument(m_pRmlDoc);
-    m_pRmlDoc = nullptr;
-
-    BuildRmlUi();
+    m_RmlView.Ensure();
 }
 
 void mu::ui::window::CMiniMap::SyncRmlModel()
 {
     BuildRmlUi();
-    if (!m_pRmlDoc)
+    if (!m_RmlView.Document())
         return;
 
     const bool visible = IsVisible() && m_bSuccess && Hero != nullptr;
     // Over the location bar, the logs and the buff strip, under the bottom HUD: the stacking table
     // (UI/RmlBridge/RmlStackingOrder.cpp) orders it as the original's layer depths did.
-    UI::RmlBridge::SyncDocumentVisibilityInFront(m_pRmlDoc, visible);
+    UI::RmlBridge::SyncDocumentVisibilityInFront(m_RmlView.Document(), visible);
 
     if (!visible)
     {
@@ -387,14 +359,14 @@ void mu::ui::window::CMiniMap::SyncScreen()
 {
     // CManager scopes LayoutMode::Hud around this window: W/640 x H/480, no offset.
     const UI::Scaling::Transform transform = UI::Scaling::GetActiveTransform();
-    Sync(m_RmlBinder, &MiniMapRmlModel::scaleX, "scale_x", transform.scaleX);
-    Sync(m_RmlBinder, &MiniMapRmlModel::scaleY, "scale_y", transform.scaleY);
-    UI::RmlBridge::SyncNativeTextSize(m_RmlBinder);
+    Sync(m_RmlView.Binder(), &MiniMapRmlModel::scaleX, "scale_x", transform.scaleX);
+    Sync(m_RmlView.Binder(), &MiniMapRmlModel::scaleY, "scale_y", transform.scaleY);
+    UI::RmlBridge::SyncNativeTextSize(m_RmlView.Binder());
 
     // The border tiles depend on the screen alone: rebuilt when it changes, or when a theme reload
     // left the model empty.
     const UI::MiniMap::Screen screen = CurrentScreen();
-    if (screen == m_SideLinesScreen && !m_RmlBinder.GetModel().sideLines.empty())
+    if (screen == m_SideLinesScreen && !m_RmlView.GetModel().sideLines.empty())
         return;
     m_SideLinesScreen = screen;
     std::vector<Rml::String> sideLines;
@@ -409,29 +381,32 @@ void mu::ui::window::CMiniMap::SyncScreen()
             UI::MiniMap::RotatedQuad(screen, REFERENCE_WIDTH - kTileHeight / 2.f, y, kTileWidth, kTileHeight, 90.f),
             kSideElementWidth, kSideElementHeight)));
     }
-    Sync(m_RmlBinder, &MiniMapRmlModel::sideLines, "side_lines", std::move(sideLines));
+    Sync(m_RmlView.Binder(), &MiniMapRmlModel::sideLines, "side_lines", std::move(sideLines));
 }
 
 void mu::ui::window::CMiniMap::SyncClips()
 {
-    // The native bottom HUD art (CMainFrameWindow's left and centre bands, drawn before this
-    // context) covers [0, 640] x [429, 480] under BottomHudCenterTransform; the original drew it over
-    // the map, so the map paints only outside that band.
-    const auto hud = UI::Scaling::BottomHudCenterTransform(WindowWidth, WindowHeight);
+    // The original drew the bottom HUD strip over the map, so the map paints only outside it:
+    // above the strip, and beside it down to the screen's bottom edge.
     const float width = static_cast<float>(WindowWidth);
     const float height = static_cast<float>(WindowHeight);
-    const float bandTop = std::clamp(hud.offsetY + kHudBandTop * hud.scaleY, 0.f, height);
-    const float bandLeft = std::clamp(hud.offsetX, 0.f, width);
-    const float bandRight = std::clamp(hud.offsetX + REFERENCE_WIDTH * hud.scaleX, 0.f, width);
+    UI::Placement::PlacementParticipant::Box strip;
+    const bool hasStrip = UI::Placement::SlotBox("main_hud", strip);
+    const float bandTop = hasStrip ? std::clamp(strip.top, 0.f, height) : height;
+    const float bandBottom = hasStrip ? std::clamp(strip.top + strip.height, bandTop, height) : height;
+    const float bandLeft = std::clamp(strip.left, 0.f, width);
+    const float bandRight = std::clamp(strip.left + strip.width, bandLeft, width);
 
     std::vector<MiniMapClipEntry> clips;
     clips.push_back({0.f, 0.f, width, bandTop, 0.f, 0.f});
-    if (bandLeft > 0.f && bandTop < height)
-        clips.push_back({0.f, bandTop, bandLeft, height - bandTop, 0.f, -bandTop});
-    if (bandRight < width && bandTop < height)
-        clips.push_back({bandRight, bandTop, width - bandRight, height - bandTop, -bandRight, -bandTop});
+    if (bandLeft > 0.f && bandBottom > bandTop)
+        clips.push_back({0.f, bandTop, bandLeft, bandBottom - bandTop, 0.f, -bandTop});
+    if (bandRight < width && bandBottom > bandTop)
+        clips.push_back({bandRight, bandTop, width - bandRight, bandBottom - bandTop, -bandRight, -bandTop});
+    if (bandBottom < height)
+        clips.push_back({0.f, bandBottom, width, height - bandBottom, 0.f, -bandBottom});
 
-    MiniMapRmlModel& model = m_RmlBinder.GetModel();
+    MiniMapRmlModel& model = m_RmlView.GetModel();
     const bool same =
         model.clips.size() == clips.size() &&
         std::equal(clips.begin(), clips.end(), model.clips.begin(),
@@ -440,7 +415,7 @@ void mu::ui::window::CMiniMap::SyncClips()
     if (same)
         return;
     model.clips = std::move(clips);
-    m_RmlBinder.MarkDirty("clips");
+    m_RmlView.MarkDirty("clips");
 }
 
 void mu::ui::window::CMiniMap::SyncMap()
@@ -454,9 +429,9 @@ void mu::ui::window::CMiniMap::SyncMap()
     Rml::String source;
     if (!m_WorldName.empty())
         source = "../../../../" + StringUtils::WideToNarrow(m_WorldName.c_str()) + "/mini_map.tga";
-    Sync(m_RmlBinder, &MiniMapRmlModel::mapSource, "map_source", std::move(source));
+    Sync(m_RmlView.Binder(), &MiniMapRmlModel::mapSource, "map_source", std::move(source));
 
-    Sync(m_RmlBinder, &MiniMapRmlModel::mapTransform, "map_transform",
+    Sync(m_RmlView.Binder(), &MiniMapRmlModel::mapTransform, "map_transform",
          MatrixText(UI::MiniMap::ElementToQuad(
              UI::MiniMap::MapQuad(screen, heroX, heroY, length, UI::MiniMap::MapRotation), length, length)));
 
@@ -483,7 +458,7 @@ void mu::ui::window::CMiniMap::SyncMap()
         markers.push_back({portal, size, MatrixText(UI::MiniMap::ElementToQuad(marker.quad, size, size))});
     }
 
-    MiniMapRmlModel& model = m_RmlBinder.GetModel();
+    MiniMapRmlModel& model = m_RmlView.GetModel();
     const bool same = model.markers.size() == markers.size() &&
                       std::equal(markers.begin(), markers.end(), model.markers.begin(),
                                  [](const MiniMapMarkerEntry& a, const MiniMapMarkerEntry& b)
@@ -491,7 +466,7 @@ void mu::ui::window::CMiniMap::SyncMap()
     if (!same)
     {
         model.markers = std::move(markers);
-        m_RmlBinder.MarkDirty("markers");
+        m_RmlView.MarkDirty("markers");
     }
 }
 
@@ -525,12 +500,12 @@ void mu::ui::window::CMiniMap::SyncHint()
         }
     }
 
-    Sync(m_RmlBinder, &MiniMapRmlModel::hintVisible, "hint_visible", found);
+    Sync(m_RmlView.Binder(), &MiniMapRmlModel::hintVisible, "hint_visible", found);
     if (!found)
         return;
-    Sync(m_RmlBinder, &MiniMapRmlModel::hintText, "hint_text", StringUtils::WideToNarrow(name.c_str()));
-    Sync(m_RmlBinder, &MiniMapRmlModel::hintLeft, "hint_left", left);
-    Sync(m_RmlBinder, &MiniMapRmlModel::hintTop, "hint_top", top);
-    Sync(m_RmlBinder, &MiniMapRmlModel::hintWidth, "hint_width", width);
-    Sync(m_RmlBinder, &MiniMapRmlModel::hintHeight, "hint_height", height);
+    Sync(m_RmlView.Binder(), &MiniMapRmlModel::hintText, "hint_text", StringUtils::WideToNarrow(name.c_str()));
+    Sync(m_RmlView.Binder(), &MiniMapRmlModel::hintLeft, "hint_left", left);
+    Sync(m_RmlView.Binder(), &MiniMapRmlModel::hintTop, "hint_top", top);
+    Sync(m_RmlView.Binder(), &MiniMapRmlModel::hintWidth, "hint_width", width);
+    Sync(m_RmlView.Binder(), &MiniMapRmlModel::hintHeight, "hint_height", height);
 }

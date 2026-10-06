@@ -1,7 +1,8 @@
-﻿///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
+#include "Guild/GuildTypes.h"
 #include "Core/Input/KeyState.h"
 #include "Core/Platform/Imm.h"
 #include "UI/Core/UIManager.h"
@@ -46,7 +47,7 @@
 
 #include "UI/Core/WindowSystem.h"
 #include "GameLogic/Events/w_CursedTemple.h"
-#include "UI/Widgets/UIControls.h"
+#include "UI/Social/SocialWindowBase.h"
 #include "GameLogic/Social/PartyManager.h"
 #include "UI/Dialogs/CommonMessageBox.h"
 #include "UI/Dialogs/GenericConfirmDialog.h"
@@ -64,6 +65,7 @@
 
 #include "Camera/CameraProjection.h"
 #include "Scenes/SceneCommon.h"
+#include "Render/Text/CUIRenderText.h"
 
 extern int g_iChatInputType;
 extern BOOL g_bUseChatListBox;
@@ -251,17 +253,6 @@ void ClearInput(BOOL bClearWhisperTarget)
         InputTextHide[i] = 0;
     }
 
-    if (g_iChatInputType == 1)
-    {
-        if (g_pSingleTextInputBox != nullptr)
-        {
-            g_pSingleTextInputBox->SetText(nullptr);
-        }
-        if (g_pSinglePasswdInputBox != nullptr)
-        {
-            g_pSinglePasswdInputBox->SetText(nullptr);
-        }
-    }
 }
 
 void RenderInputText(int x, int y, int Index, int Gold)
@@ -1615,7 +1606,7 @@ void Action(CHARACTER* c, OBJECT* o, bool Now)
 										SocketClient->ToGameServer()->SendCrywolfContractRequest(BackUp_Key);
 									}
 								};
-								cfg.onSecondary = []
+								cfg.onCancel = []
 								{
 									Button_Down = 1;
 									mu::ui::window::GenericDialogConfig needGuardianCfg;
@@ -2621,8 +2612,7 @@ bool SkillKeyPush(int Skill)
 
 void Attack(CHARACTER* c)
 {
-    const bool mouseOnHud = UI::Scaling::BottomHudContainsWindowPoint(
-        WindowWidth, WindowHeight, g_fWindowMouseX, g_fWindowMouseY);
+    const bool mouseOnHud = g_pMainFrame != nullptr && g_pMainFrame->IsMouseOverHud();
     // Core::Input::IsMouseOverUI() added as a 4th gate here too -- same rationale as
     // the duplicate check in Input/Selection.cpp's SelectObjects(), kept in sync with it.
     if ((MouseOnWindow || mouseOnHud || Core::Input::IsMouseOverUI()) && MouseLButtonPush)
@@ -2905,6 +2895,19 @@ namespace
     }
 }
 
+namespace
+{
+void FillAddFriendName()
+{
+    if (MouseRButtonPush && !::IsStrifeMap(gMapManager.WorldActive) &&
+        SelectedCharacter >= 0 && SelectedCharacter < MAX_CHARACTERS_CLIENT)
+    {
+        g_pWindowMgr->Dialogs().SetAddFriendName(CharactersClient[SelectedCharacter].ID);
+    }
+
+}
+}
+
 void MoveHero()
 {
     CHARACTER* c = Hero;
@@ -2959,20 +2962,7 @@ void MoveHero()
         return;
     }
 
-    if (g_pWindowMgr->GetAddFriendWindow() > 0)
-    {
-        if (MouseRButtonPush)
-        {
-            if (!::IsStrifeMap(gMapManager.WorldActive))
-            {
-                auto* pWindow = (CUITextInputWindow*)g_pWindowMgr->GetWindow(g_pWindowMgr->GetAddFriendWindow());
-                if (pWindow != NULL)
-                {
-                    pWindow->SetText(CharactersClient[SelectedCharacter].ID);
-                }
-            }
-        }
-    }
+    FillAddFriendName();
 
     int HeroX = GetScreenWidth() / 2;
     int HeroY = 180;
@@ -3415,6 +3405,47 @@ void MoveHero()
 }
 
 
+// The battle master's guild skill: Shift swaps it in for the current skill while the kill
+// count allows it, and releasing Shift restores what was selected before. Lived in
+// UIGuildInfo.cpp until that widget was retired; its only caller is just below.
+static void UseBattleMasterSkill(void)
+{
+    if (!(Hero->EtcPart == PARTS_ATTACK_TEAM_MARK
+        || Hero->EtcPart == PARTS_ATTACK_TEAM_MARK2
+        || Hero->EtcPart == PARTS_ATTACK_TEAM_MARK3
+        || Hero->EtcPart == PARTS_DEFENSE_TEAM_MARK))
+    {
+        return;
+    }
+
+    if (Hero->GuildStatus == G_PERSON)
+    {
+        return;
+    }
+
+    int MaxKillCount = SkillAttribute[Hero->GuildSkill].KillCount;
+
+    if (Hero->GuildMasterKillCount >= MaxKillCount)
+    {
+        if (Core::Input::IsKeyDown(VK_SHIFT))
+        {
+            if (Hero->BackupCurrentSkill == 255)
+            {
+                Hero->BackupCurrentSkill = Hero->CurrentSkill;
+            }
+            Hero->CurrentSkill = FindHotKey(Hero->GuildSkill);
+        }
+        else
+        {
+            if (Hero->BackupCurrentSkill != 255)
+            {
+                Hero->CurrentSkill = Hero->BackupCurrentSkill;
+                Hero->BackupCurrentSkill = 255;
+            }
+        }
+    }
+}
+
 int FindHotKey(int Skill)
 {
     int SkillIndex = 0;
@@ -3722,10 +3753,10 @@ void RenderOutSides()
         EnableAlphaBlend();
         float WindX = (float)((int)WorldTime % 100000) * 0.0002f;
         RenderBitmapUV(BITMAP_CHROME + 2, 0.f, 0.f, (float)REFERENCE_WIDTH,
-                       UI::Scaling::ScreenOverlayContentHeight(WindowWidth, WindowHeight), WindX, 0.f, 0.3f, 0.3f);
+                       UI::Scaling::ScreenOverlayFullHeight(WindowWidth, WindowHeight), WindX, 0.f, 0.3f, 0.3f);
         float WindX2 = (float)((int)WorldTime % 100000) * 0.001f;
         RenderBitmapUV(BITMAP_CHROME + 3, 0.f, 0.f, (float)REFERENCE_WIDTH,
-                       UI::Scaling::ScreenOverlayContentHeight(WindowWidth, WindowHeight), WindX2, 0.f, 3.f, 2.f);
+                       UI::Scaling::ScreenOverlayFullHeight(WindowWidth, WindowHeight), WindX2, 0.f, 3.f, 2.f);
     }
 #ifdef ASG_ADD_MAP_KARUTAN
     else if (IsKarutanMap())
@@ -3734,7 +3765,7 @@ void RenderOutSides()
         EnableAlphaBlend();
         float fWindX = (float)((int)WorldTime % 100000) * 0.004f;
         RenderBitmapUV(BITMAP_CHROME + 3, 0.f, 0.f, (float)REFERENCE_WIDTH,
-                       UI::Scaling::ScreenOverlayContentHeight(WindowWidth, WindowHeight), fWindX, 0.f, 3.f, 2.f);
+                       UI::Scaling::ScreenOverlayFullHeight(WindowWidth, WindowHeight), fWindX, 0.f, 3.f, 2.f);
     }
 #endif	// ASG_ADD_MAP_KARUTAN
     else if (WD_34CRYWOLF_1ST == gMapManager.WorldActive)
@@ -3873,7 +3904,7 @@ void RenderTournamentInterface()
                     mu_swprintf(t_Str, I18N::Game::RemainingSecondsDD, t_valueMin, t_valueSec);
                 }
             }
-            x += (float)GetScreenWidth() / 2; y += 350;
+            x += (float)(GetScreenLeft() + GetScreenWidth()) / 2; y += 350;
             g_pRenderText->RenderText((int)x, (int)y, t_Str, 0, 0, RT3_WRITE_CENTER); x++; y++;
 
             g_pRenderText->SetTextColor(0xffffffff);
@@ -4032,7 +4063,7 @@ void RenderTimes()
         constexpr float width = 50;
         constexpr float height = 2;
         constexpr int y = REFERENCE_HEIGHT - 48 - 40;
-        const float x = (static_cast<float>(GetScreenWidth()) - width) / 2.0f;
+        const float x = (static_cast<float>(GetScreenLeft() + GetScreenWidth()) - width) / 2.0f;
 
         const uint64_t remainingMacroCooldownTime = MacroCooldownMs - (currentTickCount - LastMacroTime);
         const float progressValue = static_cast<float>(remainingMacroCooldownTime) / MacroCooldownMs * width;

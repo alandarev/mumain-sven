@@ -52,8 +52,6 @@ namespace mu::ui::window
     private:
         CManager* m_pNewUIMng;
         POINT						m_Pos;
-        POINT						m_BtnEnterStartPos;
-        POINT						m_EnterUITextPos;
 
         // The window's RmlUi document (entry frame, lines, level buttons, exit).
         EventEntryView m_View;
@@ -66,6 +64,7 @@ namespace mu::ui::window
         virtual ~CEnterDevilSquare();
 
         bool Create(CManager* pNewUIMng, int x, int y);
+        Rml::ElementDocument* GetFillDocument() const override { return m_View.Document(); }
         void Release();
 
         void SetPos(int x, int y);
@@ -82,10 +81,8 @@ namespace mu::ui::window
         void OpenningProcess();
         void ClosingProcess();
 
-        void ReloadRmlTheme();
 
     private:
-        void SetBtnPos(int x, int y);
         // The title and description lines of the original's Render(), with the level buttons.
         void SetViewContent(const std::vector<EventEntryView::Button>& buttons);
 

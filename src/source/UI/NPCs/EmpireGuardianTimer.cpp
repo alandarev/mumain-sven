@@ -34,7 +34,6 @@ bool CEmpireGuardianTimer::Create(CManager* pNewUIMng, int x, int y)
     SetPos(x, y);
 
     m_View.Build();
-    UI::RmlBridge::RegisterForThemeReload(this, [this] { ReloadRmlTheme(); });
 
     Show(false);
 
@@ -43,7 +42,7 @@ bool CEmpireGuardianTimer::Create(CManager* pNewUIMng, int x, int y)
 
 void CEmpireGuardianTimer::Release()
 {
-    UI::RmlBridge::UnregisterForThemeReload(this);
+    m_View.Release();
 
     if (m_pNewUIMng)
     {
@@ -98,39 +97,34 @@ void CEmpireGuardianTimer::SyncView()
         mu_swprintf(szText, I18N::Game::RoundDZoneD, m_iDay, m_iZone);
         // The original set no colour for the round: it took whatever the text renderer was left
         // in by the window drawn before it, white in every capture (the windows drawn before it
-        // reset to white). White here.
-        round = {szText, RGBA(255, 255, 255, 255)};
+        // reset to white). Plain here.
+        round = {szText, "plain"};
         switch (m_iType)
         {
         case 0:
         case 1:
-            caption = {I18N::Game::StandbyTime, RGBA(10, 200, 10, 255)};
+            caption = {I18N::Game::StandbyTime, "standby"};
             break;
         case 2:
             mu_swprintf(szText, L"%ls (%ls)", I18N::Game::TimeLeft, I18N::Game::RemainingMonsters);
-            caption = {szText, RGBA(255, 150, 0, 255)};
+            caption = {szText, "normal"};
             break;
         default:
             break;
         }
         const int iSecond = static_cast<int>(m_dTime / 1000);
         const int iMinute = iSecond / 60;
-        unsigned long timeColor = caption.color;
+        const char* timeState = caption.state;
         if (2 < iMinute)
-            timeColor = RGBA(255, 150, 0, 255);
+            timeState = "normal";
         else if (0 < iMinute && iMinute <= 2)
-            timeColor = RGBA(255, 70, 0, 255);
+            timeState = "closing";
         else if (iMinute == 0)
-            timeColor = RGBA(255, 0, 0, 255);
+            timeState = "expiring";
         mu_swprintf(szText, L"%.2d:%.2d(%d)", iMinute, iSecond % 60, m_iMonsterCount);
-        time = {szText, timeColor};
+        time = {szText, timeState};
     }
     m_View.Sync(IsVisible(), m_Pos, round, caption, time, TIMER_WINDOW_WIDTH / 2.f - 55.f, 110.f);
-}
-
-void CEmpireGuardianTimer::ReloadRmlTheme()
-{
-    m_View.ReloadTheme();
 }
 
 bool CEmpireGuardianTimer::BtnProcess()

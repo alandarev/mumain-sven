@@ -6,7 +6,7 @@
 
 #include "UI/Core/WindowObject.h"
 #include "UI/Core/WindowManager.h"
-#include "UI/RmlBridge/RmlModelBinder.h"
+#include "UI/RmlBridge/RmlThemedView.h"
 
 namespace Rml { class ElementDocument; }
 
@@ -38,6 +38,7 @@ namespace mu::ui::window
 
         void SetPos(int x, int y);
         void Show(bool bShow) override;
+        Rml::ElementDocument* GetFillDocument() const override { return m_RmlView.Document(); }
 
         bool UpdateMouseEvent();
         bool UpdateKeyEvent();
@@ -53,7 +54,6 @@ namespace mu::ui::window
         void RmlClickSelectTab(int tab);
         void RmlClickExit();
 
-        void ReloadRmlTheme();
 
     private:
         void BuildRmlUi();
@@ -66,6 +66,7 @@ namespace mu::ui::window
             // sourced from UI::Scaling::GetActiveTransform(), same convention as character_info.
             float rootX = 0.f, rootY = 0.f, rootScale = 1.f;
             float textPx = 0.f; // native text size in physical px (RmlRootTransform.h)
+            float panelWidth = 190.f; // #panel's width (SyncPanelWidth())
 
             int activeTab = TAB_TYPE_DARKHORSE;
             Rml::String windowTitle;
@@ -89,8 +90,11 @@ namespace mu::ui::window
             Rml::String commandsLabel;
             Rml::String skillBasicActionLabel, skillRandomAttackLabel, skillAttackWithOwnerLabel, skillAttackTargetLabel;
         };
-        RmlModelBinder<PetInfoRmlModel> m_RmlBinder;
-        Rml::ElementDocument* m_pRmlDoc = nullptr;
+
+        void BindRmlModel(Rml::DataModelConstructor& c, PetInfoRmlModel& model);
+        UI::RmlBridge::ThemedView<PetInfoRmlModel> m_RmlView{"pet_info",
+            [this](Rml::DataModelConstructor& c, PetInfoRmlModel& model) { BindRmlModel(c, model); },
+            {{"Data/Interface/RmlUi/pet_info.rml"}}};
 
     private:
         CManager* m_pNewUIMng;

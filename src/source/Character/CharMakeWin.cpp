@@ -57,10 +57,10 @@ namespace
     constexpr const wchar_t* kDarkLordLeadershipStatValue = L"25";
     constexpr int kDarkLordLeadershipTextId = 1738;
 
-    constexpr int kJobButtonHeight = 26;
-    constexpr int kJobButtonStartY = 131;
-    constexpr int kJobButtonSummonerRow = 3;
-    constexpr int kJobButtonRageFighterY = 246;
+    // Indexed by CLASS_*; each theme's char_make.rcss places the button matching [job=<key>].
+    constexpr const char* kJobKeys[MAX_CLASS] = {
+        "wizard", "knight", "elf", "dark", "dark-lord", "summoner", "rage-fighter"
+    };
     constexpr int kDescSpriteOffsetY = 355;
     constexpr int kStatSpriteOffsetY = 24;
     constexpr int kDescriptionTextOffsetX = 10;
@@ -174,13 +174,8 @@ void CCharMakeWin::Create()
     m_nSelJob = CLASS_KNIGHT;
     m_aJobState[m_nSelJob].checked = true;
 
-    // RmlUi migration -- guarded the same way every other migrated window's Create() is
-    // (re-entrant on resolution change), so the document/model/array size are set up once, ever.
-    if (!m_pRmlDoc && RmlUiRuntime::Instance().IsCreated())
-    {
-        BuildRmlUi();
-        UI::RmlBridge::RegisterForThemeReload(this, [this] { ReloadRmlTheme(); });
-    }
+    // Builds once; Create() re-runs on resolution change.
+    m_RmlView.Ensure();
 
     CSceneUICoordinator::Instance().GetNewStyleMng().AddUIObj(mu::ui::window::INTERFACE_CHAR_MAKE, this);
 
@@ -188,88 +183,68 @@ void CCharMakeWin::Create()
     Show(false);
 }
 
-void CCharMakeWin::BuildRmlUi()
+void CCharMakeWin::BindRmlModel(Rml::DataModelConstructor& c, CharMakeRmlModel& model)
 {
-    const bool modelCreated = m_RmlBinder.Create(RmlUiRuntime::Instance().GetContext(), "char_make",
-        [this](Rml::DataModelConstructor& c, CharMakeRmlModel& model)
+    model.jobs.resize(MAX_CLASS);
+    for (int i = 0; i < MAX_CLASS; ++i)
+        model.jobs[i].key = kJobKeys[i];
+
+    // RegisterStruct()/RegisterArray() run against this Create() call's own
+    // Rml::DataTypeRegister (RmlModelBinder.h), not one shared across calls -- so this
+    // must re-run in full every time this registration function runs, including on a theme
+    // switch; a guard skipping it on a later call would register nothing on
+    // that call's (fresh, otherwise-empty) register and break the c.Bind() below.
+    auto job = c.RegisterStruct<JobButtonEntry>();
+    job.RegisterMember("key", &JobButtonEntry::key);
+    job.RegisterMember("checked", &JobButtonEntry::checked);
+    job.RegisterMember("disabled", &JobButtonEntry::disabled);
+    job.RegisterMember("label", &JobButtonEntry::label);
+    c.RegisterArray<std::vector<JobButtonEntry>>();
+
+    c.Bind("jobs", &model.jobs);
+    c.Bind("dark_lord_extra", &model.darkLordExtra);
+    c.Bind("stat_label0", &model.statLabel0);
+    c.Bind("stat_label1", &model.statLabel1);
+    c.Bind("stat_label2", &model.statLabel2);
+    c.Bind("stat_label3", &model.statLabel3);
+    c.Bind("stat_label4", &model.statLabel4);
+    c.Bind("stat_value0", &model.statValue0);
+    c.Bind("stat_value1", &model.statValue1);
+    c.Bind("stat_value2", &model.statValue2);
+    c.Bind("stat_value3", &model.statValue3);
+    c.Bind("desc_title", &model.descTitle);
+    c.Bind("desc_line1", &model.descLine1);
+    c.Bind("desc_line2", &model.descLine2);
+    c.Bind("ok_label", &model.okLabel);
+    c.Bind("cancel_label", &model.cancelLabel);
+    c.Bind("char_name", &model.charName);
+
+    c.BindEventCallback("charmake_select_job",
+        [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& arguments)
         {
-            model.jobs.resize(MAX_CLASS);
-
-            // RegisterStruct()/RegisterArray() run against this Create() call's own
-            // Rml::DataTypeRegister (RmlModelBinder.h), not one shared across calls -- so this
-            // must re-run in full every time this registration function runs, including from
-            // ReloadRmlTheme(); a guard skipping it on a later call would register nothing on
-            // that call's (fresh, otherwise-empty) register and break the c.Bind() below.
-            auto job = c.RegisterStruct<JobButtonEntry>();
-            job.RegisterMember("rel_left", &JobButtonEntry::relLeft);
-            job.RegisterMember("rel_top", &JobButtonEntry::relTop);
-            job.RegisterMember("checked", &JobButtonEntry::checked);
-            job.RegisterMember("disabled", &JobButtonEntry::disabled);
-            job.RegisterMember("label", &JobButtonEntry::label);
-            c.RegisterArray<std::vector<JobButtonEntry>>();
-
-            c.Bind("jobs", &model.jobs);
-            c.Bind("dark_lord_extra", &model.darkLordExtra);
-            c.Bind("stat_label0", &model.statLabel0);
-            c.Bind("stat_label1", &model.statLabel1);
-            c.Bind("stat_label2", &model.statLabel2);
-            c.Bind("stat_label3", &model.statLabel3);
-            c.Bind("stat_label4", &model.statLabel4);
-            c.Bind("stat_value0", &model.statValue0);
-            c.Bind("stat_value1", &model.statValue1);
-            c.Bind("stat_value2", &model.statValue2);
-            c.Bind("stat_value3", &model.statValue3);
-            c.Bind("desc_title", &model.descTitle);
-            c.Bind("desc_line1", &model.descLine1);
-            c.Bind("desc_line2", &model.descLine2);
-            c.Bind("ok_label", &model.okLabel);
-            c.Bind("cancel_label", &model.cancelLabel);
-            c.Bind("char_name", &model.charName);
-
-            c.BindEventCallback("charmake_select_job",
-                [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& arguments)
-                {
-                    if (arguments.size() == 1)
-                        RmlClickJob(arguments[0].Get<int>(-1));
-                });
-            c.BindEventCallback("charmake_ok_click",
-                [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) { RmlClickOk(); });
-            c.BindEventCallback("charmake_cancel_click",
-                [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) { RmlClickCancel(); });
+            if (arguments.size() == 1)
+                RmlClickJob(arguments[0].Get<int>(-1));
         });
+    c.BindEventCallback("charmake_ok_click",
+        [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) { RmlClickOk(); });
+    c.BindEventCallback("charmake_cancel_click",
+        [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) { RmlClickCancel(); });
+}
 
-    if (modelCreated)
-    {
-        m_pRmlDoc = UI::RmlBridge::LoadThemedDocument(RmlUiRuntime::Instance().GetContext(), "Data/Interface/RmlUi/char_make.rml");
-        ApplyNameLimit();
-    }
+void CCharMakeWin::OnRmlReloaded()
+{
+    SetPosition(m_nOriginX, m_nOriginY);
+    UpdateDisplay();
 }
 
 // Caps the <input>'s own edit buffer at the same limit the native CUITextInputBox was configured
 // with. Set from here rather than written into each theme's .rml so it can't drift per theme.
 void CCharMakeWin::ApplyNameLimit()
 {
-    if (!m_pRmlDoc) return;
+    if (!m_RmlView.Document()) return;
 
-    if (Rml::Element* field = m_pRmlDoc->GetElementById("char_name"))
+    if (Rml::Element* field = m_RmlView.Document()->GetElementById("char_name"))
         field->SetAttribute("maxlength", kCharNameMaxLength);
-}
-
-void CCharMakeWin::ReloadRmlTheme()
-{
-    if (!m_pRmlDoc) return;
-
-    // See CLoginWin::ReloadRmlTheme()'s comment on why this reads m_pRmlDoc directly.
-    const bool wasVisible = m_pRmlDoc->IsVisible();
-    Rml::Context* context = RmlUiRuntime::Instance().GetContext();
-    m_RmlBinder.Destroy(context);
-    context->UnloadDocument(m_pRmlDoc);
-    m_pRmlDoc = nullptr;
-
-    BuildRmlUi();
-    SetPosition(m_nOriginX, m_nOriginY);
-    UpdateDisplay();
-    if (wasVisible) { SyncRmlModel(); if (m_pRmlDoc) m_pRmlDoc->Show(); }
 }
 
 void CCharMakeWin::Release()
@@ -279,8 +254,7 @@ void CCharMakeWin::Release()
     m_sprBg.Release();
 
     // See CLoginMainWin::PreRelease()'s identical comment.
-    if (m_pRmlDoc)
-        m_pRmlDoc->Hide();
+    m_RmlView.Hide();
 
     // Base-class visibility reset, NOT the full CCharMakeWin::Show(false) override -- that override
     // touches this window's RmlUi model/document, which aren't guaranteed built the first time this
@@ -305,37 +279,6 @@ void CCharMakeWin::SetPosition(int nXCoord, int nYCoord)
     const int baseX = nXCoord + 346;
     m_asprBack[CMW_SPR_STAT].SetPosition(baseX, nYCoord + kStatSpriteOffsetY);
 
-    constexpr int buttonHeight = kJobButtonHeight;
-    int baseY = nYCoord + kJobButtonStartY;
-
-    auto& jobs = m_RmlBinder.GetModel().jobs;
-    auto pushJobPos = [&](int classIndex, int screenX, int screenY)
-    {
-        if (jobs.empty()) return; // model not created yet (RmlUi not up) -- nothing to push
-        jobs[classIndex].relLeft = screenX - nXCoord;
-        jobs[classIndex].relTop = screenY - nYCoord;
-    };
-
-    for (int classIndex = 0; classIndex < 3; ++classIndex)
-    {
-        const int y = baseY + classIndex * buttonHeight;
-        pushJobPos(classIndex, baseX, y);
-    }
-
-    pushJobPos(CLASS_SUMMONER, baseX, baseY + kJobButtonSummonerRow * buttonHeight);
-
-    baseY = nYCoord + kJobButtonRageFighterY;
-    pushJobPos(CLASS_RAGEFIGHTER, baseX, baseY);
-
-    for (int classIndex = CLASS_DARK; classIndex <= CLASS_DARK_LORD; ++classIndex)
-    {
-        const int row = (classIndex - CLASS_DARK) + 1;
-        const int y = baseY + row * buttonHeight;
-        pushJobPos(classIndex, baseX, y);
-    }
-    if (!jobs.empty())
-        m_RmlBinder.MarkDirty("jobs");
-
     m_asprBack[CMW_SPR_DESC].SetPosition(nXCoord, nYCoord + kDescSpriteOffsetY);
 
     // RmlUi panel: only its own screen origin is still pushed here (genuine placement, same
@@ -344,9 +287,9 @@ void CCharMakeWin::SetPosition(int nXCoord, int nYCoord)
     // since none of those five ever actually varies at runtime. #panel stays fixed-px rather than
     // joining the other migrated dialogs' dp auto-fit because the live 3D character-preview
     // viewport below reads this window's own real unscaled origin (m_nOriginX/Y) directly.
-    if (m_pRmlDoc)
+    if (m_RmlView.Document())
     {
-        if (Rml::Element* panel = m_pRmlDoc->GetElementById("panel"))
+        if (Rml::Element* panel = m_RmlView.Document()->GetElementById("panel"))
         {
             panel->SetProperty("left", std::to_string(nXCoord) + "px");
             panel->SetProperty("top", std::to_string(nYCoord) + "px");
@@ -372,16 +315,16 @@ void CCharMakeWin::Show(bool bShow)
         InputTextMax[0] = MAX_USERNAME_SIZE;
 
         // The name field is a stock RmlUi <input> now (char_make.rml). It starts empty on every
-        // open, and focus comes from its own autofocus attribute via m_pRmlDoc->Show() below --
+        // open, and focus comes from its own autofocus attribute via m_RmlView.Document()->Show() below --
         // no explicit Configure()/GiveFocus() pair, and no native widget to position or hide.
-        m_RmlBinder.GetModel().charName.clear();
-        m_RmlBinder.MarkDirty("char_name");
+        m_RmlView.GetModel().charName.clear();
+        m_RmlView.MarkDirty("char_name");
     }
 
-    if (m_pRmlDoc)
+    if (m_RmlView.Document())
     {
-        if (bShow) { SyncRmlModel(); m_pRmlDoc->Show(); }
-        else       m_pRmlDoc->Hide();
+        if (bShow) { SyncRmlModel(); m_RmlView.Document()->Show(); }
+        else       m_RmlView.Document()->Hide();
     }
 }
 
@@ -476,7 +419,7 @@ void CCharMakeWin::RequestCreateCharacter()
 {
     // Hand the RmlUi-owned value to the legacy buffer the validation/submit path below still reads,
     // so CheckSpecialText()/SendCreateCharacter() keep their existing contract.
-    const std::wstring typedName = StringUtils::NarrowToWide(m_RmlBinder.GetModel().charName);
+    const std::wstring typedName = StringUtils::NarrowToWide(m_RmlView.GetModel().charName);
     wcsncpy(InputText[0], typedName.c_str(), kCharNameMaxLength);
     InputText[0][kCharNameMaxLength] = L'\0';
 
@@ -523,9 +466,9 @@ bool CCharMakeWin::Render()
 
 void CCharMakeWin::SyncRmlModel()
 {
-    if (!m_pRmlDoc) return;
+    if (!m_RmlView.Document()) return;
 
-    auto& model = m_RmlBinder.GetModel();
+    auto& model = m_RmlView.GetModel();
     auto& jobs = model.jobs;
     bool jobsDirty = false;
     for (int classIndex = 0; classIndex < MAX_CLASS; ++classIndex)
@@ -540,22 +483,22 @@ void CCharMakeWin::SyncRmlModel()
         if (entry.label != label) { entry.label = label; jobsDirty = true; }
     }
     if (jobsDirty)
-        m_RmlBinder.MarkDirty("jobs");
+        m_RmlView.MarkDirty("jobs");
 
     const bool isDarkLord = (m_nSelJob == CLASS_DARK_LORD);
     if (model.darkLordExtra != isDarkLord)
     {
         model.darkLordExtra = isDarkLord;
-        m_RmlBinder.MarkDirty("dark_lord_extra");
+        m_RmlView.MarkDirty("dark_lord_extra");
     }
 
     auto syncLabel = [this](Rml::String CharMakeRmlModel::* field, const char* boundName, const wchar_t* text)
     {
         const std::string utf8 = StringUtils::WideToNarrow(text);
-        if (m_RmlBinder.GetModel().*field != utf8)
+        if (m_RmlView.GetModel().*field != utf8)
         {
-            m_RmlBinder.GetModel().*field = utf8;
-            m_RmlBinder.MarkDirty(boundName);
+            m_RmlView.GetModel().*field = utf8;
+            m_RmlView.MarkDirty(boundName);
         }
     };
     syncLabel(&CharMakeRmlModel::statLabel0, "stat_label0", I18N::Game::Lookup(kStatLabelBaseId + 0));

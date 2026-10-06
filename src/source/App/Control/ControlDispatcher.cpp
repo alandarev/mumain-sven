@@ -40,6 +40,8 @@ const std::vector<CommandEntry>& CommandTable()
         {"screenshot", SceneRequirement::Any, &Commands::Screenshot},
         {"hotkey", SceneRequirement::Any, &Commands::Hotkey},
         {"click-ui", SceneRequirement::Any, &Commands::ClickUi},
+        {"hover-ui", SceneRequirement::Any, &Commands::HoverUi},
+        {"drag-ui", SceneRequirement::Any, &Commands::DragUi},
         {"type", SceneRequirement::Any, &Commands::Type},
         {"wheel", SceneRequirement::Any, &Commands::Wheel},
         {"drag", SceneRequirement::Any, &Commands::Drag},

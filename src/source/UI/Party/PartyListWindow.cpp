@@ -15,9 +15,11 @@
 #include "Core/Utilities/StringUtils.h"
 #include "Render/RmlUi/RmlUiRuntime.h"
 #include "UI/Party/PartyListLayout.h"
+#include "UI/Placement/WindowPlacement.h"
 #include "UI/RmlBridge/RmlDocumentVisibility.h"
 #include "UI/RmlBridge/RmlRootTransform.h"
 #include "UI/RmlBridge/RmlTheme.h"
+#include "Render/Text/CUIRenderText.h"
 
 #include <RmlUi/Core/ElementDocument.h>
 
@@ -55,7 +57,6 @@ bool CPartyListWindow::Create(CManager* pNewUIMng, int x, int y)
     SetPos(x, y);
 
     BuildRmlUi();
-    UI::RmlBridge::RegisterForThemeReload(this, [this] { ReloadRmlTheme(); });
 
     Show(true);
 
@@ -64,13 +65,14 @@ bool CPartyListWindow::Create(CManager* pNewUIMng, int x, int y)
 
 void CPartyListWindow::Release()
 {
-    UI::RmlBridge::UnregisterForThemeReload(this);
 
     if (m_pNewUIMng)
     {
         m_pNewUIMng->RemoveUIObj(this);
         m_pNewUIMng = NULL;
     }
+
+    m_RmlView.Release();
 }
 
 void CPartyListWindow::SetPos(int x, int y)
@@ -79,9 +81,11 @@ void CPartyListWindow::SetPos(int x, int y)
     m_Pos.y = y;
 }
 
-void CPartyListWindow::SetPos(int x)
+// Right-aligned to the world the open windows leave uncovered, in this window's own units.
+void CPartyListWindow::FollowUncoveredWorld()
 {
-    SetPos(x - (PARTY_LIST_WINDOW_WIDTH + 2), m_Pos.y);
+    const float right = UI::Placement::UncoveredWorldRightIn(GetLayoutTransform());
+    m_Pos.x = static_cast<int>(std::lround(right)) - (PARTY_LIST_WINDOW_WIDTH + 2);
 }
 
 int CPartyListWindow::GetSelectedCharacter()
@@ -142,6 +146,7 @@ bool CPartyListWindow::BtnProcess()
 
 bool CPartyListWindow::UpdateMouseEvent()
 {
+    FollowUncoveredWorld();
     if (!m_bActive)
         return true;
 
@@ -167,6 +172,7 @@ bool CPartyListWindow::UpdateKeyEvent()
 
 bool CPartyListWindow::Update()
 {
+    FollowUncoveredWorld();
     if (m_PendingLeave >= 0)
     {
         const int member = m_PendingLeave;
@@ -207,70 +213,50 @@ bool CPartyListWindow::CanLeave(int member) const
     return !wcscmp(Party[0].Name, Hero->ID) || !wcscmp(Party[member].Name, Hero->ID);
 }
 
-void CPartyListWindow::BuildRmlUi()
+void CPartyListWindow::BindRmlModel(Rml::DataModelConstructor& c, PartyListRmlModel& model)
 {
-    if (m_pRmlDoc || !RmlUiRuntime::Instance().IsCreated())
-        return;
+    c.Bind("root_x", &model.rootX);
+    c.Bind("root_y", &model.rootY);
+    c.Bind("root_scale", &model.rootScale);
 
-    const bool modelCreated = m_RmlBinder.Create(
-        RmlUiRuntime::Instance().GetContext(), "party_list",
-        [this](Rml::DataModelConstructor& c, PartyListRmlModel& model)
-        {
-            c.Bind("root_x", &model.rootX);
-            c.Bind("root_y", &model.rootY);
-            c.Bind("root_scale", &model.rootScale);
+    auto card = c.RegisterStruct<PartyListCardEntry>();
+    card.RegisterMember("name", &PartyListCardEntry::name);
+    card.RegisterMember("name_text_px", &PartyListCardEntry::nameTextPx);
+    card.RegisterMember("leader", &PartyListCardEntry::leader);
+    card.RegisterMember("absent", &PartyListCardEntry::absent);
+    card.RegisterMember("defense_buff", &PartyListCardEntry::defenseBuff);
+    card.RegisterMember("selected", &PartyListCardEntry::selected);
+    card.RegisterMember("show_leave", &PartyListCardEntry::showLeave);
+    card.RegisterMember("health_length", &PartyListCardEntry::healthLength);
+    card.RegisterMember("index", &PartyListCardEntry::index);
+    c.RegisterArray<std::vector<PartyListCardEntry>>();
+    c.Bind("cards", &model.cards);
 
-            auto card = c.RegisterStruct<PartyListCardEntry>();
-            card.RegisterMember("name", &PartyListCardEntry::name);
-            card.RegisterMember("name_text_px", &PartyListCardEntry::nameTextPx);
-            card.RegisterMember("leader", &PartyListCardEntry::leader);
-            card.RegisterMember("absent", &PartyListCardEntry::absent);
-            card.RegisterMember("defense_buff", &PartyListCardEntry::defenseBuff);
-            card.RegisterMember("selected", &PartyListCardEntry::selected);
-            card.RegisterMember("show_leave", &PartyListCardEntry::showLeave);
-            card.RegisterMember("health_length", &PartyListCardEntry::healthLength);
-            card.RegisterMember("index", &PartyListCardEntry::index);
-            c.RegisterArray<std::vector<PartyListCardEntry>>();
-            c.Bind("cards", &model.cards);
-
-            c.BindEventCallback("party_leave",
-                                [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& arguments)
-                                {
-                                    if (arguments.size() == 1)
-                                        m_PendingLeave = arguments[0].Get<int>(-1);
-                                });
-        });
-
-    if (modelCreated)
-        m_pRmlDoc = UI::RmlBridge::LoadThemedDocument(RmlUiRuntime::Instance().GetContext(),
-                                                      "Data/Interface/RmlUi/party_list.rml");
+    c.BindEventCallback("party_leave",
+                        [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& arguments)
+                        {
+                            if (arguments.size() == 1)
+                                m_PendingLeave = arguments[0].Get<int>(-1);
+                        });
 }
 
-void CPartyListWindow::ReloadRmlTheme()
+void CPartyListWindow::BuildRmlUi()
 {
-    if (!m_pRmlDoc)
-        return;
-
-    Rml::Context* context = RmlUiRuntime::Instance().GetContext();
-    m_RmlBinder.Destroy(context);
-    context->UnloadDocument(m_pRmlDoc);
-    m_pRmlDoc = nullptr;
-
-    BuildRmlUi();
+    m_RmlView.Ensure();
 }
 
 void CPartyListWindow::SyncRmlModel()
 {
     BuildRmlUi();
-    if (!m_pRmlDoc)
+    if (!m_RmlView.Document())
         return;
 
     const bool visible = IsVisible() && PartyNumber > 0;
-    UI::RmlBridge::SyncDocumentVisibilityInFront(m_pRmlDoc, visible);
+    UI::RmlBridge::SyncDocumentVisibilityInFront(m_RmlView.Document(), visible);
     if (!visible)
         return;
 
-    UI::RmlBridge::SyncRootTransform(m_RmlBinder, m_Pos);
+    UI::RmlBridge::SyncRootTransform(m_RmlView.Binder(), m_Pos);
     SyncCards(UI::Scaling::GetActiveTransform());
 }
 
@@ -307,7 +293,7 @@ void CPartyListWindow::SyncCards(const UI::Scaling::Transform& transform)
         cards.push_back(std::move(card));
     }
 
-    PartyListRmlModel& model = m_RmlBinder.GetModel();
+    PartyListRmlModel& model = m_RmlView.GetModel();
     const bool changed = cards.size() != model.cards.size() ||
                          !std::equal(cards.begin(), cards.end(), model.cards.begin(),
                                      [](const PartyListCardEntry& a, const PartyListCardEntry& b)
@@ -321,7 +307,7 @@ void CPartyListWindow::SyncCards(const UI::Scaling::Transform& transform)
         return;
 
     model.cards = std::move(cards);
-    m_RmlBinder.MarkDirty("cards");
+    m_RmlView.MarkDirty("cards");
 }
 
 void mu::ui::window::CPartyListWindow::RenderPartyHPOnHead()

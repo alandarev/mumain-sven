@@ -17,7 +17,7 @@
 #include "UI/Scaling/UITransform.h"
 
 #include "Render/Effects/ZzzEffect.h"
-#include "UI/Widgets/UIControls.h"
+#include "UI/Social/SocialWindowBase.h"
 #include "UI/Core/WindowManager.h"
 #include "World/MapInfra/MapManager.h"
 #include "Character/CharacterManager.h"
@@ -412,11 +412,9 @@ bool mu::ui::window::CHotKey::CanUpdateKeyEventRelatedMyInventory()
 
 bool mu::ui::window::CHotKey::CanUpdateKeyEvent()
 {
-    // Two independent "is a text field currently editing" signals -- the legacy native
-    // CUITextInputBox companion (Login/CharMake/GenericConfirmDialog::Mode::Text) and a focused
-    // RmlUi <input> on any migrated consumer. Neither flag observes the other, so hotkeys must be
-    // suppressed on either being true.
-    if (CUITextInputBox::IsAnyInputBoxFocused() || RmlUiRuntime::Instance().IsTextInputActive())
+    // A focused RmlUi <input> is the only "a text field is currently editing" signal left; the
+    // native companion it used to be paired with has no instances any more.
+    if (RmlUiRuntime::Instance().IsTextInputActive())
     {
         return false;
     }
@@ -478,8 +476,7 @@ bool mu::ui::window::CHotKey::AutoGetItem()
         CInventoryCtrl::GetPickedItem() == NULL
         && mu::ui::window::IsPress(VK_SPACE)
         && g_pChatInputBox->HaveFocus() == false
-        && !UI::Scaling::BottomHudContainsWindowPoint(WindowWidth, WindowHeight,
-                                                       g_fWindowMouseX, g_fWindowMouseY)
+        && !(g_pMainFrame != nullptr && g_pMainFrame->IsMouseOverHud())
         )
     {
         for (int i = 0; i < MAX_ITEMS; ++i)

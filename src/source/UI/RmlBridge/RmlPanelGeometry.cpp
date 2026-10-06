@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "Core/Utilities/FrameProfiler.h"
 #include "RmlPanelGeometry.h"
 
 #include "UI/Scaling/UITransform.h"
@@ -26,6 +27,62 @@ bool UI::RmlBridge::RefreshLogicalPanelSize(Rml::ElementDocument* doc, const cha
     // size.x/y are exactly the reference-space extents WindowGeometry wants.
     width = size.x;
     height = size.y;
+    return true;
+}
+
+bool UI::RmlBridge::FillPlacementSize::Set(float newWidth, float newHeight)
+{
+    if (width == newWidth && height == newHeight)
+        return false;
+    width = newWidth;
+    height = newHeight;
+    return true;
+}
+
+void UI::RmlBridge::FillPlacementSize::Apply(Rml::ElementDocument* doc, const char* panelId) const
+{
+    Rml::Element* panel = doc != nullptr ? doc->GetElementById(panelId) : nullptr;
+    if (panel == nullptr)
+        return;
+
+    const bool fill = width > 0.f && height > 0.f;
+    panel->SetClass("fill-placement", fill);
+    if (fill)
+    {
+        panel->SetProperty(Rml::PropertyId::Width, Rml::Property(width, Rml::Unit::PX));
+        panel->SetProperty(Rml::PropertyId::Height, Rml::Property(height, Rml::Unit::PX));
+    }
+    else
+    {
+        panel->RemoveProperty(Rml::PropertyId::Width);
+        panel->RemoveProperty(Rml::PropertyId::Height);
+    }
+    {
+        FRAME_PROFILE(UILayout);
+        doc->UpdateDocument();
+    }
+}
+
+void UI::RmlBridge::FillPlacementSize::Sync(Rml::ElementDocument* doc, const char* panelId) const
+{
+    if (width <= 0.f || height <= 0.f || doc == nullptr)
+        return;
+    Rml::Element* panel = doc->GetElementById(panelId);
+    if (panel != nullptr && !panel->IsClassSet("fill-placement"))
+        Apply(doc, panelId);
+}
+
+bool UI::RmlBridge::RefreshLogicalAnchorRect(Rml::ElementDocument* doc, const char* panelId, const char* anchorId,
+    const POINT& panelPos, float& x, float& y, float& width, float& height)
+{
+    float w = width;
+    float h = height;
+    if (!RefreshLogicalPanelSize(doc, anchorId, w, h))
+        return false;
+    if (!RefreshLogicalAnchorPosition(doc, panelId, anchorId, panelPos, x, y))
+        return false;
+    width = w;
+    height = h;
     return true;
 }
 

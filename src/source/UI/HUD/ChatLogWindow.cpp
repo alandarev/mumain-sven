@@ -6,15 +6,19 @@
 #include "UI/Core/WindowSystem.h"
 #include "UI/Core/WindowGeometry.h"
 #include "Audio/DSPlaySound.h"
-#include "UI/Widgets/UIControls.h"
+#include "UI/Social/SocialWindowBase.h"
 #include "Engine/Object/ZzzInterface.h"
 
 // RmlUi migration -- see ChatLogRmlModel (ChatLogWindow.h).
 #include "Render/RmlUi/RmlUiRuntime.h"
+#include "UI/RmlBridge/RmlSyncField.h"
 #include "UI/RmlBridge/RmlTheme.h"
 #include "UI/RmlBridge/RmlDocumentVisibility.h"
+#include "UI/RmlBridge/RmlWorkspaceParticipant.h"
+#include "UI/Placement/WindowPlacement.h"
 #include "UI/Scaling/UITransform.h"
 #include "Core/Utilities/StringUtils.h"
+#include "Render/Text/CUIRenderText.h"
 #include <RmlUi/Core/ElementDocument.h>
 #include <RmlUi/Core/Element.h>
 
@@ -61,7 +65,24 @@ bool mu::ui::window::CChatLogWindow::Create(CManager* pNewUIMng, int x, int y, i
     m_pNewUIMng = pNewUIMng;
     m_pNewUIMng->AddUIObj(mu::ui::window::INTERFACE_CHATLOGWINDOW, this);
     m_WndPos.x = x; m_WndPos.y = y;
+    m_HomePos = m_WndPos;
     SetNumberOfShowingLines(nShowingLines);
+
+    // A theme slot moves the log; its native bottom edge (the resize bands) follows it in HUD space.
+    UI::RmlBridge::WorkspaceDocumentOptions options;
+    options.measure = [this] { return UI::Placement::PlacementParticipant::Size{WND_WIDTH, static_cast<float>(m_WndSize.cy)}; };
+    options.placed = [this](const UI::Placement::PlacementParticipant::Box* box)
+    {
+        if (box == nullptr)
+        {
+            SetPosition(m_HomePos.x, m_HomePos.y);
+            return;
+        }
+        const auto hud = UI::Scaling::TransformForLayout(UI::Scaling::LayoutMode::Hud, WindowWidth, WindowHeight);
+        SetPosition(static_cast<int>(std::lround((box->left - hud.offsetX) / hud.scaleX)),
+                    static_cast<int>(std::lround((box->top + box->height - hud.offsetY) / hud.scaleY)));
+    };
+    UI::RmlBridge::RegisterWorkspaceDocument("chat_log", [this] { return m_RmlView.Document(); }, "panel", std::move(options));
     // No LoadImages() any more: every sprite this window used is referenced by chat_log.rcss and
     // loaded through RmlUi's own exclusive-slot path instead. CGuildInfoWindow/CGuardWindow alias
     // this class's IMAGE_LIST values but load their own copies, so nothing depended on it -- the
@@ -71,7 +92,8 @@ bool mu::ui::window::CChatLogWindow::Create(CManager* pNewUIMng, int x, int y, i
 
 void mu::ui::window::CChatLogWindow::Release()
 {
-    UI::RmlBridge::UnregisterForThemeReload(this);
+    UI::Placement::UnregisterParticipant("chat_log");
+    m_RmlView.Release();
     ResetFilter();
     ClearAll();
 
@@ -440,6 +462,8 @@ void mu::ui::window::CChatLogWindow::SetNumberOfShowingLines(int nShowingLines, 
 
     UpdateWndSize();
     UpdateScrollPos();
+    // Re-placed now, so a slot standing on the input grows upward in the same frame.
+    UI::Placement::Arrange();
 
     if (lpBoxSize)
     {
@@ -596,77 +620,61 @@ bool mu::ui::window::CChatLogWindow::Render()
     return true;
 }
 
-void mu::ui::window::CChatLogWindow::BuildRmlUi()
+void mu::ui::window::CChatLogWindow::BindRmlModel(Rml::DataModelConstructor& c, ChatLogRmlModel& model)
 {
-    // Guarded so document/model are created once, even though Update() runs every frame.
-    if (m_pRmlDoc || !RmlUiRuntime::Instance().IsCreated())
-        return;
+    // Must re-run in full on every call, including on a theme switch -- same reason
+    // CCharMakeWin::BindRmlModel() documents, so no guard here.
+    auto line = c.RegisterStruct<ChatLogLineEntry>();
+    line.RegisterMember("text", &ChatLogLineEntry::text);
+    line.RegisterMember("kind", &ChatLogLineEntry::kind);
+    line.RegisterMember("has_id", &ChatLogLineEntry::hasId);
+    c.RegisterArray<Rml::Vector<ChatLogLineEntry>>();
 
-    const bool modelCreated = m_RmlBinder.Create(RmlUiRuntime::Instance().GetContext(), "chat_log",
-        [this](Rml::DataModelConstructor& c, ChatLogRmlModel& model)
+    c.Bind("lines", &model.lines);
+    c.Bind("panel_height", &model.panelHeight);
+    c.Bind("client_height", &model.clientHeight);
+    c.Bind("back_alpha", &model.backAlpha);
+    c.Bind("show_frame", &model.showFrame);
+    c.Bind("pointed_index", &model.pointedIndex);
+    c.Bind("text_px", &model.textPx);
+    c.Bind("line_px", &model.linePx);
+    c.Bind("row_px", &model.rowPx);
+
+    // Drag the handle above the window to resize it in native's own 3-line steps. The
+    // stepping stays in UpdateMouseEvent() where the pointer's absolute Y already lives;
+    // this only arms it.
+    c.BindEventCallback("chat_resize_begin",
+        [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&)
         {
-            // Must re-run in full on every call, including from ReloadRmlTheme() -- same reason
-            // CCharMakeWin::BuildRmlUi() documents, so no guard here.
-            auto line = c.RegisterStruct<ChatLogLineEntry>();
-            line.RegisterMember("text", &ChatLogLineEntry::text);
-            line.RegisterMember("kind", &ChatLogLineEntry::kind);
-            line.RegisterMember("has_id", &ChatLogLineEntry::hasId);
-            c.RegisterArray<Rml::Vector<ChatLogLineEntry>>();
-
-            c.Bind("lines", &model.lines);
-            c.Bind("panel_height", &model.panelHeight);
-            c.Bind("client_height", &model.clientHeight);
-            c.Bind("back_color", &model.backColor);
-            c.Bind("show_frame", &model.showFrame);
-            c.Bind("pointed_index", &model.pointedIndex);
-            c.Bind("text_px", &model.textPx);
-            c.Bind("line_px", &model.linePx);
-            c.Bind("row_px", &model.rowPx);
-
-            // Drag the handle above the window to resize it in native's own 3-line steps. The
-            // stepping stays in UpdateMouseEvent() where the pointer's absolute Y already lives;
-            // this only arms it.
-            c.BindEventCallback("chat_resize_begin",
-                [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&)
-                {
-                    m_EventState = EVENT_RESIZING_BTN_DOWN;
-                });
+            m_EventState = EVENT_RESIZING_BTN_DOWN;
         });
-
-    if (modelCreated)
-    {
-        m_pRmlDoc = UI::RmlBridge::LoadThemedDocument(RmlUiRuntime::Instance().GetContext(),
-                                                     "Data/Interface/RmlUi/chat_log.rml");
-        UI::RmlBridge::RegisterForThemeReload(this, [this] { ReloadRmlTheme(); });
-    }
 }
 
-void mu::ui::window::CChatLogWindow::ReloadRmlTheme()
+void mu::ui::window::CChatLogWindow::OnRmlReloaded()
 {
-    if (!m_pRmlDoc) return; // never built -- BuildRmlUi() picks the new theme up whenever it first is
+    // The next SyncRmlModel() fills the rebuilt document.
+    m_bLinesDirty = true;
+    UI::Placement::Invalidate();
+}
 
-    Rml::Context* context = RmlUiRuntime::Instance().GetContext();
-    m_RmlBinder.Destroy(context);
-    context->UnloadDocument(m_pRmlDoc);
-    m_pRmlDoc = nullptr;
-
-    BuildRmlUi();
-    m_bLinesDirty = true; // next SyncRmlModel() repopulates the fresh document
+void mu::ui::window::CChatLogWindow::BuildRmlUi()
+{
+    m_RmlView.Ensure();
 }
 
 void mu::ui::window::CChatLogWindow::SyncDocVisibility(bool sceneAllowsShow)
 {
     m_bSceneAllowsShow = sceneAllowsShow;
-    UI::RmlBridge::SyncDocumentVisibility(m_pRmlDoc, IsVisible() && m_bShowChatLog && sceneAllowsShow);
+    UI::RmlBridge::SyncDocumentVisibility(m_RmlView.Document(), IsVisible() && m_bShowChatLog && sceneAllowsShow);
 }
 
 void mu::ui::window::CChatLogWindow::SyncRmlModel()
 {
-    if (!m_pRmlDoc) return;
+    if (!m_RmlView.Document()) return;
 
-    UI::RmlBridge::SyncDocumentVisibility(m_pRmlDoc, IsVisible() && m_bShowChatLog && m_bSceneAllowsShow);
+    UI::RmlBridge::SyncDocumentVisibility(m_RmlView.Document(), IsVisible() && m_bShowChatLog && m_bSceneAllowsShow);
 
-    ChatLogRmlModel& model = m_RmlBinder.GetModel();
+    ChatLogRmlModel& model = m_RmlView.GetModel();
 
     // Native's own UpdateWndSize(): 15 per line, plus the 3+3 scroll caps and the 2+2 edges.
     const float clientHeight = SCROLL_MIDDLE_PART_HEIGHT * static_cast<float>(m_nShowingLines);
@@ -675,30 +683,26 @@ void mu::ui::window::CChatLogWindow::SyncRmlModel()
     if (model.clientHeight != clientHeight)
     {
         model.clientHeight = clientHeight;
-        m_RmlBinder.MarkDirty("client_height");
+        m_RmlView.MarkDirty("client_height");
     }
     if (model.panelHeight != panelHeight)
     {
         model.panelHeight = panelHeight;
-        m_RmlBinder.MarkDirty("panel_height");
+        m_RmlView.MarkDirty("panel_height");
     }
     if (model.showFrame != m_bShowFrame)
     {
         model.showFrame = m_bShowFrame;
-        m_RmlBinder.MarkDirty("show_frame");
+        m_RmlView.MarkDirty("show_frame");
     }
 
-    // Frame state and the transparency setting composed into one colour: native only fills the
-    // background while the frame is shown, and the alpha is the user's own cycled setting.
-    const int alpha = m_bShowFrame
-        ? static_cast<int>(std::clamp(GetBackAlpha(), 0.0f, 1.0f) * 255.0f)
-        : 0;
-    char backColor[48] = { 0, };
-    snprintf(backColor, sizeof(backColor), "rgba(0,0,0,%d)", alpha);
-    if (model.backColor != backColor)
+    // The user's cycled transparency setting, nothing else: whether the backdrop paints at all is
+    // show_frame's job (.framed in the RCSS) and its colour is the theme's.
+    const float backAlpha = std::clamp(GetBackAlpha(), 0.0f, 1.0f);
+    if (model.backAlpha != backAlpha)
     {
-        model.backColor = backColor;
-        m_RmlBinder.MarkDirty("back_color");
+        model.backAlpha = backAlpha;
+        m_RmlView.MarkDirty("back_alpha");
     }
 
     SyncNativeLineGeometry();
@@ -714,7 +718,7 @@ void mu::ui::window::CChatLogWindow::SyncRmlModel()
 
         m_bLinesDirty = false;
         RebuildLineModel();
-        m_RmlBinder.MarkDirty("lines");
+        m_RmlView.MarkDirty("lines");
 
         // Arms a ONE-SHOT pin, consumed next frame. It must be a latch, not a per-frame call:
         // the new lines only have a resolved scroll height after RmlUi lays them out, so the pin
@@ -755,13 +759,13 @@ void mu::ui::window::CChatLogWindow::SyncNativeLineGeometry()
     const int textHeight = g_pRenderText->MeasureText(L"Q", 1).cy;
     const float dpRatio = RmlUiRuntime::Instance().GetContext()->GetDensityIndependentPixelRatio();
 
-    ChatLogRmlModel& model = m_RmlBinder.GetModel();
+    ChatLogRmlModel& model = m_RmlView.GetModel();
     auto syncFloat = [&](float ChatLogRmlModel::* field, const char* name, float value)
     {
         if (model.*field != value)
         {
             model.*field = value;
-            m_RmlBinder.MarkDirty(name);
+            m_RmlView.MarkDirty(name);
         }
     };
     syncFloat(&ChatLogRmlModel::textPx, "text_px",
@@ -772,7 +776,7 @@ void mu::ui::window::CChatLogWindow::SyncNativeLineGeometry()
 
 void mu::ui::window::CChatLogWindow::RebuildLineModel()
 {
-    ChatLogRmlModel& model = m_RmlBinder.GetModel();
+    ChatLogRmlModel& model = m_RmlView.GetModel();
     model.lines.clear();
 
     type_vector_msgs* pvecMsgs = GetMsgs(GetCurrentMsgType());
@@ -805,10 +809,10 @@ void mu::ui::window::CChatLogWindow::RebuildLineModel()
 
 bool mu::ui::window::CChatLogWindow::IsScrolledToBottom() const
 {
-    if (!m_pRmlDoc)
+    if (!m_RmlView.Document())
         return true;
 
-    Rml::Element* lines = m_pRmlDoc->GetElementById("lines");
+    Rml::Element* lines = m_RmlView.Document()->GetElementById("lines");
     if (lines == nullptr)
         return true;
 
@@ -820,10 +824,10 @@ bool mu::ui::window::CChatLogWindow::IsScrolledToBottom() const
 
 void mu::ui::window::CChatLogWindow::UpdatePointedLine()
 {
-    ChatLogRmlModel& model = m_RmlBinder.GetModel();
+    ChatLogRmlModel& model = m_RmlView.GetModel();
     int pointed = -1;
 
-    Rml::Element* lines = m_pRmlDoc ? m_pRmlDoc->GetElementById("lines") : nullptr;
+    Rml::Element* lines = m_RmlView.Document() ? m_RmlView.Document()->GetElementById("lines") : nullptr;
     if (lines != nullptr && IsVisible() && m_bShowChatLog)
     {
         // Raw window pixels, the same space GetAbsoluteOffset() reports in -- deliberately NOT
@@ -864,7 +868,7 @@ void mu::ui::window::CChatLogWindow::UpdatePointedLine()
     if (model.pointedIndex != pointed)
     {
         model.pointedIndex = pointed;
-        m_RmlBinder.MarkDirty("pointed_index");
+        m_RmlView.MarkDirty("pointed_index");
     }
 
     if (pointed >= 0 && mu::ui::window::IsPress(VK_RBUTTON))
@@ -881,7 +885,7 @@ void mu::ui::window::CChatLogWindow::UpdatePointedLine()
 
 void mu::ui::window::CChatLogWindow::ApplyLogicalScroll()
 {
-    Rml::Element* lines = m_pRmlDoc ? m_pRmlDoc->GetElementById("lines") : nullptr;
+    Rml::Element* lines = m_RmlView.Document() ? m_RmlView.Document()->GetElementById("lines") : nullptr;
     if (lines == nullptr)
         return;
 
@@ -905,7 +909,7 @@ void mu::ui::window::CChatLogWindow::ApplyLogicalScroll()
 
 void mu::ui::window::CChatLogWindow::SyncLogicalScrollFromView()
 {
-    Rml::Element* lines = m_pRmlDoc ? m_pRmlDoc->GetElementById("lines") : nullptr;
+    Rml::Element* lines = m_RmlView.Document() ? m_RmlView.Document()->GetElementById("lines") : nullptr;
     if (lines == nullptr)
         return;
 
@@ -924,10 +928,10 @@ void mu::ui::window::CChatLogWindow::SyncLogicalScrollFromView()
 
 void mu::ui::window::CChatLogWindow::ScrollToBottomIfFollowing()
 {
-    if (!m_bFollowTail || !m_pRmlDoc)
+    if (!m_bFollowTail || !m_RmlView.Document())
         return;
 
-    if (Rml::Element* lines = m_pRmlDoc->GetElementById("lines"))
+    if (Rml::Element* lines = m_RmlView.Document()->GetElementById("lines"))
         lines->SetScrollTop(lines->GetScrollHeight());
 }
 
@@ -1137,12 +1141,16 @@ bool mu::ui::window::CSystemLogWindow::Create(CManager* pNewUIMng, int x, int y)
     m_pNewUIMng->AddUIObj(mu::ui::window::INTERFACE_SYSTEMLOGWINDOW, this);
     m_WndPos.x = x;
     m_WndPos.y = y;
+    UI::RmlBridge::WorkspaceDocumentOptions options;
+    options.placedWhileHidden = true;
+    UI::RmlBridge::RegisterWorkspaceDocument("system_log", [this] { return m_RmlView.Document(); }, "panel", std::move(options));
     return true;
 }
 
 void mu::ui::window::CSystemLogWindow::Release()
 {
-    UI::RmlBridge::UnregisterForThemeReload(this);
+    UI::Placement::UnregisterParticipant("system_log");
+    m_RmlView.Release();
     ClearAll();
 
     if (m_pNewUIMng)
@@ -1232,77 +1240,59 @@ bool mu::ui::window::CSystemLogWindow::Render()
     return true;
 }
 
-void mu::ui::window::CSystemLogWindow::BuildRmlUi()
+void mu::ui::window::CSystemLogWindow::BindRmlModel(Rml::DataModelConstructor& c, SystemLogRmlModel& model)
 {
-    if (m_pRmlDoc || !RmlUiRuntime::Instance().IsCreated())
-        return;
+    // Re-registered in full on every call, including on a theme switch -- same reason
+    // CCharMakeWin::BindRmlModel() documents. Registering ChatLogLineEntry here as well as
+    // in the chat log's own model is fine: each RmlModelBinder owns its own
+    // DataTypeRegister.
+    auto line = c.RegisterStruct<ChatLogLineEntry>();
+    line.RegisterMember("text", &ChatLogLineEntry::text);
+    line.RegisterMember("kind", &ChatLogLineEntry::kind);
+    line.RegisterMember("has_id", &ChatLogLineEntry::hasId);
+    c.RegisterArray<Rml::Vector<ChatLogLineEntry>>();
 
-    const bool modelCreated = m_RmlBinder.Create(RmlUiRuntime::Instance().GetContext(), "system_log",
-        [this](Rml::DataModelConstructor& c, SystemLogRmlModel& model)
-        {
-            // Re-registered in full on every call, including from ReloadRmlTheme() -- same reason
-            // CCharMakeWin::BuildRmlUi() documents. Registering ChatLogLineEntry here as well as
-            // in the chat log's own model is fine: each RmlModelBinder owns its own
-            // DataTypeRegister.
-            auto line = c.RegisterStruct<ChatLogLineEntry>();
-            line.RegisterMember("text", &ChatLogLineEntry::text);
-            line.RegisterMember("kind", &ChatLogLineEntry::kind);
-            line.RegisterMember("has_id", &ChatLogLineEntry::hasId);
-            c.RegisterArray<Rml::Vector<ChatLogLineEntry>>();
-
-            c.Bind("lines", &model.lines);
-            c.Bind("back_color", &model.backColor);
-            c.Bind("panel_x", &model.panelX);
-            c.Bind("panel_y", &model.panelY);
-            c.Bind("row_px", &model.rowPx);
-            c.Bind("line_px", &model.linePx);
-            c.Bind("text_px", &model.textPx);
-        });
-
-    if (modelCreated)
-    {
-        m_pRmlDoc = UI::RmlBridge::LoadThemedDocument(RmlUiRuntime::Instance().GetContext(),
-                                                     "Data/Interface/RmlUi/system_log.rml");
-        UI::RmlBridge::RegisterForThemeReload(this, [this] { ReloadRmlTheme(); });
-    }
+    model.lines.resize(MAX_NUMBER_OF_LINES);
+    c.Bind("lines", &model.lines);
+    c.Bind("back_alpha", &model.backAlpha);
+    c.Bind("row_px", &model.rowPx);
+    c.Bind("line_px", &model.linePx);
+    c.Bind("text_px", &model.textPx);
 }
 
-void mu::ui::window::CSystemLogWindow::ReloadRmlTheme()
+void mu::ui::window::CSystemLogWindow::OnRmlBuilt()
 {
-    if (!m_pRmlDoc) return;
+    UI::Placement::Invalidate();
+}
 
-    Rml::Context* context = RmlUiRuntime::Instance().GetContext();
-    m_RmlBinder.Destroy(context);
-    context->UnloadDocument(m_pRmlDoc);
-    m_pRmlDoc = nullptr;
-
-    BuildRmlUi();
+void mu::ui::window::CSystemLogWindow::OnRmlReloaded()
+{
     m_bLinesDirty = true;
+}
+
+void mu::ui::window::CSystemLogWindow::BuildRmlUi()
+{
+    m_RmlView.Ensure();
 }
 
 void mu::ui::window::CSystemLogWindow::SyncDocVisibility(bool sceneAllowsShow)
 {
     m_bSceneAllowsShow = sceneAllowsShow;
-    UI::RmlBridge::SyncDocumentVisibility(m_pRmlDoc, IsVisible() && m_bShowMessages && sceneAllowsShow);
+    UI::RmlBridge::SyncDocumentVisibility(m_RmlView.Document(), IsVisible() && m_bShowMessages && sceneAllowsShow);
 }
 
 void mu::ui::window::CSystemLogWindow::SyncRmlModel()
 {
-    if (!m_pRmlDoc) return;
+    if (!m_RmlView.Document()) return;
+    TrackPanelSize();
 
     // m_bShowMessages is the input box's own "system messages" toggle; IsVisible() is the window's.
-    UI::RmlBridge::SyncDocumentVisibility(m_pRmlDoc, IsVisible() && m_bShowMessages && m_bSceneAllowsShow);
+    UI::RmlBridge::SyncDocumentVisibility(m_RmlView.Document(), IsVisible() && m_bShowMessages && m_bSceneAllowsShow);
 
-    SystemLogRmlModel& model = m_RmlBinder.GetModel();
+    SystemLogRmlModel& model = m_RmlView.GetModel();
 
-    char backColor[48] = { 0, };
-    const int alpha = static_cast<int>(std::clamp(m_fBackAlpha, 0.0f, 1.0f) * 255.0f);
-    snprintf(backColor, sizeof(backColor), "rgba(0,0,0,%d)", alpha);
-    if (model.backColor != backColor)
-    {
-        model.backColor = backColor;
-        m_RmlBinder.MarkDirty("back_color");
-    }
+    SyncField(m_RmlView.Binder(), &SystemLogRmlModel::backAlpha, "back_alpha",
+              std::clamp(m_fBackAlpha, 0.0f, 1.0f));
 
     SyncNativeGeometry();
 
@@ -1310,12 +1300,24 @@ void mu::ui::window::CSystemLogWindow::SyncRmlModel()
     {
         m_bLinesDirty = false;
         RebuildLineModel();
-        m_RmlBinder.MarkDirty("lines");
+        m_RmlView.MarkDirty("lines");
     }
 }
 
-// Native's RenderMessages(): the first line at the window position plus FONT_LEADING on both axes,
-// one row every MeasureText("Q").cy * 1.2 (logical), each line's background as tall as the text.
+void mu::ui::window::CSystemLogWindow::TrackPanelSize()
+{
+    auto* panel = m_RmlView.Document()->GetElementById("panel");
+    if (!panel)
+        return;
+    const float height = panel->GetBox().GetSize(Rml::BoxArea::Border).y;
+    if (height != m_LastPanelHeight)
+    {
+        m_LastPanelHeight = height;
+        UI::Placement::Invalidate();
+    }
+}
+
+// Retain the legacy font metrics; the workspace now owns the message area's origin.
 void mu::ui::window::CSystemLogWindow::SyncNativeGeometry()
 {
     const auto transform = UI::Scaling::GetActiveTransform();
@@ -1323,19 +1325,16 @@ void mu::ui::window::CSystemLogWindow::SyncNativeGeometry()
     const int textHeight = g_pRenderText->MeasureText(L"Q", 1).cy;
     const int rowHeight = std::max(1, static_cast<int>(static_cast<float>(textHeight) * 1.2f));
 
-    SystemLogRmlModel& model = m_RmlBinder.GetModel();
+    SystemLogRmlModel& model = m_RmlView.GetModel();
     auto syncFloat = [&](float SystemLogRmlModel::* field, const char* name, float value)
     {
         if (model.*field != value)
         {
             model.*field = value;
-            m_RmlBinder.MarkDirty(name);
+            m_RmlView.MarkDirty(name);
+            UI::Placement::Invalidate();
         }
     };
-    syncFloat(&SystemLogRmlModel::panelX, "panel_x",
-              UI::Scaling::PositionX(transform, static_cast<float>(m_WndPos.x + FONT_LEADING)));
-    syncFloat(&SystemLogRmlModel::panelY, "panel_y",
-              UI::Scaling::PositionY(transform, static_cast<float>(m_WndPos.y + FONT_LEADING)));
     syncFloat(&SystemLogRmlModel::rowPx, "row_px", UI::Scaling::SizeY(transform, static_cast<float>(rowHeight)));
     syncFloat(&SystemLogRmlModel::linePx, "line_px", UI::Scaling::SizeY(transform, static_cast<float>(textHeight)));
     syncFloat(&SystemLogRmlModel::textPx, "text_px",
@@ -1344,7 +1343,7 @@ void mu::ui::window::CSystemLogWindow::SyncNativeGeometry()
 
 void mu::ui::window::CSystemLogWindow::RebuildLineModel()
 {
-    SystemLogRmlModel& model = m_RmlBinder.GetModel();
+    SystemLogRmlModel& model = m_RmlView.GetModel();
     model.lines.clear();
     model.lines.reserve(m_vecAllMsgs.size());
 
@@ -1360,6 +1359,8 @@ void mu::ui::window::CSystemLogWindow::RebuildLineModel()
         entry.text = StringUtils::WideToNarrow(pMsgText->GetText().c_str());
         model.lines.push_back(std::move(entry));
     }
+    // Empty rows preserve the six-line workspace reservation without drawing a backdrop.
+    model.lines.resize(MAX_NUMBER_OF_LINES);
 }
 
 float mu::ui::window::CSystemLogWindow::GetLayerDepth()

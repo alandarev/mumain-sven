@@ -6,9 +6,10 @@
 #include "Engine/Object/ZzzCharacter.h"
 #include "Engine/Object/ZzzInventory.h"   // TextList / TextListColor / TextBold externs, STRP_*
 #include "GameLogic/Pets/GIPetManager.h"
-#include "UI/Widgets/UIControls.h"         // g_pRenderText macro
+#include "UI/Social/SocialWindowBase.h"         // g_pRenderText macro
 
 #include "Core/Utilities/StringUtils.h"
+#include "Render/Text/CUIRenderText.h"
 
 namespace UI::Skills::Tooltip
 {

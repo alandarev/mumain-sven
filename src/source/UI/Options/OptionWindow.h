@@ -10,9 +10,9 @@
 
 #include "UI/Core/WindowManager.h"
 #include "UI/Inventory/MyInventory.h"
-#include "UI/RmlBridge/RmlModelBinder.h"
+#include "UI/RmlBridge/RmlThemedView.h"
 
-namespace Rml { class ElementDocument; class Element; }
+namespace Rml { class ElementDocument; class Element; class Event; }
 
 namespace UI::Options
 {
@@ -70,11 +70,6 @@ namespace mu::ui::window
 
         void SetPos(int x, int y);
         void Show(bool bShow) override;
-        // Rebuilds m_pRmlDoc against whichever theme is now active -- needed because this window's
-        // own UI-Theme dropdown (Interface/UI tab) can switch the active theme from inside itself;
-        // registered with UI::RmlBridge::RegisterForThemeReload() in Create(), same as every other
-        // themed window.
-        void ReloadRmlTheme();
 
         bool UpdateMouseEvent();
         bool UpdateKeyEvent();
@@ -144,7 +139,7 @@ namespace mu::ui::window
         // Same deferral for the UI-scale row -- see m_bPendingUIScaleApply's own comment.
         void ApplyPendingUIScale();
 
-        // Invoked directly from RmlUi data-event-click/-change bindings (see BuildRmlUi()), not
+        // Invoked directly from RmlUi data-event-click/-change bindings (see BindRmlModel()), not
         // polled. RmlClickSelectTab first, matching MyQuestInfoWindow's own tab-callback ordering.
         void RmlClickSelectTab(int nTab);
         // Custom-dropdown mechanism (option_window.rml's own .option-dropdown family; RmlUi's
@@ -165,6 +160,8 @@ namespace mu::ui::window
         void RmlSoundVolumeChanged(int value);
         void RmlMusicVolumeChanged(int value);
         void RmlRenderLevelChanged(int value);
+        // The volume and effect-limit gauges' pointer and wheel events (0 sound, 1 music, 2 effects).
+        void RmlGaugeEvent(Rml::Event& event, int gauge);
         void RmlResolutionChanged(int index);
         void RmlLanguageChanged(int index);
         void RmlFontChanged(int index);
@@ -187,24 +184,19 @@ namespace mu::ui::window
 
         struct OptionRmlModel
         {
-            // window_shell's positioning/dragging extension -- always false for now (not
-            // draggable), so window_shell's own `.center-both` CSS centers this window exactly
-            // the same way it does every other window_shell consumer; no C++-computed position
-            // needed. Still bound below since window_shell.rml's template always references these
-            // three fields regardless of value. Re-enable by setting positioned=true and rootX/
-            // rootY to real device pixels (see window_shell.rml's own comment on why NOT
-            // UI::Scaling::GetActiveTransform()'s older reference-resolution convention) if
-            // dragging comes back.
+            // window_shell's positioning extension -- always false: `.center-both` centres this
+            // window, and a drag (MakeDraggable()) moves it for the session without
+            // a C++-computed position. Still bound since window_shell.rml's template always
+            // references these three fields.
             bool positioned = false;
             float rootX = 0.f, rootY = 0.f;
 
             bool hasTitle = true;
             Rml::String title;
-            // No closeLabel/close_label field here -- the close button isn't part of this
-            // document's declarative markup anymore, see m_pCloseButtonEl's own comment.
+            Rml::String closeLabel;
 
             // Tab state -- bound/diffed first, matching MyQuestInfoWindow's own convention for its
-            // own activeTab field (see BuildRmlUi()/SyncRmlModel()). 0=Gameplay, 1=Audio, 2=Video,
+            // own activeTab field (see BindRmlModel()/SyncRmlModel()). 0=Gameplay, 1=Audio, 2=Video,
             // 3=Graphics, 4=Interface/UI, 5=General.
             int activeTab = 0;
             Rml::String tabGameplayLabel;
@@ -241,13 +233,10 @@ namespace mu::ui::window
             Rml::String windowedModeLabel;
 
             int soundVolume = 0;
-            int soundVolumeMax = 10;
             Rml::String soundVolumeLabel;
             int musicVolume = 0;
-            int musicVolumeMax = 10;
             Rml::String musicVolumeLabel;
             int renderLevel = 4;
-            int renderLevelMax = 5;
             Rml::String renderLevelLabel;
 
             std::vector<Rml::String> resolutionLabels;
@@ -305,29 +294,18 @@ namespace mu::ui::window
             // tooltips use).
             Rml::String uiScaleTooltip;
         };
-        RmlModelBinder<OptionRmlModel> m_RmlBinder;
-        Rml::ElementDocument* m_pRmlDoc = nullptr;
-        // Cached at BuildRmlUi() time -- UpdateMouseEvent()'s hit-test reads this element's own
+        void BindRmlModel(Rml::DataModelConstructor& c, OptionRmlModel& model);
+        void OnRmlBuilt();
+        UI::RmlBridge::ThemedView<OptionRmlModel> m_RmlView{"option_window",
+            [this](Rml::DataModelConstructor& c, OptionRmlModel& model) { BindRmlModel(c, model); },
+            {{"Data/Interface/RmlUi/option_window.rml"}},
+            {.afterBuild = [this] { OnRmlBuilt(); }, .beforeUnload = [this] { m_pPanelEl = nullptr; }}};
+        // Cached after every build -- UpdateMouseEvent()'s hit-test reads this element's own
         // live rendered position/size (GetAbsoluteOffset()/GetOffsetWidth()/GetOffsetHeight())
         // rather than approximating them from hardcoded dp constants, so the hit-test rect can
         // never drift from wherever `.center-both` (or a future positioned/dragged mode) actually
         // put the panel, in either theme.
         Rml::Element* m_pPanelEl = nullptr;
-
-        // Built directly in C++ (BuildRmlUi()) inside window_shell.rml's own #window_shell_footer,
-        // not authored as `{{close_label}}` markup in option_window.rml -- a `{{}}`-bound text node
-        // that gets moved to a new parent via UI::RmlBridge::PromoteToWindowShellFooter() (as this
-        // element originally was) never renders its text: the DataView responsible for that
-        // substitution is only created once, at the original element's initial XML parse, and
-        // RmlUi's own re-attach path (Element::SetDataModel() -> ApplyDataViewsControllers()) only
-        // rescans an element's *attributes* for new bindings, never plain text content -- so the
-        // text-interpolation view is simply never recreated after the move (found live: the button
-        // rendered with no label at all, in both themes). Building it here instead sidesteps the
-        // whole DataView-survives-a-reparent question -- its label is set imperatively via
-        // SetInnerRML() in SyncRmlModel() (diffed against m_lastCloseButtonLabel), and its click is
-        // a plain Rml::EventListener (see BuildRmlUi()'s own comment), not a data-event-click.
-        Rml::Element* m_pCloseButtonEl = nullptr;
-        Rml::String m_lastCloseButtonLabel;
 
     private:
         CManager* m_pNewUIMng;
@@ -380,7 +358,7 @@ namespace mu::ui::window
         int m_iUIScaleIndex;
         // A theme switch destroys and rebuilds every registered RmlUi document (including this
         // window's own, via UI::RmlBridge::ReloadAllThemedDocuments()) -- doing that synchronously
-        // inside RmlThemeChanged() would tear down m_pRmlDoc while still unwinding through RmlUi's
+        // inside RmlThemeChanged() would tear down the document while still unwinding through RmlUi's
         // own event-dispatch call stack for the very "change" event that triggered it. Deferred
         // instead: RmlThemeChanged() only records the request; ApplyPendingThemeSwitch() (called
         // from Update(), outside any RmlUi event) performs it on the next tick.
@@ -391,7 +369,7 @@ namespace mu::ui::window
         // three contexts and pumps SDL while settling the window -- too much to run while still
         // unwinding through RmlUi's own dispatch of the option click that asked for it. Deferred to
         // Update() for the same reason m_bPendingThemeSwitch is, even though this path (unlike a
-        // theme switch) does not itself destroy m_pRmlDoc.
+        // theme switch) does not itself destroy the document.
         bool m_bPendingUIScaleApply = false;
         int m_iPendingUIScalePercent = 0;
 

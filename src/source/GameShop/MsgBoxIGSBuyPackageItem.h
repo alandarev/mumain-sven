@@ -6,14 +6,26 @@
 
 #ifdef KJH_ADD_INGAMESHOP_UI_SYSTEM
 
-#include "UI/Widgets/UIControls.h"
 #include "UI/Dialogs/MessageBox.h"
 #include "UI/Dialogs/CommonMessageBox.h"
 #include "UI/Widgets/Window/Button.h"
 #include "GameShop/ShopListManager/ShopPackage.h"
 
+
 using namespace SEASON3B;
 using namespace mu::ui::window;
+
+#include "UI/RmlBridge/RmlThemedView.h"
+
+#include <RmlUi/Core/Types.h>
+
+#include <string>
+#include <vector>
+
+namespace Rml
+{
+class ElementDocument;
+}
 
 class CMsgBoxIGSBuyPackageItem : public CMessageBoxBase, public I3DRenderObj
 {
@@ -99,7 +111,28 @@ private:
     CMessageBoxButton m_BtnBuy;
     CMessageBoxButton m_BtnPresent;
     CMessageBoxButton m_BtnCancel;
-    CUIBuyingListBox m_PackageInfo;
+    // The description, one wrapped line per entry, in arrival order. igs_buy_package.rml
+    // draws them and RmlUi owns the scrolling.
+    std::vector<std::wstring> m_DescriptionLines;
+
+    struct DescriptionLine
+    {
+        Rml::String text;
+        bool operator==(const DescriptionLine&) const = default;
+    };
+    struct BuyPackageRmlModel
+    {
+        float rootX = 0.f, rootY = 0.f, rootScale = 1.f;
+        float textPx = 0.f;
+        std::vector<DescriptionLine> descriptionLines;
+    };
+    void BindRmlModel(Rml::DataModelConstructor& c, BuyPackageRmlModel& model);
+    UI::RmlBridge::ThemedView<BuyPackageRmlModel> m_RmlView{"igs_buy_package",
+        [this](Rml::DataModelConstructor& c, BuyPackageRmlModel& model) { BindRmlModel(c, model); },
+        {{"Data/Interface/RmlUi/igs_buy_package.rml"}}};
+
+    void BuildRmlUi();
+    void SyncRmlModel();
 
     int m_iPackageSeq;
     int m_iDisplaySeq;

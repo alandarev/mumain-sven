@@ -210,6 +210,7 @@ const std::vector<std::string>& CommandNames()
         "party",       "halt",          "hotkey", "click-ui", "type",   "inject",   "net",
         "ui",          "window",        "hover",  "render",   "wheel",  "drag",     "select-slot",
         "server-list", "select-server",
+        "drag-ui", "hover-ui",
     };
     return names;
 }

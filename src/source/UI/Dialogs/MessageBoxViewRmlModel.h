@@ -17,8 +17,8 @@ struct MessageBoxViewLineEntry
     float textPx = 0.f; // physical px; 0: the font's native size (text_px / bold_text_px)
 };
 
-// A message box button (CMessageBoxButton): its art stretched to its box, its label at the
-// original's whole-unit centre.
+// A message box button (CMessageBoxButton): its art stretched to its box, its label centred on it.
+// A theme-placed button's box is the theme's, and its left/top/width/height go unused.
 struct MessageBoxViewButtonEntry
 {
     Rml::String label;
@@ -27,32 +27,39 @@ struct MessageBoxViewButtonEntry
     float top = 0.f;
     float width = 0.f;
     float height = 0.f;
-    float labelLeft = 0.f; // reference px in the button
-    float labelTop = 0.f;
     bool enabled = true;
     bool okArt = false; // newui_button_ok's lettered art, no label
 };
 
-// A line of a list inside the box (CUIUnmixgemList): its 13 px row box, filled when selected.
+// A selectable jewel bundle in the message box.
 struct MessageBoxViewListRowEntry
 {
     Rml::String text;
-    float top = 0.f; // reference px in the box
+    int index = -1;
     bool selected = false;
+    bool operator==(const MessageBoxViewListRowEntry&) const = default;
+};
+
+// One strip of the message box's frame: "middle" or "divider".
+struct MessageBoxViewStripEntry
+{
+    Rml::String kind;
 };
 
 struct MessageBoxViewRmlModel
 {
     // The message box manager's layout -- UI::Scaling::GetActiveTransform() while it runs.
     float rootX = 0.f, rootY = 0.f, rootScale = 1.f;
+    // The box's kind, #panel's class: a theme places that kind's placedButtons. Empty for most.
+    Rml::String kind;
     float textPx = 0.f;     // native normal text size in physical px
     float boldTextPx = 0.f; // native bold text size in physical px
 
     int middleCount = 0;           // 15-unit middle strips between the 67-unit top and 50-unit bottom
     float backHeight = 0.f;        // the newui_msgbox_back fill from y 2, 222 wide
-    std::vector<float> middles;    // each middle strip's top
-    float bottomTop = 0.f;         // newui_msgbox_bottom's top
-    float dividerTop = -1.f;       // newui_Message_Line (223 x 21) between the strips; negative: none
+    // The frame's strips in order, each saying only what it is; the theme stacks them and owns
+    // every height. "middle" is a plain strip, "divider" the rule between two sections.
+    std::vector<MessageBoxViewStripEntry> strips;
     std::vector<float> separators; // newui_separate_line (205 x 2) tops, 13 from the left
     std::vector<MessageBoxViewLineEntry> lines;
     // CProgressMsgBox's bar: newui_Bar_switch01 (160 x 18) centred at progressTop, the
@@ -61,14 +68,9 @@ struct MessageBoxViewRmlModel
     float progressTop = 0.f;
     float progressWidth = 0.f;
     std::vector<MessageBoxViewButtonEntry> buttons;
+    std::vector<MessageBoxViewButtonEntry> placedButtons;
 
-    // CGemIntegrationDisjointMsgBox's list (CUIUnmixgemList): its box, rows and old-style
-    // (win_scrollbar) scroll bar, reference px in the box, drawn over everything else.
     bool listShown = false;
-    float listLeft = 0.f, listTop = 0.f, listWidth = 0.f, listHeight = 0.f;
     std::vector<MessageBoxViewListRowEntry> listRows;
-    bool listUpPressed = false, listDownPressed = false;
-    float listTrackTop = 0.f, listTrackHeight = 0.f;
-    float listThumbTop = 0.f, listThumbHeight = 0.f, listThumbBottomTop = 0.f;
 };
 } // namespace mu::ui::window

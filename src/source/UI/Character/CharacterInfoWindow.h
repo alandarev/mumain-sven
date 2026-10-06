@@ -4,7 +4,7 @@
 
 #include "UI/Core/WindowObject.h"
 #include "UI/Core/WindowManager.h"
-#include "UI/RmlBridge/RmlModelBinder.h"
+#include "UI/RmlBridge/RmlThemedView.h"
 #include "UI/Dialogs/MessageBox.h"
 #include "UI/Inventory/MyInventory.h"
 
@@ -71,6 +71,7 @@ namespace mu::ui::window
         bool Create(CManager* pNewUIMng, int x, int y);
         void Release();
         void SetPos(int x, int y);
+        Rml::ElementDocument* GetFillDocument() const override { return m_RmlView.Document(); }
         void Show(bool bShow) override;
         bool UpdateMouseEvent();
         bool UpdateKeyEvent();
@@ -78,7 +79,6 @@ namespace mu::ui::window
         bool Render();
         float GetLayerDepth();	//. 5.1f
         void OpenningProcess();
-        void ReloadRmlTheme();
 
         // Invoked directly from RmlUi data-event-click bindings (see Create()), not polled.
         void RmlClickIncreaseStat(int stat);
@@ -100,7 +100,9 @@ namespace mu::ui::window
         struct StatLine
         {
             Rml::String text;
-            Rml::String color; // "rgba(r,g,b,a)"
+            // Why the row reads the way it does: "base", "boosted" by an item or set, or
+            // "buffed" by a consumable. Each theme's character_info.rcss owns the colours.
+            Rml::String source;
         };
 
         void BuildRmlUi();
@@ -114,12 +116,15 @@ namespace mu::ui::window
             // Movable window (SetPos(), collision-shuffled by PanelColumnX), not HUD-anchored --
             // sourced from UI::Scaling::GetActiveTransform(), same convention as my_quest_info.
             float rootX = 0.f, rootY = 0.f, rootScale = 1.f;
+            float panelWidth = 190.f;
             float textPx = 0.f; // UI::RmlBridge::SyncNativeTextSize()
 
             bool canLevelUp = false;   // CharacterAttribute->LevelUpPoint > 0
             bool showCharisma = false; // base class == CLASS_DARK_LORD
 
-            Rml::String nameText, nameColor;
+            // CHARACTER::PK, not a colour: the theme decides what each outlaw level looks like.
+            Rml::String nameText;
+            int pkLevel = 0;
             Rml::String classNameText, serverNameText;
             float classNameOpacity = 1.f, serverNameOpacity = 0.f;
 
@@ -130,11 +135,14 @@ namespace mu::ui::window
             Rml::String pointText;
 
             Rml::String strLabel, agiLabel, vitLabel, eneLabel, cmdLabel;
-            Rml::String strValueText, strValueColor;
-            Rml::String agiValueText, agiValueColor;
-            Rml::String vitValueText, vitValueColor;
-            Rml::String eneValueText, eneValueColor;
-            Rml::String cmdValueText, cmdValueColor;
+            // *ValueSource is where the attribute's current total comes from -- "potion" while a
+            // Secret Potion is up, "boosted" when items or a buff add to it, "base" otherwise.
+            // What each of the three looks like is the theme's to decide.
+            Rml::String strValueText, strValueSource;
+            Rml::String agiValueText, agiValueSource;
+            Rml::String vitValueText, vitValueSource;
+            Rml::String eneValueText, eneValueSource;
+            Rml::String cmdValueText, cmdValueSource;
 
             std::vector<StatLine> strLines;
             std::vector<StatLine> agiLines;
@@ -146,8 +154,11 @@ namespace mu::ui::window
             // Set once at Create() -- static tooltip text, no per-frame update needed.
             Rml::String exitTooltip, questTooltip, petTooltip, masterLevelTooltip;
         };
-        RmlModelBinder<CharacterInfoRmlModel> m_RmlBinder;
-        Rml::ElementDocument* m_pRmlDoc = nullptr;
+
+        void BindRmlModel(Rml::DataModelConstructor& c, CharacterInfoRmlModel& model);
+        UI::RmlBridge::ThemedView<CharacterInfoRmlModel> m_RmlView{"character_info",
+            [this](Rml::DataModelConstructor& c, CharacterInfoRmlModel& model) { BindRmlModel(c, model); },
+            {{"Data/Interface/RmlUi/character_info.rml"}}};
 
     private:
         CManager* m_pNewUIMng;

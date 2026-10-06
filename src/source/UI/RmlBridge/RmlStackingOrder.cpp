@@ -30,6 +30,8 @@ struct DocumentPlacement
 // (_bg) documents alike, and the scene whose windows the document belongs to.
 constexpr DocumentPlacement Placements[] = {
     {"login_scene.rml", BeforeWindowsDepth, AnyScene},
+    // Never drawn: it only lays out where windows go.
+    {"workspace.rml", BeforeWindowsDepth, AnyScene},
     {"map_name.rml", BeforeWindowsDepth, MainScene},
     {"buff_strip.rml", 0.95f, MainScene},
     {"world_labels.rml", 1.0f, MainScene},
@@ -106,27 +108,40 @@ constexpr DocumentPlacement Placements[] = {
     {"character_info.rml", 5.1f, MainScene},
     {"mu_helper_skill_picker.rml", 5.2f, MainScene},
     {"party_list.rml", 5.4f, MainScene},
-    {"friend_window.rml", 6.0f, MainScene}, // every friends window: CNewUIFriendWindow drew them all
+    {"friend_shell.rml", 6.0f, MainScene},
+    {"chat_room.rml", 6.0f, MainScene},
+    {"letter_read.rml", 6.0f, MainScene},
+    {"letter_write.rml", 6.0f, MainScene},
     {"system_log.rml", 6.05f, MainScene},
     {"chat_log.rml", 6.1f, MainScene},
     {"chat_input.rml", 6.2f, MainScene},
     {"item_explanation.rml", 6.5f, MainScene},
     {"set_item_explanation.rml", 6.6f, MainScene},
+    // CSlideWindow::GetLayerDepth() is 1.91 -- it sits under the windows, as the band did.
+    {"slide_notice.rml", 1.91f, MainScene},
     {"mini_map.rml", 8.1f, MainScene},
     {"help_window.rml", 8.3f, MainScene},
     {"move_command.rml", 8.3f, MainScene},
     {"crywolf.rml", 10.0f, MainScene},
+    // CInGameShop::GetLayerDepth(): the shop sits above crywolf and below kanturu_enter.
+    {"in_game_shop.rml", 10.08f, MainScene},
+    {"in_game_shop_bg.rml", 10.08f, MainScene},
+    // The shop's own buy dialog, above the shop it opens from.
+    {"igs_buy_package.rml", 10.09f, MainScene},
+    {"igs_buy_select.rml", 10.09f, MainScene},
+    {"igs_send_gift.rml", 10.09f, MainScene},
     {"kanturu_enter.rml", 10.1f, MainScene},
     {"master_level.rml", 10.1f, MainScene},
     {"master_level_bg.rml", 10.1f, MainScene},
     {"cursed_temple_result.rml", 10.2f, MainScene},
     {"cursed_temple_enter.rml", 10.3f, MainScene},
     {"window_menu.rml", 10.4f, MainScene},
-    {"option_window.rml", 10.5f, MainScene},
     {"main_frame.rml", 10.6f, MainScene},
-    {"main_frame_bg.rml", 10.6f, MainScene},
     {"command_window.rml", 10.65f, MainScene}, // UI::Layout::ForegroundPanelLayerDepth
     {"chat_command.rml", 10.65f, MainScene},
+    // The original drew it at 10.5, under the HUD; the modern theme's settings screen covers the
+    // whole screen, HUD included. Still under the tooltips and message boxes.
+    {"option_window.rml", 10.67f, MainScene},
     // The original drew each tooltip at its owner's depth (item tooltips at 5.5), where the
     // chat log, the friends window, the full map and the HUD hid its rows: an original
     // defect. Every tooltip draws above the windows instead, still under the message boxes.
@@ -151,6 +166,7 @@ constexpr DocumentPlacement Placements[] = {
     {"loading.rml", LoadingScreenDepth, AnyScene},
     {"title_scene.rml", LoadingScreenDepth, AnyScene},
     {"reconnect_dialog.rml", ReconnectDialogDepth, AnyScene},
+    {"diagnostics.rml", ReconnectDialogDepth, AnyScene},
 };
 } // namespace
 

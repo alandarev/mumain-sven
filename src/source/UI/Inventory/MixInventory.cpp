@@ -28,6 +28,8 @@
 #include "Core/Utilities/StringUtils.h"
 #include <RmlUi/Core/ComputedValues.h>
 #include <algorithm>
+#include <array>
+#include "UI/RmlBridge/RmlSyncField.h"
 #include <RmlUi/Core/ElementDocument.h>
 #include <RmlUi/Core/ElementUtilities.h>
 
@@ -81,162 +83,125 @@ bool CMixInventory::Create(CManager* pNewUIMng, int x, int y)
 
     SetPos(x, y);
 
-    LoadImages();
 
     m_pNewInventoryCtrl->GetSquareColorNormal(m_fInventoryColor);
     m_pNewInventoryCtrl->GetSquareColorWarning(m_fInventoryWarningColor);
 
     BuildRmlUi();
-    UI::RmlBridge::RegisterForThemeReload(this, [this] { ReloadRmlTheme(); });
 
     Show(false);
 
     return true;
 }
 
-void CMixInventory::BuildRmlUi()
+void CMixInventory::BindRmlModel(Rml::DataModelConstructor& c, MixInventoryRmlModel& model)
 {
-    // Guarded so the document/model are created once, even if Create() re-runs on resolution change.
-    if (!m_pRmlDoc && RmlUiRuntime::Instance().IsCreated())
-    {
-        const bool modelCreated = m_RmlBinder.Create(RmlUiRuntime::Instance().GetContext(), "mix_inventory",
-            [this](Rml::DataModelConstructor& c, MixInventoryRmlModel& model)
-            {
-                c.Bind("root_x", &model.rootX);
-                c.Bind("root_y", &model.rootY);
-                c.Bind("root_scale", &model.rootScale);
-                c.Bind("text_px", &model.textPx);
-                c.Bind("title", &model.title);
-                c.Bind("mix_visible", &model.mixVisible);
-                c.Bind("mix_locked", &model.mixLocked);
-                c.Bind("mix_tooltip", &model.mixTooltip);
+    c.Bind("root_x", &model.rootX);
+    c.Bind("root_y", &model.rootY);
+    c.Bind("root_scale", &model.rootScale);
+    c.Bind("panel_width", &model.panelWidth);
+    c.Bind("text_px", &model.textPx);
+    c.Bind("title", &model.title);
+    c.Bind("mix_visible", &model.mixVisible);
+    c.Bind("mix_locked", &model.mixLocked);
+    c.Bind("mix_tooltip", &model.mixTooltip);
 
-                c.Bind("show_tax_rate", &model.showTaxRate);
-                c.Bind("tax_rate_text", &model.taxRateText);
-                c.Bind("tax_rate_fit", &model.taxRateFit);
+    c.Bind("show_tax_rate", &model.showTaxRate);
+    c.Bind("tax_rate_text", &model.taxRateText);
+    c.Bind("tax_rate_fit", &model.taxRateFit);
 
-                c.Bind("show_recipe", &model.showRecipe);
-                c.Bind("recipe_line1", &model.recipeLine1);
-                c.Bind("recipe_line2", &model.recipeLine2);
-                c.Bind("show_recipe_line2", &model.showRecipeLine2);
-                c.Bind("recipe_color", &model.recipeColor);
+    c.Bind("show_recipe", &model.showRecipe);
+    c.Bind("recipe_line1", &model.recipeLine1);
+    c.Bind("recipe_line2", &model.recipeLine2);
+    c.Bind("show_recipe_line2", &model.showRecipeLine2);
+    c.Bind("recipe_ready", &model.recipeReady);
 
-                c.Bind("show_success_rate", &model.showSuccessRate);
-                c.Bind("success_rate_text", &model.successRateText);
-                c.Bind("success_rate_color", &model.successRateColor);
+    c.Bind("show_success_rate", &model.showSuccessRate);
+    c.Bind("success_rate_text", &model.successRateText);
+    c.Bind("success_boosted", &model.successBoosted);
 
-                c.Bind("show_required_zen", &model.showRequiredZen);
-                c.Bind("required_zen_text", &model.requiredZenText);
+    c.Bind("show_required_zen", &model.showRequiredZen);
+    c.Bind("required_zen_text", &model.requiredZenText);
 
-                c.Bind("show_prediction", &model.showPrediction);
-                c.Bind("prediction_text", &model.predictionText);
+    c.Bind("show_prediction", &model.showPrediction);
+    c.Bind("prediction_text", &model.predictionText);
 
-                auto mixLine = c.RegisterStruct<MixLine>();
-                mixLine.RegisterMember("text", &MixLine::text);
-                mixLine.RegisterMember("color", &MixLine::color);
-                mixLine.RegisterMember("top", &MixLine::top);
-                mixLine.RegisterMember("align_left", &MixLine::alignLeft);
-                mixLine.RegisterMember("fit", &MixLine::fit);
-                c.RegisterArray<std::vector<MixLine>>();
-                c.Bind("source_lines", &model.sourceLines);
-                c.Bind("status_lines", &model.statusLines);
-                c.Bind("advice_lines", &model.adviceLines);
-                c.Bind("description_lines", &model.descriptionLines);
+    auto mixLine = c.RegisterStruct<MixLine>();
+    mixLine.RegisterMember("text", &MixLine::text);
+    mixLine.RegisterMember("kind", &MixLine::kind);
+    mixLine.RegisterMember("row", &MixLine::row);
+    mixLine.RegisterMember("align_left", &MixLine::alignLeft);
+    mixLine.RegisterMember("fit", &MixLine::fit);
+    c.RegisterArray<std::vector<MixLine>>();
+    c.Bind("source_lines", &model.sourceLines);
+    c.Bind("status_lines", &model.statusLines);
+    c.Bind("advice_lines", &model.adviceLines);
+    c.Bind("description_lines", &model.descriptionLines);
+    c.Bind("descriptions_lowered", &model.descriptionsLowered);
 
-                c.Bind("show_socket_prompt", &model.showSocketPrompt);
-                c.Bind("socket_prompt_text", &model.socketPromptText);
+    c.Bind("show_socket_prompt", &model.showSocketPrompt);
+    c.Bind("socket_prompt_text", &model.socketPromptText);
 
-                c.Bind("show_socket_list", &model.showSocketList);
-                c.Bind("socket_list_left", &model.socketListLeft);
-                c.Bind("socket_list_top", &model.socketListTop);
-                c.Bind("socket_list_width", &model.socketListWidth);
-                c.Bind("socket_list_height", &model.socketListHeight);
-                auto socketLine = c.RegisterStruct<SocketListLine>();
-                socketLine.RegisterMember("text", &SocketListLine::text);
-                socketLine.RegisterMember("top", &SocketListLine::top);
-                socketLine.RegisterMember("selected", &SocketListLine::selected);
-                c.RegisterArray<std::vector<SocketListLine>>();
-                c.Bind("socket_lines", &model.socketLines);
-                c.Bind("socket_scroll_top", &model.socketScrollTop);
-                c.Bind("socket_scroll_height", &model.socketScrollHeight);
-                c.Bind("socket_thumb_top", &model.socketThumbTop);
-                c.Bind("socket_thumb_dragged", &model.socketThumbDragged);
+    c.Bind("show_socket_list", &model.showSocketList);
+    auto socketLine = c.RegisterStruct<SocketListLine>();
+    socketLine.RegisterMember("text", &SocketListLine::text);
+    socketLine.RegisterMember("index", &SocketListLine::index);
+    socketLine.RegisterMember("selected", &SocketListLine::selected);
+    c.RegisterArray<std::vector<SocketListLine>>();
+    c.Bind("socket_lines", &model.socketLines);
 
-                c.BindEventCallback("mix_inventory_mix_click",
-                    [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&)
-                    {
-                        // Mirrors the old BtnProcess()'s MIX_FINISHED gate (native button was
-                        // simply not rendered/updated in that state; the RmlUi button is hidden
-                        // via mix_visible for the same reason, this is defense in depth).
-                        if (GetMixState() == MIX_FINISHED)
-                            return;
-                        Mix();
-                    });
-            });
-
-        if (modelCreated)
-            m_pRmlDoc = UI::RmlBridge::LoadThemedDocument(RmlUiRuntime::Instance().GetContext(), "Data/Interface/RmlUi/mix_inventory.rml");
-
-        // Frame background panel uses the background context -- see MixInventoryBgRmlModel (MixInventory.h).
-        if (Rml::Context* bgContext = RmlUiRuntime::Instance().GetBackgroundContext())
+    c.BindEventCallback("mix_inventory_select_socket",
+        [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& arguments)
         {
-            const bool bgModelCreated = m_BgRmlBinder.Create(bgContext, "mix_inventory_bg",
-                [](Rml::DataModelConstructor& c, MixInventoryBgRmlModel& model)
-                {
-                    c.Bind("root_x", &model.rootX);
-                    c.Bind("root_y", &model.rootY);
-                    c.Bind("root_scale", &model.rootScale);
-                });
-            if (bgModelCreated)
-            {
-                // Starts hidden -- CreateBackgroundDocument() no longer Show()s eagerly (see its
-                // own comment, RmlTheme.h); SyncRmlModel() below is what shows/hides it.
-                m_pRmlBgDoc = UI::RmlBridge::CreateBackgroundDocument("Data/Interface/RmlUi/mix_inventory_bg.rml");
-            }
-        }
+            if (arguments.size() == 1)
+                SelectSocket(arguments[0].Get<int>(-1));
+        });
 
-        // Not Show()n here -- m_pRmlDoc's visibility follows this window's own Show()/Hide() via
-        // SyncRmlModel(), not an eager Show() at Create() time.
-    }
+    c.BindEventCallback("mix_inventory_mix_click",
+        [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&)
+        {
+            // Mirrors the old BtnProcess()'s MIX_FINISHED gate (native button was
+            // simply not rendered/updated in that state; the RmlUi button is hidden
+            // via mix_visible for the same reason, this is defense in depth).
+            if (GetMixState() == MIX_FINISHED)
+                return;
+            Mix();
+        });
 }
 
-void CMixInventory::ReloadRmlTheme()
+void CMixInventory::BindRmlBgModel(Rml::DataModelConstructor& c, MixInventoryBgRmlModel& model)
 {
-    if (!m_pRmlDoc) return; // never opened -- BuildRmlUi() will simply pick up the new theme whenever it first is
+    c.Bind("root_x", &model.rootX);
+    c.Bind("root_y", &model.rootY);
+    c.Bind("root_scale", &model.rootScale);
+}
 
-    Rml::Context* context = RmlUiRuntime::Instance().GetContext();
-    m_RmlBinder.Destroy(context);
-    context->UnloadDocument(m_pRmlDoc);
-    m_pRmlDoc = nullptr;
+void CMixInventory::OnRmlReloaded()
+{
+    m_SocketTextDirty = true;
+}
 
-    if (m_pRmlBgDoc)
-    {
-        if (Rml::Context* bgContext = RmlUiRuntime::Instance().GetBackgroundContext())
-        {
-            m_BgRmlBinder.Destroy(bgContext);
-            bgContext->UnloadDocument(m_pRmlBgDoc);
-        }
-        m_pRmlBgDoc = nullptr;
-    }
-
-    BuildRmlUi();
-    // Next frame's Update()/SyncRmlModel() self-corrects live state/visibility for both docs.
+void CMixInventory::BuildRmlUi()
+{
+    m_RmlView.Ensure();
+    m_RmlBgView.Ensure();
 }
 
 void CMixInventory::Release()
 {
-    UnloadImages();
 
     SAFE_DELETE(m_pNewInventoryCtrl);
 
     if (m_pNewUIMng)
     {
         m_pNewUIMng->RemoveUIObj(this);
-        UI::RmlBridge::UnregisterForThemeReload(this);
         m_pNewUIMng = NULL;
     }
     if (g_pNewUI3DRenderMng)
         g_pNewUI3DRenderMng->DeleteUI2DEffectObject(UI2DEffectCallback);
+
+    m_RmlView.Release();
+    m_RmlBgView.Release();
 }
 
 void CMixInventory::SetMixState(int iMixState)
@@ -322,7 +287,7 @@ bool CMixInventory::ClosingProcess()
         break;
     case SEASON3A::MIXTYPE_ATTACH_SOCKET:
     case SEASON3A::MIXTYPE_DETACH_SOCKET:
-        m_SocketListBox.Clear();
+        m_SocketSelection.ClearSelection();
         SocketClient->ToGameServer()->SendCraftingDialogCloseRequest();
         break;
     default:
@@ -353,10 +318,10 @@ bool CMixInventory::UpdateMouseEvent()
         return false;
 
     // #panel's own live RCSS size is the source of truth -- INVENTORY_WIDTH/HEIGHT only cover the
-    // first frame after Create()/Show(true)/ReloadRmlTheme(), before RmlUi's next layout pass.
+    // first frame after Create()/Show(true)/a theme switch, before RmlUi's next layout pass.
     float panelWidth = INVENTORY_WIDTH;
     float panelHeight = INVENTORY_HEIGHT;
-    UI::RmlBridge::RefreshLogicalPanelSize(m_pRmlDoc, "panel", panelWidth, panelHeight);
+    UI::RmlBridge::RefreshLogicalPanelSize(m_RmlView.Document(), "panel", panelWidth, panelHeight);
     if (mu::ui::window::WindowGeometry(m_Pos.x, m_Pos.y, static_cast<int>(panelWidth), static_cast<int>(panelHeight)).Contains(MouseX, MouseY))
     {
         if (mu::ui::window::IsPress(VK_RBUTTON))
@@ -389,41 +354,7 @@ bool CMixInventory::Update()
     if (IsVisible())
     {
         CheckMixInventory();
-        switch (g_MixRecipeMgr.GetMixInventoryType())
-        {
-        case SEASON3A::MIXTYPE_ATTACH_SOCKET:
-        case SEASON3A::MIXTYPE_DETACH_SOCKET:
-        {
-            if (m_SocketListBox.GetLineNum() == 0)
-            {
-                wchar_t szText[64] = { 0, };
-                wchar_t szSocketText[64] = { 0, };
-                for (int i = 0; i < g_MixRecipeMgr.GetFirstItemSocketCount(); ++i)
-                {
-                    if (g_MixRecipeMgr.GetFirstItemSocketSeedID(i) == SOCKET_EMPTY)
-                    {
-                        mu_swprintf(szSocketText, I18N::Game::NoItemApplication);
-                    }
-                    else
-                    {
-                        g_SocketItemMgr.CreateSocketOptionText(szSocketText, g_MixRecipeMgr.GetFirstItemSocketSeedID(i), g_MixRecipeMgr.GetFirstItemSocketShpereLv(i));
-                    }
-                    mu_swprintf(szText, L"%d: %ls", i + 1, szSocketText);
-                    m_SocketListBox.AddText(i, szText);
-                }
-                m_SocketListBox.SLSetSelectLine(0);
-            }
-            else
-            {
-                if (g_MixRecipeMgr.GetFirstItemSocketCount() == 0)
-                {
-                    m_SocketListBox.Clear();
-                }
-            }
-            m_SocketListBox.DoAction();
-        }
-        break;
-        }
+        RefreshSocketOptions();
     }
 
     SyncRmlModel();
@@ -432,15 +363,6 @@ bool CMixInventory::Update()
 bool CMixInventory::Render()
 {
     EnableAlphaTest();
-
-    // Frame background panel is RmlUi, routed through the background context (see
-    // MixInventoryBgRmlModel), painted by CManager::Render()'s centralized RenderBackgroundLayer()
-    // call before this window's own Render()/Render3D() run. Recipe/tax-rate/success-rate content
-    // is RmlUi too now (SyncMixContentModel()), and so is the socket list box's drawing
-    // (SyncSocketListModel()); it draws natively only without the RmlUi document.
-    const int mixType = g_MixRecipeMgr.GetMixInventoryType();
-    if (!m_pRmlDoc && (mixType == SEASON3A::MIXTYPE_ATTACH_SOCKET || mixType == SEASON3A::MIXTYPE_DETACH_SOCKET))
-        m_SocketListBox.Render();
 
     if (m_pNewInventoryCtrl)
         m_pNewInventoryCtrl->Render();
@@ -455,30 +377,33 @@ bool CMixInventory::Render()
 
 void CMixInventory::SyncRmlModel()
 {
-    if (m_pRmlBgDoc)
+    if (m_RmlBgView.Document())
     {
-        UI::RmlBridge::SyncRootTransform(m_BgRmlBinder, m_Pos);
+        UI::RmlBridge::SyncRootTransform(m_RmlBgView.Binder(), m_Pos);
 
         // RenderBackgroundLayer() renders whatever's shown in the shared background context
         // regardless of caller, so this Hide()/Show() is what keeps the bg panel hidden when closed.
-        UI::RmlBridge::SyncDocumentVisibility(m_pRmlBgDoc, IsVisible());
+        UI::RmlBridge::SyncDocumentVisibility(m_RmlBgView.Document(), IsVisible());
     }
 
-    if (!m_pRmlDoc) return;
-    UI::RmlBridge::SyncDocumentVisibility(m_pRmlDoc, IsVisible());
+    if (!m_RmlView.Document()) return;
+    UI::RmlBridge::SyncDocumentVisibility(m_RmlView.Document(), IsVisible());
 
-    UI::RmlBridge::SyncRootTransform(m_RmlBinder, m_Pos);
-    UI::RmlBridge::SyncNativeTextSize(m_RmlBinder);
+    UI::RmlBridge::SyncRootTransform(m_RmlView.Binder(), m_Pos);
+    UI::RmlBridge::SyncPanelWidth(m_RmlView.Binder(), m_RmlView.Document());
+    if (m_pNewInventoryCtrl)
+        m_pNewInventoryCtrl->FollowAnchor(m_RmlView.Document(), "item_grid", m_Pos, 15, 110);
+    UI::RmlBridge::SyncNativeTextSize(m_RmlView.Binder());
 
-    auto& model = m_RmlBinder.GetModel();
+    auto& model = m_RmlView.GetModel();
     auto syncWide = [&](Rml::String MixInventoryRmlModel::* field, const char* boundName, const wchar_t* text)
     {
         const Rml::String value = StringUtils::WideToNarrow(text);
-        if (model.*field != value) { model.*field = value; m_RmlBinder.MarkDirty(boundName); }
+        if (model.*field != value) { model.*field = value; m_RmlView.MarkDirty(boundName); }
     };
     auto syncBool = [&](bool MixInventoryRmlModel::* field, const char* boundName, bool value)
     {
-        if (model.*field != value) { model.*field = value; m_RmlBinder.MarkDirty(boundName); }
+        if (model.*field != value) { model.*field = value; m_RmlView.MarkDirty(boundName); }
     };
 
     // Former RenderFrame() title switch -- same cases, same strings, now driving this RmlUi title
@@ -530,67 +455,29 @@ void CMixInventory::SyncRmlModel()
     SyncSocketListModel();
 }
 
-void CMixInventory::SyncSocketListModel()
+bool CMixInventory::RefreshSocketOptions()
 {
-    auto& model = m_RmlBinder.GetModel();
-    auto syncFloat = [&](float MixInventoryRmlModel::* field, const char* boundName, float value)
-    {
-        if (model.*field != value)
-        {
-            model.*field = value;
-            m_RmlBinder.MarkDirty(boundName);
-        }
-    };
-    auto syncBool = [&](bool MixInventoryRmlModel::* field, const char* boundName, bool value)
-    {
-        if (model.*field != value)
-        {
-            model.*field = value;
-            m_RmlBinder.MarkDirty(boundName);
-        }
-    };
-
     const int mixType = g_MixRecipeMgr.GetMixInventoryType();
     const bool shown = mixType == SEASON3A::MIXTYPE_ATTACH_SOCKET || mixType == SEASON3A::MIXTYPE_DETACH_SOCKET;
-    syncBool(&MixInventoryRmlModel::showSocketList, "show_socket_list", shown);
-    if (!shown)
+    const int count = shown ? std::clamp(g_MixRecipeMgr.GetFirstItemSocketCount(), 0, MAX_SOCKETS) : 0;
+    std::array<UI::Inventory::SocketListSelection::Option, MAX_SOCKETS> options{};
+    for (int i = 0; i < count; ++i)
+        options[i] = {g_MixRecipeMgr.GetFirstItemSocketSeedID(i), g_MixRecipeMgr.GetFirstItemSocketShpereLv(i)};
+    const bool changed = m_SocketSelection.Update(mixType, {options.data(), static_cast<size_t>(count)});
+    m_SocketTextDirty |= changed;
+    return changed;
+}
+
+void CMixInventory::SelectSocket(int index)
+{
+    if (!IsVisible() || GetMixState() != MIX_READY)
         return;
-
-    // CUISocketListBox::RenderInterface(): the box from (x - 1, y - height - 1), width + 1 by
-    // height + 2, black at 40 % (SetLineColor(7, 0.4f)); the scroll track at the right edge - 8,
-    // the thumb at - 12, tinted while dragged. RenderDataLine(): each shown line's 13 px row from
-    // GetRenderLinePos_y() - 3, width - 13 + 1 wide, the selected one filled in the colour the
-    // interface left set (the same black 40 %) with black text, the others (230, 220, 200); the
-    // text 8 px in, at GetRenderLinePos_y().
-    const float x0 = static_cast<float>(m_Pos.x);
-    const float y0 = static_cast<float>(m_Pos.y);
-    CUISocketListBox& list = m_SocketListBox;
-    const float lx = static_cast<float>(list.GetPosition_x());
-    const float ly = static_cast<float>(list.GetPosition_y());
-    const float lh = static_cast<float>(list.GetHeight());
-    syncFloat(&MixInventoryRmlModel::socketListLeft, "socket_list_left", lx - x0);
-    syncFloat(&MixInventoryRmlModel::socketListTop, "socket_list_top", ly - lh - y0);
-    syncFloat(&MixInventoryRmlModel::socketListWidth, "socket_list_width", static_cast<float>(list.GetWidth()));
-    syncFloat(&MixInventoryRmlModel::socketListHeight, "socket_list_height", lh);
-
-    const TextListScrollBarGeometry scroll = list.GetScrollBarGeometry();
-    syncFloat(&MixInventoryRmlModel::socketScrollTop, "socket_scroll_top", scroll.rangeTop - y0);
-    syncFloat(&MixInventoryRmlModel::socketScrollHeight, "socket_scroll_height", scroll.rangeBottom - scroll.rangeTop);
-    syncFloat(&MixInventoryRmlModel::socketThumbTop, "socket_thumb_top", scroll.thumbTop - y0);
-    syncBool(&MixInventoryRmlModel::socketThumbDragged, "socket_thumb_dragged", scroll.dragged && MouseLButtonPush);
-
-    std::vector<SocketListLine> lines;
-    list.ForEachRenderLine(
-        [&](int line, const SOCKETLIST_TEXT& item, bool selected)
-        {
-            lines.push_back({StringUtils::WideToNarrow(item.m_szText),
-                             static_cast<float>(list.GetRenderLinePos_y(line)) - 3.f - y0, selected});
-        });
-    if (lines != model.socketLines)
-    {
-        model.socketLines = std::move(lines);
-        m_RmlBinder.MarkDirty("socket_lines");
-    }
+    const bool itemsChanged = CheckMixInventory();
+    const bool optionsChanged = RefreshSocketOptions();
+    if (itemsChanged || optionsChanged)
+        return;
+    if (m_SocketSelection.Select(index))
+        SyncSocketListModel();
 }
 
 float CMixInventory::GetLayerDepth()
@@ -603,6 +490,40 @@ CInventoryCtrl* CMixInventory::GetInventoryCtrl() const
     return m_pNewInventoryCtrl;
 }
 
+void CMixInventory::SyncSocketListModel()
+{
+    auto& model = m_RmlView.GetModel();
+    const int mixType = g_MixRecipeMgr.GetMixInventoryType();
+    const bool shown = mixType == SEASON3A::MIXTYPE_ATTACH_SOCKET || mixType == SEASON3A::MIXTYPE_DETACH_SOCKET;
+    SyncField(m_RmlView.Binder(), &MixInventoryRmlModel::showSocketList, "show_socket_list", shown);
+    if (m_SocketTextDirty)
+    {
+        model.socketLines.clear();
+        const auto options = m_SocketSelection.Options();
+        for (size_t i = 0; i < options.size(); ++i)
+        {
+            wchar_t description[64] = {};
+            if (options[i].seed == SOCKET_EMPTY)
+                mu_swprintf(description, I18N::Game::NoItemApplication);
+            else
+                g_SocketItemMgr.CreateSocketOptionText(description, options[i].seed, options[i].sphereLevel);
+            wchar_t text[128] = {};
+            mu_swprintf(text, L"%d: %ls", static_cast<int>(i) + 1, description);
+            model.socketLines.push_back({StringUtils::WideToNarrow(text), static_cast<int>(i), false});
+        }
+        m_SocketTextDirty = false;
+        m_RmlView.MarkDirty("socket_lines");
+    }
+    for (auto& row : model.socketLines)
+    {
+        const bool selected = row.index == m_SocketSelection.Selected();
+        if (row.selected == selected)
+            continue;
+        row.selected = selected;
+        m_RmlView.MarkDirty("socket_lines");
+    }
+}
+
 void CMixInventory::UI2DEffectCallback(LPVOID pClass, DWORD dwParamA, DWORD dwParamB)
 {
     if (pClass)
@@ -610,25 +531,6 @@ void CMixInventory::UI2DEffectCallback(LPVOID pClass, DWORD dwParamA, DWORD dwPa
         auto* pMixInventory = (CMixInventory*)pClass;
         pMixInventory->RenderMixEffect();
     }
-}
-
-void CMixInventory::LoadImages()
-{
-    // Frame/top/sides/bottom + Mix button sprites are RmlUi now (mix_inventory[_bg].rcss);
-    // these scrollbar images remain for m_SocketListBox's native drawing (the no-RmlUi fallback).
-    LoadBitmap(L"Interface\\newui_scrollbar_up.tga", CGuardWindow::IMAGE_GUARDWINDOW_SCROLL_TOP);
-    LoadBitmap(L"Interface\\newui_scrollbar_m.tga", CGuardWindow::IMAGE_GUARDWINDOW_SCROLL_MIDDLE);
-    LoadBitmap(L"Interface\\newui_scrollbar_down.tga", CGuardWindow::IMAGE_GUARDWINDOW_SCROLL_BOTTOM);
-    LoadBitmap(L"Interface\\newui_scroll_on.tga", CGuardWindow::IMAGE_GUARDWINDOW_SCROLLBAR_ON, GL_LINEAR);
-    LoadBitmap(L"Interface\\newui_scroll_off.tga", CGuardWindow::IMAGE_GUARDWINDOW_SCROLLBAR_OFF, GL_LINEAR);
-}
-void CMixInventory::UnloadImages()
-{
-    DeleteBitmap(CGuardWindow::IMAGE_GUARDWINDOW_SCROLL_TOP);
-    DeleteBitmap(CGuardWindow::IMAGE_GUARDWINDOW_SCROLL_MIDDLE);
-    DeleteBitmap(CGuardWindow::IMAGE_GUARDWINDOW_SCROLL_BOTTOM);
-    DeleteBitmap(CGuardWindow::IMAGE_GUARDWINDOW_SCROLLBAR_ON);
-    DeleteBitmap(CGuardWindow::IMAGE_GUARDWINDOW_SCROLLBAR_OFF);
 }
 
 bool CMixInventory::BtnProcess()
@@ -641,27 +543,27 @@ bool CMixInventory::BtnProcess()
 
 void CMixInventory::SyncMixContentModel()
 {
-    if (!m_pRmlDoc)
+    if (!m_RmlView.Document())
         return;
 
     // The bold title measures lines in the window's own text font (the theme sizes it 1em). A
     // counter-scaled title (legacy .sharp-text) measures in physical pixels.
-    Rml::Element* fitProbe = m_pRmlDoc->GetElementById("title");
+    Rml::Element* fitProbe = m_RmlView.Document()->GetElementById("title");
     float probeUnitsPerLayoutUnit = 1.f;
     if (fitProbe != nullptr && fitProbe->GetComputedValues().has_local_transform())
-        probeUnitsPerLayoutUnit = UI::Scaling::TransformForLayout(GetLayoutMode(), WindowWidth, WindowHeight).scaleX;
-    const auto layout = UI::Scaling::TransformForLayout(GetLayoutMode(), WindowWidth, WindowHeight);
+        probeUnitsPerLayoutUnit = GetLayoutTransform().scaleX;
+    const auto layout = GetLayoutTransform();
     const float minimumFit = static_cast<float>(UI::Scaling::MinimumFontPointSize(UI::Scaling::FontRole::Normal)) /
                              static_cast<float>(UI::Scaling::FontPointSize(UI::Scaling::FontRole::Normal, layout));
-    auto& model = m_RmlBinder.GetModel();
+    auto& model = m_RmlView.GetModel();
     auto syncWide = [&](Rml::String MixInventoryRmlModel::* field, const char* boundName, const wchar_t* text)
     {
         const Rml::String value = StringUtils::WideToNarrow(text);
-        if (model.*field != value) { model.*field = value; m_RmlBinder.MarkDirty(boundName); }
+        if (model.*field != value) { model.*field = value; m_RmlView.MarkDirty(boundName); }
     };
     auto syncBool = [&](bool MixInventoryRmlModel::* field, const char* boundName, bool value)
     {
-        if (model.*field != value) { model.*field = value; m_RmlBinder.MarkDirty(boundName); }
+        if (model.*field != value) { model.*field = value; m_RmlView.MarkDirty(boundName); }
     };
     auto makeColor = [](int r, int g, int b, int a) -> Rml::String
     {
@@ -672,12 +574,12 @@ void CMixInventory::SyncMixContentModel()
     auto syncColor = [&](Rml::String MixInventoryRmlModel::* field, const char* boundName, int r, int g, int b, int a)
     {
         const Rml::String value = makeColor(r, g, b, a);
-        if (model.*field != value) { model.*field = value; m_RmlBinder.MarkDirty(boundName); }
+        if (model.*field != value) { model.*field = value; m_RmlView.MarkDirty(boundName); }
     };
     auto syncLines = [&](std::vector<MixLine> MixInventoryRmlModel::* field, const char* boundName,
         std::vector<MixLine> newLines)
     {
-        if (model.*field != newLines) { model.*field = std::move(newLines); m_RmlBinder.MarkDirty(boundName); }
+        if (model.*field != newLines) { model.*field = std::move(newLines); m_RmlView.MarkDirty(boundName); }
     };
 
     wchar_t szText[256] = {};
@@ -707,7 +609,7 @@ void CMixInventory::SyncMixContentModel()
         if (model.taxRateFit != fit)
         {
             model.taxRateFit = fit;
-            m_RmlBinder.MarkDirty("tax_rate_fit");
+            m_RmlView.MarkDirty("tax_rate_fit");
         }
     }
 
@@ -718,10 +620,7 @@ void CMixInventory::SyncMixContentModel()
     if (!showRecipe)
         return;
 
-    if (g_MixRecipeMgr.IsReadyToMix())
-        syncColor(&MixInventoryRmlModel::recipeColor, "recipe_color", 255, 255, 48, 255);
-    else
-        syncColor(&MixInventoryRmlModel::recipeColor, "recipe_color", 255, 48, 48, 255);
+    syncBool(&MixInventoryRmlModel::recipeReady, "recipe_ready", g_MixRecipeMgr.IsReadyToMix() == TRUE);
 
     g_MixRecipeMgr.GetCurRecipeName(szText, 1);
     syncWide(&MixInventoryRmlModel::recipeLine1, "recipe_line1", szText);
@@ -749,7 +648,7 @@ void CMixInventory::SyncMixContentModel()
         {
             mu_swprintf(szText, I18N::Game::SSuccessRateD, I18N::Game::Combining, g_MixRecipeMgr.GetSuccessRate());
             mu_swprintf(szText, L"%ls + %d%%", szText, g_MixRecipeMgr.GetPlusChaosRate());
-            syncColor(&MixInventoryRmlModel::successRateColor, "success_rate_color", 255, 255, 48, 255);
+            syncBool(&MixInventoryRmlModel::successBoosted, "success_boosted", true);
         }
         else
         {
@@ -770,7 +669,7 @@ void CMixInventory::SyncMixContentModel()
                 mu_swprintf(szText, I18N::Game::SSuccessRateD, I18N::Game::Refine, g_MixRecipeMgr.GetSuccessRate());
                 break;
             }
-            syncColor(&MixInventoryRmlModel::successRateColor, "success_rate_color", 210, 230, 255, 255);
+            syncBool(&MixInventoryRmlModel::successBoosted, "success_boosted", false);
         }
         break;
     default:
@@ -839,23 +738,23 @@ void CMixInventory::SyncMixContentModel()
             const int iResult = g_MixRecipeMgr.GetSourceName(iLine, szText);
             if (iResult == SEASON3A::MIX_SOURCE_ERROR) break;
 
-            Rml::String color;
-            if (iResult == SEASON3A::MIX_SOURCE_NO) color = makeColor(255, 50, 20, 255);
-            else if (iResult == SEASON3A::MIX_SOURCE_PARTIALLY) color = makeColor(210, 230, 255, 255);
-            else if (iResult == SEASON3A::MIX_SOURCE_YES) color = makeColor(255, 255, 48, 255);
+            Rml::String kind;
+            if (iResult == SEASON3A::MIX_SOURCE_NO) kind = "missing";
+            else if (iResult == SEASON3A::MIX_SOURCE_PARTIALLY) kind = "partial";
+            else if (iResult == SEASON3A::MIX_SOURCE_YES) kind = "ready";
 
-            sourceLines.push_back({ StringUtils::WideToNarrow(szText), color });
+            sourceLines.push_back({ StringUtils::WideToNarrow(szText), kind });
         }
     }
     else if (g_MixRecipeMgr.IsMixInit())
     {
-        statusLines.push_back({ StringUtils::WideToNarrow(I18N::Game::PleaseUploadTheAssemblyItems), makeColor(255, 50, 20, 255) });
+        statusLines.push_back({ StringUtils::WideToNarrow(I18N::Game::PleaseUploadTheAssemblyItems), "missing" });
     }
     else
     {
         mu_swprintf(szText, I18N::Game::AssemblyPredictionS, L" ");
-        statusLines.push_back({ StringUtils::WideToNarrow(szText), makeColor(255, 50, 20, 255) });
-        statusLines.push_back({ StringUtils::WideToNarrow(I18N::Game::ImproperItemsForCombination), makeColor(255, 50, 20, 255) });
+        statusLines.push_back({ StringUtils::WideToNarrow(szText), "missing" });
+        statusLines.push_back({ StringUtils::WideToNarrow(I18N::Game::ImproperItemsForCombination), "missing" });
     }
 
     syncBool(&MixInventoryRmlModel::showPrediction, "show_prediction", showPrediction);
@@ -867,7 +766,7 @@ void CMixInventory::SyncMixContentModel()
     // Recipe description (ready to mix) or advice for the closest match (not ready) -- former
     // trailing block, always rendered in the same reddish tone natively.
     std::vector<MixLine> adviceLines;
-    const Rml::String adviceColor = makeColor(255, 50, 20, 255);
+    const Rml::String adviceColor = "missing";
     if (g_MixRecipeMgr.IsReadyToMix())
     {
         if (g_MixRecipeMgr.GetCurRecipeDesc(szText, 1) == TRUE) adviceLines.push_back({ StringUtils::WideToNarrow(szText), adviceColor });
@@ -887,29 +786,29 @@ void CMixInventory::SyncMixContentModel()
     std::vector<MixLine> descriptionLines;
     bool showSocketPrompt = false;
     wchar_t socketPromptText[128] = {};
-    const Rml::String white = makeColor(255, 255, 255, 255);
-    const Rml::String warning = makeColor(255, 40, 20, 255);
-    constexpr float kDescriptionTop = 250.f; // RenderMixDescriptions()'s fPos_y + 250 block
-    constexpr float kCastleSeniorDescriptionTop = 270.f;
-    constexpr float kDescriptionRow = 13.f;
+    const Rml::String white = "normal";
+    const Rml::String warning = "warning";
     // Native boxes: 160 centred at x+15, or 200 left-aligned from x+5 -- which runs 15 past the
     // 190-wide window; the left box is kept inside it (180) so no line overflows the frame.
     constexpr float kCentredDescriptionWidth = 160.f;
     constexpr float kLeftDescriptionWidth = 180.f;
-    auto describeAt = [&](float blockTop, const wchar_t* text, const Rml::String& color, int row, bool alignLeft)
+    // RenderMixDescriptions() walked its own block in 13-unit rows, skipping some; the row it
+    // chose is what travels, and the theme turns it into a top.
+    bool descriptionsLowered = false;
+    auto describeAt = [&](bool lowered, const wchar_t* text, const Rml::String& kind, int row, bool alignLeft)
     {
-        const float top = blockTop + static_cast<float>(row) * kDescriptionRow;
+        descriptionsLowered = lowered;
         const float fit = TextFitScale(fitProbe, text, alignLeft ? kLeftDescriptionWidth : kCentredDescriptionWidth,
                                        probeUnitsPerLayoutUnit, minimumFit);
-        descriptionLines.push_back({StringUtils::WideToNarrow(text), color, top, alignLeft, fit});
+        descriptionLines.push_back({StringUtils::WideToNarrow(text), kind, row, alignLeft, fit});
     };
-    auto describe = [&](const wchar_t* text, const Rml::String& color, int row, bool alignLeft = false)
-    { describeAt(kDescriptionTop, text, color, row, alignLeft); };
+    auto describe = [&](const wchar_t* text, const Rml::String& kind, int row, bool alignLeft = false)
+    { describeAt(false, text, kind, row, alignLeft); };
     switch (mixType)
     {
     case SEASON3A::MIXTYPE_CASTLE_SENIOR:
         for (int i = 0; i < 6; ++i)
-            describeAt(kCastleSeniorDescriptionTop, I18N::Game::Lookup(1644 + i), makeColor(200, 200, 200, 255), i,
+            describeAt(true, I18N::Game::Lookup(1644 + i), "dim", i,
                        false);
         break;
     case SEASON3A::MIXTYPE_OSBOURNE:
@@ -918,7 +817,7 @@ void CMixInventory::SyncMixContentModel()
         mu_swprintf(szText, I18N::Game::SForOnlyS, I18N::Game::Refine, I18N::Game::WeaponsOrShields);
         describe(szText, white, 2);
         describe(I18N::Game::Allowed, white, 3);
-        describe(I18N::Game::ItemWillDisappearWhenFailed, makeColor(255, 0, 0, 255), 4);
+        describe(I18N::Game::ItemWillDisappearWhenFailed, "loss", 4);
         break;
     case SEASON3A::MIXTYPE_JERRIDON:
         describe(I18N::Game::RestorationIsDeletingThe, white, 0);
@@ -957,6 +856,7 @@ void CMixInventory::SyncMixContentModel()
         break;
     }
     syncLines(&MixInventoryRmlModel::descriptionLines, "description_lines", descriptionLines);
+    syncBool(&MixInventoryRmlModel::descriptionsLowered, "descriptions_lowered", descriptionsLowered);
     syncBool(&MixInventoryRmlModel::showSocketPrompt, "show_socket_prompt", showSocketPrompt);
     if (showSocketPrompt)
         syncWide(&MixInventoryRmlModel::socketPromptText, "socket_prompt_text", socketPromptText);
@@ -968,8 +868,83 @@ int CMixInventory::Rtn_MixRequireZen(int _nMixZen, int _nTax)
     return _nMixZen;
 }
 
+bool CMixInventory::PrepareSocketMix()
+{
+    if (g_MixRecipeMgr.GetMixInventoryType() == SEASON3A::MIXTYPE_ATTACH_SOCKET)
+    {
+        const int iSelectedLine = m_SocketSelection.Selected();
+
+        for (int i = 0; i < g_MixRecipeMgr.GetFirstItemSocketCount(); ++i)
+        {
+            BYTE bySocketSeedID = g_MixRecipeMgr.GetFirstItemSocketSeedID(i);
+            if (bySocketSeedID != SOCKET_EMPTY)
+            {
+                BYTE bySeedSphereID = g_MixRecipeMgr.GetSeedSphereID(0);
+                if (bySocketSeedID == bySeedSphereID)
+                {
+                    g_pSystemLogBox->AddText(I18N::Game::YouCannotApplyTheSameTypeOfSphere, mu::ui::window::TYPE_ERROR_MESSAGE);
+                    return false;
+                }
+            }
+        }
+
+        if (iSelectedLine < 0)
+        {
+            g_pSystemLogBox->AddText(I18N::Game::YouMustSelectTheSocket, mu::ui::window::TYPE_ERROR_MESSAGE);
+            return false;
+        }
+        else if (iSelectedLine >= g_MixRecipeMgr.GetFirstItemSocketCount()
+            || g_MixRecipeMgr.GetFirstItemSocketSeedID(iSelectedLine) != SOCKET_EMPTY)
+        {
+            g_pSystemLogBox->AddText(I18N::Game::ItSAlreadyAppliedOnTheCharacter, mu::ui::window::TYPE_ERROR_MESSAGE);
+            return false;
+        }
+
+        g_MixRecipeMgr.SetMixSubType(iSelectedLine);
+    }
+    else if (g_MixRecipeMgr.GetMixInventoryType() == SEASON3A::MIXTYPE_DETACH_SOCKET)
+    {
+        const int iSelectedLine = m_SocketSelection.Selected();
+        if (iSelectedLine < 0)
+        {
+            g_pSystemLogBox->AddText(I18N::Game::YouMustSelectTheDestructibleSocket, mu::ui::window::TYPE_ERROR_MESSAGE);
+            return false;
+        }
+        else if (iSelectedLine >= g_MixRecipeMgr.GetFirstItemSocketCount()
+            || g_MixRecipeMgr.GetFirstItemSocketSeedID(iSelectedLine) == SOCKET_EMPTY)
+        {
+            g_pSystemLogBox->AddText(I18N::Game::ThereAreNoDestructibleSeedSpheres, mu::ui::window::TYPE_ERROR_MESSAGE);
+            return false;
+        }
+        g_MixRecipeMgr.SetMixSubType(iSelectedLine);
+    }
+
+    return true;
+}
+
+void CMixInventory::ConfirmMix(int mixType, int mixId, int socketIndex, const std::vector<DWORD>& itemKeys)
+{
+    if (!IsVisible() || GetMixState() != MIX_READY)
+        return;
+    CheckMixInventory();
+    RefreshSocketOptions();
+    if (g_MixRecipeMgr.GetMixInventoryType() != mixType || g_MixRecipeMgr.GetCurMixID() != mixId)
+        return;
+    if (mixType == SEASON3A::MIXTYPE_ATTACH_SOCKET || mixType == SEASON3A::MIXTYPE_DETACH_SOCKET)
+    {
+        if (itemKeys != m_SocketItemKeys || socketIndex != m_SocketSelection.Selected() || !PrepareSocketMix())
+            return;
+    }
+    SetMixState(MIX_REQUESTED);
+    SocketClient->ToGameServer()->SendChaosMachineMixRequest(
+        static_cast<ChaosMachineMixType>(mixId), g_MixRecipeMgr.GetMixSubType());
+}
+
 bool CMixInventory::Mix()
 {
+    CheckMixInventory();
+    RefreshSocketOptions();
+
     PlayBuffer(SOUND_CLICK01);
 
     DWORD dwGold = CharacterMachine->Gold;
@@ -1009,54 +984,8 @@ bool CMixInventory::Mix()
         return false;
     }
 
-    if (g_MixRecipeMgr.GetMixInventoryType() == SEASON3A::MIXTYPE_ATTACH_SOCKET)
-    {
-        int iSelectedLine = m_SocketListBox.GetLineNum() - m_SocketListBox.SLGetSelectLineNum();
-
-        for (int i = 0; i < m_SocketListBox.GetLineNum(); ++i)
-        {
-            BYTE bySocketSeedID = g_MixRecipeMgr.GetFirstItemSocketSeedID(i);
-            if (bySocketSeedID != SOCKET_EMPTY)
-            {
-                BYTE bySeedSphereID = g_MixRecipeMgr.GetSeedSphereID(0);
-                if (bySocketSeedID == bySeedSphereID)
-                {
-                    g_pSystemLogBox->AddText(I18N::Game::YouCannotApplyTheSameTypeOfSphere, mu::ui::window::TYPE_ERROR_MESSAGE);
-                    return false;
-                }
-            }
-        }
-
-        if (m_SocketListBox.SLGetSelectLineNum() == 0)
-        {
-            g_pSystemLogBox->AddText(I18N::Game::YouMustSelectTheSocket, mu::ui::window::TYPE_ERROR_MESSAGE);
-            return false;
-        }
-        else if (iSelectedLine > g_MixRecipeMgr.GetFirstItemSocketCount()
-            || g_MixRecipeMgr.GetFirstItemSocketSeedID(iSelectedLine) != SOCKET_EMPTY)
-        {
-            g_pSystemLogBox->AddText(I18N::Game::ItSAlreadyAppliedOnTheCharacter, mu::ui::window::TYPE_ERROR_MESSAGE);
-            return false;
-        }
-
-        g_MixRecipeMgr.SetMixSubType(iSelectedLine);
-    }
-    else if (g_MixRecipeMgr.GetMixInventoryType() == SEASON3A::MIXTYPE_DETACH_SOCKET)
-    {
-        int iSelectedLine = m_SocketListBox.GetLineNum() - m_SocketListBox.SLGetSelectLineNum();
-        if (m_SocketListBox.SLGetSelectLineNum() == 0)
-        {
-            g_pSystemLogBox->AddText(I18N::Game::YouMustSelectTheDestructibleSocket, mu::ui::window::TYPE_ERROR_MESSAGE);
-            return false;
-        }
-        else if (iSelectedLine > g_MixRecipeMgr.GetFirstItemSocketCount()
-            || g_MixRecipeMgr.GetFirstItemSocketSeedID(iSelectedLine) == SOCKET_EMPTY)
-        {
-            g_pSystemLogBox->AddText(I18N::Game::ThereAreNoDestructibleSeedSpheres, mu::ui::window::TYPE_ERROR_MESSAGE);
-            return false;
-        }
-        g_MixRecipeMgr.SetMixSubType(iSelectedLine);
-    }
+    if (!PrepareSocketMix())
+        return false;
 
 #ifdef LJH_MOD_CANNOT_USE_CHARMITEM_AND_CHAOSCHARMITEM_SIMULTANEOUSLY
     if (g_MixRecipeMgr.GetTotalChaosCharmCount() > 0 && g_MixRecipeMgr.GetTotalCharmCount() > 0)
@@ -1091,12 +1020,10 @@ bool CMixInventory::Mix()
             { strText, true },
             { I18N::Game::DoYouWantToCombineYourItems, false },
         };
-        cfg.onPrimary = []
+        cfg.onPrimary = [mixType = g_MixRecipeMgr.GetMixInventoryType(), mixId = g_MixRecipeMgr.GetCurMixID(),
+                         socketIndex = m_SocketSelection.Selected(), itemKeys = m_SocketItemKeys]
         {
-            g_pMixInventory->SetMixState(mu::ui::window::CMixInventory::MIX_REQUESTED);
-            SocketClient->ToGameServer()->SendChaosMachineMixRequest(
-                static_cast<ChaosMachineMixType>(g_MixRecipeMgr.GetCurMixID()),
-                g_MixRecipeMgr.GetMixSubType());
+            g_pMixInventory->ConfirmMix(mixType, mixId, socketIndex, itemKeys);
         };
         mu::ui::window::g_pGenericConfirmDialog->Show(std::move(cfg));
         return true;
@@ -1236,16 +1163,23 @@ bool CMixInventory::ProcessMixItemAutoMoveToInventory()
         /*requireMixSource*/ false);
 }
 
-void CMixInventory::CheckMixInventory()
+bool CMixInventory::CheckMixInventory()
 {
     g_MixRecipeMgr.ResetMixItemInventory();
-    ITEM* pItem = NULL;
-    for (int i = 0; i < (int)m_pNewInventoryCtrl->GetNumberOfItems(); ++i)
+    const size_t count = m_pNewInventoryCtrl->GetNumberOfItems();
+    bool changed = count != m_SocketItemKeys.size();
+    m_SocketItemKeys.resize(count);
+    for (size_t i = 0; i < count; ++i)
     {
-        pItem = m_pNewInventoryCtrl->GetItem(i);
-        g_MixRecipeMgr.AddItemToMixItemInventory(pItem);
+        ITEM* item = m_pNewInventoryCtrl->GetItem(static_cast<int>(i));
+        changed |= m_SocketItemKeys[i] != item->Key;
+        m_SocketItemKeys[i] = item->Key;
+        g_MixRecipeMgr.AddItemToMixItemInventory(item);
     }
+    if (changed)
+        m_SocketSelection.ClearSelection();
     g_MixRecipeMgr.CheckMixInventory();
+    return changed;
 }
 
 void CMixInventory::RenderMixEffect()

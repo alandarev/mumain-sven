@@ -1,11 +1,12 @@
 
 #pragma once
 
+#include "Render/RmlUi/RmlUiRuntime.h"
 #include "UI/Core/WindowObject.h"
 #include "UI/Inventory/InventoryCtrl.h"
 #include "UI/Inventory/MyInventory.h"
-#include "UI/Widgets/UIControls.h"
-#include "UI/RmlBridge/RmlModelBinder.h"
+#include "UI/Inventory/SocketListSelection.h"
+#include "UI/RmlBridge/RmlThemedView.h"
 #include <span>
 #include <vector>
 
@@ -40,31 +41,28 @@ namespace mu::ui::window
         float m_fInventoryColor[3];
         float m_fInventoryWarningColor[3];
 
-        CUISocketListBox m_SocketListBox;
+        UI::Inventory::SocketListSelection m_SocketSelection;
+        std::vector<DWORD> m_SocketItemKeys;
+        bool m_SocketTextDirty = true;
 
-        // Window frame/title/Mix button/recipe-result content and the socket list box's drawing
-        // are all RmlUi now. Only the inventory grid stays fully native -- same reasoning as
-        // CStorageInventoryExt for the grid; the socket list keeps its native hit tests,
-        // selection and scrolling (m_SocketListBox.DoAction()).
-        //
-        // A line CUISocketListBox::RenderDataLine() draws: its 13 px row box (filled when
-        // selected) at `top`, reference px from the window's top.
         struct SocketListLine
         {
             Rml::String text;
-            float top = 0.f;
+            int index = 0;
             bool selected = false;
             bool operator==(const SocketListLine&) const = default;
         };
         struct MixLine
         {
             Rml::String text;
-            Rml::String color; // "rgba(r,g,b,a)"
-            // Where native RenderMixDescriptions() drew a description line: its top in reference
-            // px from the window's top (fixed per mix type, with rows skipped between some lines)
-            // and whether it was left-aligned rather than centred. Unused (0/false) for the other
-            // line lists.
-            float top = 0.f;
+            // What the line is telling the player, which each theme colours: "missing" (a source
+            // this recipe has none of), "partial", "ready", or for a description "normal",
+            // "warning", "loss" (the item is destroyed on failure) and "dim".
+            Rml::String kind;
+            // Which row of the description block the line occupies -- RenderMixDescriptions()
+            // skipped rows between some lines, so this is the row it chose, not its position in
+            // the list. The theme turns it into a top. Unused (0/false) for the other line lists.
+            int row = 0;
             bool alignLeft = false;
             // Native RenderText() shrinks a line to its box (FontScaleForBounds); this is that
             // factor for description lines, against a box kept inside the window (measured in the
@@ -75,6 +73,7 @@ namespace mu::ui::window
         struct MixInventoryRmlModel
         {
             float rootX = 0.f, rootY = 0.f, rootScale = 1.f;
+            float panelWidth = 190.f;
             float textPx = 0.f; // native text size in physical px (RmlRootTransform.h)
             Rml::String title;
             bool mixVisible = true;
@@ -91,11 +90,11 @@ namespace mu::ui::window
             bool showRecipe = false;
             Rml::String recipeLine1, recipeLine2;
             bool showRecipeLine2 = false;
-            Rml::String recipeColor;
+            bool recipeReady = false; // IsReadyToMix(); the theme colours the recipe name
 
             bool showSuccessRate = false;
             Rml::String successRateText;
-            Rml::String successRateColor;
+            bool successBoosted = false; // a chaos-rate bonus is in the shown rate
 
             bool showRequiredZen = false;
             Rml::String requiredZenText;
@@ -107,20 +106,21 @@ namespace mu::ui::window
             std::vector<MixLine> statusLines;
             std::vector<MixLine> adviceLines;
             std::vector<MixLine> descriptionLines;
+        // The castle senior recipe's block starts a row lower than every other mix's.
+        bool descriptionsLowered = false;
 
             bool showSocketPrompt = false;
             Rml::String socketPromptText;
 
-            // CUISocketListBox::Render() (attach / detach socket mixes): the list's box and its
-            // new-style scroll bar (track and thumb tops, reference px from the window's corner).
             bool showSocketList = false;
-            float socketListLeft = 0.f, socketListTop = 0.f, socketListWidth = 0.f, socketListHeight = 0.f;
             std::vector<SocketListLine> socketLines;
-            float socketScrollTop = 0.f, socketScrollHeight = 0.f, socketThumbTop = 0.f;
-            bool socketThumbDragged = false;
         };
-        RmlModelBinder<MixInventoryRmlModel> m_RmlBinder;
-        Rml::ElementDocument* m_pRmlDoc = nullptr;
+        void BindRmlModel(Rml::DataModelConstructor& c, MixInventoryRmlModel& model);
+        void OnRmlReloaded();
+        UI::RmlBridge::ThemedView<MixInventoryRmlModel> m_RmlView{"mix_inventory",
+            [this](Rml::DataModelConstructor& c, MixInventoryRmlModel& model) { BindRmlModel(c, model); },
+            {{"Data/Interface/RmlUi/mix_inventory.rml"}},
+            {.afterReload = [this] { OnRmlReloaded(); }}};
 
         // The frame background panel must render behind the grid's live 3D icons, but RmlUi's
         // main context always renders last -- so it goes through
@@ -130,8 +130,9 @@ namespace mu::ui::window
         {
             float rootX = 0.f, rootY = 0.f, rootScale = 1.f;
         };
-        RmlModelBinder<MixInventoryBgRmlModel> m_BgRmlBinder;
-        Rml::ElementDocument* m_pRmlBgDoc = nullptr;
+        static void BindRmlBgModel(Rml::DataModelConstructor& c, MixInventoryBgRmlModel& model);
+        UI::RmlBridge::ThemedView<MixInventoryBgRmlModel> m_RmlBgView{"mix_inventory_bg", BindRmlBgModel,
+            {{"Data/Interface/RmlUi/mix_inventory_bg.rml", [] { return RmlUiRuntime::Instance().GetBackgroundContext(); }}}};
 
         void BuildRmlUi();
         void SyncRmlModel();
@@ -164,8 +165,6 @@ namespace mu::ui::window
         bool Update();
         bool Render();
 
-        void ReloadRmlTheme();
-
         float GetLayerDepth();	//. 3.4f
 
         CInventoryCtrl* GetInventoryCtrl() const;
@@ -173,8 +172,6 @@ namespace mu::ui::window
         static void UI2DEffectCallback(LPVOID pClass, DWORD dwParamA, DWORD dwParamB);
 
     private:
-        void LoadImages();
-        void UnloadImages();
 
         bool InventoryProcess();
         bool BtnProcess();
@@ -185,10 +182,13 @@ namespace mu::ui::window
         // Former RenderFrame()/RenderMixDescriptions() native text -- see its own comment
         // (MixInventory.cpp) for the full per-field translation.
         void SyncMixContentModel();
-        // Former CUISocketListBox::Render() of m_SocketListBox, as the model's socket_* fields.
         void SyncSocketListModel();
+        bool RefreshSocketOptions();
+        void SelectSocket(int index);
+    bool PrepareSocketMix();
+    void ConfirmMix(int mixType, int mixId, int socketIndex, const std::vector<DWORD>& itemKeys);
 
-        void CheckMixInventory();
+        bool CheckMixInventory();
         bool Mix();
         void RenderMixEffect();
 

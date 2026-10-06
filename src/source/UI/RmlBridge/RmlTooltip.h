@@ -89,7 +89,7 @@ namespace UI::RmlBridge::Tooltip
         // to, via the ambient UI::Scaling::GetActiveTransform(), but that's wrong for a caller whose
         // anchor is meaningful only through a DIFFERENT transform than whatever's ambient in its own
         // scope (e.g. the skill-hotkey tooltip: its anchor is relative to MainFrameWindow's own
-        // hand-rolled BottomHudCenterTransform, matching #bars's CSS scale/offset, but
+        // reference frame (the screen scaled by the dp ratio), but
         // MainFrameWindow's own ambient GetLayoutMode() resolves to a completely different formula --
         // see MainFrameWindow.cpp's own comment). Pushing the conversion out to each caller means
         // every caller picks the transform that's actually correct for its own anchor, instead of
@@ -132,7 +132,7 @@ namespace UI::RmlBridge::Tooltip
         Box box = Box::TipTextList;
 
         // The transform the caller converted its anchor with, when it is not the ambient
-        // UI::Scaling::GetActiveTransform() (the skill-hotkey tooltip's BottomHudCenterTransform).
+        // UI::Scaling::GetActiveTransform() (the skill-hotkey tooltip's dp-ratio reference frame).
         // Show() takes the native text size and row metrics from it.
         std::optional<UI::Scaling::Transform> transform;
     };
@@ -167,10 +167,4 @@ namespace UI::RmlBridge::Tooltip
     // Hides the shared tooltip document -- but only if `owner` matches the current owner (or
     // either is nullptr). No-op if it was never built, already hidden, or owned by someone else.
     void Hide(Owner owner = nullptr);
-
-    // Rebuilds the shared document against the now-active theme. Not a CObject/IObject and has no
-    // `this` of its own, so it registers itself with UI::RmlBridge's theme-reload registry (keyed
-    // by a private static token) instead, the same way UI::Login::ReloadRmlTheme() does for
-    // RememberPasswordPrompt (also not a CObject).
-    void ReloadRmlTheme();
 }

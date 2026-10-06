@@ -2,7 +2,7 @@
 #pragma once
 
 #include "UI/Core/WindowManager.h"
-#include "UI/RmlBridge/RmlModelBinder.h"
+#include "UI/RmlBridge/RmlThemedView.h"
 
 #include <vector>
 
@@ -11,10 +11,7 @@ namespace Rml { class ElementDocument; }
 namespace mu::ui::window
 {
     // RmlUi-backed active-buff strip, a variable-length list (unlike CMuHelperBar's fixed layout).
-    // Two known fidelity gaps vs the legacy window: right-click-to-cancel (Infinity Arrow / Swell
-    // of Magic Power) isn't reproduced -- no RmlUi content here distinguishes right-click from
-    // left-click in a data-event-click binding yet. Tooltip text is one plain newline-joined block
-    // (BuildTooltipText()), not the original's per-line bold/white/purple coloring.
+    // Right-clicking Infinity Arrow or Swell of Magic Power asks to cancel it, as the original did.
     class CBuffStrip : public CObject
     {
     public:
@@ -26,14 +23,6 @@ namespace mu::ui::window
 
         // Vestigial -- RmlUi/CSS owns this widget's position now (.center-x in buff_strip.rml).
         void SetPos(int x, int y) {}
-        // The original places the strip by the screen width its docked panels leave free
-        // (GetScreenWidth(), reference units); this keeps that width so the model can expose the
-        // strip's native left edge (strip_left) for a theme that follows it.
-        void SetPos(int iScreenWidth)
-        {
-            m_iFreeScreenWidth = iScreenWidth;
-        }
-
         bool UpdateMouseEvent();
         bool UpdateKeyEvent();
         bool Update();
@@ -47,7 +36,6 @@ namespace mu::ui::window
         // Same MAIN_SCENE-only Update() gate and fix as CMuHelperBar::SyncDocVisibility() (MuHelperBar.h).
         void SyncDocVisibility(bool sceneAllowsShow);
 
-        void ReloadRmlTheme();
 
     private:
         void BuildRmlUi();
@@ -55,7 +43,6 @@ namespace mu::ui::window
         struct BuffEntry
         {
             // Pre-computed pixel grid-slot position, bound as plain values (no arithmetic in RML).
-            float slotLeft = 0.0f, slotTop = 0.0f;
             // Full decorator string, e.g. "image(atlas1-23)", selecting a named @spritesheet rect
             // from buff_strip.rcss (one rect per 20x28 tile; BuildIconDecorator() in BuffStrip.cpp
             // generates the name). Bound wholesale via data-style-decorator.
@@ -75,22 +62,27 @@ namespace mu::ui::window
         struct BuffStripRmlModel
         {
             std::vector<BuffEntry> buffs;
-            // Real-pixel x of native's strip left edge: 200-unit rows centred on the free width,
-            // in the strip's own stretched HUD space.
-            float stripLeft = 0.0f;
+            // The original's strip box in real pixels: 200-unit rows centred on the free width, in
+            // the strip's own stretched HUD space. Data a theme may follow, not a placement.
+            float stripSlotLeft = 0.0f;
+            float stripSlotWidth = 0.0f;
             // Native tooltip row advance in real pixels: RenderTipTextList() steps 1.1 text
             // heights of the native renderer per line.
             float tooltipLinePx = 0.0f;
         };
-        RmlModelBinder<BuffStripRmlModel> m_RmlBinder;
-        Rml::ElementDocument* m_pRmlDoc = nullptr;
+        void BindRmlModel(Rml::DataModelConstructor& c, BuffStripRmlModel& model);
+        UI::RmlBridge::ThemedView<BuffStripRmlModel> m_RmlView{"buff_strip",
+            [this](Rml::DataModelConstructor& c, BuffStripRmlModel& model) { BindRmlModel(c, model); },
+            {{"Data/Interface/RmlUi/buff_strip.rml"}}};
 
         CManager* m_pNewUIMng = nullptr;
 
-        void SyncRmlModel();
-        void SyncStripLeft();
-        void SyncTooltipLineHeight();
+        // The buffs shown, in slot order, for mapping a slot's event back to its buff.
+        std::vector<int> m_ShownBuffs;
 
-        int m_iFreeScreenWidth = REFERENCE_WIDTH;
+        void SyncRmlModel();
+        void OnBuffRightClick(int slot);
+        void SyncStripSlot();
+        void SyncTooltipLineHeight();
     };
 }

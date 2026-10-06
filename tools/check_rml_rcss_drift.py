@@ -9,8 +9,8 @@ same ids (`GetElementById`), data-model field names (`DataModelConstructor::Bind
 and event-callback names (`DataModelConstructor::BindEventCallback`) to exist in it.
 Nothing enforces that a forked copy still satisfies that contract -- a missing or
 renamed name fails completely silently (a dead button, not a build error or even a
-log line), the same failure shape documented for `main_frame`'s existing two-file
-case in docs/rmlui-ui-system/STATUS.md.
+log line), the failure shape `main_frame` had while it was two hand-synced forks
+(docs/rmlui-ui-system/STATUS.md).
 
 This script:
 
@@ -20,7 +20,7 @@ This script:
    and `GetElementById("...")` string literal -- that's what C++ needs to exist.
 3. For that document, finds every copy that can actually load: the shared
    `<name>.rml` (if present) plus every `themes/*/<name>.rml` fork (if any --
-   `main_frame` today has no shared file at all, only two forks).
+   a document may also have no shared file at all, only forks).
 4. Confirms every needed name appears somewhere in each copy's text.
 
 Deliberately a plain substring/regex presence check, not a real RML/attribute-type
@@ -31,10 +31,10 @@ Context::LoadDocument with no data model) is simply not checked -- nothing to
 verify a static, binding-free document against.
 
 Checked against the UNION of every theme copy's text, not each copy individually --
-confirmed necessary by running this against main_frame, the one pre-existing forked
+confirmed necessary by running this against main_frame, then the one forked
 window, before trusting it: C++ deliberately computes multiple, non-overlapping
 display-text fields for the same value (e.g. `hp_text` "935 / 935" vs legacy's own
-`hp_current_text` "935" -- see MainFrameWindow.cpp and STATUS.md's worked
+`hp_current_text` "935" -- see MainFrameWindow.cpp for the worked
 example), and each theme's own markup binds only the one it wants. A per-copy
 requirement flags that legitimate pattern as drift; a union requirement still
 catches the actual failure mode this script exists for (C++ references a name no
@@ -65,10 +65,10 @@ def find_document_windows(source_root: pathlib.Path) -> dict[str, set[str]]:
     """Maps each RML document name (e.g. "login") to the union of ids/bound field
     names/event-callback names its owning .cpp file(s) reference.
 
-    A .cpp file may own more than one themed document (e.g. MainFrameWindow.cpp's
-    "main_frame" and its background-layer companion "main_frame_bg", 2026-09-04) --
+    A .cpp file may own more than one themed document (e.g. MyInventory.cpp's
+    "my_inventory" and its background-layer companion "my_inventory_bg") --
     .Bind()/.BindEventCallback() calls are scoped to whichever RmlModelBinder::Create()
-    call's model-name string ("main_frame", "main_frame_bg", ...) textually precedes them
+    call's model-name string ("my_inventory", "my_inventory_bg", ...) textually precedes them
     in the file (each one's registration lambda is a single contiguous block, never
     interleaved with another's), not pooled file-wide. GetElementById() calls aren't
     inside a Create() lambda at all -- scoped instead by which document pointer they're
@@ -156,8 +156,8 @@ def with_linked_templates(entry_path: pathlib.Path, resolve_dir: pathlib.Path) -
 
 def theme_copies(asset_root: pathlib.Path, doc_name: str) -> list[pathlib.Path]:
     """The shared file (if it exists) plus every per-theme fork that exists for
-    this document. main_frame today has zero shared file, only two forks --
-    that's a valid, checkable state, not an error. Each copy is expanded to
+    this document. A document with no shared file, only forks, is
+    a valid, checkable state, not an error. Each copy is expanded to
     include its own linked templates (see with_linked_templates) -- a fork that
     delegates its shell markup to a template shouldn't be flagged as missing
     names the template itself provides. The shared file is checked once per

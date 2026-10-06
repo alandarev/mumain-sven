@@ -41,6 +41,7 @@ enum class Kind : std::uint8_t
     None,
     Key,
     Click,
+    Move,
     Text,
     Wheel,
     Drag,
@@ -380,6 +381,25 @@ bool Click(float windowX, float windowY, MouseButton button)
     return true;
 }
 
+bool Move(float windowX, float windowY)
+{
+    if (!Click(windowX, windowY, MouseButton::Left))
+    {
+        return false;
+    }
+    g_injection.kind = Kind::Move;
+    return true;
+}
+
+bool Drag(float fromX, float fromY, float toX, float toY, MouseButton button)
+{
+    if (!Drag(WindowPoint{fromX, fromY}, WindowPoint{toX, toY}, button, DefaultDragSteps))
+        return false;
+    // This overload keeps upstream's settling frame before the first held movement.
+    g_injection.positioned = true;
+    return true;
+}
+
 bool ValidText(std::string_view text)
 {
     if (text.empty() || text.size() > 256)
@@ -640,6 +660,11 @@ void AdvanceDrag()
         PressAtPointer();
     else if (g_injection.stage == Stage::Released)
         g_injection = {};
+    else if (g_injection.positioned)
+    {
+        g_injection.positioned = false;
+        MoveWhilePressed();
+    }
     else if (g_injection.moved < g_injection.steps)
     {
         StepDragPointer();
@@ -668,6 +693,23 @@ void AdvanceWheel()
     g_injection.stage = Stage::Held;
 }
 
+void AdvanceMove()
+{
+    if (g_injection.stage == Stage::Idle)
+    {
+        if (!DeliverMotion())
+        {
+            Fail(DeliveryFailure::TargetLost);
+            return;
+        }
+        // Physical motion reaches the game's pointer whether or not the UI is under it.
+        ApplyPointerPosition();
+        g_injection.stage = Stage::Released;
+    }
+    else
+        g_injection = {};
+}
+
 void AdvanceText()
 {
     bool propagates = true;
@@ -691,7 +733,9 @@ void AdvanceText()
             Fail(DeliveryFailure::TargetLost);
             return;
         }
-        g_injection.legacyDown = propagates;
+        // The focused field consumes Return, but the game submits it from the key state, which a
+        // physical press sets either way.
+        g_injection.legacyDown = true;
         g_injection.stage = Stage::Held;
     }
     else if (g_injection.stage == Stage::Held)
@@ -719,6 +763,9 @@ void BeginFrame()
         return;
     case Kind::Click:
         AdvanceClick();
+        return;
+    case Kind::Move:
+        AdvanceMove();
         return;
     case Kind::Text:
         AdvanceText();
