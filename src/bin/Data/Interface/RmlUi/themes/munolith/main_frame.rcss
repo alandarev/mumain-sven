@@ -92,8 +92,8 @@ body.compact-narrow #ag_housing { width: 222rem; left: 0; right: 0; margin-left:
 .popover-header { color: #e9d5ab; font-size: 13rem; }
 .compact-popover button { padding: 5rem 8rem; border: 1rem #4b565b; background-color: #202b2d; min-height: 22rem; }
 .compact-popover button:hover, .compact-popover button.active { border-color: #d4b475; color: #f9ddb0; background-color: #354042; }
-.compact-choice-list { display: block; width: 100%; max-height: 240rem; overflow-y: auto; }
-.compact-choice { position: relative; display: block; width: 100%; height: 38rem; box-sizing: border-box; padding: 5rem 8rem; border: 1rem #4b565b; background-color: #202b2d; margin-bottom: 3rem; text-align: left; cursor: pointer; pointer-events: auto; }
+.compact-choice-list { display: flex; flex-direction: column; align-items: stretch; width: 100%; height: 240rem; overflow-y: auto; clip: always; }
+.compact-choice { position: relative; display: block; flex: 0 0 38rem; box-sizing: border-box; padding: 5rem 8rem; border: 1rem #4b565b; background-color: #202b2d; margin-bottom: 3rem; text-align: left; cursor: pointer; pointer-events: auto; }
 .compact-choice:hover { border-color: #d4b475; color: #f9ddb0; background-color: #354042; }
 .compact-choice > span { display: block; margin-left: 30rem; white-space: nowrap; }
 .choice-icon { position: absolute; left: 8rem; top: 5rem; width: 20rem; height: 28rem; }
@@ -104,7 +104,7 @@ body.compact-narrow #ag_housing { width: 222rem; left: 0; right: 0; margin-left:
 .popover-footer { margin-top: 8rem; margin-bottom: 0; }
 body.compact-medium .compact-popover { bottom: 155rem; }
 body.compact-narrow .compact-popover { bottom: 201rem; }
-body.compact-narrow .compact-choice-list { max-height: 150rem; }
+body.compact-narrow .compact-choice-list { height: 150rem; }
 
 #hud_layout, .compact-popover { font-size: 11rem; }
 .tooltip { font-size: 11rem; }
