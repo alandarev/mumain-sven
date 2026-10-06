@@ -183,7 +183,8 @@ not fixed-position overlays. Theme reload clears transient motion/popovers and d
 targets. Layout and ornament remain in the theme's RML/RCSS and atlas. Compact sizes use the
 explicit UI scale; small viewports reflow the action row, and the top menus wrap when needed.
 Unmodified windows inherit the legacy skin through `FallbackTheme=legacy`. The workspace
-override contains a complete stylesheet; RCSS `@import` is not used.
+override contains a complete stylesheet. Munolith also ships the complete canonical
+`base.rcss`, which is required by theme discovery; RCSS `@import` is not used.
 
 ### `#backdrop` usage
 
