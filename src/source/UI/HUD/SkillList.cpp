@@ -289,7 +289,8 @@ void mu::ui::window::CSkillList::UseHotKey(int iHotKey)
 
 void mu::ui::window::CSkillList::SelectSkillIndex(int skillIndex)
 {
-    if (skillIndex < 0 || skillIndex >= MAX_MAGIC || Hero == nullptr)
+    // Pet commands occupy skill-array slots beyond the learned-spell range.
+    if (skillIndex < 0 || skillIndex >= MAX_SKILLS || Hero == nullptr)
         return;
 
     if (skillIndex != -1)
