@@ -179,6 +179,13 @@ list(APPEND MU_CLIENT_SOURCES
   "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/RmlUi/Backends/RmlUi_Renderer_SDL_GPU.cpp"
 )
 
+# Keep the UI composition attachments single-sampled. The game's sprites are
+# already antialiased, and this avoids multisampled stencil failures on Vulkan.
+set_source_files_properties(
+  "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/RmlUi/Backends/RmlUi_Renderer_SDL_GPU.cpp"
+  PROPERTIES COMPILE_DEFINITIONS RMLUI_SDL_GPU_NUM_MSAA_SAMPLES=1
+)
+
 # The control socket and its local-socket transport exist only in developer
 # builds. The two headers that the rest of the client includes
 # (App/Control/ControlTaps.h, ControlServer.h) compile to no-ops without

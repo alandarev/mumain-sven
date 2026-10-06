@@ -266,6 +266,12 @@ static Uint32 s_swapH = 0u;
 static std::uint32_t s_pendingFrameCaptureTextureId = 0u;
 static FrameReadbackState s_frameReadbackState;
 static SDL_GPUTexture* s_frameReadbackTexture = nullptr;
+// RmlUi seeds its layers from the game frame. SDL swapchains are presentation
+// targets, not copy sources, so compose into an owned texture before presenting.
+static SDL_GPUTexture* s_compositionTexture = nullptr;
+static Uint32 s_compositionWidth = 0u;
+static Uint32 s_compositionHeight = 0u;
+static SDL_GPUTextureFormat s_compositionFormat = SDL_GPU_TEXTUREFORMAT_INVALID;
 // Resolved in BeginFrame() from the requests pending at that point (see ResolveFrameColorTarget).
 static SDL_GPUTextureFormat s_frameReadbackFormat = SDL_GPU_TEXTUREFORMAT_INVALID;
 static SDL_GPUTexture* s_reconnectCaptureTexture = nullptr;
@@ -288,6 +294,37 @@ static void ReleaseFrameReadbackTexture()
         SDL_ReleaseGPUTexture(s_device, s_frameReadbackTexture);
     }
     s_frameReadbackTexture = nullptr;
+}
+
+static void ReleaseCompositionTexture()
+{
+    if (s_compositionTexture && s_device)
+        SDL_ReleaseGPUTexture(s_device, s_compositionTexture);
+    s_compositionTexture = nullptr;
+    s_compositionWidth = s_compositionHeight = 0u;
+    s_compositionFormat = SDL_GPU_TEXTUREFORMAT_INVALID;
+}
+
+[[nodiscard]] static bool EnsureCompositionTexture()
+{
+    const auto format = SDL_GetGPUSwapchainTextureFormat(s_device, s_window);
+    if (s_compositionTexture && s_compositionWidth == s_swapW && s_compositionHeight == s_swapH &&
+        s_compositionFormat == format)
+        return true;
+    ReleaseCompositionTexture();
+    const auto info = GetSdlGpuFrameCaptureTextureInfo(format, s_swapW, s_swapH);
+    if (!info)
+        return false;
+    s_compositionTexture = SDL_CreateGPUTexture(s_device, &*info);
+    if (!s_compositionTexture)
+    {
+        mu::log::Get("render")->error("SDL_gpu -- composition texture creation failed: {}", SDL_GetError());
+        return false;
+    }
+    s_compositionWidth = s_swapW;
+    s_compositionHeight = s_swapH;
+    s_compositionFormat = format;
+    return true;
 }
 
 static void FailPendingFrameReadback()
@@ -1670,6 +1707,7 @@ public:
 
         ReleaseFrameReadbackTexture();
         s_frameReadbackState.Reset();
+        ReleaseCompositionTexture();
 
 #if MU_HAS_SDL_TTF
         // Destroy SDL_ttf resources before the GPU device.
@@ -1852,6 +1890,17 @@ public:
         CreateOrResizeDepthTexture(s_swapW, s_swapH);
 
         ResolveFrameColorTarget();
+        if (s_preSubmitCallback && !s_frameColorTarget)
+        {
+            if (!EnsureCompositionTexture())
+            {
+                SDL_CancelGPUCommandBuffer(s_cmdBuf);
+                s_cmdBuf = nullptr;
+                FailPendingFrameReadback();
+                return;
+            }
+            s_frameColorTarget = s_compositionTexture;
+        }
 
         // Deferred rendering: do NOT begin the render pass here.
         // Draw calls record RenderCmds into s_renderCmds during the frame.
@@ -2265,7 +2314,7 @@ public:
 
         SDL_GPUTexture* const frameColorTexture = s_frameReadbackTexture    ? s_frameReadbackTexture
                                                   : reconnectCaptureTexture ? reconnectCaptureTexture
-                                                                            : s_swapchainTexture;
+                                                                            : targetChosenAtBegin;
 
         const bool chosenLate = frameColorTexture != targetChosenAtBegin;
         const bool clearThisPass = chosenLate || !s_mainColorPassOpenedThisFrame;
