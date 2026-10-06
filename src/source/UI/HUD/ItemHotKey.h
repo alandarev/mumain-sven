@@ -7,6 +7,8 @@
 #include "UI/RmlBridge/RmlRenderTarget.h"
 
 namespace Rml { class ElementDocument; }
+struct tagITEM;
+typedef tagITEM ITEM;
 
 namespace mu::ui::window
 {
@@ -26,6 +28,11 @@ namespace mu::ui::window
         virtual ~CItemHotKey();
 
         bool UpdateKeyEvent();
+
+        static int ResolveConsumable(int type, int level, bool count = false);
+        static bool UseInventoryItem(int index);
+        static void RenderItemModel(ITEM* item, std::uint32_t width, std::uint32_t height, bool hovered,
+                                    bool fitToBox = false);
 
         void SetHotKey(int iHotKey, int iItemType, int iItemLevel);
         int GetHotKey(int iHotKey);

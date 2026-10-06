@@ -68,6 +68,9 @@ namespace UI::RmlBridge
     // (NativeTextSize=1) -- see RmlNativeText.h.
     bool ThemeUsesNativeTextSize();
 
+    // Stable mixed action bar and animated resources, declared by CompactHud=1.
+    bool ThemeUsesCompactHud();
+
     // Builds the virtual source URL a themed document should be loaded against, e.g.
     // "Data/Interface/RmlUi/themes/modern/login.rml" -- this path need not exist on disk (the RML
     // itself is loaded from memory, shared across every theme); it only needs to resolve relative

@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "UI/HUD/SkillList.h"
+#include "UI/RmlBridge/RmlTheme.h"
 #include <algorithm>
 #include "I18N/All.h"
 
@@ -145,6 +146,17 @@ bool mu::ui::window::CSkillList::UpdateMouseEvent()
 
 bool mu::ui::window::CSkillList::UpdateKeyEvent()
 {
+    if (UI::RmlBridge::ThemeUsesCompactHud())
+    {
+        if (mu::ui::window::IsRepeat(VK_SHIFT) && Hero->m_pPet != nullptr)
+            for (int i = 0; i < 4; ++i)
+                if (mu::ui::window::IsPress('1' + i))
+                {
+                    OnPetCellClick(AT_PET_COMMAND_DEFAULT + i);
+                    return false;
+                }
+        return true;
+    }
     for (int i = 0; i < 9; ++i)
     {
         if (mu::ui::window::IsPress('1' + i))
@@ -272,9 +284,17 @@ int mu::ui::window::CSkillList::GetSkillIndex(int iSkillType)
 
 void mu::ui::window::CSkillList::UseHotKey(int iHotKey)
 {
-    if (m_iHotKeySkillType[iHotKey] != -1)
+    SelectSkillIndex(m_iHotKeySkillType[iHotKey]);
+}
+
+void mu::ui::window::CSkillList::SelectSkillIndex(int skillIndex)
+{
+    if (skillIndex < 0 || skillIndex >= MAX_MAGIC || Hero == nullptr)
+        return;
+
+    if (skillIndex != -1)
     {
-        if (m_iHotKeySkillType[iHotKey] >= AT_PET_COMMAND_DEFAULT && m_iHotKeySkillType[iHotKey] < AT_PET_COMMAND_END)
+        if (skillIndex >= AT_PET_COMMAND_DEFAULT && skillIndex < AT_PET_COMMAND_END)
         {
             if (Hero->m_pPet == NULL)
             {
@@ -282,7 +302,7 @@ void mu::ui::window::CSkillList::UseHotKey(int iHotKey)
             }
         }
 
-        auto wHotKeySkill = CharacterAttribute->Skill[m_iHotKeySkillType[iHotKey]];
+        auto wHotKeySkill = CharacterAttribute->Skill[skillIndex];
 
         if (wHotKeySkill == 0)
         {
@@ -291,7 +311,7 @@ void mu::ui::window::CSkillList::UseHotKey(int iHotKey)
 
         m_wHeroPriorSkill = CharacterAttribute->Skill[Hero->CurrentSkill];
 
-        Hero->CurrentSkill = m_iHotKeySkillType[iHotKey];
+        Hero->CurrentSkill = skillIndex;
 
         auto bySkill = CharacterAttribute->Skill[Hero->CurrentSkill];
 
@@ -634,6 +654,14 @@ bool IsHudSkillUsable(ActionSkillType bySkillType)
     return !bCantSkill;
 }
 } // namespace
+
+bool mu::ui::window::CSkillList::IsSkillUsable(int index) const
+{
+    if (Hero == nullptr || Hero->Dead != 0 || index < 0 || index >= MAX_MAGIC)
+        return false;
+    const auto type = CharacterAttribute->Skill[index];
+    return type != 0 && IsHudSkillUsable(type);
+}
 
 Rml::String mu::ui::window::CSkillList::GetSkillIconDecorator(int iIndex)
 {

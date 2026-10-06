@@ -1,0 +1,110 @@
+body { font-family: "DejaVu Sans"; font-size: 1px; color: #f0e5cd; font-effect: outline(1px #07090b), shadow(1px 1px #000000); }
+button { padding: 0; border-width: 0; background-color: transparent; cursor: pointer; pointer-events: auto; }
+.hidden { display: none; }
+#hud_layout { position: absolute; left: 0; right: 0; bottom: 0; margin-left: auto; margin-right: auto; width: 730rem; max-width: 96%; height: 88rem; overflow: visible; pointer-events: none; }
+#hud_layout.workspace-placed { right: auto; bottom: auto; margin-left: 0; margin-right: 0; transform-origin: left top; }
+.tooltip { display: none; position: absolute; bottom: 100%; left: 0; width: 240rem; padding: 6rem; background-color: #090e13ef; border: 1rem #77715c; z-index: 20; pointer-events: none; }
+button:hover > .tooltip, .resource:hover > .tooltip, #experience:hover > .tooltip, #ag_housing:hover > .tooltip { display: block; }
+/* Centered 730 x 74 logical units. Slots never shrink; compact screens reflow. */
+#compact_hud {
+    position: absolute; left: 0; right: 0; bottom: 14rem; margin-left: auto; margin-right: auto;
+    width: 100%; height: 74rem;
+}
+.hud-spine {
+    position: absolute; left: 35rem; right: 35rem; top: 24rem; height: 27rem;
+    decorator: vertical-gradient(#353b3d #12181a); border-top: 1rem #a7acaa; border-bottom: 1rem #787e7c;
+    pointer-events: none;
+}
+.resource-cluster { position: absolute; left: 0; top: 0; display: flex; align-items: center; width: 130rem; height: 74rem; }
+.mana-cluster { left: auto; right: 0; }
+.resource { position: relative; width: 78rem; height: 72rem; flex-shrink: 0; pointer-events: auto; }
+.health { margin-left: 4rem; }
+.mana { margin-right: 4rem; }
+.crystal { position: absolute; left: 8rem; top: 9rem; width: 62rem; height: 54rem; }
+.crystal-empty, .crystal-energy { position: absolute; left: 0; bottom: 0; width: 62rem; height: 54rem; pointer-events: none; }
+.crystal-clip { position: absolute; left: 0; bottom: 0; width: 62rem; overflow: hidden; clip: always; pointer-events: none; }
+.health .crystal-empty { decorator: image(life-empty); }
+.health .crystal-trail { decorator: image(life-trail); }
+.health .crystal-live { decorator: image(life-live); }
+.mana .crystal-empty { decorator: image(mana-empty); }
+.mana .crystal-trail { decorator: image(mana-trail); }
+.mana .crystal-live { decorator: image(mana-live); }
+.socket { position: absolute; left: 0; top: -4rem; width: 112rem; height: 76rem; decorator: image(socket-left); pointer-events: none; }
+.mana .socket { left: auto; right: 0; decorator: image(socket-right); }
+.resource-number { position: absolute; left: 0; right: 0; bottom: 10rem; text-align: center; font-size: 12rem; color: #fff3d5; z-index: 4; pointer-events: none; white-space: nowrap; }
+.critical .resource-number { color: #ffd2ca; }
+.heal-clip { position: absolute; left: 0; top: 0; width: 62rem; height: 54rem; overflow: hidden; clip: always; pointer-events: none; }
+.heal-sweep { position: absolute; left: 4rem; right: 4rem; height: 15rem; decorator: image(heal-sweep); }
+.action-slot { position: relative; width: 42rem; height: 46rem; flex-shrink: 0; decorator: image(slot-frame); }
+.recovery { overflow: visible; }
+.item-view { position: absolute; left: 12rem; bottom: 7rem; width: 18rem; height: 30rem; pointer-events: none; }
+.skill-view { position: absolute; left: 9rem; bottom: 5rem; width: 24rem; height: 33rem; pointer-events: none; }
+.slot-key, .slot-tier, .slot-count { position: absolute; z-index: 4; font-size: 11rem; line-height: 14rem; pointer-events: none; }
+.slot-key { left: 3rem; top: 2rem; color: #ffe4a3; }
+.slot-tier { left: 3rem; bottom: 2rem; color: #ccc5ae; }
+.slot-count { right: 3rem; bottom: 2rem; }
+.cooldown-mask { position: absolute; bottom: 0; left: 0; width: 100%; background-color: #05080bba; pointer-events: none; }
+.cooldown-number { position: absolute; left: 0; right: 0; top: 16rem; text-align: center; font-size: 13rem; color: #fff4d1; z-index: 3; pointer-events: none; }
+.cooling .item-view, .cooling .skill-view { opacity: 0.5; }
+.unavailable .item-view, .unavailable .skill-view { opacity: 0.42; }
+.antidote { position: absolute; left: 0; bottom: 82rem; decorator: image(antidote-frame); }
+#action_bar { position: absolute; left: 140rem; right: 140rem; top: 9rem; height: 56rem; z-index: 3; }
+#action_row { position: relative; display: flex; justify-content: center; padding-top: 5rem; gap: 3rem; }
+.binding { opacity: 0.88; }
+.binding:hover { opacity: 1; }
+.binding.selected { opacity: 1; decorator: image(slot-selected); }
+.selected-pin { display: none; position: absolute; bottom: -1rem; left: 18rem; width: 6rem; height: 6rem; decorator: image(selected-pin); pointer-events: none; }
+.selected .selected-pin { display: block; }
+#ag_housing { position: absolute; left: 1rem; right: 1rem; bottom: 0; height: 6rem; background-color: #20282a; border-left: 3rem #747c77; border-right: 3rem #747c77; pointer-events: auto; }
+#ag_track { position: absolute; left: 3rem; right: 3rem; top: 1rem; height: 3rem; background-color: #11111b; }
+.ag-trail, .ag-live, .ag-cost { position: absolute; left: 0; top: 0; height: 100%; pointer-events: none; }
+.ag-trail { background-color: #dac4eea6; }
+.ag-live { decorator: vertical-gradient(#d0b3e9 #9168af); }
+.ag-cost { background-color: #edddffb3; }
+.low .ag-live { decorator: none; background-color: #8a6674; }
+#experience { position: absolute; left: 18rem; right: 18rem; bottom: 2rem; height: 10rem; pointer-events: auto; }
+#experience_track { position: absolute; left: 4rem; right: 4rem; bottom: 3rem; height: 4rem; background-color: #24221c; }
+#experience_fill, #experience_gain { position: absolute; left: 0; top: 0; height: 100%; pointer-events: none; }
+#experience_fill { decorator: vertical-gradient(#e4ca83 #aa813e); }
+#experience_gain { background-color: #fff0bb; }
+.xp-divider { position: absolute; top: -1rem; width: 2rem; height: 6rem; margin-left: -1rem; background-color: #080a0b; z-index: 1; pointer-events: none; }
+.xp-10 { left: 10%; } .xp-20 { left: 20%; } .xp-30 { left: 30%; }
+.xp-40 { left: 40%; } .xp-50 { left: 50%; } .xp-60 { left: 60%; }
+.xp-70 { left: 70%; } .xp-80 { left: 80%; } .xp-90 { left: 90%; }
+#experience_tip { position: absolute; top: -3rem; width: 10rem; height: 10rem; margin-left: -5rem; z-index: 2; decorator: image(xp-tip); pointer-events: none; }
+.level-up #experience_track { background-color: #ddc18a; }
+#experience > .tooltip { left: 50%; margin-left: -160rem; width: 320rem; }
+.mana-cluster .tooltip { left: auto; right: 0; }
+body.compact-medium #hud_layout { width: 480rem; height: 146rem; }
+body.compact-medium #compact_hud { height: 132rem; }
+body.compact-medium #action_bar { left: 8rem; right: 8rem; top: auto; bottom: 0; }
+body.compact-medium .hud-spine { left: 8rem; right: 8rem; top: 83rem; }
+body.compact-narrow #hud_layout { height: 192rem; }
+body.compact-narrow #compact_hud { height: 178rem; }
+body.compact-narrow #action_bar { height: 104rem; }
+body.compact-narrow #action_row { width: 222rem; margin-left: auto; margin-right: auto; padding-top: 0; flex-wrap: wrap; }
+body.compact-narrow #ag_housing { width: 222rem; left: 0; right: 0; margin-left: auto; margin-right: auto; }
+
+.poisoned .resource-number { color: #b8f699; }
+.compact-popover-backdrop { position: absolute; top: 0; left: 0; right: 0; bottom: 0; pointer-events: auto; background-color: #02060942; }
+.compact-popover { position: absolute; bottom: 100rem; left: 0; right: 0; margin-left: auto; margin-right: auto; width: 360rem; max-width: 92%; padding: 12rem; background-color: #0d1419f5; border: 1rem #918879; pointer-events: auto; }
+.popover-header, .popover-tabs, .popover-footer, .compact-key-form { display: flex; align-items: center; justify-content: space-between; gap: 8rem; margin-bottom: 8rem; }
+.popover-header { color: #e9d5ab; font-size: 13rem; }
+.compact-popover button { padding: 5rem 8rem; border: 1rem #4b565b; background-color: #202b2d; min-height: 22rem; }
+.compact-popover button:hover, .compact-popover button.active { border-color: #d4b475; color: #f9ddb0; background-color: #354042; }
+.compact-choice-list { display: block; width: 100%; max-height: 240rem; overflow-y: auto; }
+.compact-choice { position: relative; display: block; width: 100%; height: 38rem; box-sizing: border-box; padding: 5rem 8rem; border: 1rem #4b565b; background-color: #202b2d; margin-bottom: 3rem; text-align: left; cursor: pointer; pointer-events: auto; }
+.compact-choice:hover { border-color: #d4b475; color: #f9ddb0; background-color: #354042; }
+.compact-choice > span { display: block; margin-left: 30rem; white-space: nowrap; }
+.choice-icon { position: absolute; left: 8rem; top: 5rem; width: 20rem; height: 28rem; }
+.compact-key-list { display: flex; flex-wrap: wrap; gap: 4rem; margin-bottom: 10rem; }
+.compact-key-list button { width: 62rem; display: flex; justify-content: space-between; }
+.compact-key-form input { width: 65rem; padding: 4rem; color: #fff1cf; background-color: #080d11; border: 1rem #9b9285; }
+.key-error { color: #ffb8a8; margin-bottom: 8rem; }
+.popover-footer { margin-top: 8rem; margin-bottom: 0; }
+body.compact-medium .compact-popover { bottom: 155rem; }
+body.compact-narrow .compact-popover { bottom: 201rem; }
+body.compact-narrow .compact-choice-list { max-height: 150rem; }
+
+#hud_layout, .compact-popover { font-size: 11rem; }
+.tooltip { font-size: 11rem; }

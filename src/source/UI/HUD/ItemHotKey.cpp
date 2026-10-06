@@ -45,6 +45,75 @@
 #include "GameLogic/Quests/QuestMng.h"
 #include "UI/Social/FriendWindow.h"
 
+namespace
+{
+int ResolveInventoryRange(int iStartItemType, int iEndItemType, int itemLevel, bool bItemCount)
+{
+    int iItemCount = 0;
+    ITEM* pItem = NULL;
+
+    int iNumberofItems = g_pMyInventory->GetInventoryCtrl()->GetNumberOfItems();
+    for (int i = iStartItemType; i >= iEndItemType; --i)
+    {
+        if (bItemCount)
+        {
+            for (int j = 0; j < iNumberofItems; ++j)
+            {
+                pItem = g_pMyInventory->GetInventoryCtrl()->GetItem(j);
+                if (pItem == NULL)
+                {
+                    continue;
+                }
+
+                if ((pItem->Type == i && pItem->Level == itemLevel) ||
+                    (pItem->Type == i && (pItem->Type >= ITEM_APPLE && pItem->Type <= ITEM_LARGE_HEALING_POTION)))
+                {
+                    if (pItem->Type == ITEM_ALE || pItem->Type == ITEM_TOWN_PORTAL_SCROLL ||
+                        pItem->Type == ITEM_POTION + 20)
+                    {
+                        iItemCount++;
+                    }
+                    else
+                    {
+                        iItemCount += pItem->Durability;
+                    }
+                }
+            }
+        }
+        else
+        {
+            int iIndex = -1;
+            if (i >= ITEM_APPLE && i <= ITEM_LARGE_HEALING_POTION)
+            {
+                iIndex = g_pMyInventory->FindItemReverseIndex(i);
+            }
+            else
+            {
+                iIndex = g_pMyInventory->FindItemReverseIndex(i, itemLevel);
+            }
+
+            if (-1 != iIndex)
+            {
+                pItem = g_pMyInventory->FindItem(iIndex);
+                if ((pItem->Type != ITEM_SIEGE_POTION && pItem->Type != ITEM_TOWN_PORTAL_SCROLL &&
+                     pItem->Type != ITEM_POTION + 20) ||
+                    pItem->Level == itemLevel)
+                {
+                    return iIndex;
+                }
+            }
+        }
+    }
+
+    if (bItemCount == true)
+    {
+        return iItemCount;
+    }
+
+    return -1;
+}
+} // namespace
+
 mu::ui::window::CItemHotKey::CItemHotKey()
 {
     for (int i = 0; i < HOTKEY_COUNT; ++i)
@@ -81,41 +150,57 @@ bool mu::ui::window::CItemHotKey::UpdateKeyEvent()
         iIndex = GetHotKeyItemIndex(HOTKEY_R);
     }
 
-    if (iIndex != -1)
-    {
-        ITEM* pItem = NULL;
-        pItem = g_pMyInventory->FindItem(iIndex);
-        if ((pItem->Type >= ITEM_POTION + 78 && pItem->Type <= ITEM_POTION + 82))
-        {
-            std::list<eBuffState> secretPotionbufflist;
-            secretPotionbufflist.push_back(eBuff_SecretPotion1);
-            secretPotionbufflist.push_back(eBuff_SecretPotion2);
-            secretPotionbufflist.push_back(eBuff_SecretPotion3);
-            secretPotionbufflist.push_back(eBuff_SecretPotion4);
-            secretPotionbufflist.push_back(eBuff_SecretPotion5);
+    if (iIndex == -1)
+        return true;
+    UseInventoryItem(iIndex);
+    return false;
+}
 
-            if (g_isCharacterBufflist((&Hero->Object), secretPotionbufflist) != eBuffNone) {
-                mu::ui::window::CreateOkMessageBox(I18N::Game::YouCannotUseThisItemWhileThePotionEffectsRemainActive, RGBA(255, 30, 0, 255));
-            }
-            else {
-                SendRequestUse(iIndex, 0);
-            }
-        }
-        else
-
-        {
-            SendRequestUse(iIndex, 0);
-        }
+bool mu::ui::window::CItemHotKey::UseInventoryItem(int index)
+{
+    if (Hero == nullptr || Hero->Dead != 0 || g_pMyInventory == nullptr || index < 0)
         return false;
+    ITEM* item = g_pMyInventory->FindItem(index);
+    if (item == nullptr || !CMyInventory::CanRegisterItemHotKey(item->Type))
+        return false;
+    if (item->Type >= ITEM_POTION + 78 && item->Type <= ITEM_POTION + 82)
+    {
+        const std::list<eBuffState> effects{eBuff_SecretPotion1, eBuff_SecretPotion2, eBuff_SecretPotion3,
+                                            eBuff_SecretPotion4, eBuff_SecretPotion5};
+        if (g_isCharacterBufflist((&Hero->Object), effects) != eBuffNone)
+        {
+            CreateOkMessageBox(I18N::Game::YouCannotUseThisItemWhileThePotionEffectsRemainActive,
+                               RGBA(255, 30, 0, 255));
+            return false;
+        }
     }
-
+    SendRequestUse(index, 0);
     return true;
+}
+
+int mu::ui::window::CItemHotKey::ResolveConsumable(int type, int level, bool count)
+{
+    if (g_pMyInventory == nullptr || g_pMyInventory->GetInventoryCtrl() == nullptr ||
+        !CMyInventory::CanRegisterItemHotKey(type))
+        return count ? 0 : -1;
+    int first = type;
+    int last = type;
+    if (type >= ITEM_APPLE && type <= ITEM_LARGE_HEALING_POTION)
+    {
+        first = ITEM_LARGE_HEALING_POTION;
+        last = ITEM_APPLE;
+    }
+    else if (type >= ITEM_SMALL_MANA_POTION && type <= ITEM_LARGE_MANA_POTION)
+    {
+        first = ITEM_LARGE_MANA_POTION;
+        last = ITEM_SMALL_MANA_POTION;
+    }
+    return ResolveInventoryRange(first, last, level, count);
 }
 
 int mu::ui::window::CItemHotKey::GetHotKeyItemIndex(int iType, bool bItemCount)
 {
     int iStartItemType = 0, iEndItemType = 0;
-    int i, j;
 
     switch (iType)
     {
@@ -181,74 +266,7 @@ int mu::ui::window::CItemHotKey::GetHotKeyItemIndex(int iType, bool bItemCount)
         break;
     }
 
-    int iItemCount = 0;
-    ITEM* pItem = NULL;
-
-    int iNumberofItems = g_pMyInventory->GetInventoryCtrl()->GetNumberOfItems();
-    for (i = iStartItemType; i >= iEndItemType; --i)
-    {
-        if (bItemCount)
-        {
-            for (j = 0; j < iNumberofItems; ++j)
-            {
-                pItem = g_pMyInventory->GetInventoryCtrl()->GetItem(j);
-                if (pItem == NULL)
-                {
-                    continue;
-                }
-
-                if (
-                    (pItem->Type == i && pItem->Level == m_iHotKeyItemLevel[iType])
-                    || (pItem->Type == i && (pItem->Type >= ITEM_APPLE && pItem->Type <= ITEM_LARGE_HEALING_POTION))
-                    )
-                {
-                    if (pItem->Type == ITEM_ALE
-                        || pItem->Type == ITEM_TOWN_PORTAL_SCROLL
-                        || pItem->Type == ITEM_POTION + 20
-                        )
-                    {
-                        iItemCount++;
-                    }
-                    else
-                    {
-                        iItemCount += pItem->Durability;
-                    }
-                }
-            }
-        }
-        else
-        {
-            int iIndex = -1;
-            if (i >= ITEM_APPLE && i <= ITEM_LARGE_HEALING_POTION)
-            {
-                iIndex = g_pMyInventory->FindItemReverseIndex(i);
-            }
-            else
-            {
-                iIndex = g_pMyInventory->FindItemReverseIndex(i, m_iHotKeyItemLevel[iType]);
-            }
-
-            if (-1 != iIndex)
-            {
-                pItem = g_pMyInventory->FindItem(iIndex);
-                if ((pItem->Type != ITEM_SIEGE_POTION
-                    && pItem->Type != ITEM_TOWN_PORTAL_SCROLL
-                    && pItem->Type != ITEM_POTION + 20)
-                    || pItem->Level == m_iHotKeyItemLevel[iType]
-                    )
-                {
-                    return iIndex;
-                }
-            }
-        }
-    }
-
-    if (bItemCount == true)
-    {
-        return iItemCount;
-    }
-
-    return -1;
+    return ResolveInventoryRange(iStartItemType, iEndItemType, m_iHotKeyItemLevel[iType], bItemCount);
 }
 
 bool mu::ui::window::CItemHotKey::GetHotKeyCommonItem(IN int iHotKey, OUT int& iStart, OUT int& iEnd)
@@ -391,6 +409,14 @@ void mu::ui::window::CItemHotKey::RenderSlot(int iSlotIndex, std::uint32_t width
     if (pItem == nullptr || width == 0 || height == 0)
         return;
 
+    RenderItemModel(pItem, width, height, m_iHoveredSlot == iSlotIndex);
+}
+
+void mu::ui::window::CItemHotKey::RenderItemModel(ITEM* pItem, std::uint32_t width, std::uint32_t height, bool hovered,
+                                                  bool fitToBox)
+{
+    if (pItem == nullptr || width == 0 || height == 0)
+        return;
     const float windowWidth = static_cast<float>(WindowWidth);
     const float windowHeight = static_cast<float>(WindowHeight);
     const float w = static_cast<float>(width);
@@ -415,7 +441,15 @@ void mu::ui::window::CItemHotKey::RenderSlot(int iSlotIndex, std::uint32_t width
     renderer.Scale(scaleX, scaleY, 1.f);
     // gluPerspective2() takes the camera's screen centre from the viewport; the capture brings its own.
     SetRenderViewport(0, 0, WindowWidth, WindowHeight);
-    gluPerspective2(1.f, windowWidth / windowHeight, RENDER_ITEMVIEW_NEAR, RENDER_ITEMVIEW_FAR);
+    // Compact frames retain the item camera's 640x480 framing as the viewport grows.
+    // Size to the smaller box dimension, with a little air around the bottle silhouette.
+    constexpr float ReferenceWindowHeight = 480.f;
+    constexpr float ReferenceItemWidth = 20.f;
+    constexpr float ReferenceItemHeight = 28.f;
+    constexpr float CompactModelScale = 1.35f;
+    const float boxScale = std::min(w / ReferenceItemWidth, h / ReferenceItemHeight) * CompactModelScale;
+    const float fieldOfView = fitToBox ? windowHeight / (ReferenceWindowHeight * boxScale) : 1.f;
+    gluPerspective2(fieldOfView, windowWidth / windowHeight, RENDER_ITEMVIEW_NEAR, RENDER_ITEMVIEW_FAR);
     renderer.SetMatrixMode(GL_MODELVIEW);
     renderer.PushMatrix();
     renderer.LoadIdentity();
@@ -423,7 +457,7 @@ void mu::ui::window::CItemHotKey::RenderSlot(int iSlotIndex, std::uint32_t width
     EnableDepthTest();
     EnableDepthMask();
 
-    RenderItem3DWithHover(x, y, w, h, pItem->Type, pItem->Level, 0, 0, m_iHoveredSlot == iSlotIndex);
+    RenderItem3DWithHover(x, y, w, h, pItem->Type, pItem->Level, 0, 0, hovered);
 
     renderer.SetMatrixMode(GL_MODELVIEW);
     renderer.PopMatrix();

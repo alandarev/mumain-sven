@@ -1,0 +1,9 @@
+body { font-family: "DejaVu Sans"; font-size: 1px; color: #eee5d3; font-effect: outline(1px #000000), shadow(1px 1px #000000); }
+#top_right_row { position: absolute; left: 0; top: 6rem; width: 100%; display: flex; justify-content: flex-end; pointer-events: none; }
+#buttons_top { position: relative; display: flex; flex-wrap: wrap; width: 420rem; max-width: 94%; margin-right: 8rem; gap: 3rem; pointer-events: auto; }
+#buttons_top.workspace-placed { position: absolute; margin-right: 0; transform-origin: left top; }
+#buttons_top button { padding: 4rem 6rem; min-height: 22rem; color: #ddd0ae; background-color: #0b151cdc; border: 1rem #77776a; pointer-events: auto; cursor: pointer; }
+#buttons_top button:hover, #buttons_top button.open { color: #fff1c8; border-color: #c2a568; background-color: #283036; }
+#buttons_top button.alert { color: #ffe38b; }
+
+#buttons_top { font-size: 11rem; width: 480rem; }

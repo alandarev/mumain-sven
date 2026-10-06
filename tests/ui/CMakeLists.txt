@@ -253,3 +253,12 @@ mu_add_test(
         ${CMAKE_SOURCE_DIR}/src/source/App/Platform/Windows/Winmain.cpp
     LINK_LIBS MuClient
 )
+
+mu_add_test(
+    NAME compact_hud_state_tests
+    SOURCES
+        test_compact_hud_state.cpp
+        ${CMAKE_SOURCE_DIR}/src/source/UI/HUD/ResourceMotion.cpp
+        ${CMAKE_SOURCE_DIR}/src/source/UI/HUD/ExperienceProgress.cpp
+        ${CMAKE_SOURCE_DIR}/src/source/UI/HUD/ActionBarProfile.cpp
+)

@@ -335,3 +335,52 @@ TEST_CASE("a late model name and a hook before every unload [ui][rml-themed-view
     view.Release();
     CHECK(unloads == 2);
 }
+
+TEST_CASE("theme inheritance resolves documents and stops invalid or cyclic fallbacks [ui][rml-theme]")
+{
+    Fixture fixture;
+    const auto previousDirectory = std::filesystem::current_path();
+    const std::string previousTheme = UI::RmlBridge::GetActiveThemeName();
+    struct Restore
+    {
+        std::filesystem::path directory;
+        std::string theme;
+        ~Restore()
+        {
+            std::filesystem::current_path(directory);
+            UI::RmlBridge::SetActiveThemeName(theme);
+        }
+    } restore{previousDirectory, previousTheme};
+    std::filesystem::current_path(fixture.Path("."));
+    const std::filesystem::path themes = "Data/Interface/RmlUi/themes";
+    for (const auto* theme : {"child", "parent", "cycle", "invalid"})
+    {
+        std::filesystem::create_directories(themes / theme);
+        std::ofstream(themes / theme / "base.rcss") << "body {}";
+    }
+    std::ofstream(themes / "child/theme.ini")
+        << "[Meta]\nFallbackTheme=parent\nDisplayName=Test child\n[Capabilities]\nCompactHud=1\n";
+    std::ofstream(themes / "parent/theme.ini") << "[Meta]\nFallbackTheme=cycle\n";
+    std::ofstream(themes / "cycle/theme.ini") << "[Meta]\nFallbackTheme=child\n";
+    std::ofstream(themes / "invalid/theme.ini") << "[Meta]\nFallbackTheme=../parent\n";
+    std::ofstream(themes / "child/own.rml") << kPlainDocument;
+    std::ofstream(themes / "parent/shared.rcss") << "body {}";
+    std::ofstream(themes / "cycle/deeper.rml") << kPlainDocument;
+
+    CHECK(UI::RmlBridge::ThemedDocumentSourceUrl("own.rml", "child") == (themes / "child/own.rml").generic_string());
+    CHECK(UI::RmlBridge::ThemedDocumentSourceUrl("shared.rml", "CHILD") ==
+          (themes / "parent/shared.rml").generic_string());
+    CHECK(UI::RmlBridge::ThemedDocumentSourceUrl("deeper.rml", "child") ==
+          (themes / "cycle/deeper.rml").generic_string());
+    CHECK(UI::RmlBridge::ThemedDocumentSourceUrl("missing.rml", "child") ==
+          (themes / "child/missing.rml").generic_string());
+    CHECK(UI::RmlBridge::ThemedDocumentSourceUrl("shared.rml", "invalid") ==
+          (themes / "invalid/shared.rml").generic_string());
+    UI::RmlBridge::SetActiveThemeName("child");
+    CHECK(UI::RmlBridge::ThemeUsesCompactHud());
+    CHECK(UI::RmlBridge::GetThemeDisplayName("child") == "Test child");
+    UI::RmlBridge::SetActiveThemeName("parent");
+    CHECK_FALSE(UI::RmlBridge::ThemeUsesCompactHud());
+    const auto available = UI::RmlBridge::DiscoverAvailableThemes();
+    CHECK(std::find(available.begin(), available.end(), "child") != available.end());
+}

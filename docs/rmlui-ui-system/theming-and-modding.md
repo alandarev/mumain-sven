@@ -128,13 +128,62 @@ prompt) hold a namespace-scope view and work the same way.
 the in-memory value, so a relaunch still picks up whatever `config.ini` says. Use it for quickly
 A/B-ing themes; edit `config.ini` (previous section) for a change that should survive a restart.
 
-**Two themes are built, and two is the intended set: `legacy` and `modern`.** The mechanism stays
-theme-name-agnostic (a theme is a folder, see above) so a *user-authored* theme remains possible,
-but no third first-party theme is planned — the project owner ruled one out. `architecture-
-principles.md` §25/§28 envisions a Custom/Test theme specifically to expose accidental coupling
-between a component and one visual design; that concern is real, but it is met by `modern`'s own
-structural divergence plus the drift checker rather than by a third theme. Keep `legacy` and `modern` updated together for any window content
-change — don't let one lag.
+**The shipped themes are `legacy`, `modern` and `munolith`.** Munolith implements the
+compact crystal HUD. Its other windows inherit legacy while later sections are redesigned.
+The mechanism remains theme-name-agnostic; adding a theme does not add a C++ theme-name branch.
+
+### Declared document inheritance
+
+A theme can declare `[Meta] FallbackTheme=legacy` in `theme.ini`. Document resolution first
+looks for its own `<name>.rml` or `<name>.rcss`, then follows the declared fallback. A parent
+stylesheet can therefore style a shared document, and a parent's document fork can be reused.
+Relative links and textures resolve from the theme that supplies that document's styles.
+Fallback names must be simple identifiers; missing parents, cycles and more than eight levels
+stop resolution. An unresolved document uses its original theme URL and logs missing styles
+normally. Theme discovery still requires the child's own `base.rcss`; `tokens.ini` contains
+its complete token values, including those used by inherited styles.
+
+### Munolith HUD and action bindings
+
+Select **Munolith** in the existing theme setting, use `$theme munolith` for a session preview,
+or set `[UI] RmlTheme=munolith` in `config.ini` for startup. The bottom HUD has paired life/mana
+crystals, ten stable action slots, an embedded AG channel and a ten-section XP rail covering
+one level. SD has no visual element or recovery action. The antidote control appears near life
+only while poisoned. Resource totals stay immediate; separate loss trails and recovery sweeps
+show changes. The action editor's **Reduced motion** option disables those effects.
+
+The defaults are **1–9,0** for actions, **Q** for life, **W** for mana and **E** for the contextual
+antidote. **R** has no HUD binding. **Shift+1–4** retains native pet commands. Right-click a slot,
+left-click an empty slot, or open **Skills** in the upper-right menu to choose a learned skill
+or usable inventory consumable. Choosing an entry assigns it without activating it or changing
+the slot's key. An aimed skill is selected for the usual right-mouse cast. Life/Greater Fortitude
+and its supported master variants cast immediately through the native eligibility checks,
+then restore the selected aimed skill and target. Consumables also preserve the selected skill.
+
+Life/mana bindings aggregate their native potion family and use its strongest available tier.
+The model, size letter and stock show what will be used. Empty stock dims the assigned item;
+restocking restores it. Skill cooldown shutters use the native remaining delay. Potions currently
+have no established cooldown, so the HUD does not invent one. **Portal** in the upper-right menu
+uses a portal scroll if available; it can also be assigned from Consumables.
+
+**Keys** accepts letters, digits, F1–F12 and `None`; duplicate HUD keys are rejected. A remapped
+HUD action consumes that key before ordinary game shortcuts, so the player should choose which
+shortcut to give up. Chat, text fields and modal game dialogs suppress action activation.
+Bindings, item/skill identities and reduced motion are stored per character in
+`Config/action-bar/<hex-encoded-UTF8-name>.profile`, relative to the client runtime directory.
+Profiles are local player settings. An invalid file leaves MU defaults active; a failed save
+keeps the edits for the session and displays an error in the editor.
+
+Munolith overrides `main_frame.rml` and `main_frame_top.rml` and declares
+`[Capabilities] CompactHud=1`. The existing main-frame `ThemedView` still owns both documents.
+The capability adds the compact model and input routing; other themes keep their native HUD
+behavior. Presentation controllers are under `UI/HUD/`, and normal/master XP normalization is
+shared with the old decile fields. Item images are live render targets measured from RCSS boxes,
+not fixed-position overlays. Theme reload clears transient motion/popovers and disables hidden
+targets. Layout and ornament remain in the theme's RML/RCSS and atlas. Compact sizes use the
+explicit UI scale; small viewports reflow the action row, and the top menus wrap when needed.
+Unmodified windows inherit the legacy skin through `FallbackTheme=legacy`. The workspace
+override contains a complete stylesheet; RCSS `@import` is not used.
 
 ### `#backdrop` usage
 

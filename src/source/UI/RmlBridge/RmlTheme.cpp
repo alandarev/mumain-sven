@@ -160,6 +160,18 @@ namespace UI::RmlBridge
             return GetPrivateProfileIntW(L"Capabilities", L"NativeTextSize", 0, WidenAscii(iniPath).c_str()) != 0;
         }
 
+        bool ComputeUsesCompactHud(const std::string& themeName)
+        {
+            const std::string iniPath = "Data/Interface/RmlUi/themes/" + themeName + "/theme.ini";
+            return GetPrivateProfileIntW(L"Capabilities", L"CompactHud", 0, WidenAscii(iniPath).c_str()) != 0;
+        }
+
+        bool& UsesCompactHudStorage()
+        {
+            static bool value = ComputeUsesCompactHud(ActiveThemeNameStorage());
+            return value;
+        }
+
         bool& UsesNativeTextSizeStorage()
         {
             static bool usesNativeTextSize = ComputeUsesNativeTextSize(ActiveThemeNameStorage());
@@ -178,10 +190,16 @@ namespace UI::RmlBridge
         return UsesNativeTextSizeStorage();
     }
 
+    bool ThemeUsesCompactHud()
+    {
+        return UsesCompactHudStorage();
+    }
+
     void SetActiveThemeName(const std::string& themeName)
     {
         ActiveThemeNameStorage() = ToLower(themeName);
         UsesNativeTextSizeStorage() = ComputeUsesNativeTextSize(ActiveThemeNameStorage());
+        UsesCompactHudStorage() = ComputeUsesCompactHud(ActiveThemeNameStorage());
 
         // Both themes deliberately reuse the same <template name="..."> for a shared concept
         // (e.g. "window_shell_bg") in their own themes/<theme>/ copy. Rml::TemplateCache caches a
@@ -206,7 +224,28 @@ namespace UI::RmlBridge
 
     std::string ThemedDocumentSourceUrl(const char* documentName, const std::string& themeName)
     {
-        return std::string("Data/Interface/RmlUi/themes/") + ToLower(themeName) + "/" + documentName;
+        constexpr int maximumInheritanceDepth = 8;
+        const std::string root = "Data/Interface/RmlUi/themes/";
+        const std::string original = ToLower(themeName);
+        std::string theme = original;
+        std::vector<std::string> visited;
+        const std::string sheet = std::filesystem::path(documentName).replace_extension(".rcss").string();
+        for (int depth = 0; depth < maximumInheritanceDepth; ++depth)
+        {
+            const std::string directory = root + theme + "/";
+            if (std::ifstream(directory + documentName).good() || std::ifstream(directory + sheet).good())
+                return directory + documentName;
+            visited.push_back(theme);
+            wchar_t fallback[128] = {};
+            GetPrivateProfileStringW(L"Meta", L"FallbackTheme", L"", fallback, std::size(fallback),
+                                     WidenAscii(directory + "theme.ini").c_str());
+            theme = ToLower(NarrowAscii(fallback));
+            const bool validName = !theme.empty() && std::all_of(theme.begin(), theme.end(), [](unsigned char c)
+                                                                 { return std::isalnum(c) || c == '-' || c == '_'; });
+            if (!validName || !ThemeExists(theme) || std::find(visited.begin(), visited.end(), theme) != visited.end())
+                break;
+        }
+        return root + original + "/" + documentName;
     }
 
     std::vector<std::string> DiscoverAvailableThemes()
