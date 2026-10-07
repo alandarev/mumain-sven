@@ -26,7 +26,7 @@ bool Window::CompileFilter()
     m_Filter = {};
     const auto category = Number(model.category, 2), equipment = Number(model.equipment, 4);
     const auto option = Number(model.option, static_cast<int>(Options().size()) - 1);
-    const auto family = Number(model.family, 4), classLine = Number(model.classLine, 255), sort = Number(model.sort, 1);
+    const auto family = Number(model.family, 4), classLine = Number(model.classLine, 255), sort = Number(model.sort, 3);
     const auto low = Number(model.upgradeMin, 15), high = Number(model.upgradeMax, 15);
     const auto excellent = Number(model.minExcellent, 6), sockets = Number(model.minSockets, 5);
     if (!category || !equipment || !option || !family || !classLine || !sort || !low || !high || !excellent ||

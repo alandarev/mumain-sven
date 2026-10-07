@@ -3,7 +3,8 @@ div { display: block; }
 #panel { width: 94%; max-width: 960dp; height: 84%; max-height: 600dp; box-sizing: border-box; display: flex; flex-direction: column; padding: 12dp; pointer-events: auto; font-family: "token(font-body)"; font-size: 1rem; color: token(text-primary); background-color: token(surface-recessed); border: 2dp token(border-inner); }
 #titlebar { display: flex; align-items: center; flex-shrink: 0; padding: 3dp 3dp 12dp; }
 .heading { font-weight: bold; color: token(accent-gold); }
-.wallet { margin-left: auto; margin-right: 14dp; color: token(accent-gold); }
+#titlebar .heading { margin-right: auto; }
+.wallet { margin-left: 0; margin-right: 14dp; color: token(accent-gold); }
 .close { width: 24dp; height: 24dp; padding: 0; font-size: 1.3rem; }
 .tabs { display: flex; flex-shrink: 0; margin-bottom: 10dp; border-bottom: 1dp token(border-inner); }
 .tabs button { flex: 1; padding: 8dp 4dp; border-bottom: 2dp transparent; }
@@ -37,9 +38,9 @@ select option:hover, select option:checked { background-color: token(surface-con
 .range, .toggle-pair, .price-input { display: flex; align-items: center; }
 .range input, .range label { flex: 1; min-width: 0; }
 .range span { margin: 0 5dp; }
-.toggle { display: flex; align-items: center; }
-.toggle input { width: 13dp; height: 13dp; margin-right: 5dp; }
-.toggle-pair label { flex: 1; }
+.filter-toggle { display: flex; align-items: center; margin: 9dp 0 4dp; padding: 0; text-align: left; }
+.filter-toggle .checkbox-box { flex-shrink: 0; margin-right: 5dp; }
+.toggle-pair .filter-toggle { flex: 1; }
 .fee-row { display: flex; justify-content: space-between; padding: 5dp 0; font-size: 0.95rem; }
 .duration { margin: 8dp 0; color: token(text-secondary); }
 .action.btn { position: relative; display: inline-block; width: auto; min-width: 0; max-width: 100%; height: auto; min-height: 30dp; line-height: 1.3; padding: 8dp 15dp; margin: 5dp 0; white-space: normal; }
@@ -51,7 +52,7 @@ select option:hover, select option:checked { background-color: token(surface-con
 .inventory-item { width: 24%; min-height: 100dp; padding: 8dp 3dp; margin: 0.5%; border: 1dp token(border-inner); background-color: token(surface-recessed); }
 .inventory-item .item-icon { display: block; margin: 0 auto 6dp; }
 .inventory-item span { font-size: 0.9rem; }
-.status { flex-shrink: 0; padding: 8dp 4dp 0; color: token(semantic-danger); }
+.status { flex-shrink: 0; padding: 8dp 4dp 0; color: token(text-secondary); }
 .loading, .empty { padding: 20dp 10dp; color: token(text-secondary); text-align: center; }
 .muted { color: token(text-secondary); font-size: 0.9rem; }
 .gold { color: token(accent-gold); }
@@ -70,3 +71,7 @@ select option:hover, select option:checked { background-color: token(surface-con
 .badge { color: token(accent-gold); font-size: 0.9rem; }
 
 #panel.reviewing .workspace button, #panel.reviewing .workspace input, #panel.reviewing .workspace select, #panel.reviewing .tabs button { tab-index: none; pointer-events: none; }
+
+/* A model becomes visible only after its native texture has been published. */
+.item-icon, .selected-icon { opacity: 0; }
+.item-icon.loaded, .selected-icon.loaded { opacity: 1; }

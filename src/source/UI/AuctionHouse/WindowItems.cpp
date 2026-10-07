@@ -105,7 +105,7 @@ void Window::RefreshInventory()
 
 bool Window::SellItemUnchanged() const
 {
-    return SameInventoryItem(InventoryItem(m_SellSlot), m_SelectedIcon.item.get());
+    return SameInventoryItem(InventoryItem(m_SellSlot), m_SelectedIcon.item.get(), m_SellKey);
 }
 
 void Window::SelectInventory(int slot)
@@ -118,6 +118,7 @@ void Window::SelectInventory(int slot)
         SetStatus("Item no longer available.");
         return;
     }
+    SetStatus({});
     m_SellSlot = slot;
     m_SellKey = item->Key;
     auto& model = m_View.GetModel();
@@ -141,6 +142,7 @@ void Window::SelectRow(int index)
     auto& model = m_View.GetModel();
     if (index < 0 || static_cast<std::size_t>(index) >= model.rows.size() || model.busy)
         return;
+    SetStatus({});
     m_Selected = index;
     for (auto& row : model.rows)
         row.selected = row.index == index;
@@ -168,6 +170,8 @@ void Window::SyncIcons()
         return;
     auto sync = [this](Icon& icon, Rml::Element* image)
     {
+        if (image)
+            image->SetClass("loaded", icon.item && icon.target && !icon.target->Source().empty());
         if (!image || !icon.item)
         {
             if (icon.target)
@@ -176,8 +180,13 @@ void Window::SyncIcons()
         }
         const auto bounds = image->GetAbsoluteOffset(Rml::BoxArea::Border);
         const auto size = image->GetBox().GetSize(Rml::BoxArea::Content);
-        const bool shown = IsVisible() && image->IsVisible(true) && bounds.y + size.y > 0 &&
-                           bounds.y < static_cast<float>(WindowHeight);
+        auto* pane = image->GetParentNode();
+        while (pane && !pane->IsClassSet("scroll-pane"))
+            pane = pane->GetParentNode();
+        // Both offsets share the panel transform, so centering and dragging cancel out.
+        const float top = pane ? bounds.y - pane->GetAbsoluteOffset(Rml::BoxArea::Content).y : 0.f;
+        const bool shown =
+            IsVisible() && image->IsVisible(true) && (!pane || (top + size.y > 0 && top < pane->GetClientHeight()));
         if (!shown)
         {
             if (icon.target)
@@ -193,6 +202,7 @@ void Window::SyncIcons()
         }
         icon.target->SetEnabled(true);
         icon.target->Resize(std::max(1l, std::lround(size.x)), std::max(1l, std::lround(size.y)));
+        image->SetClass("loaded", !icon.target->Source().empty());
         if (image->GetAttribute<Rml::String>("src", {}) != icon.target->Source())
             image->SetAttribute("src", icon.target->Source());
     };

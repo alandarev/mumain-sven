@@ -57,6 +57,7 @@ void BindWindowModel(Rml::DataModelConstructor& c, WindowModel& m)
     c.Bind("skill", &m.skill);
     c.Bind("wallet", &m.wallet);
     c.Bind("status", &m.status);
+    c.Bind("status_error", &m.statusError);
     c.Bind("count", &m.count);
     c.Bind("duration", &m.duration);
     c.Bind("sale_total", &m.saleTotal);

@@ -149,11 +149,12 @@ RowModel DescribeItem(const ITEM* item, int index)
     return row;
 }
 
-bool SameInventoryItem(const ITEM* item, const ITEM* saved)
+bool SameInventoryItem(const ITEM* item, const ITEM* saved, std::uint32_t sourceKey)
 {
     if (!item || !saved)
         return false;
-    return item->Key == saved->Key && item->Type == saved->Type && item->Level == saved->Level &&
+    // Preview duplicates receive their own key; retain the inventory identity separately.
+    return item->Key == sourceKey && item->Type == saved->Type && item->Level == saved->Level &&
            item->Durability == saved->Durability && item->OptionLevel == saved->OptionLevel &&
            item->OptionType == saved->OptionType && item->ExcellentFlags == saved->ExcellentFlags &&
            item->AncientDiscriminator == saved->AncientDiscriminator &&

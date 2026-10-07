@@ -6,7 +6,7 @@ namespace GameLogic::AuctionHouse
 {
 bool IsValidSearchFilter(const SearchFilter& filter)
 {
-    if (filter.sort > 1 || (filter.slotMask & ~0x07FFu) != 0 || (filter.classLine > 6 && filter.classLine != 0xFF) ||
+    if (filter.sort > 3 || (filter.slotMask & ~0x07FFu) != 0 || (filter.classLine > 6 && filter.classLine != 0xFF) ||
         filter.flags > 7 || filter.family > 4 || filter.upgradeMin > filter.upgradeMax || filter.upgradeMax > 15 ||
         filter.excellentMask > 0x3F || filter.minExcellentCount > 6 || filter.minSockets > 5)
         return false;

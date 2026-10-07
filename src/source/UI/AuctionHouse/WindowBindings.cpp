@@ -27,6 +27,19 @@ void Window::BindEvents(Rml::DataModelConstructor& c)
                   SwitchTab(args.front().template Get<Rml::String>());
           });
     event("filter", [this](const auto&) { FilterChanged(); });
+    auto toggle = [this, &event](const char* name, bool WindowModel::* field)
+    {
+        event(name,
+              [this, field](const auto&)
+              {
+                  auto& model = m_View.GetModel();
+                  model.*field = !(model.*field);
+                  FilterChanged();
+              });
+    };
+    toggle("usable", &WindowModel::usable);
+    toggle("luck", &WindowModel::luck);
+    toggle("skill", &WindowModel::skill);
     event("reset",
           [this](const auto&)
           {
@@ -106,12 +119,25 @@ void Window::BindEvents(Rml::DataModelConstructor& c)
           [this](const auto&)
           {
               DismissReview();
+              SetStatus({});
+              auto& model = m_View.GetModel();
+              model.quoteTotal.clear();
+              const auto quantity = ParseQuantity(model.buyQuantity, std::numeric_limits<std::uint32_t>::max());
+              if (!quantity || !*quantity)
+              {
+                  if (m_Read == Read::Quote)
+                      m_Read = Read::None;
+                  model.loading = m_SentRead != Read::None;
+                  m_Dirty = true;
+                  return;
+              }
               QueueRead(Read::Quote);
           });
     event("sell_change",
           [this](const auto&)
           {
               DismissReview();
+              SetStatus({});
               RefreshSelling();
           });
     event("minus", [this](const auto&) { StepPrice(false); });
@@ -156,6 +182,7 @@ void Window::Dirty()
                                              "skill",
                                              "wallet",
                                              "status",
+                                             "status_error",
                                              "count",
                                              "duration",
                                              "sale_total",

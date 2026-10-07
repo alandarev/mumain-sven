@@ -301,3 +301,18 @@ TEST_CASE("Auction rejects corrupt counts framing and unsafe native item lengths
     filter.upgradeMin = 16;
     CHECK(BuildSearchRequest(1, filter, 0).empty());
 }
+
+TEST_CASE("Auction search supports all four agreed sorts and rejects unknown values [auction][network]")
+{
+    SearchFilter filter;
+    const auto original = Load("auction-search-request-empty");
+    for (std::uint8_t sort = 0; sort < 4; ++sort)
+    {
+        auto expected = original;
+        expected[8] = sort;
+        filter.sort = sort;
+        CHECK(BuildSearchRequest(1, filter, 0) == expected);
+    }
+    filter.sort = 4;
+    CHECK(BuildSearchRequest(1, filter, 0).empty());
+}

@@ -62,11 +62,12 @@ private:
 void Bind(Rml::DataModelConstructor& c, UI::AuctionHouse::WindowModel& model)
 {
     UI::AuctionHouse::BindWindowModel(c, model);
-    for (const char* name : {"close",     "tab",     "filter",    "reset", "category",
-                             "equipment", "select",  "inventory", "hover", "inventory_hover",
-                             "leave",     "refresh", "more",      "quote", "sell_change",
-                             "minus",     "plus",    "buy",       "sell",  "cancel_listing",
-                             "claim",     "dismiss", "confirm"})
+    for (const char* name : {"close",     "tab",     "filter",    "reset",  "category",
+                             "equipment", "select",  "inventory", "hover",  "inventory_hover",
+                             "leave",     "refresh", "more",      "quote",  "sell_change",
+                             "minus",     "plus",    "buy",       "sell",   "cancel_listing",
+                             "claim",     "dismiss", "confirm",   "usable", "luck",
+                             "skill"})
         c.BindEventCallback(name, [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {});
 }
 } // namespace
@@ -124,6 +125,20 @@ TEST_CASE("Auction native document stays bounded across tabs themes and scale [a
                     CHECK(size.y > 0);
                     CHECK(size.x <= width);
                     CHECK(size.y <= fixture.context->GetDimensions().y);
+                    if (model.tab == "browse")
+                    {
+                        Rml::ElementList toggles;
+                        document->GetElementsByClassName(toggles, "filter-toggle");
+                        REQUIRE(toggles.size() == 3);
+                        for (auto* toggle : toggles)
+                        {
+                            CHECK(toggle->IsVisible(true));
+                            CHECK(toggle->GetBox().GetSize(Rml::BoxArea::Border).x > 0);
+                            CHECK(toggle->GetBox().GetSize(Rml::BoxArea::Border).y > 0);
+                            REQUIRE(toggle->GetNumChildren() == 2);
+                            CHECK(toggle->GetChild(1)->GetBox().GetSize(Rml::BoxArea::Border).x > 0);
+                        }
+                    }
                     auto* results = document->GetElementById("results");
                     Rml::ElementList actions;
                     document->GetElementsByClassName(actions, "primary");

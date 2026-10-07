@@ -112,15 +112,31 @@ TEST_CASE("Auction item facts stay minimal and changed inventory invalidates rev
     CHECK(healthy.detail.empty());
     CHECK_FALSE(healthy.cannotEquip);
     auto saved = item;
-    CHECK(UI::AuctionHouse::SameInventoryItem(&item, &saved));
+    CHECK(UI::AuctionHouse::SameInventoryItem(&item, &saved, saved.Key));
     item.Durability = 39;
-    CHECK_FALSE(UI::AuctionHouse::SameInventoryItem(&item, &saved));
+    CHECK_FALSE(UI::AuctionHouse::SameInventoryItem(&item, &saved, saved.Key));
     CHECK(UI::AuctionHouse::DescribeItem(&item, 12).detail == "Durability 39/40");
     saved = item;
     item.bySocketOption[0] = 2;
-    CHECK_FALSE(UI::AuctionHouse::SameInventoryItem(&item, &saved));
+    CHECK_FALSE(UI::AuctionHouse::SameInventoryItem(&item, &saved, saved.Key));
     saved = item;
     item.Jewel_Of_Harmony_Option = 1;
-    CHECK_FALSE(UI::AuctionHouse::SameInventoryItem(&item, &saved));
-    CHECK_FALSE(UI::AuctionHouse::SameInventoryItem(nullptr, &saved));
+    CHECK_FALSE(UI::AuctionHouse::SameInventoryItem(&item, &saved, saved.Key));
+    CHECK_FALSE(UI::AuctionHouse::SameInventoryItem(nullptr, &saved, saved.Key));
+}
+
+TEST_CASE("Auction preview copies retain sale identity separately [auction][items]")
+{
+    ItemCatalogue catalogue;
+    mu::ui::window::CItemMng manager;
+    auto bytes = AuctionFixture::Decode<GameLogic::AuctionHouse::SearchPage>("auction-search-result").rows[0].itemData;
+    auto* item = manager.CreateItem(bytes);
+    REQUIRE(item != nullptr);
+    const auto sourceKey = item->Key;
+    auto* preview = manager.DuplicateItem(item);
+    REQUIRE(preview != nullptr);
+    CHECK(preview->Key != sourceKey);
+    CHECK(UI::AuctionHouse::SameInventoryItem(item, preview, sourceKey));
+    item->Key++;
+    CHECK_FALSE(UI::AuctionHouse::SameInventoryItem(item, preview, sourceKey));
 }

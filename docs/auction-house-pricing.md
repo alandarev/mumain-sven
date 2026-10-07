@@ -25,3 +25,8 @@ Items and proceeds are delivered to inventory while the character is talking to
 a broker, as far as inventory space and the Zen limit allow. The remainder stays
 in Collection. Away from a broker, delivery waits in Collection. Notices identify
 whether a sale or expiry reached inventory or is waiting for collection.
+
+Browse equipment by category, name, excellent option, class, upgrade, sockets and
+price. Can equip now limits the results to items your current character can use.
+Sort by lowest or highest price, ending soon, or newest. Scrolling appends the
+next page; Load more offers the same action from the keyboard.

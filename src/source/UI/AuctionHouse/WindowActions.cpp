@@ -9,6 +9,7 @@ void Window::OpenReview(Review review, const Rml::String& name, const Rml::Strin
 {
     if (m_View.GetModel().busy)
         return;
+    SetStatus({});
     review.revision = Market::GetState().Revision();
     m_Review = review;
     auto& model = m_View.GetModel();

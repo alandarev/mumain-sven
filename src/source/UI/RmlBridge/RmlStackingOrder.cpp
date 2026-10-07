@@ -108,7 +108,7 @@ constexpr DocumentPlacement Placements[] = {
     {"character_info.rml", 5.1f, MainScene},
     {"mu_helper_skill_picker.rml", 5.2f, MainScene},
     {"party_list.rml", 5.4f, MainScene},
-    {"auction_house.rml", 5.6f, MainScene},
+    {"auction_house.rml", 10.64f, MainScene},
     {"friend_shell.rml", 6.0f, MainScene},
     {"chat_room.rml", 6.0f, MainScene},
     {"letter_read.rml", 6.0f, MainScene},

@@ -39,7 +39,7 @@ struct WindowModel
     Rml::String quoteTotal, stock, durationValue;
     Rml::String confirmTitle, confirmName, confirmTotal, confirmFee, confirmAction;
     bool loading = false, more = false, selected = false, cannotEquip = false;
-    bool stepDown = false, stepUp = false;
+    bool stepDown = false, stepUp = false, statusError = false;
     bool goods = false, sellGoods = false, sellReady = false, busy = false, review = false;
     std::vector<RowModel> rows, inventory;
     std::vector<ChoiceModel> options, types, durations, sets;

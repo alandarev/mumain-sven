@@ -22,12 +22,12 @@
         <label>Family</label><select data-value="family" data-event-change="filter"><option value="0">Any</option><option value="1">Normal</option><option value="2">Excellent</option><option value="3">Ancient</option><option value="4">Socket</option></select>
         <div data-if="family == '3' || ancient_set != ''"><label>Set</label><select data-value="ancient_set" data-event-change="filter"><option data-for="choice : sets" data-attr-value="choice.value">{{choice.label}}</option></select></div>
         <label>Class</label><select data-value="class_line" data-event-change="filter"><option value="255">Any</option><option value="0">Dark Wizard</option><option value="1">Dark Knight</option><option value="2">Fairy Elf</option><option value="3">Magic Gladiator</option><option value="4">Dark Lord</option><option value="5">Summoner</option><option value="6">Rage Fighter</option></select>
-        <label class="toggle"><input type="checkbox" data-checked="usable" data-event-change="filter"/>Can equip now</label>
+        <button class="filter-toggle" data-event-click="usable"><span class="checkbox-box" data-class-checked="usable"></span><span>Can equip now</span></button>
         <label>Upgrade</label><div class="range"><input class="text-field" type="text" maxlength="2" data-value="upgrade_min" data-event-change="filter"/><span>–</span><input class="text-field" type="text" maxlength="2" data-value="upgrade_max" data-event-change="filter"/></div>
-        <div class="toggle-pair"><label class="toggle"><input type="checkbox" data-checked="luck" data-event-change="filter"/>Luck</label><label class="toggle"><input type="checkbox" data-checked="skill" data-event-change="filter"/>Skill</label></div>
+        <div class="toggle-pair"><button class="filter-toggle" data-event-click="luck"><span class="checkbox-box" data-class-checked="luck"></span><span>Luck</span></button><button class="filter-toggle" data-event-click="skill"><span class="checkbox-box" data-class-checked="skill"></span><span>Skill</span></button></div>
         <div class="range"><label>Min. options<br/><input class="text-field" type="text" maxlength="1" data-value="min_excellent" data-event-change="filter"/></label><label>Sockets<br/><input class="text-field" type="text" maxlength="1" data-value="min_sockets" data-event-change="filter"/></label></div>
         <label>Max price</label><input class="text-field" type="text" maxlength="24" data-value="max_price" data-event-change="filter"/>
-        <label>Sort</label><select data-value="sort" data-event-change="filter"><option value="0">Lowest price</option><option value="1">Highest price</option></select>
+        <label>Sort</label><select data-value="sort" data-event-change="filter"><option value="0">Lowest price</option><option value="1">Highest price</option><option value="2">Ending soon</option><option value="3">Newest</option></select>
       </div>
       <button class="quiet" data-event-click="reset">Reset filters</button>
     </div>
@@ -66,7 +66,7 @@
       </div><div class="empty" data-if="!selected &amp;&amp; tab == 'sell'">Select an item</div>
     </div>
   </div>
-  <div class="status" data-if="status != ''">{{status}}</div>
+  <div class="status" data-class-danger="status_error" data-if="status != ''">{{status}}</div>
   <div class="review-shade" data-if="review"><div class="review-card"><div class="heading">{{confirm_title}}</div><div class="review-name">{{confirm_name}}</div><div class="gold">{{confirm_total}}</div><div class="muted">{{confirm_fee}}</div><div class="muted">{{confirm_balance}}</div><div class="review-actions"><button class="quiet" data-event-click="dismiss" data-class-disabled="busy">Back</button><button id="confirm-action" class="btn action" data-event-click="confirm" data-class-disabled="busy">{{confirm_action}}</button></div><div class="muted" data-if="busy">Pending…</div></div></div>
 </div>
 </body></rml>

@@ -37,7 +37,7 @@ public:
     bool UpdateKeyEvent() override;
     float GetLayerDepth() override
     {
-        return 5.6f;
+        return 10.64f;
     }
     float GetKeyEventOrder() override
     {
@@ -92,7 +92,7 @@ private:
     void BindEvents(Rml::DataModelConstructor& constructor);
     void Built();
     void Dirty();
-    void SetStatus(const std::string& text);
+    void SetStatus(const std::string& text, bool error = true);
     void SwitchTab(const Rml::String& tab);
     void FilterChanged();
     bool CompileFilter();

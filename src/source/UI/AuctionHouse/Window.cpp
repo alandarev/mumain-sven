@@ -145,7 +145,8 @@ bool Window::Update()
     m_View.Ensure();
     UI::RmlBridge::SyncDocumentVisibilityInFront(m_View.Document(), true);
     if (auto* document = m_View.Document())
-        UI::RmlBridge::KeepInsideWindow(document->GetElementById("panel"));
+        if (auto* panel = document->GetElementById("panel"); panel && panel->IsClassSet("dragged"))
+            UI::RmlBridge::KeepInsideWindow(panel);
     if (m_ReviewNeedsFocus)
         if (auto* document = m_View.Document())
             if (auto* button = document->GetElementById("confirm-action"); button && button->IsVisible(true))
@@ -240,10 +241,12 @@ bool Window::UpdateKeyEvent()
     return false;
 }
 
-void Window::SetStatus(const std::string& text)
+void Window::SetStatus(const std::string& text, bool error)
 {
     m_View.GetModel().status = text;
+    m_View.GetModel().statusError = error;
     m_View.MarkDirty("status");
+    m_View.MarkDirty("status_error");
 }
 
 void Window::SwitchTab(const Rml::String& tab)

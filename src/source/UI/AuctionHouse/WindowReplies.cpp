@@ -122,7 +122,7 @@ void Window::HandlePage(Market::Operation operation)
     }
     RefreshRows();
     if (model.rows.empty() && !model.more)
-        SetStatus(model.tab == "collection" ? "Collection empty." : "No listings.");
+        SetStatus(model.tab == "collection" ? "Collection empty." : "No listings.", false);
 }
 
 void Window::RefreshRows()
@@ -234,7 +234,8 @@ void Window::HandleOutcome(Market::Operation operation)
     SetStatus(operation == O::CreateListing   ? "Listed."
               : operation == O::CancelListing ? "Cancelled."
               : operation == O::Claim         ? "Collected."
-                                              : "Purchased.");
+                                              : "Purchased.",
+              false);
     m_StatusUntil = RequestClock::Time::clock::now() + std::chrono::milliseconds(3200);
     if (operation == O::CreateListing)
     {
@@ -262,7 +263,7 @@ void Window::OnNotice(const Market::Notice& notice)
     if (IsVisible())
     {
         DismissReview();
-        SetStatus(text);
+        SetStatus(text, false);
         RefreshRules();
         m_View.GetModel().pending = notice.pendingCollection;
         if (m_View.GetModel().tab == "own")
