@@ -359,7 +359,8 @@ TEST_CASE("theme inheritance resolves documents and stops invalid or cyclic fall
         std::ofstream(themes / theme / "base.rcss") << "body {}";
     }
     std::ofstream(themes / "child/theme.ini")
-        << "[Meta]\nFallbackTheme=parent\nDisplayName=Test child\n[Capabilities]\nCompactHud=1\n";
+        << "[Meta]\nFallbackTheme=parent\nDisplayName=Test "
+           "child\n[Capabilities]\nCompactHud=1\nCornerBuffStrip=1\n[Layout]\nHudReferenceHeight=768\n";
     std::ofstream(themes / "parent/theme.ini") << "[Meta]\nFallbackTheme=cycle\n";
     std::ofstream(themes / "cycle/theme.ini") << "[Meta]\nFallbackTheme=child\n";
     std::ofstream(themes / "invalid/theme.ini") << "[Meta]\nFallbackTheme=../parent\n";
@@ -378,9 +379,14 @@ TEST_CASE("theme inheritance resolves documents and stops invalid or cyclic fall
           (themes / "invalid/shared.rml").generic_string());
     UI::RmlBridge::SetActiveThemeName("child");
     CHECK(UI::RmlBridge::ThemeUsesCompactHud());
+    CHECK(UI::RmlBridge::ThemeUsesCornerBuffStrip());
+    const float childReferenceUnit = UI::RmlBridge::ThemeHudUnitPixels(768);
+    CHECK(UI::RmlBridge::ThemeHudUnitPixels(1080) == doctest::Approx(childReferenceUnit * 1.40625f));
     CHECK(UI::RmlBridge::GetThemeDisplayName("child") == "Test child");
     UI::RmlBridge::SetActiveThemeName("parent");
     CHECK_FALSE(UI::RmlBridge::ThemeUsesCompactHud());
+    CHECK_FALSE(UI::RmlBridge::ThemeUsesCornerBuffStrip());
+    CHECK(UI::RmlBridge::ThemeHudUnitPixels(1080) == doctest::Approx(childReferenceUnit));
     const auto available = UI::RmlBridge::DiscoverAvailableThemes();
     CHECK(std::find(available.begin(), available.end(), "child") != available.end());
 }

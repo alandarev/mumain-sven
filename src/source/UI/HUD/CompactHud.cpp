@@ -194,12 +194,9 @@ void CompactHud::SyncActions(Rml::ElementDocument* document)
     if (changed)
         Dirty("slots");
 }
-void CompactHud::Sync(Rml::ElementDocument* document, float hp, float mp, float ag, float xp, int level, bool master,
-                      const std::array<int, 3>& maxima)
+void CompactHud::SyncLayout()
 {
-    if (document == nullptr || !RmlBridge::ThemeUsesCompactHud() || Hero == nullptr || Hero->ID[0] == 0)
-        return;
-    const float unit = GameConfig::GetInstance().GetUIScalePercent() * 0.01f * UI::Scaling::GetWindowContentScale();
+    const float unit = RmlBridge::ThemeHudUnitPixels(WindowHeight);
     const bool scaleChanged = m_Model.unitPx != unit;
     if (scaleChanged)
     {
@@ -222,6 +219,13 @@ void CompactHud::Sync(Rml::ElementDocument* document, float hp, float mp, float 
     }
     if (scaleChanged || layoutChanged)
         UI::Placement::Invalidate();
+}
+void CompactHud::Sync(Rml::ElementDocument* document, float hp, float mp, float ag, float xp, int level, bool master,
+                      const std::array<int, 3>& maxima)
+{
+    if (document == nullptr || !RmlBridge::ThemeUsesCompactHud() || Hero == nullptr || Hero->ID[0] == 0)
+        return;
+    SyncLayout();
     EnsureProfile();
     if (!m_ProfileSaved)
         ImportLegacyHotkeys();

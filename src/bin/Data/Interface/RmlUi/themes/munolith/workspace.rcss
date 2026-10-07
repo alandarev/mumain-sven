@@ -1,4 +1,4 @@
-/* Window placement for the legacy theme. The game reads where each open slot lands; nothing here is drawn. */
+/* Window placement for Munolith, with legacy docks. The game reads where each open slot lands; nothing here is drawn. */
 
 body {
 	width: 100%;
@@ -109,10 +109,10 @@ body {
 .panel-stage .slot[data-window="cursed_temple_entry"] { margin-top: 80dp; }
 .panel-stage .slot[data-window="cursed_temple_result"] { margin-top: 120dp; }
 
-/* Passive overlays share a column. The six-line message area never collapses between messages. */
+/* Passive messages share a column below the corner status strip. The six-line area stays available. */
 .diagnostics-stack {
     left: 4dp;
-    top: 84dp;
+    top: 45vh;
     display: flex;
     flex-direction: column;
     align-items: flex-start;

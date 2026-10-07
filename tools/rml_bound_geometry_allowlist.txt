@@ -74,4 +74,4 @@ themes/modern/trade.rml: counter-scale bridge -- counter-scaled text layers
 themes/modern/window_shell.rml: counter-scale bridge -- counter-scaled text layers in the shared shell
 tooltip.rml: per-frame data -- tooltip is placed against the pointer
 window_menu.rml: counter-scale bridge -- each .sharp-text row's own width under the HUD stretch
-themes/munolith/main_frame.rml: per-frame data only -- authoritative HP/MP fills, clock-driven loss/heal trails, skill cooldown shutters, AG fill/cost preview, and full-level XP gain/carry/marker fractions. The document unit applies the explicit user UI scale/content scale without enlarging this compact HUD with the viewport. Layout and all fixed chrome stay in RCSS.
+themes/munolith/main_frame.rml: per-frame data only -- authoritative HP/MP fills, clock-driven loss/heal trails, skill cooldown shutters, AG fill/cost preview, and full-level XP gain/carry/marker fractions. The document unit combines the explicit UI scale, display density and theme-declared reference-height growth. Layout and all fixed chrome stay in RCSS.

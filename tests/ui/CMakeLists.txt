@@ -258,6 +258,7 @@ mu_add_test(
     NAME compact_hud_state_tests
     SOURCES
         test_compact_hud_state.cpp
+        ${CMAKE_SOURCE_DIR}/src/source/UI/HUD/BuffPresentation.cpp
         ${CMAKE_SOURCE_DIR}/src/source/UI/HUD/ResourceMotion.cpp
         ${CMAKE_SOURCE_DIR}/src/source/UI/HUD/ExperienceProgress.cpp
         ${CMAKE_SOURCE_DIR}/src/source/UI/HUD/ActionBarProfile.cpp

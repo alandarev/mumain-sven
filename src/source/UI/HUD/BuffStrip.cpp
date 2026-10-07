@@ -1,6 +1,7 @@
 
 #include "stdafx.h"
 #include "UI/HUD/BuffStrip.h"
+#include "UI/HUD/BuffPresentation.h"
 #include "I18N/All.h"
 
 #include "Engine/Object/ZzzCharacter.h"
@@ -254,6 +255,9 @@ void CBuffStrip::BindRmlModel(Rml::DataModelConstructor& c, BuffStripRmlModel& m
     buff.RegisterMember("tooltip_title", &BuffEntry::tooltipTitle);
     buff.RegisterMember("tooltip_body", &BuffEntry::tooltipBody);
     buff.RegisterMember("tooltip_duration", &BuffEntry::tooltipDuration);
+    buff.RegisterMember("remaining", &BuffEntry::remaining);
+    buff.RegisterMember("slot", &BuffEntry::slot);
+    buff.RegisterMember("expiring", &BuffEntry::expiring);
     c.RegisterArray<std::vector<BuffEntry>>();
 
     c.BindEventCallback("buff_cancel",
@@ -265,6 +269,9 @@ void CBuffStrip::BindRmlModel(Rml::DataModelConstructor& c, BuffStripRmlModel& m
         });
 
     c.Bind("buffs", &model.buffs);
+    c.Bind("beneficial", &model.beneficial);
+    c.Bind("harmful", &model.harmful);
+    c.Bind("hud_unit_px", &model.unitPx);
     c.Bind("strip_slot_left", &model.stripSlotLeft);
     c.Bind("strip_slot_width", &model.stripSlotWidth);
     c.Bind("tooltip_line_px", &model.tooltipLinePx);
@@ -315,38 +322,88 @@ bool CBuffStrip::Render()
 
 void CBuffStrip::SyncRmlModel()
 {
-    if (!m_RmlView.Document()) return;
+    if (!m_RmlView.Document() || Hero == nullptr || g_BuffSystem == nullptr)
+        return;
+    auto& model = m_RmlView.GetModel();
+    const float unit = UI::RmlBridge::ThemeHudUnitPixels(WindowHeight);
+    if (model.unitPx != unit)
+    {
+        model.unitPx = unit;
+        m_RmlView.MarkDirty("hud_unit_px");
+    }
+    const bool corner = UI::RmlBridge::ThemeUsesCornerBuffStrip();
+    const auto now = std::chrono::steady_clock::now();
+    constexpr auto EntryRefresh = std::chrono::milliseconds(100);
+    if (!corner || corner != m_CornerStrip || now >= m_NextEntrySync)
+    {
+        m_CornerStrip = corner;
+        m_NextEntrySync = now + EntryRefresh;
+        SyncBuffEntries(corner);
+    }
+    if (!corner)
+    {
+        SyncStripSlot();
+        SyncTooltipLineHeight();
+    }
+}
+
+void CBuffStrip::SyncBuffEntries(bool cornerStrip)
+{
 
     std::list<eBuffState> buffstate;
     BuffSort(buffstate);
 
-    // Rebuilt and marked dirty unconditionally every frame -- deliberate, since this verifies
-    // RmlModelBinder handling a bound std::vector whose size changes at runtime. Revisit if this
-    // proves too expensive in practice.
-    auto& model = m_RmlView.GetModel();
-    model.buffs.clear();
-    model.buffs.reserve(buffstate.size());
+    if (cornerStrip)
+        buffstate.sort([](eBuffState a, eBuffState b) { return NormalizeBuffState(a) < NormalizeBuffState(b); });
+    std::vector<BuffEntry> entries, beneficial, harmful;
+    entries.reserve(buffstate.size());
     m_ShownBuffs.assign(buffstate.begin(), buffstate.end());
 
-    // Slot positions are the stylesheets' own: #panel wraps its 20x28 slots at 8 per row, which is
-    // what native's own counters produced. Order here is the order they appear.
+    // Stylesheets own slot positions. Keep the full order for native cancellation, including
+    // when a theme renders beneficial and harmful effects in separate arrays.
     for (eBuffState buff : buffstate)
     {
-        BuffEntry entry;
-
-        entry.decorator = BuildIconDecorator(buff);
-        TooltipTexts tooltip = BuildTooltip(buff);
-        entry.tooltip = std::move(tooltip.combined);
-        entry.tooltipTitle = std::move(tooltip.title);
-        entry.tooltipBody = std::move(tooltip.body);
-        entry.tooltipDuration = std::move(tooltip.duration);
-
-        model.buffs.push_back(entry);
+        auto entry = MakeBuffEntry(buff, static_cast<int>(entries.size()), cornerStrip);
+        if (cornerStrip)
+        {
+            if (g_IsBuffClass(buff) == eBuffClass_DeBuff)
+                harmful.push_back(entry);
+            else
+                beneficial.push_back(entry);
+        }
+        entries.push_back(std::move(entry));
     }
+    auto update = [this](auto& current, auto& next, const char* name)
+    {
+        if (current != next)
+        {
+            current = std::move(next);
+            m_RmlView.MarkDirty(name);
+        }
+    };
+    auto& model = m_RmlView.GetModel();
+    update(model.buffs, entries, "buffs");
+    update(model.beneficial, beneficial, "beneficial");
+    update(model.harmful, harmful, "harmful");
+}
 
-    m_RmlView.MarkDirty("buffs");
-    SyncStripSlot();
-    SyncTooltipLineHeight();
+CBuffStrip::BuffEntry CBuffStrip::MakeBuffEntry(eBuffState buff, int slot, bool cornerStrip)
+{
+    BuffEntry entry;
+    entry.slot = slot;
+    entry.decorator = BuildIconDecorator(buff);
+    auto tooltip = BuildTooltip(buff);
+    entry.tooltip = std::move(tooltip.combined);
+    entry.tooltipTitle = std::move(tooltip.title);
+    entry.tooltipBody = std::move(tooltip.body);
+    entry.tooltipDuration = std::move(tooltip.duration);
+    if (cornerStrip)
+    {
+        const auto remaining = TheBuffTimeControl().GetRemainingMilliseconds(buff);
+        entry.remaining = UI::HUD::CompactBuffDuration(remaining);
+        entry.expiring = UI::HUD::BuffExpiresSoon(remaining);
+    }
+    return entry;
 }
 
 void CBuffStrip::SyncTooltipLineHeight()

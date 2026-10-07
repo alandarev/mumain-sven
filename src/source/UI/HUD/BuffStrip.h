@@ -5,6 +5,7 @@
 #include "UI/RmlBridge/RmlThemedView.h"
 
 #include <vector>
+#include <chrono>
 
 namespace Rml { class ElementDocument; }
 
@@ -58,10 +59,17 @@ namespace mu::ui::window
             Rml::String tooltipTitle;
             Rml::String tooltipBody;
             Rml::String tooltipDuration;
+            Rml::String remaining;
+            int slot = 0;
+            bool expiring = false;
+            bool operator==(const BuffEntry&) const = default;
         };
         struct BuffStripRmlModel
         {
             std::vector<BuffEntry> buffs;
+            std::vector<BuffEntry> beneficial;
+            std::vector<BuffEntry> harmful;
+            float unitPx = 1.f;
             // The original's strip box in real pixels: 200-unit rows centred on the free width, in
             // the strip's own stretched HUD space. Data a theme may follow, not a placement.
             float stripSlotLeft = 0.0f;
@@ -81,8 +89,12 @@ namespace mu::ui::window
         std::vector<int> m_ShownBuffs;
 
         void SyncRmlModel();
+        void SyncBuffEntries(bool cornerStrip);
+        BuffEntry MakeBuffEntry(eBuffState buff, int slot, bool cornerStrip);
         void OnBuffRightClick(int slot);
         void SyncStripSlot();
         void SyncTooltipLineHeight();
+        std::chrono::steady_clock::time_point m_NextEntrySync{};
+        bool m_CornerStrip = false;
     };
 }

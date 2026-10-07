@@ -5,6 +5,7 @@
 #include "Data/GameConfig/GameConfig.h"
 #include "Core/Platform/WinIni.h"
 #include "Render/RmlUi/RmlUiRuntime.h"
+#include "UI/Scaling/UITransform.h"
 
 #include <RmlUi/Core/Context.h>
 #include <RmlUi/Core/Core.h>
@@ -172,6 +173,31 @@ namespace UI::RmlBridge
             return value;
         }
 
+        int ComputeHudReferenceHeight(const std::string& themeName)
+        {
+            const auto iniPath = WidenAscii("Data/Interface/RmlUi/themes/" + themeName + "/theme.ini");
+            return std::max(
+                0, static_cast<int>(GetPrivateProfileIntW(L"Layout", L"HudReferenceHeight", 0, iniPath.c_str())));
+        }
+
+        int& HudReferenceHeightStorage()
+        {
+            static int value = ComputeHudReferenceHeight(ActiveThemeNameStorage());
+            return value;
+        }
+
+        bool ComputeUsesCornerBuffStrip(const std::string& themeName)
+        {
+            const auto iniPath = WidenAscii("Data/Interface/RmlUi/themes/" + themeName + "/theme.ini");
+            return GetPrivateProfileIntW(L"Capabilities", L"CornerBuffStrip", 0, iniPath.c_str()) != 0;
+        }
+
+        bool& UsesCornerBuffStripStorage()
+        {
+            static bool value = ComputeUsesCornerBuffStrip(ActiveThemeNameStorage());
+            return value;
+        }
+
         bool& UsesNativeTextSizeStorage()
         {
             static bool usesNativeTextSize = ComputeUsesNativeTextSize(ActiveThemeNameStorage());
@@ -195,11 +221,26 @@ namespace UI::RmlBridge
         return UsesCompactHudStorage();
     }
 
+    float ThemeHudUnitPixels(int windowHeight)
+    {
+        const float density = UI::Scaling::GetWindowContentScale();
+        const float userScale = GameConfig::GetInstance().GetUIScalePercent() * 0.01f;
+        return userScale * density *
+               UI::Scaling::ReferenceHeightScale(windowHeight, HudReferenceHeightStorage(), density);
+    }
+
+    bool ThemeUsesCornerBuffStrip()
+    {
+        return UsesCornerBuffStripStorage();
+    }
+
     void SetActiveThemeName(const std::string& themeName)
     {
         ActiveThemeNameStorage() = ToLower(themeName);
         UsesNativeTextSizeStorage() = ComputeUsesNativeTextSize(ActiveThemeNameStorage());
         UsesCompactHudStorage() = ComputeUsesCompactHud(ActiveThemeNameStorage());
+        HudReferenceHeightStorage() = ComputeHudReferenceHeight(ActiveThemeNameStorage());
+        UsesCornerBuffStripStorage() = ComputeUsesCornerBuffStrip(ActiveThemeNameStorage());
 
         // Both themes deliberately reuse the same <template name="..."> for a shared concept
         // (e.g. "window_shell_bg") in their own themes/<theme>/ copy. Rml::TemplateCache caches a

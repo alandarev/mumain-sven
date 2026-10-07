@@ -33,6 +33,9 @@ namespace UI::RmlBridge
     // modder-supplied folder name -- not a closed set). Reflects the live cache SetActiveThemeName()
     // writes to, not necessarily GameConfig's current value.
     const std::string& GetActiveThemeName();
+    // Shared HUD unit: user scale and content density, plus opt-in theme viewport growth.
+    float ThemeHudUnitPixels(int windowHeight);
+    bool ThemeUsesCornerBuffStrip();
 
     // Overwrites the live active-theme cache GetActiveThemeName() reads
     // from (lowercased, same normalization GetActiveThemeName() has always applied). Does not touch

@@ -157,6 +157,8 @@ namespace UI::Scaling
                              float boxWidth, float boxHeight);
     float ContentScaleFromMetrics(float displayScale, float pixelDensity);
     float GetWindowContentScale();
+    // Viewport growth in density-independent units, with the reference size as a readable floor.
+    float ReferenceHeightScale(int pixelHeight, int referenceHeight, float contentScale);
     void SetWindowContentScale(float contentScale);
     Transform GetActiveTransform();
     void SetActiveTransform(const Transform& transform);

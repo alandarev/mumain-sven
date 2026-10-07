@@ -180,8 +180,22 @@ The capability adds the compact model and input routing; other themes keep their
 behavior. Presentation controllers are under `UI/HUD/`, and normal/master XP normalization is
 shared with the old decile fields. Item images are live render targets measured from RCSS boxes,
 not fixed-position overlays. Theme reload clears transient motion/popovers and disables hidden
-targets. Layout and ornament remain in the theme's RML/RCSS and atlas. Compact sizes use the
-explicit UI scale; small viewports reflow the action row, and the top menus wrap when needed.
+targets. Layout and ornament remain in the theme's RML/RCSS and atlas. Munolith declares
+`[Layout] HudReferenceHeight=768`: its HUD units grow with the viewport's height above this
+reference, multiplied by the player's UI scale. At 100%, a 1024×768 viewport uses one pixel
+per unit and 1920×1080 uses 1.40625 pixels. Display density is applied once; ultrawide screens
+use the same scale as other screens with the same height. Small viewports reflow the action
+row, and the top menus wrap when needed. Themes without this property retain explicit scaling.
+
+Munolith also overrides `buff_strip.rml` and declares `[Capabilities] CornerBuffStrip=1`.
+The existing buff-strip owner supplies separate beneficial and harmful arrays, stable ordering,
+original MU atlas icons and native tooltips. The corner strip shares the HUD units. Known native
+durations appear below icons as seconds, minutes or hours, with an accent in the final ten
+seconds. Effects without a known duration show no countdown. The workspace places passive
+system/error messages below the strip so they do not cover effects or their hover details.
+Right-click cancellation retains
+the original eligible-effect confirmation and server request. Legacy and modern keep their
+existing strip layout.
 Unmodified windows inherit the legacy skin through `FallbackTheme=legacy`. The workspace
 override contains a complete stylesheet. Munolith also ships the complete canonical
 `base.rcss`, which is required by theme discovery; RCSS `@import` is not used.

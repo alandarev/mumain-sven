@@ -3,6 +3,7 @@
 #include <doctest.h>
 
 #include <algorithm>
+#include <limits>
 
 #include "Character/CharSelMainWin.h"
 #include "Core/Input/Input.h"
@@ -27,6 +28,20 @@
 
 using UI::Scaling::FontRole;
 using mu::ui::window::CCommandWindow;
+
+TEST_CASE("theme viewport growth preserves reference size and does not double content density [ui][scaling]")
+{
+    using UI::Scaling::ReferenceHeightScale;
+    CHECK(ReferenceHeightScale(768, 768, 1.f) == 1.f);
+    CHECK(ReferenceHeightScale(600, 768, 1.f) == 1.f);
+    CHECK(ReferenceHeightScale(1080, 768, 1.f) == doctest::Approx(1.40625f));
+    CHECK(ReferenceHeightScale(1440, 768, 1.f) == doctest::Approx(1.875f));
+    CHECK(ReferenceHeightScale(2160, 768, 1.f) == doctest::Approx(2.8125f));
+    CHECK(ReferenceHeightScale(2160, 768, 2.f) == doctest::Approx(1.40625f));
+    CHECK(ReferenceHeightScale(1080, 0, 1.f) == 1.f);
+    CHECK(ReferenceHeightScale(1080, 768, 0.f) == 1.f);
+    CHECK(ReferenceHeightScale(1080, 768, std::numeric_limits<float>::infinity()) == 1.f);
+}
 
 namespace
 {

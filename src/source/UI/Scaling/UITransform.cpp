@@ -82,6 +82,13 @@ UI::Scaling::Transform DockTransform(int windowWidth, int windowHeight)
 }
 }
 
+float UI::Scaling::ReferenceHeightScale(int pixelHeight, int referenceHeight, float contentScale)
+{
+    if (pixelHeight <= 0 || referenceHeight <= 0 || !std::isfinite(contentScale) || contentScale <= 0.f)
+        return 1.f;
+    return std::max(1.f, static_cast<float>(pixelHeight) / (referenceHeight * contentScale));
+}
+
 UI::Scaling::Transform UI::Scaling::ScreenOverlayTransform(int windowWidth, int windowHeight)
 {
     const float scaleY = static_cast<float>(windowHeight) / kReferenceHeight;

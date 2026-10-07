@@ -111,6 +111,7 @@ private:
     std::map<std::pair<int, int>, Rml::String> m_ItemNames;
     std::map<int, Rml::String> m_SkillNames;
     std::chrono::steady_clock::time_point m_ChoicesUpdated{};
+    void SyncLayout();
     int m_Assigning = 0, m_KeySlot = 0;
 };
 } // namespace UI::HUD

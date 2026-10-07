@@ -2,9 +2,25 @@
 #include "UI/HUD/ResourceMotion.h"
 #include "UI/HUD/ExperienceProgress.h"
 #include "UI/HUD/ActionBarProfile.h"
+#include "UI/HUD/BuffPresentation.h"
+#include <limits>
 #include <chrono>
 #include <fstream>
 using namespace UI::HUD;
+TEST_CASE("buff timers use ceiling units and never invent a duration")
+{
+    CHECK(CompactBuffDuration(0).empty());
+    CHECK(CompactBuffDuration(std::numeric_limits<std::uint32_t>::max()).empty());
+    CHECK(CompactBuffDuration(1) == "1s");
+    CHECK(CompactBuffDuration(59001) == "1m");
+    CHECK(CompactBuffDuration(59000) == "59s");
+    CHECK(CompactBuffDuration(60000) == "1m");
+    CHECK(CompactBuffDuration(61000) == "2m");
+    CHECK(CompactBuffDuration(3600000) == "1h");
+    CHECK_FALSE(BuffExpiresSoon(0));
+    CHECK(BuffExpiresSoon(10000));
+    CHECK_FALSE(BuffExpiresSoon(10001));
+}
 TEST_CASE("resource trails hold drain retarget and cancel on healing death or reset")
 {
     ResourceMotion life(200.0, 900.0);

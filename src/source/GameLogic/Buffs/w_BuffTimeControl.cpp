@@ -161,6 +161,16 @@ void BuffTimeControl::GetBuffStringTime(DWORD type, std::wstring& timeText, bool
     }
 }
 
+DWORD BuffTimeControl::GetRemainingMilliseconds(eBuffState bufftype) const
+{
+    for (const auto& [type, info] : m_BuffTimeList)
+    {
+        if (info.s_BuffType == bufftype)
+            return info.s_CurBuffTime;
+    }
+    return 0;
+}
+
 const DWORD BuffTimeControl::GetBuffTime(DWORD type)
 {
     auto iter = m_BuffTimeList.find(type);
@@ -262,4 +272,3 @@ bool BuffTimeControl::CheckBuffTime(DWORD type)
     }
     return false;
 }
-
