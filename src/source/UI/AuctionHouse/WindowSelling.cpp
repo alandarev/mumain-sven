@@ -131,7 +131,7 @@ void Window::RefreshQuote()
     const auto& quote = Market::GetState().CurrentQuote();
     if (!quote || m_Selected < 0 || static_cast<std::size_t>(m_Selected) >= m_Goods.size())
         return;
-    const auto& goods = m_Goods[m_Selected];
+    auto& goods = m_Goods[m_Selected];
     const auto quantity = ParseQuantity(model.buyQuantity, std::numeric_limits<std::uint32_t>::max());
     if (!quantity || quote->type != goods.type || quote->level != goods.level || quote->requestedQuantity != *quantity)
         return;
@@ -142,6 +142,11 @@ void Window::RefreshQuote()
         SetStatus(ResultText(quote->result));
         m_Dirty = true;
         return;
+    }
+    if (!quote->tiers.empty())
+    {
+        goods.lowestUnitPrice = quote->tiers.front().unitPrice;
+        RefreshRows();
     }
     model.quoteTotal = ExactZen(quote->total) + " Zen";
     model.selectedDetail.clear();
