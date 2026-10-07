@@ -64,6 +64,8 @@ public:
     /// </remarks>
     void SendLogin(const wchar_t* username, const wchar_t* password, const BYTE* clientVersion,
                    const BYTE* clientSerial);
+
+    bool SendAuctionHousePacket(std::span<const std::uint8_t> packet);
 };
 
 /// <summary>

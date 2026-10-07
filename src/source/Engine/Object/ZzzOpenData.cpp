@@ -16,6 +16,7 @@
 #include "Engine/Physics/PhysicsManager.h"
 #include "GameLogic/Quests/CSQuest.h"
 #include "GameLogic/Items/CSItemOption.h"
+#include "GameLogic/AuctionHouse/AuctionHouse.h"
 #include "Network/MoveCommandData.h"
 #include "Scenes/TitleSceneUI.h"
 #include "Data/DataHandler/LoadData.h"
@@ -5666,6 +5667,7 @@ void OpenBasicData(HDC hDC)
 
 void ReleaseMainData()
 {
+    GameLogic::AuctionHouse::Reset();
     gMapManager.DeleteObjects();
     DeleteNpcs();
     DeleteMonsters();

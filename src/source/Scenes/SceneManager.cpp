@@ -3,6 +3,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
+#include "GameLogic/AuctionHouse/AuctionHouse.h"
 #include "Core/Input/KeyState.h"
 #include "Core/Input/SyntheticInput.h"
 #include <vector>
@@ -636,6 +637,9 @@ static void CheckServerConnection()
     {
         return;
     }
+
+    if (GameLogic::AuctionHouse::GetState().IsOpen())
+        GameLogic::AuctionHouse::Reset();
 
     // A reconnect already in progress manages its own connection attempts.
     if (ReconnectManager::Instance().IsActive())

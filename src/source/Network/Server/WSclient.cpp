@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "GameLogic/AuctionHouse/AuctionHouse.h"
 #include "App/Control/ControlTaps.h"
 #include "Core/Utilities/Log/MuLogger.h"
 #include "UI/Chat/Chat.h"
@@ -417,6 +418,7 @@ BOOL CreateSocket(const wchar_t* IpAddr, unsigned short Port)
 
 void DeleteSocket()
 {
+    GameLogic::AuctionHouse::Reset();
     if (SocketClient)
     {
         SocketClient->Close();
@@ -954,6 +956,7 @@ void InitGame()
 
 BOOL ReceiveLogOut(const BYTE* ReceiveBuffer, BOOL bEncrypted)
 {
+    GameLogic::AuctionHouse::Reset();
     LogOut = false;
     auto Data = (LPPHEADER_DEFAULT_SUBCODE)ReceiveBuffer;
     switch (Data->Value)
@@ -13269,6 +13272,9 @@ static void ProcessPacket(const BYTE* ReceiveBuffer, int32_t Size)
     }
     switch (HeadCode)
     {
+    case 0x7B:
+        GameLogic::AuctionHouse::ReceivePacket(received_span);
+        break;
     case 0xF1:
     {
         auto Data = (LPPHEADER_DEFAULT_SUBCODE)ReceiveBuffer;

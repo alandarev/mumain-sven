@@ -14,6 +14,7 @@
 #include "stdafx.h"
 #include "Connection.h"
 #include "PacketFunctions_ClientToServer.h"
+#include "GameLogic/AuctionHouse/AuctionHousePacketFormat.h"
 
 typedef void(CORECLR_DELEGATE_CALLTYPE* SendLoginFn)(int32_t, const char16_t*, const char16_t*, uint32_t, const BYTE*,
                                                      const BYTE*);
@@ -37,6 +38,19 @@ void PacketFunctions_ClientToServer_Custom::SendLogin(const wchar_t* username, c
 }
 
 typedef void(CORECLR_DELEGATE_CALLTYPE* SendAuthenticateExtFn)(int32_t, uint16_t, uint32_t);
+
+bool PacketFunctions_ClientToServer_Custom::SendAuctionHousePacket(std::span<const std::uint8_t> packet)
+{
+    using SendRawFn = void(CORECLR_DELEGATE_CALLTYPE*)(int32_t, const BYTE*, int32_t);
+    static SendRawFn send = nullptr;
+    if (GetHandle() <= 0 || packet.size() < 6 || packet.size() > 255 ||
+        packet[0] != 0xC1 || packet[2] != GameLogic::AuctionHouse::CustomHeadCode ||
+        packet[3] < 0x51 || packet[3] > 0x5C || packet[3] == 0x5B) return false;
+    if (!send) send = LoadManagedSymbol<SendRawFn>("ConnectionManager_Send");
+    if (!send) return false;
+    send(GetHandle(), packet.data(), static_cast<int32_t>(packet.size()));
+    return true;
+}
 
 void PacketFunctions_ChatServer_Custom::SendAuthenticateExt(uint16_t roomId, uint32_t token)
 {
