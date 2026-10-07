@@ -3,6 +3,12 @@
 
 #pragma once
 
+#include <memory>
+namespace UI::AuctionHouse
+{
+class Window;
+}
+
 #include "UI/Core/WindowManager.h"
 #include "UI/Core/Window3DRenderMng.h"
 #include "UI/HUD/HotKey.h"
@@ -238,6 +244,9 @@ namespace mu::ui::window
         CGenericMenuDialog* m_pGenericMenuDialog;
 
         bool CreateChatCommandWindow();
+        bool CreateAuctionHouseWindow();
+        bool CreateMuHelperWindows();
+        std::unique_ptr<UI::AuctionHouse::Window> m_AuctionHouse;
 
     public:
         CChatInputBox* GetUI_NewChatInputBox() const;

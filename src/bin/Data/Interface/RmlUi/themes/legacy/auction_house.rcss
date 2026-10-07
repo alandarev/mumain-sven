@@ -1,0 +1,80 @@
+div { display: block; }
+/* Auction layout: fluid bounds, stock controls and content-sized actions. */
+#panel { width: 94%; max-width: 960dp; height: 84%; max-height: 600dp; box-sizing: border-box; display: flex; flex-direction: column; padding: 12dp; pointer-events: auto; font-family: "token(font-body)"; font-size: 1rem; color: token(text-primary); background-color: token(surface-recessed); border: 2dp token(border-inner); }
+#titlebar { display: flex; align-items: center; flex-shrink: 0; padding: 3dp 3dp 12dp; }
+.heading { font-weight: bold; color: token(accent-gold); }
+.wallet { margin-left: auto; margin-right: 14dp; color: token(accent-gold); }
+.close { width: 24dp; height: 24dp; padding: 0; font-size: 1.3rem; }
+.tabs { display: flex; flex-shrink: 0; margin-bottom: 10dp; border-bottom: 1dp token(border-inner); }
+.tabs button { flex: 1; padding: 8dp 4dp; border-bottom: 2dp transparent; }
+.tabs button.active { color: token(accent-gold); border-bottom-color: token(accent-gold); background-color: token(surface-control); }
+button { position: relative; box-sizing: border-box; pointer-events: auto; cursor: pointer; font-family: "token(font-body)"; font-size: 1rem; color: token(text-secondary); background-color: transparent; border: 0; text-align: center; }
+button:hover { color: token(text-primary); }
+button:focus, select:focus, input:focus { border-color: token(accent-gold); }
+button.disabled { pointer-events: none; opacity: 0.45; }
+.workspace { display: flex; flex: 1; min-height: 0; overflow: hidden; }
+.filters { width: 20%; max-width: 185dp; flex-shrink: 0; padding-right: 12dp; border-right: 1dp token(border-inner); }
+.main { flex: 1; min-width: 0; display: flex; flex-direction: column; padding: 0 10dp; }
+.list-toolbar { display: flex; align-items: center; flex-shrink: 0; min-height: 30dp; color: token(text-secondary); }
+.list-toolbar .quiet { margin-left: auto; }
+#results { flex: 1; min-height: 0; }
+.listing { display: flex; align-items: center; min-height: 74dp; padding: 8dp 4dp; border-bottom: 1dp token(border-inner); cursor: pointer; }
+.listing:hover { background-color: token(surface-control); }
+.item-icon { width: 44dp; height: 52dp; flex-shrink: 0; }
+.listing-copy { flex: 1; min-width: 0; padding: 0 8dp; }
+.item-name { font-weight: bold; line-height: 1.4; }
+.row-preview { max-height: 28dp; overflow: hidden; font-size: 0.9rem; white-space: pre-wrap; color: token(text-secondary); }
+.listing-action { text-align: right; flex-shrink: 0; }
+.details { width: 28%; max-width: 260dp; flex-shrink: 0; padding-left: 12dp; border-left: 1dp token(border-inner); }
+.selected-icon { display: block; width: 90dp; height: 96dp; margin: 0 auto 8dp; }
+.item-detail { white-space: pre-wrap; color: token(text-secondary); line-height: 1.5; margin: 8dp 0 12dp; }
+.selected-price { margin: 14dp 0; }
+label { display: block; margin: 9dp 0 4dp; color: token(text-secondary); }
+select, .text-field { width: 100%; height: 25dp; padding: 3dp 5dp; font-family: "token(font-body)"; font-size: 1rem; color: token(text-primary); background-color: token(surface-control); border: 1dp token(border-inner); box-sizing: border-box; pointer-events: auto; }
+select selectbox { padding: 5dp; background-color: token(surface-recessed); border: 1dp token(border-inner); z-index: 5; }
+select option { padding: 4dp; }
+select option:hover, select option:checked { background-color: token(surface-control); color: token(accent-gold); }
+.range, .toggle-pair, .price-input { display: flex; align-items: center; }
+.range input, .range label { flex: 1; min-width: 0; }
+.range span { margin: 0 5dp; }
+.toggle { display: flex; align-items: center; }
+.toggle input { width: 13dp; height: 13dp; margin-right: 5dp; }
+.toggle-pair label { flex: 1; }
+.fee-row { display: flex; justify-content: space-between; padding: 5dp 0; font-size: 0.95rem; }
+.duration { margin: 8dp 0; color: token(text-secondary); }
+.action.btn { position: relative; display: inline-block; width: auto; min-width: 0; max-width: 100%; height: auto; min-height: 30dp; line-height: 1.3; padding: 8dp 15dp; margin: 5dp 0; white-space: normal; }
+.primary { margin-top: 12dp; }
+.quiet { padding: 6dp 9dp; }
+.step { flex-shrink: 0; width: 25dp; padding: 4dp; }
+.more { display: block; margin: 8dp auto; }
+.inventory { flex: 1; min-height: 0; display: flex; flex-wrap: wrap; align-content: flex-start; }
+.inventory-item { width: 24%; min-height: 100dp; padding: 8dp 3dp; margin: 0.5%; border: 1dp token(border-inner); background-color: token(surface-recessed); }
+.inventory-item .item-icon { display: block; margin: 0 auto 6dp; }
+.inventory-item span { font-size: 0.9rem; }
+.status { flex-shrink: 0; padding: 8dp 4dp 0; color: token(semantic-danger); }
+.loading, .empty { padding: 20dp 10dp; color: token(text-secondary); text-align: center; }
+.muted { color: token(text-secondary); font-size: 0.9rem; }
+.gold { color: token(accent-gold); }
+.excellent { color: #65ce7c; }
+.ancient { color: #72b6ef; }
+.socket { color: #ba97df; }
+.danger { color: token(semantic-danger); }
+.review-shade { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background-color: rgba(0,0,0,210); pointer-events: auto; }
+.review-card { width: 70%; max-width: 350dp; box-sizing: border-box; padding: 24dp; background-color: token(surface-recessed); border: 2dp token(border-inner); text-align: center; }
+.review-name { margin: 18dp 0 12dp; }
+.review-actions { margin-top: 18dp; }
+@media (max-width: 700dp) { .details { width: 30%; } .filters { width: 24%; } .item-icon { width: 30dp; height: 42dp; } .listing-action { max-width: 70dp; font-size: 0.9rem; } .wallet { display: none; } .inventory-item { width: 48%; } .selected-icon { width: 60dp; height: 68dp; } }
+
+/* Original MU stone and button art; ninepatch preserves corners at compact widths. */
+#panel { decorator: linear-gradient(to bottom, rgba(0,0,0,120), rgba(0,0,0,200)), image(legacy-panel-center); border-top-color: #8c795a; border-left-color: #695b42; border-right-color: #2b251b; border-bottom-color: #211c15; }
+#titlebar { border-bottom: 1dp #786244; }
+.action.btn { decorator: ninepatch(legacy-btn-idle, legacy-btn-idle-inner); }
+.action.btn:hover { decorator: ninepatch(legacy-btn-hover, legacy-btn-hover-inner); }
+.action.btn:active { decorator: ninepatch(legacy-btn-active, legacy-btn-active-inner); }
+.review-card { decorator: image(legacy-panel-center); }
+
+.listing.selected { background-color: token(surface-control); border-left: 2dp token(accent-gold); }
+.matched { color: token(accent-gold); font-size: 0.9rem; }
+.badge { color: token(accent-gold); font-size: 0.9rem; }
+
+#panel.reviewing .workspace button, #panel.reviewing .workspace input, #panel.reviewing .workspace select, #panel.reviewing .tabs button { tab-index: none; pointer-events: none; }

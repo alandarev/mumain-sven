@@ -263,3 +263,20 @@ mu_add_test(
         ${CMAKE_SOURCE_DIR}/src/source/UI/HUD/ExperienceProgress.cpp
         ${CMAKE_SOURCE_DIR}/src/source/UI/HUD/ActionBarProfile.cpp
 )
+mu_add_test(
+    NAME auction_presentation_tests
+    SOURCES
+        test_auction_presentation.cpp
+        ${CMAKE_SOURCE_DIR}/src/source/UI/AuctionHouse/Presentation.cpp
+        ${CMAKE_SOURCE_DIR}/src/source/UI/AuctionHouse/PropertyQuery.cpp
+)
+mu_add_test(
+    NAME auction_layout_tests
+    SOURCES
+        test_auction_layout.cpp
+        ${CMAKE_SOURCE_DIR}/src/source/App/Platform/Windows/Winmain.cpp
+    LINK_LIBS MuClient
+)
+target_compile_definitions(auction_layout_tests PRIVATE
+    MU_AUCTION_BIN="${CMAKE_SOURCE_DIR}/src/bin"
+)

@@ -31,6 +31,7 @@ UI::Scaling::LayoutMode UI::Layout::ForInterface(std::uint32_t interfaceKey)
     // different coordinate space than that hit-test rect, so it almost never matched and clicks
     // fell through to the world underneath -- found live (see OptionWindow.cpp's own history).
     case INTERFACE_OPTION:
+    case INTERFACE_AUCTION_HOUSE:
         return LayoutMode::Legacy;
 
     case INTERFACE_NAME_WINDOW:

@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "UI/Core/WindowSystem.h"
+#include "UI/AuctionHouse/Window.h"
 #include "UI/Dialogs/MessageBox.h"
 #include "UI/RmlBridge/RmlTheme.h"
 #include "UI/Scaling/UITransform.h"
@@ -206,6 +207,32 @@ bool CSystem::CreateChatCommandWindow()
 
     SAFE_DELETE(m_pNewChatCommandWindow);
     return false;
+}
+
+bool CSystem::CreateAuctionHouseWindow()
+{
+    auto window = std::make_unique<UI::AuctionHouse::Window>();
+    if (!window->Create(m_pNewUIMng))
+        return false;
+    m_AuctionHouse = std::move(window);
+    return true;
+}
+
+bool CSystem::CreateMuHelperWindows()
+{
+    m_pMuHelperConfig = new CMuHelperConfigWindow;
+    if (m_pMuHelperConfig->Create(m_pNewUIMng, PanelColumnX(1), 0) == false)
+        return false;
+
+    m_pMuHelperDetail = new CMuHelperDetailWindow;
+    if (m_pMuHelperDetail->Create(m_pNewUIMng, PanelColumnX(2), 0) == false)
+        return false;
+
+    m_pMuHelperSkillPicker = new CMuHelperSkillPicker;
+    if (m_pMuHelperSkillPicker->Create(m_pNewUIMng) == false)
+        return false;
+
+    return true;
 }
 
 bool CSystem::LoadMainSceneInterface()
@@ -560,20 +587,14 @@ bool CSystem::LoadMainSceneInterface()
     m_pGenericMenuDialog->Create(m_pNewUIMng);
     g_pGenericMenuDialog = m_pGenericMenuDialog;
 
-    m_pMuHelperConfig = new CMuHelperConfigWindow;
-    if (m_pMuHelperConfig->Create(m_pNewUIMng, PanelColumnX(1), 0) == false)
-        return false;
-
-    m_pMuHelperDetail = new CMuHelperDetailWindow;
-    if (m_pMuHelperDetail->Create(m_pNewUIMng, PanelColumnX(2), 0) == false)
-        return false;
-
-    m_pMuHelperSkillPicker = new CMuHelperSkillPicker;
-    if (m_pMuHelperSkillPicker->Create(m_pNewUIMng) == false)
+    if (!CreateMuHelperWindows())
         return false;
 
     // Windows the theme's workspace places. The members are re-created per main scene, so each
     // setter reads the member when it runs.
+    if (!CreateAuctionHouseWindow())
+        return false;
+
     const auto slot = [](DWORD windowId, const char* slotName, auto*& window, const char* document = nullptr)
     {
         UI::Placement::RegisterWindow(
@@ -666,6 +687,7 @@ bool CSystem::LoadMainSceneInterface()
 
 void CSystem::UnloadMainSceneInterface()
 {
+    m_AuctionHouse.reset();
     if (g_pNewUIMng)
     {
         g_pNewUIMng->ShowAllInterfaces(false);

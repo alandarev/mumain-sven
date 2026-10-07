@@ -131,6 +131,7 @@ enum INTERFACE_LIST
     // a different button model (arbitrary labeled list vs two fixed OK/Cancel slots). Same
     // reasoning as INTERFACE_CREDITS above.
     INTERFACE_GENERIC_MENU_DIALOG,
+    INTERFACE_AUCTION_HOUSE,
     INTERFACE_END,
     INTERFACE_COUNT = INTERFACE_END - 2,
 };

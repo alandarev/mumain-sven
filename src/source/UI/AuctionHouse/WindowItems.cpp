@@ -1,0 +1,230 @@
+#include "stdafx.h"
+#include "UI/AuctionHouse/Window.h"
+#include "UI/AuctionHouse/ItemPresentation.h"
+#include "UI/Core/WindowSystem.h"
+#include "UI/HUD/ItemHotKey.h"
+#include "UI/RmlBridge/RmlTooltip.h"
+#include "Engine/Object/ZzzInfomation.h"
+#include "Core/Utilities/StringUtils.h"
+#include <RmlUi/Core/Context.h>
+#include <RmlUi/Core/Element.h>
+#include <cmath>
+#include <limits>
+
+namespace UI::AuctionHouse
+{
+void Window::ItemDeleter::operator()(ITEM* item) const
+{
+    if (item && g_pNewItemMng)
+        g_pNewItemMng->DeleteItem(item);
+}
+
+Window::Item Window::Decode(std::span<const std::uint8_t> bytes) const
+{
+    if (bytes.size() < 5 || !g_pNewItemMng)
+        return Item{};
+    const int type = (bytes[0] >> 4) * MAX_ITEM_INDEX + ((bytes[0] & 15) << 8) + bytes[1];
+    if (type >= MAX_ITEM)
+        return Item{};
+    return Item(g_pNewItemMng->CreateItem(bytes));
+}
+
+Window::Item Window::GoodsItem(const Market::GoodsRow& goods) const
+{
+    if (goods.type >= MAX_ITEM || !g_pNewItemMng)
+        return Item{};
+    ItemCreationParams params{};
+    params.Group = goods.type / MAX_ITEM_INDEX;
+    params.Number = goods.type % MAX_ITEM_INDEX;
+    params.Level = goods.level;
+    params.Durability = 0;
+    return Item(g_pNewItemMng->CreateItemByParameters(&params));
+}
+
+ITEM* Window::InventoryItem(int slot) const
+{
+    if (slot < MAX_EQUIPMENT_INDEX || slot > std::numeric_limits<std::uint8_t>::max())
+        return nullptr;
+    ITEM* item = g_pMyInventory ? g_pMyInventory->FindItem(slot) : nullptr;
+    return item ? item : g_pMyInventoryExt ? g_pMyInventoryExt->FindItem(slot) : nullptr;
+}
+
+RowModel Window::Describe(ITEM* item, int index) const
+{
+    auto row = DescribeItem(item, index);
+    if (!item)
+        return row;
+    for (const auto& option : Options())
+        if (option.mask && (m_Filter.excellentMask & option.mask) && (m_Filter.slotMask & option.slots))
+        {
+            if (!row.matched.empty())
+                row.matched += " · ";
+            row.matched += option.label;
+        }
+    return row;
+}
+
+void Window::ClearItems()
+{
+    m_SelectedIcon = {};
+    m_Icons.clear();
+    m_InventoryIcons.clear();
+}
+
+void Window::RefreshInventory()
+{
+    auto& model = m_View.GetModel();
+    std::vector<RowModel> rows;
+    // Start slots only: spanning cells resolve to the same item and must not be duplicated.
+    for (int slot = MAX_EQUIPMENT_INDEX; slot <= std::numeric_limits<std::uint8_t>::max(); ++slot)
+    {
+        auto* item = InventoryItem(slot);
+        if (!item)
+            continue;
+        auto* control = g_pMyInventory->GetInventoryCtrl();
+        if (!control || control->FindItem(slot) != item)
+            control = g_pMyInventoryExt->TryGetExtensionByInventoryIndex(slot);
+        if (!control || control->GetIndexByItem(item) != slot)
+            continue;
+        rows.push_back(Describe(item, slot));
+    }
+    const bool changed = rows.size() != model.inventory.size() ||
+                         !std::equal(rows.begin(), rows.end(), model.inventory.begin(), [](const auto& a, const auto& b)
+                                     { return a.index == b.index && a.name == b.name && a.detail == b.detail; });
+    if (!changed)
+        return;
+    model.inventory = std::move(rows);
+    m_InventoryIcons.clear();
+    for (const auto& row : model.inventory)
+    {
+        auto* item = InventoryItem(row.index);
+        m_InventoryIcons.push_back({Item(item ? g_pNewItemMng->DuplicateItem(item) : nullptr), nullptr});
+    }
+    m_Dirty = true;
+}
+
+bool Window::SellItemUnchanged() const
+{
+    return SameInventoryItem(InventoryItem(m_SellSlot), m_SelectedIcon.item.get());
+}
+
+void Window::SelectInventory(int slot)
+{
+    if (m_View.GetModel().busy)
+        return;
+    auto* item = InventoryItem(slot);
+    if (!item)
+    {
+        SetStatus("Item no longer available.");
+        return;
+    }
+    m_SellSlot = slot;
+    m_SellKey = item->Key;
+    auto& model = m_View.GetModel();
+    const auto row = Describe(item, slot);
+    model.selected = true;
+    model.selectedName = row.name;
+    model.selectedDetail = row.detail;
+    model.selectedTone = row.tone;
+    m_SelectedIcon = {Item(g_pNewItemMng->DuplicateItem(item)), nullptr};
+    model.price.clear();
+    model.quantity = "1";
+    model.sellReady = false;
+    model.sellGoods = false;
+    DismissReview();
+    QueueRead(Read::Sell);
+    m_Dirty = true;
+}
+
+void Window::SelectRow(int index)
+{
+    auto& model = m_View.GetModel();
+    if (index < 0 || static_cast<std::size_t>(index) >= model.rows.size() || model.busy)
+        return;
+    m_Selected = index;
+    for (auto& row : model.rows)
+        row.selected = row.index == index;
+    const auto& row = model.rows[index];
+    model.selected = true;
+    model.selectedName = row.name;
+    model.selectedDetail = row.detail;
+    model.selectedPrice = row.price;
+    model.selectedTone = row.tone;
+    model.cannotEquip = row.cannotEquip;
+    m_SelectedIcon = {};
+    if (static_cast<std::size_t>(index) < m_Icons.size() && m_Icons[index].item)
+        m_SelectedIcon.item.reset(g_pNewItemMng->DuplicateItem(m_Icons[index].item.get()));
+    model.buyQuantity = "1";
+    model.quoteTotal.clear();
+    if (model.tab == "browse" && model.goods)
+        QueueRead(Read::Quote);
+    m_Dirty = true;
+}
+
+void Window::SyncIcons()
+{
+    auto* doc = m_View.Document();
+    if (!doc)
+        return;
+    auto sync = [this](Icon& icon, Rml::Element* image)
+    {
+        if (!image || !icon.item)
+        {
+            if (icon.target)
+                icon.target->SetEnabled(false);
+            return;
+        }
+        const auto bounds = image->GetAbsoluteOffset(Rml::BoxArea::Border);
+        const auto size = image->GetBox().GetSize(Rml::BoxArea::Content);
+        const bool shown = IsVisible() && image->IsVisible(true) && bounds.y + size.y > 0 &&
+                           bounds.y < static_cast<float>(WindowHeight);
+        if (!shown)
+        {
+            if (icon.target)
+                icon.target->SetEnabled(false);
+            return;
+        }
+        if (!icon.target)
+        {
+            auto* item = icon.item.get();
+            icon.target = std::make_unique<UI::RmlBridge::RenderTarget>(
+                [item](auto width, auto height)
+                { mu::ui::window::CItemHotKey::RenderItemModel(item, width, height, false, true); });
+        }
+        icon.target->SetEnabled(true);
+        icon.target->Resize(std::max(1l, std::lround(size.x)), std::max(1l, std::lround(size.y)));
+        if (image->GetAttribute<Rml::String>("src", {}) != icon.target->Source())
+            image->SetAttribute("src", icon.target->Source());
+    };
+    for (std::size_t i = 0; i < m_Icons.size(); ++i)
+        sync(m_Icons[i], doc->GetElementById("row-icon-" + std::to_string(i)));
+    for (std::size_t i = 0; i < m_InventoryIcons.size(); ++i)
+        sync(m_InventoryIcons[i], doc->GetElementById("inventory-icon-" + std::to_string(i)));
+    sync(m_SelectedIcon, doc->GetElementById("selected-icon"));
+}
+
+void Window::Hover(int index, bool inventory)
+{
+    const auto& rows = inventory ? m_View.GetModel().inventory : m_View.GetModel().rows;
+    if (index < 0 || static_cast<std::size_t>(index) >= rows.size())
+        return;
+    UI::RmlBridge::Tooltip::Config config;
+    config.anchorX = static_cast<float>(MouseX);
+    config.anchorY = static_cast<float>(MouseY);
+    const auto& row = rows[index];
+    config.lines.push_back({row.name, UI::RmlBridge::Tooltip::LineColor::Yellow, true});
+    std::size_t start = 0;
+    for (auto end = row.detail.find('\n');; end = row.detail.find('\n', start))
+    {
+        config.lines.push_back({row.detail.substr(start, end == std::string::npos ? end : end - start)});
+        if (end == std::string::npos)
+            break;
+        start = end + 1;
+    }
+    if (!row.exactPrice.empty())
+        config.lines.push_back({row.exactPrice, UI::RmlBridge::Tooltip::LineColor::Yellow});
+    if (row.cannotEquip)
+        config.lines.push_back({"Cannot Equip", UI::RmlBridge::Tooltip::LineColor::Red});
+    UI::RmlBridge::Tooltip::Show(config, this);
+}
+} // namespace UI::AuctionHouse
