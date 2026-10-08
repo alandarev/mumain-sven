@@ -243,7 +243,12 @@ bool Window::AcceptSellCheck()
     // Typing that has not been handled yet still counts as an edit, so a late answer cannot replace it.
     m_PriceEntry.Edit(model.price);
     if (m_PriceEntry.Prefill(state.GetRules(), std::nullopt, remembered, SellLowest()))
+    {
         ShowPrice();
+        // Using the remembered price keeps it from being the next one dropped; saved with the next write (D5).
+        if (m_PriceEntry.Source() == PriceSource::Remembered)
+            m_PriceMemory.Use(*m_SellIdentity);
+    }
     RefreshSellMarket();
     if (model.sellGoods)
         QueueRead(Read::SellQuote);

@@ -31,12 +31,16 @@ struct PricingIdentity
 
 PricingIdentity GoodsPricingIdentity(std::uint16_t type, std::uint8_t level);
 
-// The prices this account last published, per pricing identity, most recently published first.
-// One store belongs to one server and account; Load refuses a file written for another owner.
+// The prices this account last published, per pricing identity, most recently used first: a
+// publication and a prefill from the remembered price both count as a use (D5). One store belongs
+// to one server and account; Load refuses a file written for another owner.
 class PriceMemory
 {
 public:
     static constexpr std::size_t Capacity = 256;
+    // Bounds against a damaged or hostile file: no line is read beyond this length, and no more
+    // than Capacity entry lines are read (a repeated identity counts, its first line wins).
+    static constexpr std::size_t MaximumLineLength = 1024;
     struct Entry
     {
         PricingIdentity identity;
@@ -44,6 +48,9 @@ public:
     };
 
     std::optional<Zen> Find(const PricingIdentity& identity) const;
+    // A prefill used the remembered price: it becomes the most recent entry. Memory only; the next
+    // Save persists the order.
+    std::optional<Zen> Use(const PricingIdentity& identity);
     void Remember(const PricingIdentity& identity, Zen price);
     bool Forget(const PricingIdentity& identity);
     void Clear();

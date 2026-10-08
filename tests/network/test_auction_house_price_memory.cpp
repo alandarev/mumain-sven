@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <vector>
 
 using namespace GameLogic::AuctionHouse;
 
@@ -54,7 +55,7 @@ TEST_CASE("Auction pricing identities separate goods levels and equipment option
     CHECK_FALSE(GoodsPricingIdentity(4105, 9) == DragonArmor(0));
 }
 
-TEST_CASE("Auction price memory remembers forgets and drops the least recently published [auction][price-memory]")
+TEST_CASE("Auction price memory remembers forgets and drops the least recently used [auction][price-memory]")
 {
     PriceMemory memory;
     const auto bless = GoodsPricingIdentity(7181, 0);
@@ -73,13 +74,108 @@ TEST_CASE("Auction price memory remembers forgets and drops the least recently p
     for (std::uint16_t type = 1; type <= PriceMemory::Capacity; ++type)
         memory.Remember(GoodsPricingIdentity(type, 0), type);
     CHECK(memory.Entries().size() == PriceMemory::Capacity);
-    CHECK_FALSE(memory.Find(bless)); // Published longest ago.
+    CHECK_FALSE(memory.Find(bless)); // Used longest ago.
     CHECK(memory.Find(GoodsPricingIdentity(1, 0)) == 1u);
     memory.Remember(GoodsPricingIdentity(1, 0), 5); // Publishing again makes it the most recent.
     memory.Remember(bless, 590000);
     CHECK(memory.Find(GoodsPricingIdentity(1, 0)) == 5u);
     CHECK_FALSE(memory.Find(GoodsPricingIdentity(2, 0)));
     CHECK(memory.Entries().front().identity == bless);
+
+    // A prefill from the remembered price is a use: the oldest entry, used now, outlives the next one.
+    CHECK(memory.Entries().back().identity == GoodsPricingIdentity(3, 0));
+    CHECK(memory.Use(GoodsPricingIdentity(3, 0)) == 3u);
+    CHECK(memory.Entries().front().identity == GoodsPricingIdentity(3, 0));
+    memory.Remember(DragonArmor(0x05), 7000000);
+    CHECK(memory.Find(GoodsPricingIdentity(3, 0)) == 3u);
+    CHECK_FALSE(memory.Find(GoodsPricingIdentity(4, 0)));
+    // Find (the Forget link, the field label) is not a use.
+    const auto last = memory.Entries().back().identity;
+    CHECK(memory.Find(last));
+    CHECK(memory.Entries().back().identity == last);
+    CHECK_FALSE(memory.Use(GoodsPricingIdentity(4, 0)));
+    CHECK(memory.Entries().size() == PriceMemory::Capacity);
+}
+
+TEST_CASE("Auction price memory saves the use order with the next write [auction][price-memory]")
+{
+    TemporaryDirectory directory;
+    const auto owner = PriceMemoryOwner("127.126.3.1", 44405, "Mutilate", 1, "seller");
+    const auto path = directory.path / PriceMemoryPath(owner).filename();
+    PriceMemory memory;
+    memory.Remember(GoodsPricingIdentity(7181, 0), 590000);
+    memory.Remember(GoodsPricingIdentity(7182, 0), 1200000);
+    REQUIRE(memory.Save(path, owner));
+    const auto written = std::filesystem::last_write_time(path);
+    REQUIRE(memory.Use(GoodsPricingIdentity(7181, 0)));
+    // No write on use.
+    CHECK(std::filesystem::last_write_time(path) == written);
+    PriceMemory before;
+    REQUIRE(before.Load(path, owner));
+    CHECK(before.Entries().front().identity == GoodsPricingIdentity(7182, 0));
+    REQUIRE(memory.Save(path, owner));
+    PriceMemory after;
+    REQUIRE(after.Load(path, owner));
+    CHECK(after.Entries().front().identity == GoodsPricingIdentity(7181, 0));
+}
+
+TEST_CASE("Auction price memory bounds a hostile file: line length, record count and repeated identities [auction][price-memory]")
+{
+    TemporaryDirectory directory;
+    std::filesystem::create_directories(directory.path);
+    const auto owner = PriceMemoryOwner("127.126.3.1", 44405, "Mutilate", 1, "seller");
+    const auto path = directory.path / PriceMemoryPath(owner).filename();
+    std::string header;
+    {
+        PriceMemory empty;
+        REQUIRE(empty.Save(path, owner));
+        std::ifstream in(path);
+        std::string version, hex;
+        std::getline(in, version);
+        std::getline(in, hex);
+        header = version + "\n" + hex + "\n";
+    }
+    auto entryLine = [](std::uint16_t type, Zen price)
+    { return std::to_string(price) + " 1 " + std::to_string(type) + " 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n"; };
+    auto write = [&path, &header](const std::string& body) { std::ofstream(path, std::ios::trunc) << header << body; };
+
+    // An over-long line, entry or header, refuses the whole file without reading it into memory.
+    write(entryLine(7181, 590000) + std::string(PriceMemory::MaximumLineLength + 1, '1') + "\n");
+    PriceMemory longLine;
+    CHECK_FALSE(longLine.Load(path, owner));
+    CHECK(longLine.Entries().empty());
+    std::ofstream(path, std::ios::trunc) << "1\n" << std::string(10 * PriceMemory::MaximumLineLength, 'a') << "\n";
+    CHECK_FALSE(longLine.Load(path, owner));
+    // A line of exactly the maximum length is still read (and here refused as no entry).
+    write(std::string(PriceMemory::MaximumLineLength, '1') + "\n");
+    CHECK_FALSE(longLine.Load(path, owner));
+
+    // A repeated identity keeps its first, most recent line.
+    write(entryLine(7181, 590000) + entryLine(7182, 1200000) + entryLine(7181, 1));
+    PriceMemory repeated;
+    REQUIRE(repeated.Load(path, owner));
+    CHECK(repeated.Entries().size() == 2);
+    CHECK(repeated.Find(GoodsPricingIdentity(7181, 0)) == 590000u);
+
+    // Endless repeats stop after Capacity lines: the reading work is bounded, not the file size.
+    std::string many;
+    for (int i = 0; i < 10000; ++i)
+        many += entryLine(7181, 590000);
+    write(many + "not a price\n");
+    PriceMemory flooded;
+    REQUIRE(flooded.Load(path, owner));
+    CHECK(flooded.Entries().size() == 1);
+
+    // More distinct records than Capacity: the first Capacity are kept, the rest is never read.
+    std::string full;
+    for (std::uint16_t type = 1; type <= PriceMemory::Capacity + 10; ++type)
+        full += entryLine(type, type);
+    write(full + "not a price\n");
+    PriceMemory capped;
+    REQUIRE(capped.Load(path, owner));
+    CHECK(capped.Entries().size() == PriceMemory::Capacity);
+    CHECK(capped.Find(GoodsPricingIdentity(1, 0)) == 1u);
+    CHECK_FALSE(capped.Find(GoodsPricingIdentity(PriceMemory::Capacity + 1, 0)));
 }
 
 TEST_CASE("Auction price memory survives a restart for its owner only [auction][price-memory]")

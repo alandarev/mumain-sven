@@ -29,6 +29,28 @@ std::string Hex(std::string_view text)
     return hex.empty() ? "-" : hex;
 }
 
+enum class LineRead : std::uint8_t
+{
+    Line,
+    End,
+    TooLong
+};
+
+// Like std::getline, but never holds more than MaximumLineLength characters of one line.
+LineRead ReadLine(std::istream& in, std::string& line)
+{
+    line.clear();
+    for (auto c = in.get(); c != std::char_traits<char>::eof(); c = in.get())
+    {
+        if (c == '\n')
+            return LineRead::Line;
+        if (line.size() == PriceMemory::MaximumLineLength)
+            return LineRead::TooLong;
+        line += static_cast<char>(c);
+    }
+    return line.empty() ? LineRead::End : LineRead::Line;
+}
+
 template <typename T> bool ReadField(std::istream& in, T& field, unsigned maximum)
 {
     unsigned value = 0;
@@ -88,6 +110,16 @@ std::optional<Zen> PriceMemory::Find(const PricingIdentity& identity) const
     return found->price;
 }
 
+std::optional<Zen> PriceMemory::Use(const PricingIdentity& identity)
+{
+    const auto found = std::find_if(m_Entries.begin(), m_Entries.end(),
+                                    [&identity](const Entry& entry) { return entry.identity == identity; });
+    if (found == m_Entries.end())
+        return std::nullopt;
+    std::rotate(m_Entries.begin(), found, found + 1);
+    return m_Entries.front().price;
+}
+
 void PriceMemory::Remember(const PricingIdentity& identity, Zen price)
 {
     Forget(identity);
@@ -113,15 +145,18 @@ bool PriceMemory::Load(const std::filesystem::path& path, std::string_view owner
     if (!file)
         return false;
     std::string line;
-    if (!std::getline(file, line) || line != std::to_string(FileVersion))
+    if (ReadLine(file, line) != LineRead::Line || line != std::to_string(FileVersion))
         return false;
-    if (!std::getline(file, line) || line != Hex(owner))
+    if (ReadLine(file, line) != LineRead::Line || line != Hex(owner))
         return false;
     std::vector<Entry> loaded;
-    while (std::getline(file, line) && loaded.size() < Capacity)
+    for (std::size_t records = 0; records < Capacity; ++records)
     {
+        const auto read = ReadLine(file, line);
+        if (read == LineRead::End)
+            break;
         Entry entry;
-        if (!ReadEntry(line, entry))
+        if (read == LineRead::TooLong || !ReadEntry(line, entry))
             return false;
         if (std::none_of(loaded.begin(), loaded.end(),
                          [&entry](const Entry& old) { return old.identity == entry.identity; }))

@@ -53,9 +53,11 @@ durability. Selecting an item to sell fills in, in this order, the price you wer
 editing for that item in this window, the remembered price ("Last price", rounded
 down if the step rule changed), for goods the current lowest price of other
 sellers ("Current lowest"), or nothing. Forget deletes a remembered price. The
-memory keeps the 256 most recently published prices in
+memory keeps the 256 most recently used prices (publishing a price and having it
+filled in both count; the order is saved with the next publication or Forget) in
 `Config/auction-prices/<hash>.prices` beside the client; it holds no password or
-session data.
+session data. A damaged file (a line longer than 1,024 characters or a malformed
+entry) is ignored as a whole, and at most 256 lines of it are read.
 
 The Sell tab keeps the total, the posting fee, the sale fee, "Receive if all sell",
 the listing count and Review listing pinned below the scrolling details, so they
