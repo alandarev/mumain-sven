@@ -90,11 +90,17 @@ private:
 
     void Bind(Rml::DataModelConstructor& constructor, WindowModel& model);
     void BindEvents(Rml::DataModelConstructor& constructor);
+    void BindFilterEvents(Rml::DataModelConstructor& constructor);
     void Built();
     void Dirty();
     void SetStatus(const std::string& text, bool error = true);
     void SwitchTab(const Rml::String& tab);
     void FilterChanged();
+    void OpenFilters();
+    void ApplyFilters();
+    void DismissFilters();
+    void ClearFilter(const Rml::String& key);
+    void RefreshFilterSummary();
     bool CompileFilter();
     void BuildTypeChoices(int equipment);
     bool ApplyTypeChoice();

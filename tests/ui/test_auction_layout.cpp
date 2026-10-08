@@ -3,6 +3,7 @@
 #include "UI/AuctionHouse/WindowModel.h"
 #include "UI/RmlBridge/RmlThemedView.h"
 #include "UI/RmlBridge/RmlTheme.h"
+#include "UI/RmlBridge/RmlNativeText.h"
 #include <RmlUi/Core.h>
 #include <filesystem>
 
@@ -62,12 +63,13 @@ private:
 void Bind(Rml::DataModelConstructor& c, UI::AuctionHouse::WindowModel& model)
 {
     UI::AuctionHouse::BindWindowModel(c, model);
-    for (const char* name : {"close",     "tab",     "filter",    "reset",  "category",
-                             "equipment", "select",  "inventory", "hover",  "inventory_hover",
-                             "leave",     "refresh", "more",      "quote",  "sell_change",
-                             "minus",     "plus",    "buy",       "sell",   "cancel_listing",
-                             "claim",     "dismiss", "confirm",   "usable", "luck",
-                             "skill"})
+    for (const char* name : {"close",      "tab",          "filter",        "reset",          "category",
+                             "equipment",  "select",       "inventory",     "hover",          "inventory_hover",
+                             "leave",      "refresh",      "more",          "quote",          "sell_change",
+                             "minus",      "plus",         "buy",           "sell",           "cancel_listing",
+                             "claim",      "dismiss",      "confirm",       "usable",         "luck",
+                             "skill",      "open_filters", "apply_filters", "cancel_filters", "clear_filter",
+                             "draft_luck", "draft_skill"})
         c.BindEventCallback(name, [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {});
 }
 } // namespace
@@ -94,7 +96,8 @@ TEST_CASE("Auction native document stays bounded across tabs themes and scale [a
         model.selectedName = model.rows.front().name;
         model.selectedDetail = model.rows.front().detail;
         model.options = {{"0", "Any option"}, {"1", "Defense success rate +10%"}};
-        model.types = {{"0", "All types"}};
+        model.equipment = "1";
+        model.types = {{"0", "All types"}, {"1", "Swords"}};
         model.durations = {{"48", "48 h"}};
         model.duration = "48 h";
         for (int width : {640, 1024, 1920})
@@ -116,6 +119,7 @@ TEST_CASE("Auction native document stays bounded across tabs themes and scale [a
                     view.MarkDirty("durations");
                     view.MarkDirty("duration");
                     document->Show();
+                    UI::RmlBridge::ApplyNativeTextSize(fixture.context);
                     fixture.context->Update();
                     fixture.context->Update();
                     auto* panel = document->GetElementById("panel");
@@ -129,14 +133,28 @@ TEST_CASE("Auction native document stays bounded across tabs themes and scale [a
                     {
                         Rml::ElementList toggles;
                         document->GetElementsByClassName(toggles, "filter-toggle");
-                        REQUIRE(toggles.size() == 3);
+                        int visibleToggles = 0;
                         for (auto* toggle : toggles)
                         {
-                            CHECK(toggle->IsVisible(true));
+                            if (!toggle->IsVisible(true))
+                                continue;
+                            ++visibleToggles;
                             CHECK(toggle->GetBox().GetSize(Rml::BoxArea::Border).x > 0);
                             CHECK(toggle->GetBox().GetSize(Rml::BoxArea::Border).y > 0);
                             REQUIRE(toggle->GetNumChildren() == 2);
                             CHECK(toggle->GetChild(1)->GetBox().GetSize(Rml::BoxArea::Border).x > 0);
+                        }
+                        CHECK(visibleToggles == 1);
+                        Rml::ElementList filterActions;
+                        document->GetElementsByClassName(filterActions, "filter-actions");
+                        REQUIRE(filterActions.size() == 1);
+                        const auto right = panel->GetAbsoluteOffset(Rml::BoxArea::Border).x + size.x;
+                        for (int i = 0; i < filterActions.front()->GetNumChildren(); ++i)
+                        {
+                            auto* action = filterActions.front()->GetChild(i);
+                            CHECK(action->GetAbsoluteOffset(Rml::BoxArea::Border).x +
+                                      action->GetBox().GetSize(Rml::BoxArea::Border).x <=
+                                  right + 1);
                         }
                     }
                     auto* results = document->GetElementById("results");
@@ -173,4 +191,53 @@ TEST_CASE("Auction native document stays bounded across tabs themes and scale [a
                 }
         view.Release();
     }
+}
+
+TEST_CASE("Auction option dropdown selects a parameter by mouse [auction][rml]")
+{
+    Fixture fixture;
+    UI::RmlBridge::SetActiveThemeName("legacy");
+    UI::RmlBridge::ThemedView<UI::AuctionHouse::WindowModel> view(
+        "auction_house", Bind, {{"Data/Interface/RmlUi/auction_house.rml", [&fixture] { return fixture.context; }}});
+    REQUIRE(view.Ensure());
+    auto* document = view.Document();
+    auto& model = view.GetModel();
+    model.options = {{"0", "Any option"},         {"1", "Defense success rate +10%"},
+                     {"2", "Reflect damage +5%"}, {"4", "Damage decrease +4%"},
+                     {"8", "Maximum mana +4%"},   {"16", "Maximum HP +4%"},
+                     {"32", "Zen drop +30%"},     {"64", "Excellent damage rate +10%"},
+                     {"128", "Attack speed +7"},  {"256", "Damage increase +2%"}};
+    view.MarkDirty("options");
+    auto* panel = document->GetElementById("panel");
+    panel->SetProperty("left", "20px");
+    panel->SetProperty("top", "64px");
+    document->Show();
+    UI::RmlBridge::ApplyNativeTextSize(fixture.context);
+    fixture.context->Update();
+    fixture.context->Render();
+    Rml::ElementList controls;
+    document->GetElementsByClassName(controls, "option-control");
+    REQUIRE(controls.size() == 1);
+    auto* select = controls.front()->GetChild(1);
+    REQUIRE(select);
+    const auto position = select->GetAbsoluteOffset(Rml::BoxArea::Border);
+    const auto size = select->GetBox().GetSize(Rml::BoxArea::Border);
+    auto click = [&](int x, int y)
+    {
+        fixture.context->ProcessMouseMove(x, y, 0);
+        fixture.context->ProcessMouseButtonDown(0, 0);
+        fixture.context->Update();
+        fixture.context->Render();
+        fixture.context->ProcessMouseMove(x, y, 0);
+        fixture.context->Update();
+        fixture.context->Render();
+        fixture.context->ProcessMouseMove(x, y, 0);
+        fixture.context->ProcessMouseButtonUp(0, 0);
+        fixture.context->Update();
+        fixture.context->Render();
+    };
+    click(static_cast<int>(position.x + 10), static_cast<int>(position.y + 10));
+    click(static_cast<int>(position.x + 30), static_cast<int>(position.y + size.y + 36));
+    CHECK(model.option == "1");
+    view.Release();
 }

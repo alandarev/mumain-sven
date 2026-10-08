@@ -54,13 +54,17 @@ RowModel Window::Describe(ITEM* item, int index) const
     auto row = DescribeItem(item, index);
     if (!item)
         return row;
+    Rml::String matched;
     for (const auto& option : Options())
         if (option.mask && (m_Filter.excellentMask & option.mask) && (m_Filter.slotMask & option.slots))
         {
-            if (!row.matched.empty())
-                row.matched += " · ";
-            row.matched += option.label;
+            if (!matched.empty())
+                matched += " · ";
+            matched += option.label;
         }
+    row.highlighted = !matched.empty();
+    if (row.highlighted)
+        row.matched = std::move(matched);
     return row;
 }
 
@@ -86,11 +90,27 @@ void Window::RefreshInventory()
             control = g_pMyInventoryExt->TryGetExtensionByInventoryIndex(slot);
         if (!control || control->GetIndexByItem(item) != slot)
             continue;
-        rows.push_back(Describe(item, slot));
+        auto row = Describe(item, slot);
+        // Group identical jewel presentations only. The first real slot remains the
+        // selection anchor; CheckSell still decides eligibility and sellable quantity.
+        const bool groupable = item->Type / MAX_ITEM_INDEX >= 12 && MatchesGoodsName(row.name, Category::Jewels, {});
+        auto existing = groupable ? std::find_if(rows.begin(), rows.end(),
+                                                 [this, item, &row](const auto& old)
+                                                 {
+                                                     const auto* anchor = InventoryItem(old.index);
+                                                     return anchor && anchor->Type == item->Type &&
+                                                            anchor->Level == item->Level && old.detail == row.detail;
+                                                 })
+                                  : rows.end();
+        if (existing == rows.end())
+            rows.push_back(std::move(row));
+        else
+            ++existing->units;
     }
-    const bool changed = rows.size() != model.inventory.size() ||
-                         !std::equal(rows.begin(), rows.end(), model.inventory.begin(), [](const auto& a, const auto& b)
-                                     { return a.index == b.index && a.name == b.name && a.detail == b.detail; });
+    const bool changed =
+        rows.size() != model.inventory.size() ||
+        !std::equal(rows.begin(), rows.end(), model.inventory.begin(), [](const auto& a, const auto& b)
+                    { return a.index == b.index && a.name == b.name && a.detail == b.detail && a.units == b.units; });
     if (!changed)
         return;
     model.inventory = std::move(rows);
@@ -123,9 +143,12 @@ void Window::SelectInventory(int slot)
     m_SellKey = item->Key;
     auto& model = m_View.GetModel();
     const auto row = Describe(item, slot);
+    model.selectedSeller.clear();
     model.selected = true;
     model.selectedName = row.name;
-    model.selectedDetail = row.detail;
+    model.selectedDetail = row.stats;
+    model.selectedOptions = row.options;
+    model.selectedRequirements = row.requirements;
     model.selectedTone = row.tone;
     m_SelectedIcon = {Item(g_pNewItemMng->DuplicateItem(item)), nullptr};
     model.price.clear();
@@ -147,9 +170,14 @@ void Window::SelectRow(int index)
     for (auto& row : model.rows)
         row.selected = row.index == index;
     const auto& row = model.rows[index];
+    model.selectedSeller = model.tab == "browse" && !model.goods && static_cast<std::size_t>(index) < m_Listings.size()
+                               ? m_Listings[index].seller
+                               : "";
     model.selected = true;
     model.selectedName = row.name;
-    model.selectedDetail = row.detail;
+    model.selectedDetail = row.stats;
+    model.selectedOptions = row.options;
+    model.selectedRequirements = row.requirements;
     model.selectedPrice = row.price;
     model.selectedTone = row.tone;
     model.cannotEquip = row.cannotEquip;
@@ -158,6 +186,7 @@ void Window::SelectRow(int index)
         m_SelectedIcon.item.reset(g_pNewItemMng->DuplicateItem(m_Icons[index].item.get()));
     model.buyQuantity = "1";
     model.quoteTotal.clear();
+    model.quoteTiers.clear();
     if (model.tab == "browse" && model.goods)
         QueueRead(Read::Quote);
     m_Dirty = true;

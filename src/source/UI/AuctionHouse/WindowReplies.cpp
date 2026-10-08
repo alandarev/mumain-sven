@@ -122,7 +122,7 @@ void Window::HandlePage(Market::Operation operation)
     }
     RefreshRows();
     if (model.rows.empty() && !model.more)
-        SetStatus(model.tab == "collection" ? "Collection empty." : "No listings.", false);
+        SetStatus({});
 }
 
 void Window::RefreshRows()
@@ -142,12 +142,12 @@ void Window::RefreshRows()
         {
             auto item = Decode(listing.itemData);
             auto row = Describe(item.get(), 0);
-            row.price = CompactZen(listing.price);
+            row.price = CompactZen(listing.price) + " Zen";
             row.exactPrice = ExactZen(listing.price) + " Zen";
             const auto index = static_cast<std::size_t>(&listing - m_Listings.data());
             const auto seconds =
                 Market::SecondsRemaining(listing.secondsLeft, m_ListingTimes[index], RequestClock::Time::clock::now());
-            row.meta = listing.seller + " · " + std::to_string((seconds + 3599) / 3600) + "h";
+            row.meta = std::to_string((seconds + 3599) / 3600) + "h";
             row.cannotEquip = !listing.requirementsMet;
             row.own = listing.ownListing;
             add(std::move(item), std::move(row));
@@ -157,10 +157,14 @@ void Window::RefreshRows()
         {
             auto item = GoodsItem(goods);
             auto row = Describe(item.get(), 0);
-            row.price = CompactZen(goods.lowestUnitPrice) + " / each";
+            row.price = CompactZen(goods.lowestUnitPrice) + " Zen / each";
             row.exactPrice = ExactZen(goods.lowestUnitPrice) + " Zen / each";
             row.meta = std::to_string(goods.available) + " available";
             row.detail.clear();
+            row.stats.clear();
+            row.options.clear();
+            row.requirements.clear();
+            row.summary.clear();
             add(std::move(item), std::move(row));
         }
     else if (model.tab == "own")
@@ -170,12 +174,14 @@ void Window::RefreshRows()
             if (!item && listing.type < MAX_ITEM)
                 item = GoodsItem({listing.type, listing.level});
             auto row = Describe(item.get(), 0);
-            row.price = CompactZen(listing.unitPrice) + (listing.kind == 2 ? " / each" : "");
+            row.price = CompactZen(listing.unitPrice) + " Zen" + (listing.kind == 2 ? " / each" : "");
             row.exactPrice = ExactZen(listing.unitPrice) + " Zen" + (listing.kind == 2 ? " / each" : "");
             const auto remaining = Market::SecondsRemaining(
                 listing.secondsLeft, Market::GetState().OwnListingsReceivedAt(), RequestClock::Time::clock::now());
-            row.meta = std::to_string(listing.remaining) + "/" + std::to_string(listing.listed) + " · " +
-                       std::to_string((remaining + 3599) / 3600) + "h";
+            row.meta =
+                (listing.kind == 2 ? std::to_string(listing.remaining) + "/" + std::to_string(listing.listed) + " · "
+                                   : "") +
+                std::to_string((remaining + 3599) / 3600) + "h";
             add(std::move(item), std::move(row));
         }
     else if (model.tab == "collection")
@@ -187,20 +193,26 @@ void Window::RefreshRows()
             auto row = Describe(item.get(), 0);
             if (entry.kind == 2)
             {
-                row.name = "Sale proceeds";
-                row.price = CompactZen(entry.net) + " Zen";
+                row.name = CompactZen(entry.net) + " Zen";
+                row.icon = "zen";
+                row.meta = "Sold";
+                row.price.clear();
                 row.exactPrice = ExactZen(entry.net) + " Zen";
                 row.detail = "Gross " + ExactZen(entry.gross) + " Zen\nSale fee " + ExactZen(entry.fee) + " Zen";
             }
             else
             {
-                row.price = "×" + std::to_string(entry.quantity);
+                if (entry.quantity > 1)
+                    row.name += " ×" + std::to_string(entry.quantity);
+                row.price.clear();
                 row.meta = entry.kind == 3 ? "Cancelled" : entry.kind == 4 ? "Expired" : "Purchased";
             }
             add(std::move(item), std::move(row));
         }
     model.count = model.tab == "browse" && model.goods ? (model.more ? "" : std::to_string(m_Goods.size()))
                                                        : std::to_string(m_Total);
+    if (!model.count.empty())
+        model.count += model.tab == "own" ? " active" : " listings";
     if (model.tab == "collection")
         model.pending = static_cast<int>(m_Total);
     m_Dirty = true;

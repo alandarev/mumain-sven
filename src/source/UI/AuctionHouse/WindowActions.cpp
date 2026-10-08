@@ -126,6 +126,9 @@ void Window::ReviewSale()
     OpenReview(review, model.selectedName + (model.sellGoods ? " ×" + std::to_string(*quantity) : ""), "Review listing",
                "Publish listing");
     m_View.GetModel().confirmTotal = "Total " + model.saleTotal;
+    m_View.GetModel().confirmFee = "Posting fee " + model.postingFee + "\nSale fee " + model.saleFee +
+                                   "\nNet proceeds " + model.proceeds + "\nDuration " + std::to_string(*duration) +
+                                   " h";
 }
 
 void Window::ReviewCancel(int index)

@@ -26,6 +26,9 @@ TEST_CASE("Auction Zen entry remains exact at limits and decimal shorthand [auct
         CHECK_FALSE(ParseZen(input, limit));
     }
     CHECK(ExactZen(limit) == "4,294,967,295");
+    CHECK(CompactZen(1350000000) == "1,350kk");
+    CHECK(CompactZen(12500000) == "12.5kk");
+    CHECK(ParseZen(CompactZen(4294967295), limit) == limit);
     CHECK(CompactZen(1000001) == "1,000,001");
 }
 

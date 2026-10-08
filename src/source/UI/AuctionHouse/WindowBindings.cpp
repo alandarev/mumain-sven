@@ -13,6 +13,7 @@ void Window::Bind(Rml::DataModelConstructor& constructor, WindowModel& model)
 
 void Window::BindEvents(Rml::DataModelConstructor& c)
 {
+    BindFilterEvents(c);
     auto event = [this, &c](const char* name, const std::function<void(const Rml::VariantList&)>& action)
     {
         c.BindEventCallback(name, [this, action](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& args)
@@ -47,6 +48,7 @@ void Window::BindEvents(Rml::DataModelConstructor& c)
               model.search.clear();
               model.ancientSet.clear();
               model.option = "0";
+              model.option2 = "0";
               model.family = "0";
               model.itemType = "0";
               model.equipment = "0";
@@ -60,11 +62,14 @@ void Window::BindEvents(Rml::DataModelConstructor& c)
               FilterChanged();
           });
     event("category",
-          [this](const auto&)
+          [this](const auto& args)
           {
               auto& model = m_View.GetModel();
+              if (!args.empty())
+                  model.category = args.front().template Get<Rml::String>();
               model.itemType = "0";
               model.option = "0";
+              model.option2 = "0";
               model.ancientSet.clear();
               FilterChanged();
           });
@@ -157,7 +162,24 @@ void Window::BindEvents(Rml::DataModelConstructor& c)
 
 void Window::Dirty()
 {
-    static constexpr const char* fields[] = {"step_down",
+    static constexpr const char* fields[] = {"filters_open",
+                                             "active_filters",
+                                             "draft_family",
+                                             "draft_ancient_set",
+                                             "draft_class_line",
+                                             "draft_option",
+                                             "draft_upgrade_min",
+                                             "draft_upgrade_max",
+                                             "draft_min_excellent",
+                                             "draft_min_sockets",
+                                             "draft_max_price",
+                                             "draft_luck",
+                                             "draft_skill",
+                                             "option2",
+                                             "selected_seller",
+                                             "selected_options",
+                                             "selected_requirements",
+                                             "step_down",
                                              "step_up",
                                              "ancient_set",
                                              "sets",
@@ -198,6 +220,7 @@ void Window::Dirty()
                                              "selected_icon",
                                              "selected_tone",
                                              "quote_total",
+                                             "quote_tiers",
                                              "stock",
                                              "duration_value",
                                              "confirm_title",

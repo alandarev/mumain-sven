@@ -33,9 +33,51 @@ void Stats(RowModel& row, const ITEM* item)
         Line(row, "Attack speed " + std::to_string(item->WeaponSpeed));
 }
 
+bool IsAdditional(WORD option)
+{
+    return option == AT_IMPROVE_DAMAGE || option == AT_IMPROVE_MAGIC || option == AT_IMPROVE_CURSE ||
+           option == AT_IMPROVE_BLOCKING || option == AT_IMPROVE_DEFENSE || option == AT_LIFE_REGENERATION;
+}
+
+bool IsExcellent(WORD option)
+{
+    return option == AT_IMPROVE_LIFE || option == AT_IMPROVE_MANA || option == AT_DECREASE_DAMAGE ||
+           option == AT_REFLECTION_DAMAGE || option == AT_IMPROVE_BLOCKING_PERCENT || option == AT_IMPROVE_GAIN_GOLD ||
+           option == AT_EXCELLENT_DAMAGE || option == AT_IMPROVE_DAMAGE_LEVEL || option == AT_IMPROVE_DAMAGE_PERCENT ||
+           option == AT_IMPROVE_MAGIC_LEVEL || option == AT_IMPROVE_MAGIC_PERCENT ||
+           option == AT_IMPROVE_ATTACK_SPEED || option == AT_IMPROVE_GAIN_LIFE || option == AT_IMPROVE_GAIN_MANA;
+}
+
+void Append(Rml::String& target, const std::string& text, const char* separator = "\n")
+{
+    if (text.empty())
+        return;
+    if (!target.empty())
+        target += separator;
+    target += text;
+}
+
+void Special(RowModel& row, WORD option, const std::string& text)
+{
+    Line(row, text);
+    if (IsAdditional(option))
+    {
+        Append(row.stats, text);
+        Append(row.summary, text, " · ");
+    }
+    else
+        Append(row.options, text);
+    if (IsExcellent(option))
+        Append(row.matched, text, " · ");
+}
+
 void Options(RowModel& row, const ITEM* item)
 {
     wchar_t text[256]{};
+    if (item->HasSkill)
+        row.summary = "Skill";
+    if (item->HasLuck)
+        Append(row.summary, "Luck", " · ");
     if (item->AncientDiscriminator && g_csItemOption.GetSetItemName(text, item->Type, item->AncientDiscriminator))
         row.name = StringUtils::WideToNarrow(text) + row.name;
     for (int i = 0; i < std::min<int>(item->SpecialNum, MAX_ITEM_SPECIAL); ++i)
@@ -45,13 +87,19 @@ void Options(RowModel& row, const ITEM* item)
         text[0] = 0;
         GetSpecialOptionText(item->Type, text, item->Special[i], item->SpecialValue[i], 0);
         if (text[0])
-            Line(row, StringUtils::WideToNarrow(text));
+            Special(row, item->Special[i], StringUtils::WideToNarrow(text));
     }
     if (item->HasLuck)
+    {
         Line(row, "Luck");
+        Append(row.stats, "Luck");
+    }
     text[0] = 0;
     if (g_csItemOption.GetDefaultOptionText(item, text))
+    {
         Line(row, StringUtils::WideToNarrow(text));
+        Append(row.options, StringUtils::WideToNarrow(text));
+    }
 }
 
 void Sockets(RowModel& row, const ITEM* item)
@@ -128,10 +176,11 @@ RowModel DescribeItem(const ITEM* item, int index)
                : item->SocketCount        ? "socket"
                                           : "normal";
     Stats(row, item);
+    row.stats = row.detail;
     Options(row, item);
+    const auto optionsStart = row.detail.size();
     Sockets(row, item);
     Harmony(row, item);
-    Requirements(row, item);
     if (item->option_380 && g_pItemAddOptioninfo)
     {
         const auto& guardian = g_pItemAddOptioninfo->GetItemAddOtioninfo(item->Type);
@@ -146,6 +195,17 @@ RowModel DescribeItem(const ITEM* item, int index)
         else
             Line(row, "Guardian option");
     }
+    auto extraOptions = row.detail.substr(optionsStart);
+    if (!extraOptions.empty() && extraOptions.front() == '\n')
+        extraOptions.erase(0, 1);
+    Append(row.options, extraOptions);
+    const auto requirementsStart = row.detail.size();
+    Requirements(row, item);
+    row.requirements = row.detail.substr(requirementsStart);
+    if (!row.requirements.empty() && row.requirements.front() == '\n')
+        row.requirements.erase(0, 1);
+    if (row.tone == "excellent")
+        row.name = "Excellent " + row.name;
     return row;
 }
 

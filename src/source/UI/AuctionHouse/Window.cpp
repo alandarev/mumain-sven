@@ -18,6 +18,23 @@ namespace
 constexpr auto SearchDebounce = std::chrono::milliseconds(350);
 constexpr auto RequestTimeout = std::chrono::seconds(15);
 constexpr auto InventoryRefresh = std::chrono::milliseconds(500);
+
+// Native select popups use layout offsets, not transformed bounds. Keep their
+// coordinates identical to the drawn panel while retaining the shared drag helper.
+void CenterPanel(Rml::Element* panel)
+{
+    if (!panel || panel->IsClassSet("dragged"))
+        return;
+    const auto size = panel->GetBox().GetSize(Rml::BoxArea::Border);
+    const auto viewport = panel->GetContext()->GetDimensions();
+    const float left = std::max(0.f, (static_cast<float>(viewport.x) - size.x) / 2.f);
+    const float top = std::max(0.f, (static_cast<float>(viewport.y) - size.y) / 2.f);
+    if (std::abs(panel->GetOffsetLeft() - left) > 0.1f)
+        panel->SetProperty("left", std::to_string(left) + "px");
+    if (std::abs(panel->GetOffsetTop() - top) > 0.1f)
+        panel->SetProperty("top", std::to_string(top) + "px");
+}
+
 } // namespace
 
 Window::Window()
@@ -90,6 +107,7 @@ void Window::Show(bool show)
     m_View.GetModel().busy = false;
     m_ActionSentAt = {};
     DismissReview();
+    DismissFilters();
     for (auto& icon : m_Icons)
         if (icon.target)
             icon.target->SetEnabled(false);
@@ -145,8 +163,12 @@ bool Window::Update()
     m_View.Ensure();
     UI::RmlBridge::SyncDocumentVisibilityInFront(m_View.Document(), true);
     if (auto* document = m_View.Document())
-        if (auto* panel = document->GetElementById("panel"); panel && panel->IsClassSet("dragged"))
+    {
+        auto* panel = document->GetElementById("panel");
+        CenterPanel(panel);
+        if (panel && panel->IsClassSet("dragged"))
             UI::RmlBridge::KeepInsideWindow(panel);
+    }
     if (m_ReviewNeedsFocus)
         if (auto* document = m_View.Document())
             if (auto* button = document->GetElementById("confirm-action"); button && button->IsVisible(true))
@@ -234,7 +256,9 @@ bool Window::UpdateKeyEvent()
         const auto* focused = document ? document->GetContext()->GetFocusElement() : nullptr;
         return !focused || focused->GetOwnerDocument() != document;
     }
-    if (m_View.GetModel().review && !m_View.GetModel().busy)
+    if (m_View.GetModel().filtersOpen)
+        DismissFilters();
+    else if (m_View.GetModel().review && !m_View.GetModel().busy)
         DismissReview();
     else
         Show(false);
@@ -253,12 +277,14 @@ void Window::SwitchTab(const Rml::String& tab)
 {
     if (m_View.GetModel().busy || m_View.GetModel().review)
         return;
+    DismissFilters();
     m_SearchAt = {};
     m_View.GetModel().tab = tab;
     m_Generation++;
     m_Selected = -1;
     m_View.GetModel().selected = false;
     m_View.GetModel().rows.clear();
+    m_View.GetModel().count.clear();
     m_View.GetModel().more = false;
     SetStatus({});
     if (tab == "browse")
@@ -281,11 +307,13 @@ void Window::FilterChanged()
     if (m_View.GetModel().busy || m_View.GetModel().review)
         return;
     m_Generation++;
+    RefreshFilterSummary();
     m_SearchAt = RequestClock::Time::clock::now() + SearchDebounce;
     m_Read = Read::None;
     m_Selected = -1;
     m_View.GetModel().selected = false;
     m_View.GetModel().rows.clear();
+    m_View.GetModel().count.clear();
     m_View.GetModel().more = false;
     m_View.GetModel().loading = true;
     DismissReview();

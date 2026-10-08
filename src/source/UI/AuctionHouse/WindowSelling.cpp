@@ -150,11 +150,10 @@ void Window::RefreshQuote()
     }
     model.quoteTotal = ExactZen(quote->total) + " Zen";
     model.selectedDetail.clear();
+    model.quoteTiers.clear();
     for (const auto& tier : quote->tiers)
     {
-        if (!model.selectedDetail.empty())
-            model.selectedDetail += "\n";
-        model.selectedDetail += ExactZen(tier.unitPrice) + " Zen ×" + std::to_string(tier.quantity);
+        model.quoteTiers.push_back({CompactZen(tier.unitPrice) + " Zen", std::to_string(tier.quantity)});
     }
     if (m_Review.action == Action::BuyGoods && !model.busy)
     {

@@ -25,12 +25,13 @@ bool Window::CompileFilter()
     model.loading = false;
     m_Filter = {};
     const auto category = Number(model.category, 2), equipment = Number(model.equipment, 4);
+    const auto option2 = Number(model.option2, static_cast<int>(Options().size()) - 1);
     const auto option = Number(model.option, static_cast<int>(Options().size()) - 1);
     const auto family = Number(model.family, 4), classLine = Number(model.classLine, 255), sort = Number(model.sort, 3);
     const auto low = Number(model.upgradeMin, 15), high = Number(model.upgradeMax, 15);
     const auto excellent = Number(model.minExcellent, 6), sockets = Number(model.minSockets, 5);
-    if (!category || !equipment || !option || !family || !classLine || !sort || !low || !high || !excellent ||
-        !sockets || *low > *high || (*classLine > 6 && *classLine != 255))
+    if (!category || !equipment || !option || !option2 || !family || !classLine || !sort || !low || !high ||
+        !excellent || !sockets || *low > *high || (*classLine > 6 && *classLine != 255))
     {
         SetStatus("Check your filters.");
         m_Dirty = true;
@@ -76,9 +77,12 @@ bool Window::CompileFilter()
                 model.options.push_back({std::to_string(i), std::string(Options()[i].label)});
         if (*option && !(Options()[*option].slots & m_Filter.slotMask))
             model.option = "0";
+        if (*option2 && !(Options()[*option2].slots & m_Filter.slotMask))
+            model.option2 = "0";
+        const auto secondOption = Number(model.option2, static_cast<int>(Options().size()) - 1);
         const auto selectedOption = Number(model.option, static_cast<int>(Options().size()) - 1);
-        if (!selectedOption || !ApplyEquipmentFilter(m_Filter, Equipment::All, *selectedOption) ||
-            !ParsePropertyQuery(m_Filter, search))
+        if (!selectedOption || !secondOption || !ApplyEquipmentFilter(m_Filter, Equipment::All, *secondOption) ||
+            !ApplyEquipmentFilter(m_Filter, Equipment::All, *selectedOption) || !ParsePropertyQuery(m_Filter, search))
         {
             SetStatus("No matches.");
             m_Dirty = true;

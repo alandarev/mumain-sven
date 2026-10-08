@@ -21,17 +21,38 @@ void RegisterRows(Rml::DataModelConstructor& constructor)
     row.RegisterMember("exact_price", &RowModel::exactPrice);
     row.RegisterMember("matched", &RowModel::matched);
     row.RegisterMember("selected", &RowModel::selected);
+    row.RegisterMember("summary", &RowModel::summary);
+    row.RegisterMember("highlighted", &RowModel::highlighted);
+    row.RegisterMember("units", &RowModel::units);
     constructor.RegisterArray<std::vector<RowModel>>();
     auto choice = constructor.RegisterStruct<ChoiceModel>();
     choice.RegisterMember("value", &ChoiceModel::value);
     choice.RegisterMember("label", &ChoiceModel::label);
     constructor.RegisterArray<std::vector<ChoiceModel>>();
 }
+
+void BindFilterDraft(Rml::DataModelConstructor& c, WindowModel& m)
+{
+    c.Bind("filters_open", &m.filtersOpen);
+    c.Bind("active_filters", &m.activeFilters);
+    c.Bind("draft_family", &m.draft.family);
+    c.Bind("draft_ancient_set", &m.draft.ancientSet);
+    c.Bind("draft_class_line", &m.draft.classLine);
+    c.Bind("draft_option", &m.draft.option);
+    c.Bind("draft_upgrade_min", &m.draft.upgradeMin);
+    c.Bind("draft_upgrade_max", &m.draft.upgradeMax);
+    c.Bind("draft_min_excellent", &m.draft.minExcellent);
+    c.Bind("draft_min_sockets", &m.draft.minSockets);
+    c.Bind("draft_max_price", &m.draft.maxPrice);
+    c.Bind("draft_luck", &m.draft.luck);
+    c.Bind("draft_skill", &m.draft.skill);
+}
 } // namespace
 
 void BindWindowModel(Rml::DataModelConstructor& c, WindowModel& m)
 {
     RegisterRows(c);
+    BindFilterDraft(c, m);
     c.Bind("ancient_set", &m.ancientSet);
     c.Bind("sets", &m.sets);
     c.Bind("pending", &m.pending);
@@ -44,6 +65,7 @@ void BindWindowModel(Rml::DataModelConstructor& c, WindowModel& m)
     c.Bind("item_type", &m.itemType);
     c.Bind("search", &m.search);
     c.Bind("option", &m.option);
+    c.Bind("option2", &m.option2);
     c.Bind("family", &m.family);
     c.Bind("class_line", &m.classLine);
     c.Bind("sort", &m.sort);
@@ -69,10 +91,14 @@ void BindWindowModel(Rml::DataModelConstructor& c, WindowModel& m)
     c.Bind("buy_quantity", &m.buyQuantity);
     c.Bind("selected_name", &m.selectedName);
     c.Bind("selected_detail", &m.selectedDetail);
+    c.Bind("selected_options", &m.selectedOptions);
+    c.Bind("selected_requirements", &m.selectedRequirements);
+    c.Bind("selected_seller", &m.selectedSeller);
     c.Bind("selected_price", &m.selectedPrice);
     c.Bind("selected_icon", &m.selectedIcon);
     c.Bind("selected_tone", &m.selectedTone);
     c.Bind("quote_total", &m.quoteTotal);
+    c.Bind("quote_tiers", &m.quoteTiers);
     c.Bind("stock", &m.stock);
     c.Bind("duration_value", &m.durationValue);
     c.Bind("confirm_title", &m.confirmTitle);

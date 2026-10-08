@@ -94,13 +94,21 @@ std::string ExactZen(Market::Zen value)
 
 std::string CompactZen(Market::Zen value)
 {
-    if (value != 0 && value % 1000000000 == 0)
-        return std::to_string(value / 1000000000) + "B";
-    if (value != 0 && value % 1000000 == 0)
-        return std::to_string(value / 1000000) + "kk";
-    if (value != 0 && value % 1000 == 0)
-        return std::to_string(value / 1000) + "k";
-    return ExactZen(value);
+    const Market::Zen unit = value >= 1000000 ? 1000000 : 1000;
+    if (value < 1000 || value % (unit / 100) != 0)
+        return ExactZen(value);
+    auto result = ExactZen(value / unit);
+    auto fraction = (value % unit) / (unit / 100);
+    if (fraction)
+    {
+        result += ".";
+        if (fraction < 10)
+            result += "0";
+        result += std::to_string(fraction);
+        if (result.back() == '0')
+            result.pop_back();
+    }
+    return result + (unit == 1000000 ? "kk" : "k");
 }
 
 std::string ResultText(Market::Result result)
