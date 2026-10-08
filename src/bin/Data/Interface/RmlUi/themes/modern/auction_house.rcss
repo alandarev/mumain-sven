@@ -145,3 +145,19 @@ select selectvalue { display: block; width: 100%; box-sizing: border-box; paddin
 #panel.center-both { transform: none; }
 
 .browse-toolbar { z-index: 2; }
+
+/* Match the approved content heights while preserving the viewport safe area. */
+#panel { height: 49.2em; max-height: 84%; }
+#panel.selling { height: 43.6em; }
+#panel.goods { height: 41em; }
+#panel.managing { height: 28em; }
+#panel.empty-list { height: 19.4em; }
+.managing .listing { min-height: 4.8em; }
+.selling .workspace { width: 90%; max-width: 54em; align-self: center; box-sizing: border-box; }
+.selling .inventory-pane { width: 35%; }
+.sell-fields { display: flex; flex-direction: column; }
+.sell-fields .primary { align-self: flex-end; }
+.sale-exact { font-size: 1.15em; margin-top: 0.5em; }
+.find-similar { align-self: flex-start; color: token(accent-gold); text-align: left; padding: 0; margin: 0.3em 0 0.2em; }
+.filter-card { height: 64%; }
+.panel-inset { position: absolute; z-index: 1; left: 2px; top: 2px; right: 2px; bottom: 2px; border: 1px #676758; pointer-events: none; }

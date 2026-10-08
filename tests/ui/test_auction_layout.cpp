@@ -63,13 +63,13 @@ private:
 void Bind(Rml::DataModelConstructor& c, UI::AuctionHouse::WindowModel& model)
 {
     UI::AuctionHouse::BindWindowModel(c, model);
-    for (const char* name : {"close",      "tab",          "filter",        "reset",          "category",
-                             "equipment",  "select",       "inventory",     "hover",          "inventory_hover",
-                             "leave",      "refresh",      "more",          "quote",          "sell_change",
-                             "minus",      "plus",         "buy",           "sell",           "cancel_listing",
-                             "claim",      "dismiss",      "confirm",       "usable",         "luck",
-                             "skill",      "open_filters", "apply_filters", "cancel_filters", "clear_filter",
-                             "draft_luck", "draft_skill"})
+    for (const char* name :
+         {"close",        "tab",        "filter",         "reset",           "category",      "equipment",
+          "select",       "inventory",  "hover",          "inventory_hover", "similar",       "leave",
+          "refresh",      "more",       "quote",          "sell_change",     "minus",         "plus",
+          "buy",          "sell",       "cancel_listing", "claim",           "dismiss",       "confirm",
+          "usable",       "luck",       "skill",          "open_filters",    "apply_filters", "cancel_filters",
+          "clear_filter", "draft_luck", "draft_skill"})
         c.BindEventCallback(name, [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {});
 }
 } // namespace

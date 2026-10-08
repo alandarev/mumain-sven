@@ -1,8 +1,9 @@
 <rml>
 <head><title>Auction House</title><link type="text/rcss" href="base.rcss"/><link type="text/rcss" href="auction_house.rcss"/></head>
 <body class="window-design" data-model="auction_house">
-<div id="panel" class="center-both" data-class-working="busy" data-class-reviewing="review || filters_open" data-class-selling="tab == 'sell'" data-class-browsing="tab == 'browse'" data-class-goods="goods &amp;&amp; tab == 'browse'">
+<div id="panel" class="center-both" data-class-working="busy" data-class-reviewing="review || filters_open" data-class-selling="tab == 'sell'" data-class-managing="tab == 'own' || tab == 'collection'" data-class-empty-list="(tab == 'own' || tab == 'collection') &amp;&amp; rows.size == 0" data-class-browsing="tab == 'browse'" data-class-goods="goods &amp;&amp; tab == 'browse'">
   <div class="stone-grid"><div class="stone-tile"></div><div class="stone-tile"></div><div class="stone-tile"></div><div class="stone-tile"></div><div class="stone-tile"></div><div class="stone-tile"></div><div class="stone-tile"></div><div class="stone-tile"></div><div class="stone-tile"></div><div class="stone-tile"></div><div class="stone-tile"></div><div class="stone-tile"></div><div class="stone-tile"></div><div class="stone-tile"></div><div class="stone-tile"></div><div class="stone-tile"></div><div class="stone-tile"></div><div class="stone-tile"></div><div class="stone-tile"></div><div class="stone-tile"></div><div class="stone-tile"></div><div class="stone-tile"></div><div class="stone-tile"></div><div class="stone-tile"></div><div class="stone-tile"></div><div class="stone-tile"></div><div class="stone-tile"></div><div class="stone-tile"></div><div class="stone-tile"></div><div class="stone-tile"></div><div class="stone-tile"></div><div class="stone-tile"></div><div class="stone-tile"></div><div class="stone-tile"></div><div class="stone-tile"></div><div class="stone-tile"></div><div class="stone-tile"></div><div class="stone-tile"></div><div class="stone-tile"></div><div class="stone-tile"></div></div><div class="stone-scrim"></div>
+  <div class="panel-inset"></div>
   <div id="titlebar"><div class="brand"><div class="heading">Auction House</div><div class="subtitle">Zyro</div></div><span class="wallet">{{wallet}}</span><button class="close" data-event-click="close" title="Close">×</button></div>
   <div class="tabs">
     <button data-class-active="tab == 'browse'" data-event-click="tab('browse')">Browse</button>
@@ -41,10 +42,12 @@
           <div data-if="goods"><label>Quantity</label><input class="text-field" type="text" maxlength="10" data-value="buy_quantity" data-event-change="quote"/><div class="fee-row"><span>Total</span><span class="gold">{{quote_total}}</span></div></div>
           <button class="btn action primary" data-event-click="buy" data-class-disabled="busy || loading">Buy</button><div class="seller muted" data-if="selected_seller != ''">Seller {{selected_seller}}</div>
         </div>
-        <div data-if="tab == 'sell'">
+        <div class="sell-fields" data-if="tab == 'sell'">
+          <button class="find-similar" data-if="!sell_goods" data-event-click="similar">Find similar</button>
           <div data-if="sell_goods"><label>Quantity</label><input class="text-field" type="text" maxlength="10" data-value="quantity" data-event-change="sell_change"/></div>
           <label data-if="sell_goods">Price per item · Zen</label><label data-if="!sell_goods">Price · Zen</label>
           <div class="price-input"><button class="quiet step" data-if="sell_goods" data-event-click="minus" data-class-disabled="!step_down || busy">−</button><input class="text-field" type="text" maxlength="24" data-value="price" data-event-change="sell_change" placeholder="2.5kk"/><button class="quiet step" data-if="sell_goods" data-event-click="plus" data-class-disabled="!step_up || busy">+</button></div>
+          <div class="sale-exact gold" data-if="!sell_goods">{{sale_total}}</div>
           <div class="duration" data-if="duration != ''"><span>Duration</span><span>{{duration}}</span></div><select data-if="duration == ''" data-value="duration_value" data-event-change="sell_change"><option data-for="choice : durations" data-attr-value="choice.value">{{choice.label}}</option></select>
           <div class="fee-row" data-if="sell_goods"><span>Total</span><span>{{sale_total}}</span></div><div class="fee-row"><span>Posting fee</span><span>{{posting_fee}}</span></div><div class="fee-row"><span>Sale fee</span><span>{{sale_fee}}</span></div><div class="fee-row gold"><span>Net proceeds</span><span>{{proceeds}}</span></div>
           <button class="btn action primary" data-event-click="sell" data-class-disabled="!sell_ready || busy">Review listing</button>

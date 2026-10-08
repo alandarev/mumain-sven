@@ -2,6 +2,7 @@
 #include "UI/AuctionHouse/Window.h"
 #include <RmlUi/Core/Event.h>
 #include "UI/RmlBridge/RmlTooltip.h"
+#include "Core/Utilities/StringUtils.h"
 
 namespace UI::AuctionHouse
 {
@@ -84,6 +85,19 @@ void Window::BindEvents(Rml::DataModelConstructor& c)
           {
               if (!m_View.GetModel().review)
                   SelectRow(index(args));
+          });
+    event("similar",
+          [this](const auto&)
+          {
+              auto* item = InventoryItem(m_SellSlot);
+              auto& model = m_View.GetModel();
+              if (!item || !ItemAttribute || model.busy || model.review)
+                  return;
+              model.search = StringUtils::WideToNarrow(ItemAttribute[item->Type].Name);
+              model.category = "0";
+              model.equipment = "0";
+              model.itemType = "0";
+              SwitchTab("browse");
           });
     event("inventory",
           [this, index](const auto& args)
