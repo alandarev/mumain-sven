@@ -220,6 +220,8 @@ bool Window::Update()
     if (m_SentRead != Read::None && now - m_ReadSentAt > RequestTimeout)
     {
         m_SentRead = Read::None;
+        // A late answer would still change the market revision; the player starts the review again.
+        m_ReviewGate.Cancel();
         m_View.GetModel().loading = false;
         SetStatus("Request timed out. Refresh to retry.");
     }
@@ -316,10 +318,18 @@ void Window::SwitchTab(const Rml::String& tab)
 {
     if (m_View.GetModel().busy || m_View.GetModel().review)
         return;
+    m_ReviewGate.Cancel();
     DismissFilters();
     // Leaving Browse ends a market comparison and gives the player's own queries back.
     if (tab != "browse")
         EndComparison();
+    // The Sell selection exists only while the Sell tab shows it; its draft stays for the item, so Back
+    // to selling (D9) or selecting it again restores it. Nothing outside Sell can then revalidate it (CR-03).
+    if (tab != "sell" && m_SellSlot >= 0)
+    {
+        SaveSellDraft();
+        ClearSellSelection();
+    }
     m_SearchAt = {};
     m_View.GetModel().tab = tab;
     m_Generation++;
@@ -402,6 +412,10 @@ void Window::PumpRequests(RequestClock::Time now)
         return;
     }
     if (m_Read == Read::None || m_SentRead != Read::None)
+        return;
+    // Re-checked right before sending: a read queued before a review opened waits until it closes.
+    const auto& model = m_View.GetModel();
+    if (!ReviewGate::MayDispatchRead(model.review, model.busy || m_ActionQueued))
         return;
     const auto read = m_Read;
     m_Read = Read::None;

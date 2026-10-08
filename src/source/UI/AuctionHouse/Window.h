@@ -8,6 +8,7 @@
 #include "UI/AuctionHouse/GoodsQuote.h"
 #include "UI/AuctionHouse/PriceEntry.h"
 #include "UI/AuctionHouse/Receipts.h"
+#include "UI/AuctionHouse/ReviewGate.h"
 #include "UI/AuctionHouse/Presentation.h"
 #include "UI/AuctionHouse/WindowModel.h"
 #include "UI/Core/WindowObject.h"
@@ -166,10 +167,13 @@ private:
     void ShowLowestMove(RequestClock::Time now);
     void SelectRow(int index);
     void SelectInventory(int slot);
+    // Runs a review or a collection now, or once the read in flight is answered (ReviewGate).
+    void StartAfterRead(std::function<void()> start);
     void ReviewBuy();
     void ReviewSale();
-    void ReviewCancel(int index);
-    void Collect(int index);
+    void ReviewCancel(const Market::EntityId& id);
+    // An empty id collects every entry.
+    void Collect(std::optional<Market::EntityId> id);
     void OpenReview(Review review, const Rml::String& name, const Rml::String& title, const Rml::String& action);
     void DismissReview();
     // The open review's balance line follows the wallet (a sale notice or a claim can change it).
@@ -224,8 +228,12 @@ private:
     std::vector<Market::GoodsRow> m_Goods;
     std::vector<Market::CollectionEntry> m_Collection;
     std::vector<Icon> m_Icons, m_InventoryIcons;
+    // The shown item: a Browse row, a listing or the item being priced.
     Icon m_SelectedIcon;
+    // The item being priced in Sell, as it was selected; a Browse selection never replaces it (CR-03).
+    Item m_SellItem;
     Review m_Review;
+    ReviewGate m_ReviewGate;
     StatusLine m_Status;
     NoticeLines m_Notices;
     // A notice arrived while a review was open: the lists refresh when it closes.

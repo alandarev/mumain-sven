@@ -65,8 +65,15 @@ void Window::RefreshReviewBalance()
     }
 }
 
+void Window::StartAfterRead(std::function<void()> start)
+{
+    m_ReviewGate.Start(m_SentRead != Read::None, std::move(start));
+}
+
 void Window::DismissReview()
 {
+    // A review still waiting for an answer is dropped as well: the player moved on.
+    m_ReviewGate.Cancel();
     if (m_View.GetModel().busy)
         return;
     m_ReviewNeedsFocus = false;
@@ -197,19 +204,20 @@ void Window::ReviewSale()
     auto& shown = m_View.GetModel();
     shown.confirmTotal = text.total;
     shown.confirmFee = text.fees;
-    if (!model.sellGoods && m_SelectedIcon.item)
-        shown.confirmDetail = OptionSummary(Describe(m_SelectedIcon.item.get(), 0));
+    if (!model.sellGoods && m_SellItem)
+        shown.confirmDetail = OptionSummary(Describe(m_SellItem.get(), 0));
 }
 
-void Window::ReviewCancel(int index)
+void Window::ReviewCancel(const Market::EntityId& id)
 {
-    if (m_View.GetModel().busy || m_View.GetModel().review)
+    if (m_View.GetModel().busy || m_View.GetModel().review || m_View.GetModel().tab != "own")
         return;
     const auto rows = Market::GetState().OwnListings();
-    if (index < 0 || static_cast<std::size_t>(index) >= rows.size() ||
-        static_cast<std::size_t>(index) >= m_View.GetModel().rows.size())
+    const auto found = std::find_if(rows.begin(), rows.end(), [&id](const auto& listing) { return listing.id == id; });
+    const auto index = static_cast<std::size_t>(found - rows.begin());
+    if (found == rows.end() || index >= m_View.GetModel().rows.size())
         return;
-    const auto& listing = rows[index];
+    const auto& listing = *found;
     const auto row = m_View.GetModel().rows[index];
     Review review;
     review.action = Action::Cancel;
@@ -225,19 +233,20 @@ void Window::ReviewCancel(int index)
     model.confirmFee = text.fee;
 }
 
-void Window::Collect(int index)
+void Window::Collect(std::optional<Market::EntityId> id)
 {
     auto& model = m_View.GetModel();
-    if (model.busy || model.review || !Market::GetState().IsOpen())
+    if (model.busy || model.review || !Market::GetState().IsOpen() || model.tab != "collection")
         return;
     // Collecting only moves what the player already owns, so it acts at once (D13).
     Review review;
     review.action = Action::Claim;
-    if (index >= 0)
+    if (id)
     {
-        if (static_cast<std::size_t>(index) >= m_Collection.size())
+        if (std::none_of(m_Collection.begin(), m_Collection.end(),
+                         [&id](const auto& entry) { return entry.id == *id; }))
             return;
-        review.id = m_Collection[index].id;
+        review.id = *id;
     }
     review.revision = Market::GetState().Revision();
     ClearFeedback();

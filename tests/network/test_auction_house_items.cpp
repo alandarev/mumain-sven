@@ -141,6 +141,27 @@ TEST_CASE("Auction preview copies retain sale identity separately [auction][item
     CHECK_FALSE(UI::AuctionHouse::SameInventoryItem(item, preview, sourceKey));
 }
 
+TEST_CASE("Auction Sell checks its own item snapshot, not the Browse listing shown after Compare market [auction][items]")
+{
+    // CR-03: the Sell tab's item and the shown Browse listing are different copies; a notice or a wallet
+    // change revalidates Sell against its own snapshot only.
+    ItemCatalogue catalogue;
+    mu::ui::window::CItemMng manager;
+    const auto rows = AuctionFixture::Decode<GameLogic::AuctionHouse::SearchPage>("auction-search-result").rows;
+    auto* inventory = manager.CreateItem(rows[0].itemData);
+    auto* listing = manager.CreateItem(rows[1].itemData);
+    REQUIRE(inventory != nullptr);
+    REQUIRE(listing != nullptr);
+    const auto key = inventory->Key;
+    auto* sellSnapshot = manager.DuplicateItem(inventory);
+    auto* shown = manager.DuplicateItem(listing);
+    REQUIRE(sellSnapshot != nullptr);
+    REQUIRE(shown != nullptr);
+    CHECK(UI::AuctionHouse::SameInventoryItem(inventory, sellSnapshot, key));
+    // The old check compared the inventory item with the shown icon and cleared the Sell selection.
+    CHECK_FALSE(UI::AuctionHouse::SameInventoryItem(inventory, shown, key));
+}
+
 TEST_CASE("Auction equipment pricing identity ignores serial slot and durability [auction][items]")
 {
     ItemCatalogue catalogue;

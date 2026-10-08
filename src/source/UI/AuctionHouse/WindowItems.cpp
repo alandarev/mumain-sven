@@ -77,6 +77,7 @@ RowModel Window::Describe(ITEM* item, int index) const
 void Window::ClearItems()
 {
     m_SelectedIcon = {};
+    m_SellItem.reset();
     m_Icons.clear();
     m_InventoryIcons.clear();
 }
@@ -137,7 +138,7 @@ void Window::RefreshInventory()
 
 bool Window::SellItemUnchanged() const
 {
-    return SameInventoryItem(InventoryItem(m_SellSlot), m_SelectedIcon.item.get(), m_SellKey);
+    return SameInventoryItem(InventoryItem(m_SellSlot), m_SellItem.get(), m_SellKey);
 }
 
 void Window::SelectInventory(int slot)
@@ -164,6 +165,7 @@ void Window::SelectInventory(int slot)
     model.selectedEquipReasons.clear();
     model.selectedTone = row.tone;
     m_SelectedIcon = {Item(g_pNewItemMng->DuplicateItem(item)), nullptr};
+    m_SellItem = Item(g_pNewItemMng->DuplicateItem(item));
     m_SellCheck.reset();
     m_SellQuote.reset();
     m_SellIdentity.reset();
@@ -194,6 +196,7 @@ void Window::SelectRow(int index)
     if (index < 0 || static_cast<std::size_t>(index) >= model.rows.size() || model.busy)
         return;
     ClearFeedback();
+    m_ReviewGate.Cancel();
     m_Selected = index;
     for (auto& row : model.rows)
         row.selected = row.index == index;

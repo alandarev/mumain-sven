@@ -150,10 +150,26 @@ void Window::BindEvents(Rml::DataModelConstructor& c)
               RefreshSelling();
           });
     event("refresh_quote", [this](const auto&) { RequestQuoteNow(); });
-    event("buy", [this](const auto&) { ReviewBuy(); });
-    event("sell", [this](const auto&) { ReviewSale(); });
-    event("cancel_listing", [this, index](const auto& args) { ReviewCancel(index(args)); });
-    event("claim", [this, index](const auto& args) { Collect(index(args)); });
+    event("buy", [this](const auto&) { StartAfterRead([this] { ReviewBuy(); }); });
+    event("sell", [this](const auto&) { StartAfterRead([this] { ReviewSale(); }); });
+    event("cancel_listing",
+          [this, index](const auto& args)
+          {
+              // By id: the list may reload before a waiting review opens.
+              const auto rows = Market::GetState().OwnListings();
+              const auto row = index(args);
+              if (row >= 0 && static_cast<std::size_t>(row) < rows.size())
+                  StartAfterRead([this, id = rows[row].id] { ReviewCancel(id); });
+          });
+    event("claim",
+          [this, index](const auto& args)
+          {
+              const auto row = index(args);
+              if (row < 0)
+                  StartAfterRead([this] { Collect(std::nullopt); });
+              else if (static_cast<std::size_t>(row) < m_Collection.size())
+                  StartAfterRead([this, id = m_Collection[row].id] { Collect(id); });
+          });
     event("dismiss",
           [this](const auto&)
           {

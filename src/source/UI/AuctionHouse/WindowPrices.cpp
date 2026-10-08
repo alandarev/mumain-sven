@@ -185,6 +185,7 @@ void Window::ClearSellSelection()
     m_SellCheck.reset();
     m_SellQuote.reset();
     m_SellIdentity.reset();
+    m_SellItem.reset();
     m_PriceEntry.Reset();
     model.selected = false;
     model.sellGoods = false;
@@ -233,8 +234,8 @@ bool Window::AcceptSellCheck()
     {
         if (model.sellGoods)
             m_SellIdentity = Market::GoodsPricingIdentity(check->type, check->level);
-        else if (m_SelectedIcon.item)
-            m_SellIdentity = EquipmentPricingIdentity(*m_SelectedIcon.item);
+        else if (m_SellItem)
+            m_SellIdentity = EquipmentPricingIdentity(*m_SellItem);
     }
     std::optional<Market::Zen> remembered;
     if (m_SellIdentity && EnsurePriceMemory())

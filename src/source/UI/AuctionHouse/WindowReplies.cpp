@@ -34,6 +34,9 @@ void Window::OnChanged(Market::Operation operation)
     }
     else
         HandleOutcome(operation);
+    // A review or collection asked for while this read was in flight starts now (ReviewGate).
+    if (auto start = m_ReviewGate.TakeWaiting(m_SentRead != Read::None))
+        start();
     m_Dirty = true;
 }
 
