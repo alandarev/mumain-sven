@@ -6,6 +6,9 @@
 #include "GameLogic/Items/CComGem.h"
 #include "Network/Server/SocketSystem.h"
 #include "Core/Utilities/StringUtils.h"
+#include "Character/CharacterManager.h"
+#include "Engine/Object/ZzzCharacter.h"
+#include "GameLogic/AuctionHouse/AuctionHouse.h"
 
 namespace UI::AuctionHouse
 {
@@ -154,6 +157,28 @@ void Requirements(RowModel& row, const ITEM* item)
         Line(row, "Durability " + std::to_string(item->Durability) + "/" + std::to_string(maxDurability));
 }
 
+// Strength and agility the item's harmony and socket options take off its requirements.
+std::pair<int, int> RequirementReductions(const ITEM& item)
+{
+    constexpr BYTE StrengthReductionSeed = 38, AgilityReductionSeed = 39;
+    int strength = 0, agility = 0;
+    if (g_pUIJewelHarmonyinfo && item.Level >= item.Jewel_Of_Harmony_OptionLevel)
+    {
+        StrengthenCapability capability{};
+        g_pUIJewelHarmonyinfo->GetStrengthenCapability(&capability, &item, 0);
+        if (capability.SI_isNB)
+        {
+            strength = capability.SI_NB.SI_force;
+            agility = capability.SI_NB.SI_activity;
+        }
+    }
+    for (int i = 0; i < std::min<int>(item.SocketCount, MAX_SOCKETS); ++i)
+        if (item.SocketSeedID[i] == StrengthReductionSeed)
+            strength += g_SocketItemMgr.GetSocketOptionValue(&item, i);
+        else if (item.SocketSeedID[i] == AgilityReductionSeed)
+            agility += g_SocketItemMgr.GetSocketOptionValue(&item, i);
+    return {strength, agility};
+}
 } // namespace
 
 RowModel DescribeItem(const ITEM* item, int index)
@@ -206,7 +231,47 @@ RowModel DescribeItem(const ITEM* item, int index)
         row.requirements.erase(0, 1);
     if (row.tone == "excellent")
         row.name = "Excellent " + row.name;
+    row.excellent = ExcellentMarks(GameLogic::AuctionHouse::ItemSlotMask(item->Type), item->ExcellentFlags);
     return row;
+}
+
+std::optional<EquipFacts> CharacterEquipFacts(const ITEM& item)
+{
+    if (!Hero || !CharacterAttribute || !ItemAttribute || item.Type < 0 || item.Type >= MAX_ITEM)
+        return std::nullopt;
+    EquipFacts facts;
+    const auto& attribute = ItemAttribute[item.Type];
+    std::copy_n(std::begin(attribute.RequireClass), facts.requireClass.size(), facts.requireClass.begin());
+    facts.baseClass = static_cast<std::uint8_t>(gCharacterManager.GetBaseClass(Hero->Class));
+    facts.classStep = gCharacterManager.GetStepClass(Hero->Class);
+    if (Check_LuckyItem(item.Type))
+        return facts; // Lucky items have no stat requirements.
+    const auto [strengthDown, agilityDown] = RequirementReductions(item);
+    const auto& character = *CharacterAttribute;
+    facts.stats = {
+        {"Strength", item.RequireStrength - strengthDown, character.Strength + character.AddStrength},
+        {"Agility", item.RequireDexterity - agilityDown, character.Dexterity + character.AddDexterity},
+        {"Energy", item.RequireEnergy, character.Energy + character.AddEnergy},
+        {"Vitality", item.RequireVitality, character.Vitality + character.AddVitality},
+        {"Leadership", item.RequireCharisma, character.Charisma + character.AddCharisma},
+        {"Level", item.RequireLevel, character.Level},
+    };
+    return facts;
+}
+
+void ExplainCannotEquip(RowModel& row, const ITEM& item)
+{
+    const auto facts = CharacterEquipFacts(item);
+    const auto reasons = facts ? CannotEquipReasons(*facts) : std::vector<std::string>{};
+    row.equipReason.clear();
+    row.equipReasons.clear();
+    if (reasons.empty())
+        return;
+    row.equipReason = reasons.front();
+    if (reasons.size() > 1)
+        row.equipReason += " (+" + std::to_string(reasons.size() - 1) + " more)";
+    for (const auto& reason : reasons)
+        Append(row.equipReasons, reason);
 }
 
 bool SameInventoryItem(const ITEM* item, const ITEM* saved, std::uint32_t sourceKey)

@@ -8,6 +8,10 @@ namespace
 {
 void RegisterRows(Rml::DataModelConstructor& constructor)
 {
+    auto mark = constructor.RegisterStruct<OptionMark>();
+    mark.RegisterMember("label", &OptionMark::label);
+    mark.RegisterMember("matched", &OptionMark::matched);
+    constructor.RegisterArray<std::vector<OptionMark>>();
     auto row = constructor.RegisterStruct<RowModel>();
     row.RegisterMember("name", &RowModel::name);
     row.RegisterMember("detail", &RowModel::detail);
@@ -22,10 +26,11 @@ void RegisterRows(Rml::DataModelConstructor& constructor)
     row.RegisterMember("matched", &RowModel::matched);
     row.RegisterMember("selected", &RowModel::selected);
     row.RegisterMember("summary", &RowModel::summary);
-    row.RegisterMember("highlighted", &RowModel::highlighted);
     row.RegisterMember("units", &RowModel::units);
     row.RegisterMember("changed", &RowModel::changed);
     row.RegisterMember("breakdown", &RowModel::breakdown);
+    row.RegisterMember("excellent", &RowModel::excellent);
+    row.RegisterMember("equip_reason", &RowModel::equipReason);
     constructor.RegisterArray<std::vector<RowModel>>();
     auto choice = constructor.RegisterStruct<ChoiceModel>();
     choice.RegisterMember("value", &ChoiceModel::value);
@@ -55,6 +60,19 @@ void BindFilterDraft(Rml::DataModelConstructor& c, WindowModel& m)
     c.Bind("draft_max_price", &m.draft.maxPrice);
     c.Bind("draft_luck", &m.draft.luck);
     c.Bind("draft_skill", &m.draft.skill);
+    c.Bind("filter_error", &m.filterError);
+    c.Bind("skill_applies", &m.skillApplies);
+}
+
+void BindBrowseState(Rml::DataModelConstructor& c, WindowModel& m)
+{
+    c.Bind("usable_label", &m.usableLabel);
+    c.Bind("empty_text", &m.emptyText);
+    c.Bind("can_clear_name", &m.canClearName);
+    c.Bind("can_reset_filters", &m.canResetFilters);
+    c.Bind("comparing", &m.comparing);
+    c.Bind("can_compare", &m.canCompare);
+    c.Bind("selected_equip_reasons", &m.selectedEquipReasons);
 }
 } // namespace
 
@@ -62,6 +80,7 @@ void BindWindowModel(Rml::DataModelConstructor& c, WindowModel& m)
 {
     RegisterRows(c);
     BindFilterDraft(c, m);
+    BindBrowseState(c, m);
     c.Bind("ancient_set", &m.ancientSet);
     c.Bind("sets", &m.sets);
     c.Bind("pending", &m.pending);

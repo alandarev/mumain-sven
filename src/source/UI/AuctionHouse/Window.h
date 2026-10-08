@@ -4,6 +4,7 @@
 
 #include "GameLogic/AuctionHouse/AuctionHouse.h"
 #include "GameLogic/AuctionHouse/AuctionHousePriceMemory.h"
+#include "UI/AuctionHouse/BrowseState.h"
 #include "UI/AuctionHouse/GoodsQuote.h"
 #include "UI/AuctionHouse/PriceEntry.h"
 #include "UI/AuctionHouse/Receipts.h"
@@ -122,7 +123,22 @@ private:
     void DismissFilters();
     void ClearFilter(const Rml::String& key);
     void RefreshFilterSummary();
+    AdvancedFilters AppliedFilters() const;
+    void SetAppliedFilters(const AdvancedFilters& filters);
+    void RefreshSetChoices(const Rml::String& classLine);
+    bool CheckDraftFilters();
+    std::string ClearUnavailableFilters();
+    BrowseQuery CaptureQuery() const;
+    void ApplyQuery(const BrowseQuery& query);
+    void SwitchCategory(const Rml::String& value);
+    void RefreshBrowseState();
+    void CompareMarket();
+    void BackToSelling();
+    void EndComparison();
     bool CompileFilter();
+    bool CompileEquipmentFilter(int equipment, std::string& note);
+    bool ResolveSearchNames(const std::string& search);
+    bool ResolveSearchSet();
     void BuildTypeChoices(int equipment);
     bool ApplyTypeChoice();
     bool CompileGoodsTypes(const std::string& search, int category);
@@ -192,6 +208,8 @@ private:
     int m_Selected = -1, m_SellSlot = -1;
     std::uint32_t m_SellKey = 0;
     Market::SearchFilter m_Filter;
+    // The query of each Browse category and a running market comparison (D9, D10).
+    BrowseState m_Browse;
     std::vector<std::uint16_t> m_GoodsTypes;
     std::vector<Market::ListingRow> m_Listings;
     std::vector<Market::GoodsRow> m_Goods;

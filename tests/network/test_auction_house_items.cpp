@@ -181,3 +181,34 @@ TEST_CASE("Auction equipment pricing identity ignores serial slot and durability
     CHECK(changed([](ITEM& other) { other.Jewel_Of_Harmony_OptionLevel = 4; }));
     CHECK(changed([](ITEM& other) { other.option_380 = !other.option_380; }));
 }
+
+TEST_CASE("Auction rows keep the item's excellent options and Skill applies where an item carries one [auction][items]")
+{
+    ItemCatalogue catalogue;
+    std::wcscpy(ItemAttribute[5].Name, L"Blade");
+    ItemAttribute[5].m_byItemSlot = EQUIPMENT_WEAPON_RIGHT;
+    ItemAttribute[5].Durability = 40;
+    std::wcscpy(ItemAttribute[4105].Name, L"Dragon Armor");
+    ItemAttribute[4105].m_byItemSlot = EQUIPMENT_ARMOR;
+    CHECK(GameLogic::AuctionHouse::ItemSlotMask(5) == 1u << 0);
+    CHECK(GameLogic::AuctionHouse::ItemSlotMask(4105) == 1u << 3);
+    CHECK_FALSE(GameLogic::AuctionHouse::SkillApplies(0, 0));
+    ItemAttribute[5].m_wSkillIndex = 1;
+    CHECK(GameLogic::AuctionHouse::SkillApplies(0, 0));
+    CHECK(GameLogic::AuctionHouse::SkillApplies(1u << 0, 0));
+    CHECK_FALSE(GameLogic::AuctionHouse::SkillApplies(1u << 3, 0));
+    CHECK_FALSE(GameLogic::AuctionHouse::SkillApplies(1u << 0, 1u << 1));
+
+    ITEM item{};
+    item.Type = 5;
+    item.Durability = 40;
+    item.ExcellentFlags = 0x09;
+    auto row = UI::AuctionHouse::DescribeItem(&item, 0);
+    UI::AuctionHouse::MarkSearchedOptions(row.excellent, 0x08);
+    CHECK(row.name == "Excellent Blade");
+    REQUIRE(row.excellent.size() == 2);
+    CHECK(row.excellent[0].label == "Damage +2%");
+    CHECK(row.excellent[0].matched);
+    CHECK(row.excellent[1].label == "Mana on kill");
+    CHECK_FALSE(row.excellent[1].matched);
+}

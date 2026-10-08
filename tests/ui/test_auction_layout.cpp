@@ -7,6 +7,7 @@
 #include "UI/RmlBridge/RmlNativeText.h"
 #include <RmlUi/Core.h>
 #include <algorithm>
+#include <cmath>
 #include <filesystem>
 #include <string_view>
 
@@ -69,13 +70,14 @@ void BindExcept(Rml::DataModelConstructor& c, UI::AuctionHouse::WindowModel& mod
     UI::AuctionHouse::BindWindowModel(c, model);
     for (const char* name : {"close",          "tab",          "filter",         "reset",         "category",
                              "equipment",      "select",       "inventory",      "hover",         "inventory_hover",
-                             "similar",        "leave",        "refresh",        "more",          "quote",
+                             "compare_market", "leave",        "refresh",        "more",          "quote",
                              "sell_change",    "minus",        "plus",           "buy",           "sell",
                              "cancel_listing", "claim",        "dismiss",        "confirm",       "usable",
                              "luck",           "skill",        "open_filters",   "apply_filters", "cancel_filters",
                              "clear_filter",   "draft_luck",   "draft_skill",    "price_change",  "price_commit",
                              "price_key",      "price_wheel",  "select_content", "match_lowest",  "undercut",
-                             "forget_price",   "max_quantity", "refresh_quote"})
+                             "forget_price",   "max_quantity", "refresh_quote",  "clear_name",    "back_to_selling",
+                             "refresh_hover",  "draft_family", "draft_class"})
         if (std::find(handled.begin(), handled.end(), name) == handled.end())
             c.BindEventCallback(name, [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {});
 }
@@ -108,6 +110,9 @@ TEST_CASE("Auction native document stays bounded across tabs themes and scale [a
         model.selectedName = model.rows.front().name;
         model.selectedDetail = model.rows.front().detail;
         model.options = {{"0", "Any option"}, {"1", "Defense success rate +10%"}};
+        // The longest character name in the Can equip label.
+        model.usableLabel = "Abcdefghij can equip";
+        view.MarkDirty("usable_label");
         model.equipment = "1";
         model.types = {{"0", "All types"}, {"1", "Swords"}};
         model.durations = {{"48", "48 h"}};
@@ -573,6 +578,179 @@ TEST_CASE("Auction sell fields select on focus; keys step, the wheel only over �
         fixture.context->ProcessMouseMove(away.x, away.y, 0);
         fixture.context->ProcessMouseWheel(Rml::Vector2f{0.f, -1.f}, 0);
         CHECK(steps.empty());
+        view.Release();
+    }
+}
+
+namespace
+{
+float Right(Rml::Element* element)
+{
+    return element->GetAbsoluteOffset(Rml::BoxArea::Border).x + element->GetBox().GetSize(Rml::BoxArea::Border).x;
+}
+
+float Bottom(Rml::Element* element)
+{
+    return element->GetAbsoluteOffset(Rml::BoxArea::Border).y + element->GetBox().GetSize(Rml::BoxArea::Border).y;
+}
+
+std::vector<Rml::Element*> Visible(Rml::ElementDocument* document, const char* className)
+{
+    Rml::ElementList elements;
+    document->GetElementsByClassName(elements, className);
+    std::erase_if(elements, [](Rml::Element* element) { return !element->IsVisible(true); });
+    return {elements.begin(), elements.end()};
+}
+
+// The element is drawn and does not reach past the container's right edge.
+void CheckWithin(Rml::Element* element, Rml::Element* container)
+{
+    REQUIRE(element);
+    REQUIRE(container);
+    CHECK(element->GetBox().GetSize(Rml::BoxArea::Border).x > 0);
+    CHECK(element->GetBox().GetSize(Rml::BoxArea::Border).y > 0);
+    CHECK(element->GetAbsoluteOffset(Rml::BoxArea::Border).x >= container->GetAbsoluteOffset(Rml::BoxArea::Border).x - 1);
+    CHECK(Right(element) <= Right(container) + 1);
+}
+} // namespace
+
+TEST_CASE("Auction comparison banner, empty state, option marks and equip reasons stay inside the panel [auction][rml]")
+{
+    Fixture fixture;
+    for (const char* theme : {"legacy", "modern", "munolith"})
+    {
+        UI::RmlBridge::SetActiveThemeName(theme);
+        UI::RmlBridge::ThemedView<UI::AuctionHouse::WindowModel> view(
+            "auction_house", Bind,
+            {{"Data/Interface/RmlUi/auction_house.rml", [&fixture] { return fixture.context; }}});
+        REQUIRE(view.Ensure());
+        auto* document = view.Document();
+        auto& model = view.GetModel();
+        UI::AuctionHouse::RowModel row{"Excellent Great Dragon Armor +15", "", "1,350kk", "48h", "excellent"};
+        row.cannotEquip = true;
+        row.equipReason = "For Dark Knight, Magic Gladiator only (+2 more)";
+        row.excellent = {{"Defense success rate +10%", 0x02, true}, {"Reflect damage +5%", 0x04},
+                         {"Damage decrease +4%", 0x08, true},       {"Maximum mana +4%", 0x10},
+                         {"Maximum HP +4%", 0x20},                  {"Zen drop +30%", 0x01}};
+        const std::vector<UI::AuctionHouse::RowModel> rows(3, row);
+        model.rows = rows;
+        model.inventory = rows;
+        model.comparing = "Excellent Great Dragon Armor +15";
+        model.usableLabel = "Abcdefghij can equip";
+        model.equipment = "2";
+        model.types = {{"0", "All types"}, {"8", "Armor"}};
+        model.options = {{"0", "Any option"}, {"1", "Defense success rate +10%"}};
+        model.selected = true;
+        model.selectedName = row.name;
+        model.cannotEquip = true;
+        model.selectedEquipReasons =
+            "For Dark Knight, Magic Gladiator only\nStrength 1,200 · you have 300\nAgility 1,000 · you have 25";
+        model.price = "12,500,000";
+        model.priceSource = "Last price";
+        model.canForget = model.canCompare = model.stepDown = model.stepUp = true;
+        model.durations = {{"48", "48 h"}};
+        model.duration = "48 h";
+        model.filterError = "Normal items have no excellent options. Clear the Option choice or pick another family.";
+        model.skillApplies = false;
+        for (const auto& [width, height] :
+             std::initializer_list<std::pair<int, int>>{{640, 480}, {1024, 768}, {1280, 960}, {1920, 1080}})
+            for (float scale : {1.f, 1.6f, 2.f})
+            {
+                INFO(std::string(theme), " ", width, "x", height, " scale ", scale);
+                fixture.context->SetDimensions({width, height});
+                fixture.context->SetDensityIndependentPixelRatio(scale);
+                auto update = [&]
+                {
+                    for (const char* field :
+                         {"tab", "rows", "inventory", "comparing", "usable_label", "equipment", "types", "options",
+                          "selected", "selected_name", "cannot_equip", "selected_equip_reasons", "price",
+                          "price_source", "can_forget", "can_compare", "step_down", "step_up", "durations",
+                          "duration", "filter_error", "skill_applies", "filters_open", "empty_text",
+                          "can_clear_name", "can_reset_filters", "sell_goods"})
+                        view.MarkDirty(field);
+                    document->Show();
+                    UI::RmlBridge::ApplyNativeTextSize(fixture.context);
+                    fixture.context->Update();
+                    fixture.context->Update();
+                };
+                model.tab = "browse";
+                model.rows = rows;
+                update();
+                auto* panel = document->GetElementById("panel");
+                auto* results = document->GetElementById("results");
+                REQUIRE(panel);
+                REQUIRE(results);
+                CHECK(panel->GetBox().GetSize(Rml::BoxArea::Border).y <= height + 1);
+                const auto banners = Visible(document, "compare-banner");
+                REQUIRE(banners.size() == 1);
+                CheckWithin(banners.front(), panel);
+                const auto back = Visible(document, "back-to-selling");
+                REQUIRE(back.size() == 1);
+                CheckWithin(back.front(), banners.front());
+                CHECK(Bottom(back.front()) <= Bottom(banners.front()) + 1);
+                const auto marks = Visible(document, "excellent-option");
+                CHECK(marks.size() == 18);
+                for (auto* mark : marks)
+                    CheckWithin(mark, results);
+                CHECK(Visible(document, "matched").empty());
+                for (auto* reason : Visible(document, "cannot-equip"))
+                    CheckWithin(reason, results);
+                const auto details = Visible(document, "details");
+                REQUIRE(details.size() == 1);
+                const auto reasons = Visible(document, "equip-reasons");
+                REQUIRE(reasons.size() == 1);
+                CheckWithin(reasons.front(), details.front());
+                for (auto* action : Visible(document, "filter-actions"))
+                    for (int i = 0; i < action->GetNumChildren(); ++i)
+                        CHECK(Right(action->GetChild(i)) <= Right(panel) + 1);
+
+                // An empty list names the search and offers Clear name beside Reset filters.
+                model.rows.clear();
+                model.emptyText = "No equipment matches \"Excellent Great Dragon Armor of the Fallen\"";
+                model.canClearName = model.canResetFilters = true;
+                update();
+                for (const char* name : {"clear-name", "reset-filters"})
+                {
+                    const auto buttons = Visible(document, name);
+                    REQUIRE(buttons.size() == 1);
+                    CheckWithin(buttons.front(), results);
+                }
+                model.canResetFilters = false;
+                update();
+                CHECK(Visible(document, "reset-filters").empty());
+                CHECK(Visible(document, "clear-name").size() == 1);
+
+                // Filters: the reason stays inside the dialog and Skill hides where it cannot apply.
+                model.filtersOpen = true;
+                update();
+                const auto cards = Visible(document, "filter-card");
+                REQUIRE(cards.size() == 1);
+                const auto errors = Visible(document, "filter-error");
+                REQUIRE(errors.size() == 1);
+                CheckWithin(errors.front(), cards.front());
+                CHECK(cards.front()->GetBox().GetSize(Rml::BoxArea::Border).y <=
+                      panel->GetBox().GetSize(Rml::BoxArea::Border).y + 1);
+                CHECK(Visible(document, "filter-toggle").size() == 2); // Can equip behind the shade, Luck
+                model.filtersOpen = false;
+
+                // Sell: Compare market beside the price field and the Refresh button keep inside the panel.
+                model.tab = "sell";
+                update();
+                auto* price = document->GetElementById("sell-price");
+                REQUIRE(price);
+                const auto compare = Visible(document, "compare-market");
+                REQUIRE(compare.size() == 1);
+                CheckWithin(compare.front(), panel);
+                CHECK(std::abs(compare.front()->GetAbsoluteOffset(Rml::BoxArea::Border).y -
+                               price->GetAbsoluteOffset(Rml::BoxArea::Border).y) < 8.f * scale);
+                CHECK(price->GetBox().GetSize(Rml::BoxArea::Border).x > 60.f);
+                const auto refresh = Visible(document, "refresh-inventory");
+                REQUIRE(refresh.size() == 1);
+                CheckWithin(refresh.front(), panel);
+                const auto inventory = Visible(document, "inventory-pane");
+                REQUIRE(inventory.size() == 1);
+                CHECK(Right(refresh.front()) <= Right(inventory.front()) + 1);
+            }
         view.Release();
     }
 }

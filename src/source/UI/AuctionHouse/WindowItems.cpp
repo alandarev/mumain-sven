@@ -13,6 +13,24 @@
 
 namespace UI::AuctionHouse
 {
+namespace
+{
+// Every line of a multi-line text; an empty text is one empty line, as the tooltip always showed it.
+std::vector<std::string> SplitLines(const std::string& text)
+{
+    std::vector<std::string> lines;
+    std::size_t start = 0;
+    for (auto end = text.find('\n');; end = text.find('\n', start))
+    {
+        lines.push_back(text.substr(start, end == std::string::npos ? end : end - start));
+        if (end == std::string::npos)
+            break;
+        start = end + 1;
+    }
+    return lines;
+}
+} // namespace
+
 void Window::ItemDeleter::operator()(ITEM* item) const
 {
     if (item && g_pNewItemMng)
@@ -52,19 +70,7 @@ ITEM* Window::InventoryItem(int slot) const
 RowModel Window::Describe(ITEM* item, int index) const
 {
     auto row = DescribeItem(item, index);
-    if (!item)
-        return row;
-    Rml::String matched;
-    for (const auto& option : Options())
-        if (option.mask && (m_Filter.excellentMask & option.mask) && (m_Filter.slotMask & option.slots))
-        {
-            if (!matched.empty())
-                matched += " · ";
-            matched += option.label;
-        }
-    row.highlighted = !matched.empty();
-    if (row.highlighted)
-        row.matched = std::move(matched);
+    MarkSearchedOptions(row.excellent, m_Filter.excellentMask);
     return row;
 }
 
@@ -149,6 +155,7 @@ void Window::SelectInventory(int slot)
     model.selectedDetail = row.stats;
     model.selectedOptions = row.options;
     model.selectedRequirements = row.requirements;
+    model.selectedEquipReasons.clear();
     model.selectedTone = row.tone;
     m_SelectedIcon = {Item(g_pNewItemMng->DuplicateItem(item)), nullptr};
     m_SellCheck.reset();
@@ -194,6 +201,7 @@ void Window::SelectRow(int index)
     model.selectedPrice = row.price;
     model.selectedTone = row.tone;
     model.cannotEquip = row.cannotEquip;
+    model.selectedEquipReasons = row.equipReasons;
     m_SelectedIcon = {};
     if (static_cast<std::size_t>(index) < m_Icons.size() && m_Icons[index].item)
         m_SelectedIcon.item.reset(g_pNewItemMng->DuplicateItem(m_Icons[index].item.get()));
@@ -264,18 +272,17 @@ void Window::Hover(int index, bool inventory)
     config.anchorY = static_cast<float>(MouseY);
     const auto& row = rows[index];
     config.lines.push_back({row.name, UI::RmlBridge::Tooltip::LineColor::Yellow, true});
-    std::size_t start = 0;
-    for (auto end = row.detail.find('\n');; end = row.detail.find('\n', start))
-    {
-        config.lines.push_back({row.detail.substr(start, end == std::string::npos ? end : end - start)});
-        if (end == std::string::npos)
-            break;
-        start = end + 1;
-    }
+    for (const auto& line : SplitLines(row.detail))
+        config.lines.push_back({line});
     if (!row.exactPrice.empty())
         config.lines.push_back({row.exactPrice, UI::RmlBridge::Tooltip::LineColor::Yellow});
     if (row.cannotEquip)
+    {
         config.lines.push_back({"Cannot Equip", UI::RmlBridge::Tooltip::LineColor::Red});
+        if (!row.equipReasons.empty())
+            for (const auto& reason : SplitLines(row.equipReasons))
+                config.lines.push_back({reason, UI::RmlBridge::Tooltip::LineColor::Red});
+    }
     UI::RmlBridge::Tooltip::Show(config, this);
 }
 } // namespace UI::AuctionHouse

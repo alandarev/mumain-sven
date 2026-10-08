@@ -2,7 +2,6 @@
 #include "UI/AuctionHouse/Window.h"
 #include "UI/Core/WindowSystem.h"
 #include "Engine/Object/ZzzInfomation.h"
-#include "Core/Utilities/StringUtils.h"
 
 namespace UI::AuctionHouse
 {
@@ -18,15 +17,6 @@ void Window::RefreshRules()
         model.durationValue = model.durations.empty() ? "" : model.durations.front().value;
     model.duration = model.durations.size() == 1 ? model.durations.front().label : "";
     model.pending = rules.pendingCollection;
-    if (model.sets.empty())
-    {
-        model.sets.push_back({"", "Any set"});
-        for (const auto& set : Market::AncientSets())
-        {
-            const auto name = StringUtils::WideToNarrow(set.c_str());
-            model.sets.push_back({name, name});
-        }
-    }
     m_Wallet = CharacterMachine ? CharacterMachine->Gold : 0;
     if (CharacterMachine)
         model.wallet = CompactZen(static_cast<Market::Zen>(CharacterMachine->Gold)) + " Zen";
@@ -47,6 +37,7 @@ void Window::RefreshSelling()
     model.listingCount.clear();
     model.listingCountFull = false;
     model.sellNote.clear();
+    model.canCompare = false;
     if (m_SellSlot < 0)
     {
         RefreshPriceEntry();
@@ -61,6 +52,8 @@ void Window::RefreshSelling()
         return;
     }
     AcceptSellCheck();
+    // Equipment only: goods have their market depth beside the price.
+    model.canCompare = m_SellCheck.has_value() && !model.sellGoods;
     RefreshPriceEntry();
     m_Dirty = true;
     if (!m_SellCheck)

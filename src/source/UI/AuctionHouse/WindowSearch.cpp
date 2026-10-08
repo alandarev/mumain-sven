@@ -8,6 +8,11 @@ namespace UI::AuctionHouse
 {
 namespace
 {
+constexpr int AnyClassLineValue = 0xFF;
+constexpr std::uint8_t AncientFamilyValue = 3;
+// The search request's Flags (`custom-packets.md`): can equip now, luck, skill.
+constexpr std::uint8_t UsableFlag = 1, LuckFlag = 2, SkillFlag = 4;
+
 std::optional<int> Number(const Rml::String& text, int maximum)
 {
     int value = 0;
@@ -44,7 +49,6 @@ bool Window::CompileFilter()
     m_Filter.upgradeMax = *high;
     m_Filter.minExcellentCount = *excellent;
     m_Filter.minSockets = *sockets;
-    m_Filter.flags = (model.usable ? 1 : 0) | (model.luck ? 2 : 0) | (model.skill ? 4 : 0);
     if (!model.maxPrice.empty())
     {
         const auto amount = ParseZen(model.maxPrice, Market::GetState().GetRules().maxPrice);
@@ -56,73 +60,125 @@ bool Window::CompileFilter()
         }
         m_Filter.maxPrice = *amount;
     }
-    std::string search = model.search;
     model.goods = *category != 0;
     model.types.clear();
     model.types.push_back({"0", "All types"});
-    if (!model.goods)
-    {
-        if (!ApplyEquipmentFilter(m_Filter, static_cast<Equipment>(*equipment), 0))
-        {
-            SetStatus("Option does not apply to this category.");
-            m_Dirty = true;
-            return false;
-        }
-        BuildTypeChoices(*equipment);
-        if (model.itemType != "0" && !ApplyTypeChoice())
-            return false;
-        model.options.clear();
-        for (std::size_t i = 0; i < Options().size(); ++i)
-            if (!Options()[i].mask || (Options()[i].slots & m_Filter.slotMask))
-                model.options.push_back({std::to_string(i), std::string(Options()[i].label)});
-        if (*option && !(Options()[*option].slots & m_Filter.slotMask))
-            model.option = "0";
-        if (*option2 && !(Options()[*option2].slots & m_Filter.slotMask))
-            model.option2 = "0";
-        const auto secondOption = Number(model.option2, static_cast<int>(Options().size()) - 1);
-        const auto selectedOption = Number(model.option, static_cast<int>(Options().size()) - 1);
-        if (!selectedOption || !secondOption || !ApplyEquipmentFilter(m_Filter, Equipment::All, *secondOption) ||
-            !ApplyEquipmentFilter(m_Filter, Equipment::All, *selectedOption) || !ParsePropertyQuery(m_Filter, search))
-        {
-            SetStatus("No matches.");
-            m_Dirty = true;
-            return false;
-        }
-        std::vector<std::uint16_t> matches;
-        if (!search.empty())
-        {
-            const auto result = Market::ResolveItemTypes(StringUtils::NarrowToWide(search), m_Filter.slotMask,
-                                                         m_Filter.groupMask, matches);
-            if (result != Market::NameMatch::Ok)
-            {
-                SetStatus(result == Market::NameMatch::TooBroad ? "Narrow the item name." : "No matches.");
-                m_Dirty = true;
-                return false;
-            }
-            for (auto type : matches)
-                m_Filter.entries.push_back({type, 0});
-        }
-        if (!model.ancientSet.empty())
-        {
-            std::vector<Market::SearchEntry> set;
-            const auto result = Market::ResolveAncientSet(StringUtils::NarrowToWide(model.ancientSet),
-                                                          m_Filter.slotMask, m_Filter.groupMask, set);
-            if (result != Market::NameMatch::Ok)
-            {
-                SetStatus(result == Market::NameMatch::TooBroad ? "Choose a set item type." : "No matches.");
-                m_Dirty = true;
-                return false;
-            }
-            m_Filter.entries.insert(m_Filter.entries.end(), set.begin(), set.end());
-            if (m_Filter.family == 0)
-                m_Filter.family = 3;
-        }
-    }
-    else if (!CompileGoodsTypes(search, *category))
+    std::string note;
+    if (!model.goods ? !CompileEquipmentFilter(*equipment, note) : !CompileGoodsTypes(model.search, *category))
         return false;
-    SetStatus({});
+    m_Filter.flags = (model.usable ? UsableFlag : 0) | (model.luck ? LuckFlag : 0) | (model.skill ? SkillFlag : 0);
+    SetStatus(note, false);
     m_Dirty = true;
     return true;
+}
+
+bool Window::CompileEquipmentFilter(int equipment, std::string& note)
+{
+    auto& model = m_View.GetModel();
+    if (!ApplyEquipmentFilter(m_Filter, static_cast<Equipment>(equipment), 0))
+    {
+        SetStatus("Option does not apply to this category.");
+        m_Dirty = true;
+        return false;
+    }
+    BuildTypeChoices(equipment);
+    if (model.itemType != "0" && !ApplyTypeChoice())
+        return false;
+    model.options.clear();
+    for (std::size_t i = 0; i < Options().size(); ++i)
+        if (!Options()[i].mask || (Options()[i].slots & m_Filter.slotMask))
+            model.options.push_back({std::to_string(i), std::string(Options()[i].label)});
+    const auto lastOption = static_cast<int>(Options().size()) - 1;
+    if (const auto option = Number(model.option, lastOption);
+        option && *option && !(Options()[*option].slots & m_Filter.slotMask))
+        model.option = "0";
+    if (const auto option = Number(model.option2, lastOption);
+        option && *option && !(Options()[*option].slots & m_Filter.slotMask))
+        model.option2 = "0";
+    std::string search = model.search;
+    // A market comparison searches its exact base item, not every item whose name contains it.
+    const auto comparedType = m_Browse.ComparedType(search);
+    const auto secondOption = Number(model.option2, lastOption), selectedOption = Number(model.option, lastOption);
+    if (!selectedOption || !secondOption || !ApplyEquipmentFilter(m_Filter, Equipment::All, *secondOption) ||
+        !ApplyEquipmentFilter(m_Filter, Equipment::All, *selectedOption) ||
+        (!comparedType && !ParsePropertyQuery(m_Filter, search)))
+    {
+        SetStatus("No matches.");
+        m_Dirty = true;
+        return false;
+    }
+    note = ClearUnavailableFilters();
+    if (comparedType)
+        m_Filter.entries.push_back({*comparedType, 0});
+    else if (!ResolveSearchNames(search))
+        return false;
+    return ResolveSearchSet();
+}
+
+bool Window::ResolveSearchNames(const std::string& search)
+{
+    if (search.empty())
+        return true;
+    std::vector<std::uint16_t> matches;
+    const auto result =
+        Market::ResolveItemTypes(StringUtils::NarrowToWide(search), m_Filter.slotMask, m_Filter.groupMask, matches);
+    if (result != Market::NameMatch::Ok)
+    {
+        // An unknown name leaves the list empty, and the empty list names the search.
+        SetStatus(result == Market::NameMatch::TooBroad ? "Narrow the item name." : "");
+        m_Dirty = true;
+        return false;
+    }
+    for (auto type : matches)
+        m_Filter.entries.push_back({type, 0});
+    return true;
+}
+
+bool Window::ResolveSearchSet()
+{
+    const auto& model = m_View.GetModel();
+    if (model.ancientSet.empty())
+        return true;
+    std::vector<Market::SearchEntry> set;
+    const auto result = Market::ResolveAncientSet(StringUtils::NarrowToWide(model.ancientSet), m_Filter.slotMask,
+                                                  m_Filter.groupMask, set);
+    if (result != Market::NameMatch::Ok)
+    {
+        SetStatus(result == Market::NameMatch::TooBroad ? "Choose a set item type." : "No matches.");
+        m_Dirty = true;
+        return false;
+    }
+    m_Filter.entries.insert(m_Filter.entries.end(), set.begin(), set.end());
+    if (m_Filter.family == 0)
+        m_Filter.family = AncientFamilyValue;
+    return true;
+}
+
+// Choices that depend on the equipment and type choice are cleared when that choice rules them out.
+std::string Window::ClearUnavailableFilters()
+{
+    auto& model = m_View.GetModel();
+    std::string note;
+    model.skillApplies = Market::SkillApplies(m_Filter.slotMask, m_Filter.groupMask);
+    if (!model.skillApplies && model.skill)
+    {
+        model.skill = false;
+        note = "Skill filter removed: this equipment has no skill.";
+    }
+    if (!model.ancientSet.empty())
+    {
+        const auto line =
+            static_cast<std::uint8_t>(Number(model.classLine, AnyClassLineValue).value_or(AnyClassLineValue));
+        const auto sets = Market::AncientSets(m_Filter.slotMask, m_Filter.groupMask, line);
+        if (std::find(sets.begin(), sets.end(), StringUtils::NarrowToWide(model.ancientSet)) == sets.end())
+        {
+            model.ancientSet.clear();
+            note += (note.empty() ? "" : " ") + std::string("Set filter removed: none of its items fit this choice.");
+        }
+    }
+    if (!note.empty())
+        RefreshFilterSummary();
+    return note;
 }
 
 void Window::BuildTypeChoices(int equipment)
@@ -183,6 +239,23 @@ bool Window::ApplyTypeChoice()
         }
     }
     return true;
+}
+
+// The set list follows the chosen equipment and class; a set outside it is no longer a choice.
+void Window::RefreshSetChoices(const Rml::String& classLine)
+{
+    auto& m = m_View.GetModel();
+    const auto line = Number(classLine, AnyClassLineValue).value_or(AnyClassLineValue);
+    m.sets.clear();
+    m.sets.push_back({"", "Any set"});
+    for (const auto& set : Market::AncientSets(m_Filter.slotMask, m_Filter.groupMask, static_cast<std::uint8_t>(line)))
+    {
+        const auto name = StringUtils::WideToNarrow(set.c_str());
+        m.sets.push_back({name, name});
+    }
+    if (std::none_of(m.sets.begin(), m.sets.end(), [&m](const auto& set) { return set.value == m.draft.ancientSet; }))
+        m.draft.ancientSet.clear();
+    m_Dirty = true;
 }
 
 bool Window::CompileGoodsTypes(const std::string& search, int category)

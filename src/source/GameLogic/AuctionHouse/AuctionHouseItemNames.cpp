@@ -7,6 +7,8 @@ namespace GameLogic::AuctionHouse
 {
 namespace
 {
+constexpr std::uint8_t AnyClassLine = 0xFF, GladiatorLine = 3, WizardLine = 0, KnightLine = 1;
+
 std::uint16_t SlotMask(const ITEM_ATTRIBUTE& item, int type)
 {
     const auto slot = item.m_byItemSlot;
@@ -24,7 +26,42 @@ std::uint16_t SlotMask(const ITEM_ATTRIBUTE& item, int type)
         return 1u << 10;
     return 0;
 }
+bool InDomain(int type, std::uint16_t slots, std::uint16_t groups)
+{
+    return (!slots || (SlotMask(ItemAttribute[type], type) & slots)) &&
+           (!groups || (groups & (1u << (type / MAX_ITEM_INDEX))));
+}
+
+// The client's equip rule for a class line: a Magic Gladiator also wears what both the Dark Wizard and the
+// Dark Knight wear.
+bool WearableBy(const ITEM_ATTRIBUTE& item, std::uint8_t classLine)
+{
+    if (classLine == AnyClassLine)
+        return true;
+    if (classLine >= MAX_CLASS)
+        return false;
+    return item.RequireClass[classLine] != 0 ||
+           (classLine == GladiatorLine && item.RequireClass[WizardLine] && item.RequireClass[KnightLine]);
+}
 } // namespace
+
+std::uint16_t ItemSlotMask(int type)
+{
+    if (!ItemAttribute || type < 0 || type >= MAX_ITEM)
+        return 0;
+    return SlotMask(ItemAttribute[type], type);
+}
+
+bool SkillApplies(std::uint16_t slotMask, std::uint16_t groupMask)
+{
+    if (!ItemAttribute)
+        return true;
+    for (int type = 0; type < MAX_ITEM; ++type)
+        if (ItemAttribute[type].m_wSkillIndex != 0 && ItemAttribute[type].Name[0] &&
+            InDomain(type, slotMask, groupMask))
+            return true;
+    return false;
+}
 
 NameMatch ResolveItemTypes(std::wstring_view text, std::uint16_t slotMask, std::uint16_t groupMask,
                            std::vector<std::uint16_t>& out)
@@ -45,12 +82,15 @@ NameMatch ResolveItemTypes(std::wstring_view text, std::uint16_t slotMask, std::
     }
     return ResolveNames(text, slotMask, groupMask, names, out);
 }
-std::vector<std::wstring> AncientSets()
+std::vector<std::wstring> AncientSets(std::uint16_t slotMask, std::uint16_t groupMask, std::uint8_t classLine)
 {
     std::vector<std::wstring> sets;
     if (!ItemAttribute)
         return sets;
     for (int type = 0; type < MAX_ITEM; ++type)
+    {
+        if (!InDomain(type, slotMask, groupMask) || !WearableBy(ItemAttribute[type], classLine))
+            continue;
         for (int discriminator : {1, 2})
         {
             wchar_t name[MAX_ITEM_SET_NAME + 2]{};
@@ -62,6 +102,7 @@ std::vector<std::wstring> AncientSets()
             if (std::find(sets.begin(), sets.end(), text) == sets.end())
                 sets.push_back(std::move(text));
         }
+    }
     std::sort(sets.begin(), sets.end());
     return sets;
 }
@@ -74,8 +115,7 @@ NameMatch ResolveAncientSet(std::wstring_view name, std::uint16_t slots, std::ui
         return NameMatch::NoMatch;
     for (int type = 0; type < MAX_ITEM; ++type)
     {
-        if ((slots && !(SlotMask(ItemAttribute[type], type) & slots)) ||
-            (groups && !(groups & (1u << (type / MAX_ITEM_INDEX)))))
+        if (!InDomain(type, slots, groups))
             continue;
         for (int discriminator : {1, 2})
         {

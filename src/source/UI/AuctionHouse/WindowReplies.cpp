@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "UI/AuctionHouse/Window.h"
+#include "UI/AuctionHouse/ItemPresentation.h"
 #include "UI/Core/WindowSystem.h"
 #include "Core/Utilities/StringUtils.h"
 
@@ -171,6 +172,8 @@ void Window::RefreshRows()
                 Market::SecondsRemaining(listing.secondsLeft, m_ListingTimes[index], RequestClock::Time::clock::now());
             row.meta = std::to_string((seconds + 3599) / 3600) + "h";
             row.cannotEquip = !listing.requirementsMet;
+            if (row.cannotEquip && item)
+                ExplainCannotEquip(row, *item);
             row.own = listing.ownListing;
             add(std::move(item), std::move(row));
         }

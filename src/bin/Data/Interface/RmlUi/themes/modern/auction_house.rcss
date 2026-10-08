@@ -25,8 +25,9 @@ button.disabled { pointer-events: none; opacity: 0.45; }
 .search { flex: 1; min-width: 0; margin-right: 0.6em; }
 .control { width: 12em; margin-right: 0.8em; }
 .option-control { width: 18.5em; }
-.filter-actions { width: 16em; flex: none; margin-left: auto; align-self: flex-end; justify-content: flex-end; }
-.filter-actions .filter-toggle { flex-shrink: 0; width: 8em; margin: 0 0.8em 0.4em 0; }
+.browse-controls { flex-wrap: wrap; }
+.filter-actions { width: 21em; flex: none; margin-left: auto; align-self: flex-end; justify-content: flex-end; }
+.filter-actions .filter-toggle { flex-shrink: 0; width: auto; min-width: 8em; white-space: nowrap; margin: 0 0.8em 0.4em 0; }
 .filter-chips { display: flex; flex-wrap: wrap; margin-top: 0.4em; }
 .chip { padding: 0.3em 0.5em; margin-right: 0.4em; color: token(accent-gold); border: 1px token(border-inner); }
 .workspace { display: flex; flex: 1; min-height: 0; overflow: hidden; padding: 0.9em 0.6em 0.4em; }
@@ -43,7 +44,6 @@ button.disabled { pointer-events: none; opacity: 0.45; }
 .item-name { line-height: 1.35; }
 .row-preview, .matched { font-size: 0.9em; line-height: 1.25; color: token(text-secondary); margin-top: 0.2em; }
 .matched { color: token(text-secondary); }
-.matched.highlighted { color: token(accent-gold); }
 .listing-action { text-align: right; flex-shrink: 0; margin-left: 0.8em; }
 .listing-action .muted { margin-top: 0.3em; }
 .details { width: 24%; flex-shrink: 0; padding-left: 1.1em; margin-left: 1.1em; border-left: 1px token(border-inner); }
@@ -158,7 +158,6 @@ select selectvalue { display: block; width: 100%; box-sizing: border-box; paddin
 .sell-fields { display: flex; flex-direction: column; }
 .sell-fields .primary { align-self: flex-end; }
 .sale-exact { font-size: 1.15em; margin-top: 0.5em; }
-.find-similar { align-self: flex-start; color: token(accent-gold); text-align: left; padding: 0; margin: 0.3em 0 0.2em; }
 .quantity-input, .market-actions { display: flex; align-items: center; }
 .quantity-input .max { flex-shrink: 0; margin-left: 0.4em; padding: 0.4em 0.6em; white-space: nowrap; color: token(accent-gold); }
 .price-label { display: flex; align-items: baseline; margin-top: 1.1em; }
@@ -196,3 +195,20 @@ select selectvalue { display: block; width: 100%; box-sizing: border-box; paddin
 .status-link { flex-shrink: 0; margin-left: 0.6em; padding: 0.2em 0.7em; border: 1px token(border-inner); white-space: nowrap; }
 .listing .breakdown { font-size: 0.85em; }
 .review-card > .review-warning { position: relative; z-index: 1; margin-bottom: 0.4em; }
+
+/* Browse: per-category search, market comparison and equipment details. */
+.compare-banner { display: flex; align-items: center; margin-bottom: 0.6em; padding: 0.35em 0.6em; border: 1px token(accent-gold); background-color: rgba(0,0,0,150); }
+.compare-text { flex: 1 1 auto; min-width: 0; color: token(text-secondary); }
+.compare-banner .back-to-selling { flex-shrink: 0; margin-left: 0.8em; color: token(accent-gold); }
+.excellent-options { display: flex; flex-wrap: wrap; margin-top: 0.2em; font-size: 0.9em; line-height: 1.25; }
+.excellent-option { margin-right: 0.8em; color: token(text-secondary); }
+.excellent-option.searched { color: token(accent-gold); }
+.listing .cannot-equip { font-size: 0.9em; margin-top: 0.2em; }
+.cannot-equip-details { margin: 0.4em 0 0.8em; }
+.equip-reasons { white-space: pre-wrap; line-height: 1.4; font-size: 0.9em; margin-top: 0.2em; }
+.empty-actions { display: flex; justify-content: center; margin-top: 0.4em; }
+.empty .empty-actions .quiet { display: inline-block; margin: 0 0.3em; border: 1px token(border-inner); padding: 0.35em 0.8em; }
+.compare-market { flex-shrink: 0; margin-left: 0.4em; padding: 0.4em 0.6em; white-space: nowrap; color: token(accent-gold); border: 1px token(border-inner); }
+.refresh-inventory { margin-left: auto; padding: 0.2em 0.7em; border: 1px token(border-inner); white-space: nowrap; }
+.refresh-quote:hover, .refresh-inventory:hover, .compare-market:hover, .empty .empty-actions .quiet:hover { color: token(text-primary); border-color: token(accent-gold); }
+.filter-error { position: relative; z-index: 1; margin-top: 0.6em; }

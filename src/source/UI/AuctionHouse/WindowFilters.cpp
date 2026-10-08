@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "UI/AuctionHouse/Window.h"
+#include "Core/Utilities/StringUtils.h"
 #include <RmlUi/Core/Event.h>
 #include <array>
 
@@ -35,6 +36,21 @@ void Window::BindFilterEvents(Rml::DataModelConstructor& c)
               draft.skill = !draft.skill;
               m_Dirty = true;
           });
+    event("draft_family",
+          [this](const auto&)
+          {
+              auto& model = m_View.GetModel();
+              ClearFamilyDependants(model.draft);
+              model.filterError.clear();
+              m_Dirty = true;
+          });
+    event("draft_class",
+          [this](const auto&)
+          {
+              auto& model = m_View.GetModel();
+              RefreshSetChoices(model.draft.classLine);
+              model.filterError.clear();
+          });
 }
 
 void Window::OpenFilters()
@@ -42,8 +58,11 @@ void Window::OpenFilters()
     auto& m = m_View.GetModel();
     if (m.busy || m.review)
         return;
-    m.draft = {m.family,       m.ancientSet, m.classLine, m.option2, m.upgradeMin, m.upgradeMax,
-               m.minExcellent, m.minSockets, m.maxPrice,  m.luck,    m.skill};
+    m.draft = AppliedFilters();
+    if (!m.skillApplies)
+        m.draft.skill = false;
+    m.filterError.clear();
+    RefreshSetChoices(m.draft.classLine);
     m.filtersOpen = true;
     m_Dirty = true;
 }
@@ -56,31 +75,70 @@ void Window::DismissFilters()
 
 void Window::ApplyFilters()
 {
-    auto& m = m_View.GetModel();
-    m.family = m.draft.family;
-    m.ancientSet = m.draft.ancientSet;
-    m.classLine = m.draft.classLine;
-    m.option2 = m.draft.option;
-    m.upgradeMin = m.draft.upgradeMin;
-    m.upgradeMax = m.draft.upgradeMax;
-    m.minExcellent = m.draft.minExcellent;
-    m.minSockets = m.draft.minSockets;
-    m.maxPrice = m.draft.maxPrice;
-    m.luck = m.draft.luck;
-    m.skill = m.draft.skill;
+    if (!CheckDraftFilters())
+        return;
+    SetAppliedFilters(m_View.GetModel().draft);
     DismissFilters();
     FilterChanged();
+}
+
+// The dialog stays open while its choices cannot be searched, and says why.
+bool Window::CheckDraftFilters()
+{
+    auto& m = m_View.GetModel();
+    auto problem = FilterProblem(m.draft, m.option != "0", Market::GetState().GetRules().maxPrice);
+    if (problem.empty() && !m.draft.ancientSet.empty())
+    {
+        std::vector<Market::SearchEntry> members;
+        const auto result = Market::ResolveAncientSet(StringUtils::NarrowToWide(m.draft.ancientSet), m_Filter.slotMask,
+                                                      m_Filter.groupMask, members);
+        if (result == Market::NameMatch::TooBroad)
+            problem = "This set has too many items to search at once. Choose an equipment type first.";
+        else if (result == Market::NameMatch::NoMatch)
+            problem = "The chosen equipment has no items of this set.";
+    }
+    m.filterError = problem;
+    m_Dirty = true;
+    return problem.empty();
+}
+
+AdvancedFilters Window::AppliedFilters() const
+{
+    const auto& m = m_View.GetModel();
+    return {m.family,       m.ancientSet, m.classLine, m.option2, m.upgradeMin, m.upgradeMax,
+            m.minExcellent, m.minSockets, m.maxPrice,  m.luck,    m.skill};
+}
+
+void Window::SetAppliedFilters(const AdvancedFilters& filters)
+{
+    auto& m = m_View.GetModel();
+    m.family = filters.family;
+    m.ancientSet = filters.ancientSet;
+    m.classLine = filters.classLine;
+    m.option2 = filters.option;
+    m.upgradeMin = filters.upgradeMin;
+    m.upgradeMax = filters.upgradeMax;
+    m.minExcellent = filters.minExcellent;
+    m.minSockets = filters.minSockets;
+    m.maxPrice = filters.maxPrice;
+    m.luck = filters.luck;
+    m.skill = filters.skill;
 }
 
 void Window::ClearFilter(const Rml::String& key)
 {
     auto& m = m_View.GetModel();
     if (key == "family")
-        m.family = "0";
+    {
+        auto filters = AppliedFilters();
+        filters.family = AnyFamily;
+        ClearFamilyDependants(filters);
+        SetAppliedFilters(filters);
+    }
     else if (key == "set")
         m.ancientSet.clear();
     else if (key == "class")
-        m.classLine = "255";
+        m.classLine = AnyClassLine;
     else if (key == "option")
         m.option2 = "0";
     else if (key == "upgrade")
@@ -114,11 +172,8 @@ void Window::RefreshFilterSummary()
             chips.push_back({"family", families[i]});
     if (!m.ancientSet.empty())
         chips.push_back({"set", m.ancientSet});
-    const std::array classes = {"Dark Wizard", "Dark Knight", "Fairy Elf",   "Magic Gladiator",
-                                "Dark Lord",   "Summoner",    "Rage Fighter"};
-    for (std::size_t i = 0; i < classes.size(); ++i)
-        if (m.classLine == std::to_string(i))
-            chips.push_back({"class", classes[i]});
+    if (auto label = ClassLineLabel(m.classLine); !label.empty())
+        chips.push_back({"class", std::move(label)});
     for (std::size_t i = 1; i < Options().size(); ++i)
         if (m.option2 == std::to_string(i))
             chips.push_back({"option", std::string(Options()[i].label)});

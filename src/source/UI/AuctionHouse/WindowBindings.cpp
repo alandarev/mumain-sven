@@ -2,7 +2,6 @@
 #include "UI/AuctionHouse/Window.h"
 #include <RmlUi/Core/Event.h>
 #include "UI/RmlBridge/RmlTooltip.h"
-#include "Core/Utilities/StringUtils.h"
 
 namespace UI::AuctionHouse
 {
@@ -46,34 +45,24 @@ void Window::BindEvents(Rml::DataModelConstructor& c)
     event("reset",
           [this](const auto&)
           {
-              auto& model = m_View.GetModel();
-              model.search.clear();
-              model.ancientSet.clear();
-              model.option = "0";
-              model.option2 = "0";
-              model.family = "0";
-              model.itemType = "0";
-              model.equipment = "0";
-              model.classLine = "255";
-              model.upgradeMin = "0";
-              model.upgradeMax = "15";
-              model.minExcellent = "0";
-              model.minSockets = "0";
-              model.maxPrice.clear();
-              model.usable = model.luck = model.skill = false;
+              // Resets the active category only; the sort order is not a filter.
+              BrowseQuery query;
+              query.sort = m_View.GetModel().sort;
+              ApplyQuery(query);
+              FilterChanged();
+          });
+    event("clear_name",
+          [this](const auto&)
+          {
+              m_View.GetModel().search.clear();
               FilterChanged();
           });
     event("category",
           [this](const auto& args)
           {
-              auto& model = m_View.GetModel();
-              if (!args.empty())
-                  model.category = args.front().template Get<Rml::String>();
-              model.itemType = "0";
-              model.option = "0";
-              model.option2 = "0";
-              model.ancientSet.clear();
-              FilterChanged();
+              if (args.empty())
+                  return;
+              SwitchCategory(args.front().template Get<Rml::String>());
           });
     event("equipment",
           [this](const auto&)
@@ -87,19 +76,8 @@ void Window::BindEvents(Rml::DataModelConstructor& c)
               if (!m_View.GetModel().review)
                   SelectRow(index(args));
           });
-    event("similar",
-          [this](const auto&)
-          {
-              auto* item = InventoryItem(m_SellSlot);
-              auto& model = m_View.GetModel();
-              if (!item || !ItemAttribute || model.busy || model.review)
-                  return;
-              model.search = StringUtils::WideToNarrow(ItemAttribute[item->Type].Name);
-              model.category = "0";
-              model.equipment = "0";
-              model.itemType = "0";
-              SwitchTab("browse");
-          });
+    event("compare_market", [this](const auto&) { CompareMarket(); });
+    event("back_to_selling", [this](const auto&) { BackToSelling(); });
     event("inventory",
           [this, index](const auto& args)
           {
@@ -109,6 +87,15 @@ void Window::BindEvents(Rml::DataModelConstructor& c)
     event("hover", [this, index](const auto& args) { Hover(index(args), false); });
     event("inventory_hover", [this, index](const auto& args) { Hover(index(args), true); });
     event("leave", [this](const auto&) { UI::RmlBridge::Tooltip::Hide(this); });
+    event("refresh_hover",
+          [this](const auto&)
+          {
+              UI::RmlBridge::Tooltip::Config config;
+              config.anchorX = static_cast<float>(MouseX);
+              config.anchorY = static_cast<float>(MouseY);
+              config.lines.push_back({"Reload your inventory and check the selected item again"});
+              UI::RmlBridge::Tooltip::Show(config, this);
+          });
     event("refresh",
           [this](const auto&)
           {
@@ -191,6 +178,15 @@ void Window::Dirty()
                                              "draft_max_price",
                                              "draft_luck",
                                              "draft_skill",
+                                             "filter_error",
+                                             "skill_applies",
+                                             "usable_label",
+                                             "empty_text",
+                                             "can_clear_name",
+                                             "can_reset_filters",
+                                             "comparing",
+                                             "can_compare",
+                                             "selected_equip_reasons",
                                              "option2",
                                              "selected_seller",
                                              "selected_options",

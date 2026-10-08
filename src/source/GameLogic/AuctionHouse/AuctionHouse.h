@@ -129,7 +129,14 @@ enum class NameMatch : std::uint8_t
 };
 NameMatch ResolveItemTypes(std::wstring_view text, std::uint16_t slotMask, std::uint16_t groupMask,
                            std::vector<std::uint16_t>& out);
-std::vector<std::wstring> AncientSets();
+// The ancient sets with a member in the slot and group domain (0 = any) wearable by the class line
+// (`custom-packets.md`, ClassLine; 0xFF = any), sorted by name.
+std::vector<std::wstring> AncientSets(std::uint16_t slotMask = 0, std::uint16_t groupMask = 0,
+                                      std::uint8_t classLine = 0xFF);
+// The item type's slot bit in the search request's SlotMask, or 0 for items without an equipment slot.
+std::uint16_t ItemSlotMask(int type);
+// Whether any item type in the slot and group domain can carry a skill, so a Skill filter can match.
+bool SkillApplies(std::uint16_t slotMask, std::uint16_t groupMask);
 NameMatch ResolveAncientSet(std::wstring_view name, std::uint16_t slots, std::uint16_t groups,
                             std::vector<SearchEntry>& out);
 } // namespace GameLogic::AuctionHouse

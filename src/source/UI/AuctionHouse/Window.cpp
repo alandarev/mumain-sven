@@ -108,6 +108,7 @@ void Window::Show(bool show)
     m_ActionSentAt = {};
     DismissReview();
     DismissFilters();
+    EndComparison();
     for (auto& icon : m_Icons)
         if (icon.target)
             icon.target->SetEnabled(false);
@@ -296,6 +297,9 @@ void Window::SwitchTab(const Rml::String& tab)
     if (m_View.GetModel().busy || m_View.GetModel().review)
         return;
     DismissFilters();
+    // Leaving Browse ends a market comparison and gives the player's own queries back.
+    if (tab != "browse")
+        EndComparison();
     m_SearchAt = {};
     m_View.GetModel().tab = tab;
     m_Generation++;
@@ -328,6 +332,7 @@ void Window::FilterChanged()
         return;
     m_Generation++;
     RefreshFilterSummary();
+    RefreshBrowseState();
     m_SearchAt = RequestClock::Time::clock::now() + SearchDebounce;
     m_Read = Read::None;
     m_Selected = -1;

@@ -1,5 +1,8 @@
 #pragma once
 
+#include "UI/AuctionHouse/BrowseQuery.h"
+#include "UI/AuctionHouse/EquipmentDetails.h"
+
 #include <RmlUi/Core/Types.h>
 #include <vector>
 
@@ -18,12 +21,15 @@ struct RowModel
     Rml::String exactPrice, matched;
     bool selected = false;
     Rml::String summary, stats, options, requirements;
-    bool highlighted = false;
     int units = 1;
     // A goods row whose lowest price just changed in the live quote.
     bool changed = false;
     // A sold Collection row's gross and fee, shown under the row while it is selected.
     Rml::String breakdown;
+    // Every short excellent option, marked when the search asked for it.
+    std::vector<OptionMark> excellent;
+    // Why the character cannot equip the item: the first reason for the row, all of them for the details.
+    Rml::String equipReason, equipReasons;
 };
 
 struct ChoiceModel
@@ -39,13 +45,6 @@ struct TierModel
     bool changed = false;
 };
 
-struct AdvancedFilters
-{
-    Rml::String family = "0", ancientSet, classLine = "255", option = "0";
-    Rml::String upgradeMin = "0", upgradeMax = "15", minExcellent = "0", minSockets = "0", maxPrice;
-    bool luck = false, skill = false;
-};
-
 // Facts and editable values only; layout and semantic colors belong to the theme.
 struct WindowModel
 {
@@ -57,12 +56,23 @@ struct WindowModel
     AdvancedFilters draft;
     bool filtersOpen = false;
     std::vector<ChoiceModel> activeFilters;
+    // Why the Filters dialog stays open, and whether Skill can apply to the chosen equipment.
+    Rml::String filterError;
+    bool skillApplies = true;
+    // "<character> can equip": the filter always means the current character.
+    Rml::String usableLabel = "Can equip";
+    // The empty Browse list names the active search and offers to clear the name or the filters.
+    Rml::String emptyText;
+    bool canClearName = false, canResetFilters = false;
+    // The market comparison banner ("Comparing: …") and whether the Sell tab can start one.
+    Rml::String comparing;
+    bool canCompare = false;
     int pending = 0;
     Rml::String confirmBalance;
     Rml::String wallet, status, count, duration, saleTotal, postingFee, saleFee, proceeds;
     Rml::String price, quantity = "1", buyQuantity = "1";
     Rml::String selectedName, selectedDetail, selectedPrice, selectedIcon, selectedTone;
-    Rml::String selectedOptions, selectedRequirements;
+    Rml::String selectedOptions, selectedRequirements, selectedEquipReasons;
     Rml::String selectedSeller;
     Rml::String quoteTotal, stock, durationValue;
     Rml::String confirmTitle, confirmName, confirmTotal, confirmFee, confirmAction;
