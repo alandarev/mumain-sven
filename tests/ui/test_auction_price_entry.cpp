@@ -1,4 +1,5 @@
 #include <doctest.h>
+#include "GameLogic/AuctionHouse/AuctionHouse.h"
 #include "UI/AuctionHouse/PriceEntry.h"
 #include "UI/AuctionHouse/Presentation.h"
 #include <limits>
@@ -195,4 +196,44 @@ TEST_CASE("Auction price prefill prefers draft then remembered then lowest and k
     CHECK_FALSE(entry.Prefill(rules, std::nullopt, std::nullopt, 0));
     CHECK(entry.Text().empty());
     CHECK(entry.Source() == PriceSource::None);
+}
+
+TEST_CASE("Auction price help shows only valid examples, the grid, the keys and the range [auction][price-entry]")
+{
+    auto rules = MarketRules();
+    auto help = DescribePriceHelp(rules);
+    CHECK(help.examples == "590k · 1.5kk · 1.2b");
+    CHECK(help.grid == "Prices round down to ~1 % steps · ↑/↓ one step · Shift ten.");
+    CHECK(help.range == "1 – 2,000,000,000 Zen");
+    // No example the player could copy is refused: none above MaxPrice, none off a step.
+    for (const std::uint8_t precision : {0, 1, 2, 3, 4})
+        for (const Market::Zen maxPrice : {Market::Zen{1000}, Market::Zen{400000}, Market::Zen{1000000},
+                                           Market::Zen{1100000000}, Market::Zen{2000000000}})
+        {
+            INFO("precision ", int(precision), " max ", maxPrice);
+            rules = MarketRules(precision);
+            rules.maxPrice = maxPrice;
+            const auto examples = DescribePriceHelp(rules).examples;
+            for (std::size_t start = 0; start < examples.size();)
+            {
+                auto end = examples.find(" · ", start);
+                if (end == std::string::npos)
+                    end = examples.size();
+                const auto example = ParseZen(std::string_view(examples).substr(start, end - start),
+                                              std::numeric_limits<Market::Zen>::max());
+                REQUIRE(example.has_value());
+                CHECK(*example <= rules.maxPrice);
+                CHECK(Market::PriceOnStep(rules, *example));
+                start = end == examples.size() ? end : end + std::string_view(" · ").size();
+            }
+        }
+    rules = MarketRules(2);
+    rules.maxPrice = 1000000000;
+    CHECK(DescribePriceHelp(rules).examples == "590k · 1.5kk · 1b");
+    rules.maxPrice = 400000;
+    CHECK(DescribePriceHelp(rules).examples == "100k");
+    CHECK(DescribePriceHelp(MarketRules(1)).grid.starts_with("Prices round down to ~10 % steps"));
+    CHECK(DescribePriceHelp(MarketRules(3)).grid.starts_with("Prices round down to ~0.1 % steps"));
+    CHECK(DescribePriceHelp(MarketRules(0)).grid == "↑/↓ one step · Shift ten.");
+    CHECK(PriceFormatHelp.find("2.3b") == std::string_view::npos);
 }

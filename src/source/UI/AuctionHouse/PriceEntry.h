@@ -11,7 +11,7 @@ namespace UI::AuctionHouse
 namespace Market = GameLogic::AuctionHouse;
 
 inline constexpr unsigned ShiftPriceSteps = 10;
-inline constexpr std::string_view PriceFormatHelp = "Use 590000, 590,000, 590k, 1.5kk or 2.3b (at most 2 decimals).";
+inline constexpr std::string_view PriceFormatHelp = "Use 590000, 590,000, 590k, 1.5kk or 1.2b (at most 2 decimals).";
 
 enum class PriceSource : std::uint8_t
 {
@@ -76,6 +76,16 @@ private:
     PriceSource m_Source = PriceSource::None;
     bool m_Edited = false;
 };
+
+// Help beside the price field for a first-time seller (D20), from the announced rules: shorthand
+// examples that are valid prices ("590k · 1.5kk · 1.2b", never above MaxPrice or off a step), the grid and
+// the keys ("Prices round down to ~1 % steps · ↑/↓ one step · Shift ten."), and the range.
+struct PriceHelp
+{
+    std::string examples, grid, range;
+};
+
+PriceHelp DescribePriceHelp(const Market::Rules& rules);
 
 std::string_view PriceSourceLabel(PriceSource source);
 std::optional<Market::Zen> UndercutPrice(const Market::Rules& rules, Market::Zen lowest);

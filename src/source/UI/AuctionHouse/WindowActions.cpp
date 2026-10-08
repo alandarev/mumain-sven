@@ -7,6 +7,8 @@ namespace UI::AuctionHouse
 {
 namespace
 {
+constexpr std::uint8_t GoodsListingKind = 2;
+
 // An equipment review's short identity: skill, luck, the additional option and every excellent option.
 std::string OptionSummary(const RowModel& row)
 {
@@ -29,10 +31,12 @@ void Window::OpenReview(Review review, const Rml::String& name, const Rml::Strin
 {
     if (m_View.GetModel().busy)
         return;
-    SetStatus({});
+    ClearFeedback();
     review.revision = Market::GetState().Revision();
     m_Review = review;
     auto& model = m_View.GetModel();
+    m_LowestMove.Clear();
+    model.quoteMove.clear();
     model.confirmTitle = title;
     model.confirmName = name;
     model.confirmAction = action;
@@ -60,8 +64,9 @@ void Window::DismissReview()
     m_ReviewNeedsFocus = false;
     m_View.GetModel().review = false;
     m_View.MarkDirty("review");
-    if (!m_View.GetModel().busy)
-        m_Review = {};
+    m_Review = {};
+    if (m_RefreshAfterReview)
+        RefreshListsAfterNotice();
 }
 
 void Window::ReviewBuy()
@@ -72,9 +77,15 @@ void Window::ReviewBuy()
     Review review;
     if (model.goods)
     {
+        const auto& row = m_Goods.at(m_Selected);
+        // An invalid quantity points at its field instead of asking for a quote (D21).
+        if (QuantityHint(model.buyQuantity, row.available).error)
+        {
+            FocusBuyQuantity();
+            return;
+        }
         const auto& quote = Market::GetState().CurrentQuote();
         const auto quantity = ParseQuantity(model.buyQuantity, std::numeric_limits<std::uint32_t>::max());
-        const auto& row = m_Goods.at(m_Selected);
         if (!quote || !quantity || !*quantity || quote->type != row.type || quote->level != row.level ||
             quote->requestedQuantity != *quantity || Market::GetState().IsPending(Market::Operation::Quote))
         {
@@ -187,17 +198,23 @@ void Window::ReviewCancel(int index)
     if (m_View.GetModel().busy || m_View.GetModel().review)
         return;
     const auto rows = Market::GetState().OwnListings();
-    if (index < 0 || static_cast<std::size_t>(index) >= rows.size())
+    if (index < 0 || static_cast<std::size_t>(index) >= rows.size() ||
+        static_cast<std::size_t>(index) >= m_View.GetModel().rows.size())
         return;
+    const auto& listing = rows[index];
+    const auto row = m_View.GetModel().rows[index];
     Review review;
     review.action = Action::Cancel;
-    review.id = rows[index].id;
-    review.quantity = rows[index].remaining;
-    review.subject = m_View.GetModel().rows[index].name;
-    OpenReview(review, m_View.GetModel().rows[index].name, "Cancel listing", "Cancel listing");
-    m_View.GetModel().confirmTotal = "Remaining ×" + std::to_string(review.quantity);
-    m_View.GetModel().confirmFee =
-        Market::GetState().GetRules().refundPostingFee ? "Posting fee refunded" : "Posting fee kept";
+    review.id = listing.id;
+    review.quantity = listing.remaining;
+    review.subject = row.name;
+    OpenReview(review, row.name, "Cancel listing", "Cancel listing");
+    // The exact unit price, the remaining quantity and the option summary tell same-name listings apart.
+    const auto text = DescribeCancelReview(listing, Market::GetState().GetRules().refundPostingFee);
+    auto& model = m_View.GetModel();
+    model.confirmDetail = listing.kind == GoodsListingKind ? std::string{} : OptionSummary(row);
+    model.confirmTotal = text.total;
+    model.confirmFee = text.fee;
 }
 
 void Window::Collect(int index)
@@ -215,7 +232,7 @@ void Window::Collect(int index)
         review.id = m_Collection[index].id;
     }
     review.revision = Market::GetState().Revision();
-    SetStatus({});
+    ClearFeedback();
     m_Review = review;
     m_Read = Read::None;
     m_ActionQueued = true;

@@ -9,6 +9,7 @@ namespace
 {
 constexpr std::uint8_t KeptBackInventorySpace = 1, KeptBackZenLimit = 2;
 constexpr std::uint8_t DeliveryInventory = 1, DeliveryCollection = 2;
+constexpr std::uint8_t GoodsListingKind = 2;
 
 std::string Count(std::uint32_t count, std::string_view one, std::string_view many)
 {
@@ -85,6 +86,7 @@ Receipt Cancelled(const Market::Outcome& outcome, const ReceiptSubject& subject)
 
 Receipt Collected(const Market::Outcome& outcome)
 {
+    // Collection counts are deliveries (entries), not units: one delivery can hold several items (D22).
     Receipt receipt;
     std::string moved;
     if (outcome.itemsMoved)
@@ -92,15 +94,22 @@ Receipt Collected(const Market::Outcome& outcome)
     if (outcome.zenCollected)
         moved += (moved.empty() ? "" : ", ") + ExactZen(outcome.zenCollected) + " Zen";
     receipt.text = outcome.completedEntries || !moved.empty()
-                       ? "Collected " + std::to_string(outcome.completedEntries) + (moved.empty() ? "" : " · " + moved)
+                       ? "Collected " + Count(outcome.completedEntries, "delivery", "deliveries") +
+                             (moved.empty() ? "" : " · " + moved)
                        : "Nothing collected";
     if (outcome.result != Market::Result::Partial)
         return receipt;
     receipt.tone = StatusTone::Error;
-    receipt.text += " · " + std::to_string(outcome.remainingEntries) + " left: ";
+    receipt.text += " · " + Count(outcome.remainingEntries, "delivery", "deliveries") + " left: ";
     const bool space = outcome.keptBack & KeptBackInventorySpace, zen = outcome.keptBack & KeptBackZenLimit;
-    receipt.text += space && zen ? "bag full, Zen limit" : space ? "bag full" : zen ? "Zen limit" : "kept back";
+    receipt.text += space && zen ? "no bag space, Zen limit" : space ? "no bag space" : zen ? "Zen limit" : "kept back";
     return receipt;
+}
+
+std::string NoticeSubject(const Market::Notice& notice, std::string_view itemName)
+{
+    const std::string name = itemName.empty() ? "an item" : std::string(itemName);
+    return notice.quantity > 1 ? std::to_string(notice.quantity) + " × " + name : name;
 }
 } // namespace
 
@@ -117,12 +126,11 @@ std::string_view StatusLinkName(StatusLink link)
     }
 }
 
-void StatusLine::Show(std::string text, StatusTone tone, StatusLink link, Time now)
+void StatusLine::Show(std::string text, StatusTone tone, StatusLink link)
 {
     m_Text = std::move(text);
     m_Tone = tone;
-    m_Link = link;
-    m_Until = m_Text.empty() || tone == StatusTone::Error ? Time{} : now + Lifetime;
+    m_Link = m_Text.empty() ? StatusLink::None : link;
 }
 
 void StatusLine::Clear()
@@ -130,12 +138,46 @@ void StatusLine::Clear()
     *this = {};
 }
 
-bool StatusLine::Expire(Time now)
+void NoticeLines::Push(NoticeLine line)
 {
-    if (m_Until == Time{} || now < m_Until)
-        return false;
-    Clear();
-    return true;
+    m_Lines.insert(m_Lines.begin(), std::move(line));
+    if (m_Lines.size() > MaximumLines)
+        m_Lines.resize(MaximumLines);
+}
+
+void NoticeLines::Dismiss(std::size_t index)
+{
+    if (index < m_Lines.size())
+        m_Lines.erase(m_Lines.begin() + static_cast<std::ptrdiff_t>(index));
+}
+
+void NoticeLines::Clear()
+{
+    m_Lines.clear();
+}
+
+NoticeLine DescribeNotice(const Market::Notice& notice, std::string_view itemName)
+{
+    using K = Market::NoticeKind;
+    switch (notice.kind)
+    {
+    case K::SoldToInventory:
+        return {"Sold " + NoticeSubject(notice, itemName) + " · " + ExactZen(notice.net) + " Zen added to your bag"};
+    case K::SoldToCollection:
+        return {"Sold " + NoticeSubject(notice, itemName) + " · " + ExactZen(notice.net) +
+                    " Zen waiting in your Collection",
+                StatusLink::Collection};
+    case K::ExpiredToInventory:
+        return {"Expired: " + NoticeSubject(notice, itemName) + " · returned to your bag"};
+    case K::ExpiredToCollection:
+        return {"Expired: " + NoticeSubject(notice, itemName) + " · returned to your Collection",
+                StatusLink::Collection};
+    case K::DeliveriesWaiting:
+        return {Count(notice.pendingCollection, "delivery", "deliveries") + " waiting in your Collection",
+                StatusLink::Collection};
+    default:
+        return {};
+    }
 }
 
 Receipt BuildReceipt(const Market::Outcome& outcome, const ReceiptSubject& subject)
@@ -186,8 +228,8 @@ ListingReviewText DescribeListingReview(const Market::Rules& rules, bool goods, 
              (rules.refundPostingFee ? "refunded on cancel" : "not refunded");
     const auto saleFee = total <= rules.zenLimit ? Market::SaleFee(rules, static_cast<Market::Zen>(total)) : 0;
     text.fees = "Posting fee " + ExactZen(postingFee) + " (" + terms + ")\nSale fee " + ExactZen(saleFee) + " (" +
-                PercentText(rules.saleFeeBasisPoints) + ", when sold)\nYou receive " + ExactZen(total - saleFee) +
-                " if all sell\nDuration " + std::to_string(durationHours) + " h";
+                PercentText(rules.saleFeeBasisPoints) + ", when sold)\nReceive if all sell " +
+                ExactZen(total - saleFee) + "\nDuration " + std::to_string(durationHours) + " h";
     return text;
 }
 
@@ -208,6 +250,49 @@ std::string ZenShortfallText(std::uint64_t need, std::uint64_t have)
 std::string ListingCountText(std::uint8_t active, std::uint8_t maximum)
 {
     return "Listings " + std::to_string(active) + "/" + std::to_string(maximum);
+}
+
+std::string OwnListingLine(const Market::OwnListing& listing, std::uint32_t hoursLeft)
+{
+    const auto hours = std::to_string(hoursLeft) + "h";
+    if (listing.kind != GoodsListingKind)
+        return CompactZen(listing.unitPrice) + " Zen · " + hours;
+    return std::to_string(listing.remaining) + " remaining of " + std::to_string(listing.listed) + " · " +
+           CompactZen(listing.unitPrice) + " Zen each · " + hours;
+}
+
+CancelReviewText DescribeCancelReview(const Market::OwnListing& listing, bool refundPostingFee)
+{
+    CancelReviewText text;
+    text.total = listing.kind == GoodsListingKind
+                     ? std::to_string(listing.remaining) + " remaining × " + ExactZen(listing.unitPrice) + " Zen each"
+                     : ExactZen(listing.unitPrice) + " Zen";
+    text.fee = refundPostingFee ? "Posting fee refunded" : "Posting fee not refunded";
+    return text;
+}
+
+BuyReadiness DescribeBuyReadiness(const BuyFacts& facts)
+{
+    BuyReadiness readiness;
+    if (facts.ownListing)
+    {
+        readiness.blocked = true;
+        readiness.reason = "This is your listing.";
+        return readiness;
+    }
+    if (!facts.quantityValid)
+    {
+        readiness.focusQuantity = true;
+        return readiness;
+    }
+    if (facts.total > facts.wallet)
+    {
+        readiness.blocked = true;
+        readiness.reason = ZenShortfallText(facts.total, facts.wallet);
+        return readiness;
+    }
+    readiness.ready = true;
+    return readiness;
 }
 
 std::string SellCheckReasonText(std::uint8_t reason)

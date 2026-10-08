@@ -17,6 +17,10 @@ void Window::RefreshRules()
         model.durationValue = model.durations.empty() ? "" : model.durations.front().value;
     model.duration = model.durations.size() == 1 ? model.durations.front().label : "";
     model.pending = rules.pendingCollection;
+    const auto help = DescribePriceHelp(rules);
+    model.priceExamples = help.examples;
+    model.priceGrid = help.grid;
+    model.priceRange = help.range;
     m_Wallet = CharacterMachine ? CharacterMachine->Gold : 0;
     if (CharacterMachine)
         model.wallet = CompactZen(static_cast<Market::Zen>(CharacterMachine->Gold)) + " Zen";

@@ -167,3 +167,25 @@ TEST_CASE("Auction live goods quote polls every five seconds and pauses [auction
     refresh.Stop();
     CHECK_FALSE(refresh.Due(start + std::chrono::hours(1), false));
 }
+
+TEST_CASE("Auction moved lowest price keeps its text line for ten seconds [auction][goods-quote]")
+{
+    CHECK(LowestMoveText(600000, 590000) == "Lowest fell 600k → 590k");
+    CHECK(LowestMoveText(590000, 600000) == "Lowest rose 590k → 600k");
+    LowestMove move;
+    const auto start = RequestClock::Time{} + std::chrono::seconds(100);
+    move.Show(600000, 590000, start);
+    CHECK(move.Text() == "Lowest fell 600k → 590k");
+    // The row highlight fades after three seconds; the line outlives the next five-second poll.
+    CHECK_FALSE(move.Expire(start + std::chrono::seconds(9)));
+    CHECK(move.Text() == "Lowest fell 600k → 590k");
+    CHECK(move.Expire(start + LowestMove::Lifetime));
+    CHECK(move.Text().empty());
+    CHECK_FALSE(move.Expire(start + std::chrono::minutes(1)));
+    // A selection change or an opened review clears it at once.
+    move.Show(590000, 600000, start);
+    move.Clear();
+    CHECK(move.Text().empty());
+    CHECK(MarketDepthLabel(1) == "Market depth (1 price)");
+    CHECK(MarketDepthLabel(8) == "Market depth (8 prices)");
+}

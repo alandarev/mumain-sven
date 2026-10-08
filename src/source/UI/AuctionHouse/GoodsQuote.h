@@ -49,6 +49,8 @@ std::uint32_t AvailableAfterQuote(const Market::Quote& quote, std::uint32_t earl
 // The selling context line: "Lowest 600,000 · 20 in stock · 50 total". The stock is the stock at
 // the lowest price; the total covers every quoted tier ("+" when the tier list is full).
 std::string MarketLowestText(Market::Zen lowest, std::span<const Market::PriceTier> tiers);
+// The collapsed seller depth: "Market depth (2 prices)".
+std::string MarketDepthLabel(std::size_t tierCount);
 
 struct TierChange
 {
@@ -63,6 +65,30 @@ bool AnyTierChange(std::span<const TierChange> changes);
 std::string StockChangeText(std::uint32_t before, std::uint32_t after);
 std::string PriceChangeText(Market::Zen before, Market::Zen after);
 std::string QuoteAgeText(std::chrono::seconds age);
+// "Lowest fell 600k → 590k" or "Lowest rose 590k → 600k".
+std::string LowestMoveText(Market::Zen before, Market::Zen after);
+
+// The text line of a moved lowest price (D23). The row highlight fades after a few seconds; this
+// line stays for Lifetime, or until the selection changes or a review opens (Clear).
+class LowestMove
+{
+public:
+    using Time = RequestClock::Time;
+    static constexpr std::chrono::seconds Lifetime{10};
+
+    void Show(Market::Zen before, Market::Zen after, Time now);
+    void Clear();
+    // Clears an expired line; returns whether it did.
+    bool Expire(Time now);
+    const std::string& Text() const
+    {
+        return m_Text;
+    }
+
+private:
+    std::string m_Text;
+    Time m_Until{};
+};
 
 // The live quote of the selected goods row: due every Interval after the last request or answer,
 // never while paused (a review, a request in flight, or no selection).

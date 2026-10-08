@@ -45,6 +45,12 @@ struct TierModel
     bool changed = false;
 };
 
+// A sale or expiry notice line above the result line; the link opens the Collection.
+struct NoticeModel
+{
+    Rml::String text, link;
+};
+
 // Facts and editable values only; layout and semantic colors belong to the theme.
 struct WindowModel
 {
@@ -96,6 +102,18 @@ struct WindowModel
     Rml::String priceSource, priceNote, marketLowest, maxQuantity;
     bool canMatch = false, canUndercut = false, canForget = false;
     std::vector<ChoiceModel> sellTiers;
+    // The seller's market depth is collapsed to "Market depth (N prices)" until opened (D17).
+    bool depthOpen = false;
+    Rml::String depthLabel;
+    // First-time price help from the announced rules (D20).
+    Rml::String priceExamples, priceGrid, priceRange;
+    // Review purchase is disabled for a Zen shortfall or the player's own listing (D21).
+    bool buyBlocked = false;
+    // "Lowest fell 600k → 590k" while the live quote's move is recent (D23).
+    Rml::String quoteMove;
+    std::vector<NoticeModel> notices;
 };
+// Marks the inventory tile of the item being priced; returns whether a mark changed.
+bool MarkSelectedInventory(std::vector<RowModel>& inventory, int sellSlot);
 void BindWindowModel(Rml::DataModelConstructor& constructor, WindowModel& model);
 } // namespace UI::AuctionHouse

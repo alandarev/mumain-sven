@@ -92,7 +92,7 @@ void Window::BindPriceEvents(Rml::DataModelConstructor& c)
                          return;
                      model.quantity = std::to_string(m_SellCheck->available);
                      DismissReview();
-                     SetStatus({});
+                     ClearFeedback();
                      SaveSellDraft();
                      RefreshSelling();
                  });
@@ -112,7 +112,7 @@ void Window::EditPrice(bool commit)
     if (m_PriceEntry.Edit(m_View.GetModel().price))
     {
         DismissReview();
-        SetStatus({});
+        ClearFeedback();
         SaveSellDraft();
     }
     if (commit)
@@ -141,7 +141,7 @@ void Window::StepPrice(PriceStepInput input)
         ShowPrice();
         SaveSellDraft();
         DismissReview();
-        SetStatus({});
+        ClearFeedback();
     }
     RefreshSelling();
 }
@@ -154,7 +154,7 @@ void Window::ChoosePrice(std::optional<Market::Zen> price)
     ShowPrice();
     SaveSellDraft();
     DismissReview();
-    SetStatus({});
+    ClearFeedback();
     RefreshSelling();
 }
 
@@ -220,6 +220,8 @@ void Window::ClearSellSelection()
     model.maxQuantity.clear();
     model.marketLowest.clear();
     model.sellTiers.clear();
+    model.depthLabel.clear();
+    MarkSelectedInventory(model.inventory, m_SellSlot);
     RefreshPriceEntry();
     m_Dirty = true;
 }
@@ -283,6 +285,7 @@ void Window::RefreshSellMarket()
         m_SellQuote = *quote;
     model.sellTiers.clear();
     model.marketLowest.clear();
+    model.depthLabel.clear();
     m_Dirty = true;
     if (!model.sellGoods || !m_SellCheck)
         return;
@@ -294,6 +297,7 @@ void Window::RefreshSellMarket()
         return;
     for (const auto& tier : tiers)
         model.sellTiers.push_back({ExactZen(tier.unitPrice), std::to_string(tier.quantity)});
+    model.depthLabel = MarketDepthLabel(model.sellTiers.size());
 }
 
 void Window::QueueSellMarketRefresh(RequestClock::Time now)

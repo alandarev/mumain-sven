@@ -1,19 +1,19 @@
 #pragma once
 
 #include "GameLogic/AuctionHouse/AuctionHouseTypes.h"
-#include "UI/AuctionHouse/RequestClock.h"
 
-#include <chrono>
 #include <cstdint>
+#include <span>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace UI::AuctionHouse
 {
 namespace Market = GameLogic::AuctionHouse;
 
 inline constexpr std::string_view OutcomeUnknownText =
-    "Outcome unknown — reopen the broker and check your bag and My auctions.";
+    "Outcome unknown. Reopen Zyro and check your bag, Collection and My auctions before retrying.";
 
 enum class StatusTone : std::uint8_t
 {
@@ -32,18 +32,13 @@ enum class StatusLink : std::uint8_t
 
 std::string_view StatusLinkName(StatusLink link);
 
-// The window's one status line. A success or notice expires after Lifetime; an error stays until it
-// is replaced or cleared by the player's next action. Showing a new line cancels the old expiry.
+// The window's one result line: a receipt, an error or an info line. It never fades by itself, so its
+// link stays usable; the player's next deliberate action in the window or its × clears it (D18).
 class StatusLine
 {
 public:
-    using Time = RequestClock::Time;
-    static constexpr std::chrono::seconds Lifetime{8};
-
-    void Show(std::string text, StatusTone tone, StatusLink link, Time now);
+    void Show(std::string text, StatusTone tone, StatusLink link);
     void Clear();
-    // Clears an expired line; returns whether it did.
-    bool Expire(Time now);
     const std::string& Text() const
     {
         return m_Text;
@@ -61,8 +56,36 @@ private:
     std::string m_Text;
     StatusTone m_Tone = StatusTone::Info;
     StatusLink m_Link = StatusLink::None;
-    Time m_Until{};
 };
+
+struct NoticeLine
+{
+    std::string text;
+    StatusLink link = StatusLink::None;
+};
+
+// Sale and expiry notices from the server (D19): their own lines above the result line, newest
+// first, at most MaximumLines. Like a receipt they stay until the next deliberate action or their ×.
+class NoticeLines
+{
+public:
+    static constexpr std::size_t MaximumLines = 3;
+
+    void Push(NoticeLine line);
+    void Dismiss(std::size_t index);
+    void Clear();
+    std::span<const NoticeLine> Lines() const
+    {
+        return m_Lines;
+    }
+
+private:
+    std::vector<NoticeLine> m_Lines;
+};
+
+// "Sold 6 × Jewel of Bless · 3,186,000 Zen added to your bag", "Expired: Dragon Armor +9 · returned to
+// your Collection", "2 deliveries waiting in your Collection"; built from the 5B notice fields.
+NoticeLine DescribeNotice(const Market::Notice& notice, std::string_view itemName);
 
 // What the player acted on, as reviewed; the outcome carries what the server actually did.
 struct ReceiptSubject
@@ -93,7 +116,7 @@ struct ListingReviewText
 };
 
 // The listing review: the unit price line for goods, the posting fee with its terms, the sale fee,
-// what the seller receives if everything sells, and the duration.
+// "Receive if all sell" and the duration.
 ListingReviewText DescribeListingReview(const Market::Rules& rules, bool goods, std::uint32_t quantity,
                                         Market::Zen unitPrice, Market::Zen postingFee, std::uint8_t durationHours);
 
@@ -109,6 +132,35 @@ FieldHint QuantityHint(std::string_view text, std::uint32_t available);
 std::string ZenShortfallText(std::uint64_t need, std::uint64_t have);
 // "Listings 19/20".
 std::string ListingCountText(std::uint8_t active, std::uint8_t maximum);
+// A My auctions row: "6 remaining of 8 · 590k Zen each · 48h", or "12.5kk Zen · 48h" for an item.
+std::string OwnListingLine(const Market::OwnListing& listing, std::uint32_t hoursLeft);
+
+struct CancelReviewText
+{
+    std::string total, fee;
+};
+
+// The cancel review: the remaining quantity at the exact unit price, and whether the posting fee
+// comes back ("Posting fee not refunded").
+CancelReviewText DescribeCancelReview(const Market::OwnListing& listing, bool refundPostingFee);
+
+// Whether Review purchase can open (D21). An invalid quantity leaves the button pressable so that a
+// press focuses the quantity field; a Zen shortfall or the player's own listing disables it, with the
+// reason beside it. Cannot Equip never blocks a purchase.
+struct BuyReadiness
+{
+    bool ready = false, blocked = false, focusQuantity = false;
+    std::string reason;
+};
+
+struct BuyFacts
+{
+    bool quantityValid = false, ownListing = false;
+    // The quoted total (goods) or the listing price; 0 while no total is known.
+    std::uint64_t total = 0, wallet = 0;
+};
+
+BuyReadiness DescribeBuyReadiness(const BuyFacts& facts);
 // The sell check's Reason (1 not tradable, 2 no item in the slot, 3 not accepted by the market).
 std::string SellCheckReasonText(std::uint8_t reason);
 } // namespace UI::AuctionHouse

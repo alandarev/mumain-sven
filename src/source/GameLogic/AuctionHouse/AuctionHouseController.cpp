@@ -193,7 +193,7 @@ void Controller::Apply(Notice value)
     if (state.notices.size() == MaximumRememberedNotices)
         state.notices.erase(state.notices.begin());
     state.notices.push_back(value);
-    ++state.revision;
+    // A sale or expiry changes nothing an open review depends on, so it keeps the revision (D19).
     if (listener)
         listener->OnNotice(value);
 }

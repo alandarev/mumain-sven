@@ -85,6 +85,8 @@ void Window::RefreshInventory()
 {
     auto& model = m_View.GetModel();
     std::vector<RowModel> rows;
+    // The tile of the item shown in the details is marked; SwitchTab clears the details.
+    const int markedSlot = model.selected ? m_SellSlot : -1;
     // Start slots only: spanning cells resolve to the same item and must not be duplicated.
     for (int slot = MAX_EQUIPMENT_INDEX; slot <= std::numeric_limits<std::uint8_t>::max(); ++slot)
     {
@@ -97,6 +99,7 @@ void Window::RefreshInventory()
         if (!control || control->GetIndexByItem(item) != slot)
             continue;
         auto row = Describe(item, slot);
+        row.selected = slot == markedSlot;
         // Group identical jewel presentations only. The first real slot remains the
         // selection anchor; CheckSell still decides eligibility and sellable quantity.
         const bool groupable = item->Type / MAX_ITEM_INDEX >= 12 && MatchesGoodsName(row.name, Category::Jewels, {});
@@ -113,10 +116,13 @@ void Window::RefreshInventory()
         else
             ++existing->units;
     }
-    const bool changed =
-        rows.size() != model.inventory.size() ||
-        !std::equal(rows.begin(), rows.end(), model.inventory.begin(), [](const auto& a, const auto& b)
-                    { return a.index == b.index && a.name == b.name && a.detail == b.detail && a.units == b.units; });
+    const bool changed = rows.size() != model.inventory.size() ||
+                         !std::equal(rows.begin(), rows.end(), model.inventory.begin(),
+                                     [](const auto& a, const auto& b)
+                                     {
+                                         return a.index == b.index && a.name == b.name && a.detail == b.detail &&
+                                                a.units == b.units && a.selected == b.selected;
+                                     });
     if (!changed)
         return;
     model.inventory = std::move(rows);
@@ -144,7 +150,7 @@ void Window::SelectInventory(int slot)
         SetStatus("Item no longer available.");
         return;
     }
-    SetStatus({});
+    ClearFeedback();
     m_SellSlot = slot;
     m_SellKey = item->Key;
     auto& model = m_View.GetModel();
@@ -175,6 +181,8 @@ void Window::SelectInventory(int slot)
     RefreshPriceEntry();
     model.sellReady = false;
     model.sellGoods = false;
+    // The tile stays marked while the item is priced, also after Back to selling.
+    MarkSelectedInventory(model.inventory, m_SellSlot);
     DismissReview();
     QueueRead(Read::Sell);
     m_Dirty = true;
@@ -185,7 +193,7 @@ void Window::SelectRow(int index)
     auto& model = m_View.GetModel();
     if (index < 0 || static_cast<std::size_t>(index) >= model.rows.size() || model.busy)
         return;
-    SetStatus({});
+    ClearFeedback();
     m_Selected = index;
     for (auto& row : model.rows)
         row.selected = row.index == index;

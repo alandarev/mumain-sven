@@ -9,6 +9,8 @@
 #include <algorithm>
 #include <cmath>
 #include <filesystem>
+#include <functional>
+#include <optional>
 #include <string_view>
 
 namespace
@@ -77,7 +79,8 @@ void BindExcept(Rml::DataModelConstructor& c, UI::AuctionHouse::WindowModel& mod
                              "clear_filter",   "draft_luck",   "draft_skill",    "price_change",  "price_commit",
                              "price_key",      "price_wheel",  "select_content", "match_lowest",  "undercut",
                              "forget_price",   "max_quantity", "refresh_quote",  "clear_name",    "back_to_selling",
-                             "refresh_hover",  "draft_family", "draft_class"})
+                             "refresh_hover",  "draft_family", "draft_class",  "dismiss_status", "dismiss_notice",
+                             "toggle_depth"})
         if (std::find(handled.begin(), handled.end(), name) == handled.end())
             c.BindEventCallback(name, [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {});
 }
@@ -246,7 +249,7 @@ TEST_CASE("Auction native document stays bounded across tabs themes and scale [a
                     view.MarkDirty("confirm_warning");
                     model.confirmFee = "Posting fee 100,000,000 (5 %, charged now, not refunded)\n"
                                        "Sale fee 200,000,000 (10 %, when sold)\n"
-                                       "You receive 1,800,000,000 if all sell\nDuration 48 h";
+                                       "Receive if all sell 1,800,000,000\nDuration 48 h";
                     view.MarkDirty("confirm_fee");
                     fixture.context->Update();
                     Rml::ElementList cards;
@@ -331,10 +334,10 @@ TEST_CASE("Auction goods price tiers keep three readable columns and the order f
         model.goods = true;
         model.selected = true;
         model.selectedName = "Jewel of Bless";
-        model.rows = {{"Jewel of Chaos", "", "150k Zen / each"},
-                      {"Jewel of Bless", "", "591k Zen / each"},
-                      {"Jewel of Soul", "", "1.2k Zen / each"},
-                      {"Jewel of Life", "", "2.5kk Zen / each"}};
+        model.rows = {{"Jewel of Chaos", "", "150k Zen each"},
+                      {"Jewel of Bless", "", "591k Zen each"},
+                      {"Jewel of Soul", "", "1.2k Zen each"},
+                      {"Jewel of Life", "", "2.5kk Zen each"}};
         for (int width : {640, 1024, 1920})
             for (float scale : {1.f, 1.6f})
                 for (int tierCount : {3, 4, 8})
@@ -750,6 +753,506 @@ TEST_CASE("Auction comparison banner, empty state, option marks and equip reason
                 const auto inventory = Visible(document, "inventory-pane");
                 REQUIRE(inventory.size() == 1);
                 CHECK(Right(refresh.front()) <= Right(inventory.front()) + 1);
+            }
+        view.Release();
+    }
+}
+
+namespace
+{
+constexpr const char* AllFields[] = {
+    "filters_open", "active_filters", "draft_family", "draft_ancient_set", "draft_class_line", "draft_option",
+    "draft_upgrade_min", "draft_upgrade_max", "draft_min_excellent", "draft_min_sockets", "draft_max_price",
+    "draft_luck", "draft_skill", "filter_error", "skill_applies", "usable_label", "empty_text", "can_clear_name",
+    "can_reset_filters", "comparing", "can_compare", "selected_equip_reasons", "depth_open", "depth_label",
+    "price_examples", "price_grid", "price_range", "buy_blocked", "quote_move", "notices", "ancient_set", "sets",
+    "pending", "confirm_balance", "step_down", "step_up", "tab", "category", "equipment", "item_type", "search",
+    "option", "option2", "family", "class_line", "sort", "upgrade_min", "upgrade_max", "min_excellent", "min_sockets",
+    "max_price", "usable", "luck", "skill", "wallet", "status", "status_error", "count", "duration", "sale_total",
+    "posting_fee", "sale_fee", "proceeds", "price", "quantity", "buy_quantity", "selected_name", "selected_detail",
+    "selected_options", "selected_requirements", "selected_seller", "selected_price", "selected_icon",
+    "selected_tone", "quote_total", "quote_tiers", "quote_order", "quote_beyond", "quote_short", "quote_age", "stock",
+    "duration_value", "confirm_title", "confirm_name", "confirm_total", "confirm_fee", "confirm_detail",
+    "confirm_warning", "status_receipt", "status_link", "quantity_hint", "quantity_hint_error", "listing_count",
+    "listing_count_full", "sell_note", "buy_hint", "buy_hint_error", "buy_note", "confirm_action", "loading", "more",
+    "selected", "cannot_equip", "goods", "sell_goods", "sell_ready", "busy", "review", "rows", "inventory", "options",
+    "types", "durations", "price_source", "price_note", "market_lowest", "max_quantity", "can_match", "can_undercut",
+    "can_forget", "sell_tiers"};
+
+// The resolutions the window must fit without scrolling to its actions.
+constexpr std::pair<int, int> PlayerResolutions[] = {{1024, 768}, {1280, 960}};
+
+// The longest option block of a sellable item: skill, luck, the additional option, six excellent
+// options, harmony and the level-380 option.
+constexpr const char* LongestOptions = "Skill: Lightning Slash\nLuck (success rate of Jewel of Soul +25%)\n"
+                                       "Luck (critical damage rate +5%)\nAdditional defense +16\n"
+                                       "Increase Max HP +4%\nIncrease Max Mana +4%\nDamage decrease +4%\n"
+                                       "Reflect damage +5%\nDefense success rate +10%\n"
+                                       "Increase Zen after hunt +30%\nHarmony: Defense +60\n"
+                                       "Level 380: PvP defense success rate +10%";
+
+float Top(Rml::Element* element)
+{
+    return element->GetAbsoluteOffset(Rml::BoxArea::Border).y;
+}
+
+float Left(Rml::Element* element)
+{
+    return element->GetAbsoluteOffset(Rml::BoxArea::Border).x;
+}
+
+void Refresh(UI::RmlBridge::ThemedView<UI::AuctionHouse::WindowModel>& view, Rml::Context* context)
+{
+    for (const char* field : AllFields)
+        view.MarkDirty(field);
+    view.Document()->Show();
+    UI::RmlBridge::ApplyNativeTextSize(context);
+    context->Update();
+    context->Update();
+}
+
+Rml::Element* Single(Rml::ElementDocument* document, const char* className)
+{
+    const auto elements = Visible(document, className);
+    REQUIRE(elements.size() == 1);
+    return elements.front();
+}
+
+// The element lies inside the scroll pane's visible part: no scrolling is needed to reach it.
+void CheckInViewport(Rml::Element* element, Rml::Element* pane)
+{
+    REQUIRE(element);
+    REQUIRE(pane);
+    const float top = pane->GetAbsoluteOffset(Rml::BoxArea::Padding).y;
+    CHECK(Top(element) >= top - 1);
+    CHECK(Bottom(element) <= top + pane->GetClientHeight() + 1);
+}
+
+void FillSellGoods(UI::AuctionHouse::WindowModel& model, int tierCount)
+{
+    model = {};
+    model.tab = "sell";
+    UI::AuctionHouse::RowModel jewel{"Jewel of Bless", "", "", "", ""};
+    jewel.units = 250;
+    model.inventory.assign(12, jewel);
+    for (int i = 0; i < 12; ++i)
+        model.inventory[i].index = 12 + i;
+    model.selected = true;
+    model.selectedName = "Jewel of Bless";
+    model.sellGoods = true;
+    model.quantity = "250";
+    model.maxQuantity = "Max (250)";
+    model.quantityHint = "250 available";
+    model.price = "1,990,000,000";
+    model.priceSource = "Current lowest";
+    model.priceNote = "Rounded to 1,990,000,000";
+    model.priceGrid = "Prices round down to ~1 % steps · ↑/↓ one step · Shift ten.";
+    model.priceRange = "1 – 2,000,000,000 Zen";
+    model.canForget = model.canMatch = model.canUndercut = model.stepDown = model.stepUp = true;
+    model.marketLowest = "Lowest 1,990,000,000 · 2,000+ in stock · 16,000 total";
+    model.sellTiers.assign(tierCount, {"1,990,000,000", "2,000"});
+    model.depthLabel = "Market depth (" + std::to_string(tierCount) + " prices)";
+    model.durations = {{"24", "24 h"}, {"48", "48 h"}};
+    model.durationValue = "48";
+    model.saleTotal = "1,990,000,000 Zen";
+    model.postingFee = "99,500,000 Zen";
+    model.saleFee = "199,000,000 Zen";
+    model.proceeds = "1,791,000,000 Zen";
+    model.listingCount = "Listings 19/20";
+    model.sellNote = "Posting fee: Need 99,500,000 Zen, you have 50,000.";
+    model.sellReady = false;
+}
+
+void FillSellEquipment(UI::AuctionHouse::WindowModel& model)
+{
+    model = {};
+    model.tab = "sell";
+    UI::AuctionHouse::RowModel armour{"Excellent Great Dragon Armor +15", "", "", "", "excellent"};
+    model.inventory.assign(12, armour);
+    for (int i = 0; i < 12; ++i)
+        model.inventory[i].index = 12 + i;
+    model.selected = true;
+    model.selectedName = armour.name;
+    model.selectedTone = "excellent";
+    model.selectedOptions = LongestOptions;
+    model.price = "1,990,000,000";
+    model.priceSource = "Last price";
+    model.priceNote = "Rounded to 1,990,000,000";
+    model.priceGrid = "Prices round down to ~1 % steps · ↑/↓ one step · Shift ten.";
+    model.priceRange = "1 – 2,000,000,000 Zen";
+    model.canForget = model.canCompare = model.stepDown = model.stepUp = true;
+    model.durations = {{"24", "24 h"}, {"48", "48 h"}};
+    model.durationValue = "48";
+    model.saleTotal = "1,990,000,000 Zen";
+    model.postingFee = "99,500,000 Zen";
+    model.saleFee = "199,000,000 Zen";
+    model.proceeds = "1,791,000,000 Zen";
+    model.listingCount = "Listings 20/20";
+    model.listingCountFull = true;
+    model.sellNote = "Listing limit reached (Listings 20/20).";
+}
+
+void AddLongestFeedback(UI::AuctionHouse::WindowModel& model, std::size_t notices)
+{
+    model.status = "Outcome unknown. Reopen Zyro and check your bag, Collection and My auctions before retrying.";
+    model.statusError = true;
+    for (std::size_t i = 0; i < notices; ++i)
+        model.notices.push_back({"Sold 250 × Jewel of Bless · 1,791,000,000 Zen waiting in your Collection",
+                                 "collection"});
+}
+} // namespace
+
+TEST_CASE("Auction Sell summary and Review listing stay in view without scrolling [auction][rml]")
+{
+    Fixture fixture;
+    for (const char* theme : {"legacy", "modern", "munolith"})
+    {
+        UI::RmlBridge::SetActiveThemeName(theme);
+        UI::RmlBridge::ThemedView<UI::AuctionHouse::WindowModel> view(
+            "auction_house", Bind,
+            {{"Data/Interface/RmlUi/auction_house.rml", [&fixture] { return fixture.context; }}});
+        REQUIRE(view.Ensure());
+        auto* document = view.Document();
+        auto& model = view.GetModel();
+        for (const auto& [width, height] : PlayerResolutions)
+            for (float scale : {1.f, 2.f})
+                for (const char* variant : {"goods", "goods-depth-open", "goods-notice", "goods-feedback", "equipment",
+                                            "equipment-notice", "equipment-feedback"})
+                {
+                    INFO(std::string(theme), " ", width, "x", height, " scale ", scale, " ", std::string(variant));
+                    fixture.context->SetDimensions({width, height});
+                    fixture.context->SetDensityIndependentPixelRatio(scale);
+                    const std::string_view kind = variant;
+                    const bool goods = kind.starts_with("goods");
+                    if (goods)
+                        FillSellGoods(model, 8);
+                    else
+                        FillSellEquipment(model);
+                    model.depthOpen = kind == "goods-depth-open";
+                    // A receipt with one notice, or the most feedback there can be: three notices and a
+                    // two-line error.
+                    const bool mostFeedback = kind.ends_with("feedback");
+                    if (mostFeedback)
+                        AddLongestFeedback(model, 3);
+                    if (kind.ends_with("notice"))
+                    {
+                        AddLongestFeedback(model, 1);
+                        model.status = "Listed 250 × Jewel of Bless at 1,990,000,000 · fee 99,500,000";
+                        model.statusError = false;
+                        model.statusReceipt = true;
+                        model.statusLink = "own";
+                    }
+                    Refresh(view, fixture.context);
+
+                    auto* panel = document->GetElementById("panel");
+                    REQUIRE(panel);
+                    CHECK(panel->GetBox().GetSize(Rml::BoxArea::Border).y <= height + 1);
+                    auto* workspace = Single(document, "workspace");
+                    auto* scroll = Single(document, "detail-scroll");
+                    auto* summary = Single(document, "sell-summary");
+                    auto* review = document->GetElementById("review-listing");
+                    REQUIRE(review);
+                    CHECK(review->IsVisible(true));
+                    CHECK(scroll->GetScrollTop() == 0.f);
+                    // The pinned summary is outside the scrolling details and inside the drawn panel.
+                    CHECK(Top(summary) >= Bottom(scroll) - 1);
+                    CHECK(Bottom(summary) <= Bottom(workspace) + 1);
+                    CHECK(Bottom(workspace) <= Bottom(panel) + 1);
+                    CHECK(Top(review) >= Top(summary) - 1);
+                    CHECK(Bottom(review) <= Bottom(summary) + 1);
+                    CheckWithin(review, summary);
+                    Rml::ElementList rows;
+                    summary->GetElementsByClassName(rows, "fee-row");
+                    REQUIRE(rows.size() == 4);
+                    for (auto* row : rows)
+                    {
+                        CHECK(row->GetBox().GetSize(Rml::BoxArea::Border).y > 0);
+                        CHECK(Bottom(row) <= Bottom(summary) + 1);
+                        CheckWithin(row, summary);
+                    }
+                    CHECK(Single(document, "listing-count")->GetBox().GetSize(Rml::BoxArea::Border).x > 0);
+                    CheckWithin(Single(document, "sell-note"), summary);
+                    // The price field is reachable without scrolling, also below the longest option block.
+                    // The most feedback may push it down; the summary and Review listing stay pinned.
+                    if (!mostFeedback)
+                        CheckInViewport(document->GetElementById("sell-price"), scroll);
+                    if (goods && !model.depthOpen && !mostFeedback)
+                    {
+                        // The lowest-price line, Match lowest / Undercut and the collapsed depth stay in view.
+                        CheckInViewport(Single(document, "market-actions"), scroll);
+                        auto* toggle = Single(document, "depth-toggle");
+                        CHECK(toggle->IsClassSet("open") == false);
+                        CHECK(Visible(document, "sell-depth").empty());
+                        if (kind == "goods")
+                            CheckInViewport(toggle, scroll);
+                    }
+                    if (model.depthOpen)
+                        CHECK(Visible(document, "sell-depth").size() == 1);
+                    for (auto* link : Visible(document, "status-close"))
+                        CheckWithin(link, panel);
+                    for (auto* link : Visible(document, "status-link"))
+                        CheckWithin(link, panel);
+                }
+        view.Release();
+    }
+}
+
+TEST_CASE("Auction panel keeps one rectangle across tabs and categories [auction][rml]")
+{
+    Fixture fixture;
+    for (const char* theme : {"legacy", "modern", "munolith"})
+    {
+        UI::RmlBridge::SetActiveThemeName(theme);
+        UI::RmlBridge::ThemedView<UI::AuctionHouse::WindowModel> view(
+            "auction_house", Bind,
+            {{"Data/Interface/RmlUi/auction_house.rml", [&fixture] { return fixture.context; }}});
+        REQUIRE(view.Ensure());
+        auto* document = view.Document();
+        auto& model = view.GetModel();
+        const UI::AuctionHouse::RowModel armour{"Excellent Dragon Armor +9", "", "12.5kk Zen", "48h", "excellent"};
+        const UI::AuctionHouse::RowModel jewel{"Jewel of Bless", "", "590k Zen each", "20 available"};
+        const std::vector<std::pair<const char*, std::function<void()>>> states{
+            {"browse equipment",
+             [&]
+             {
+                 model = {};
+                 model.rows.assign(6, armour);
+             }},
+            {"browse equipment selected",
+             [&]
+             {
+                 model = {};
+                 model.rows.assign(6, armour);
+                 model.selected = true;
+                 model.selectedName = armour.name;
+                 model.selectedOptions = LongestOptions;
+             }},
+            {"browse jewels",
+             [&]
+             {
+                 model = {};
+                 model.category = "1";
+                 model.goods = true;
+                 model.rows.assign(4, jewel);
+                 model.selected = true;
+                 model.selectedName = jewel.name;
+                 model.quoteTiers.assign(8, {"591k", "30", "–"});
+                 model.quoteMove = "Lowest fell 600k → 590k";
+             }},
+            {"browse materials empty",
+             [&]
+             {
+                 model = {};
+                 model.category = "2";
+                 model.goods = true;
+                 model.emptyText = "No materials named “xyz”";
+             }},
+            {"sell nothing selected",
+             [&]
+             {
+                 FillSellGoods(model, 0);
+                 model.selected = false;
+             }},
+            {"sell goods", [&] { FillSellGoods(model, 2); }},
+            {"sell equipment", [&] { FillSellEquipment(model); }},
+            {"own empty",
+             [&]
+             {
+                 model = {};
+                 model.tab = "own";
+             }},
+            {"own", [&]
+             {
+                 model = {};
+                 model.tab = "own";
+                 model.rows.assign(3, jewel);
+             }},
+            {"collection",
+             [&]
+             {
+                 model = {};
+                 model.tab = "collection";
+                 model.rows.assign(2, jewel);
+                 AddLongestFeedback(model, 3);
+             }}};
+        for (const auto& [width, height] : PlayerResolutions)
+        {
+            fixture.context->SetDimensions({width, height});
+            fixture.context->SetDensityIndependentPixelRatio(1.f);
+            std::optional<Rml::Vector2f> offset, size;
+            for (const auto& [name, apply] : states)
+            {
+                INFO(std::string(theme), " ", width, "x", height, " ", std::string(name));
+                apply();
+                Refresh(view, fixture.context);
+                auto* panel = document->GetElementById("panel");
+                REQUIRE(panel);
+                const auto panelOffset = panel->GetAbsoluteOffset(Rml::BoxArea::Border);
+                const auto panelSize = panel->GetBox().GetSize(Rml::BoxArea::Border);
+                CHECK(panelSize.y <= height);
+                if (!offset)
+                {
+                    offset = panelOffset;
+                    size = panelSize;
+                    continue;
+                }
+                CHECK(std::abs(panelOffset.x - offset->x) < 0.5f);
+                CHECK(std::abs(panelOffset.y - offset->y) < 0.5f);
+                CHECK(std::abs(panelSize.x - size->x) < 0.5f);
+                CHECK(std::abs(panelSize.y - size->y) < 0.5f);
+            }
+        }
+        view.Release();
+    }
+}
+
+TEST_CASE("Auction Sell inventory column starts at the list edge and the detail pane takes the rest [auction][rml]")
+{
+    Fixture fixture;
+    for (const char* theme : {"legacy", "modern", "munolith"})
+    {
+        UI::RmlBridge::SetActiveThemeName(theme);
+        UI::RmlBridge::ThemedView<UI::AuctionHouse::WindowModel> view(
+            "auction_house", Bind,
+            {{"Data/Interface/RmlUi/auction_house.rml", [&fixture] { return fixture.context; }}});
+        REQUIRE(view.Ensure());
+        auto* document = view.Document();
+        auto& model = view.GetModel();
+        for (const auto& [width, height] : PlayerResolutions)
+        {
+            INFO(std::string(theme), " ", width, "x", height);
+            fixture.context->SetDimensions({width, height});
+            fixture.context->SetDensityIndependentPixelRatio(1.f);
+            model = {};
+            model.rows.assign(3, {"Excellent Dragon Armor +9", "", "12.5kk Zen", "48h", "excellent"});
+            model.selected = true;
+            model.selectedName = "Excellent Dragon Armor +9";
+            Refresh(view, fixture.context);
+            auto* results = document->GetElementById("results");
+            REQUIRE(results);
+            const float listLeft = Left(results);
+            const float detailsRight = Right(Single(document, "details"));
+
+            FillSellGoods(model, 2);
+            Refresh(view, fixture.context);
+            auto* panel = document->GetElementById("panel");
+            auto* inventory = Single(document, "inventory-pane");
+            auto* details = Single(document, "details");
+            // No strip left of the inventory: it starts where the Browse list starts.
+            CHECK(std::abs(Left(inventory) - listLeft) < 1.f);
+            CHECK(Left(inventory) - Left(panel) < 0.05f * panel->GetBox().GetSize(Rml::BoxArea::Border).x);
+            // The detail pane ends where the Browse details end and is wider than the inventory.
+            CHECK(std::abs(Right(details) - detailsRight) < 1.f);
+            CHECK(details->GetBox().GetSize(Rml::BoxArea::Border).x > inventory->GetBox().GetSize(Rml::BoxArea::Border).x);
+            CHECK(Left(details) >= Right(inventory) - 1);
+        }
+        view.Release();
+    }
+}
+
+TEST_CASE("Auction inventory tile stays marked after Compare market and Back to selling [auction][rml]")
+{
+    Fixture fixture;
+    UI::RmlBridge::SetActiveThemeName("legacy");
+    UI::RmlBridge::ThemedView<UI::AuctionHouse::WindowModel> view(
+        "auction_house", Bind, {{"Data/Interface/RmlUi/auction_house.rml", [&fixture] { return fixture.context; }}});
+    REQUIRE(view.Ensure());
+    auto* document = view.Document();
+    auto& model = view.GetModel();
+    fixture.context->SetDimensions({1280, 960});
+    FillSellEquipment(model);
+    constexpr int ArmourSlot = 14;
+    // Selecting the armour marks its tile; the comparison (Browse) clears the details; Back to selling
+    // selects the same slot again.
+    CHECK(UI::AuctionHouse::MarkSelectedInventory(model.inventory, ArmourSlot));
+    CHECK(UI::AuctionHouse::MarkSelectedInventory(model.inventory, -1));
+    CHECK(std::none_of(model.inventory.begin(), model.inventory.end(), [](const auto& row) { return row.selected; }));
+    CHECK(UI::AuctionHouse::MarkSelectedInventory(model.inventory, ArmourSlot));
+    CHECK_FALSE(UI::AuctionHouse::MarkSelectedInventory(model.inventory, ArmourSlot));
+    Refresh(view, fixture.context);
+    const auto tiles = Visible(document, "inventory-item");
+    REQUIRE(tiles.size() == model.inventory.size());
+    int marked = 0;
+    for (std::size_t i = 0; i < tiles.size(); ++i)
+    {
+        const bool selected = model.inventory[i].index == ArmourSlot;
+        CHECK(tiles[i]->IsClassSet("selected") == selected);
+        marked += selected;
+    }
+    CHECK(marked == 1);
+    // The mark does not depend on keyboard focus.
+    auto* markedTile = tiles[ArmourSlot - 12];
+    markedTile->Blur();
+    fixture.context->Update();
+    CHECK(markedTile->GetProperty(Rml::PropertyId::BorderTopColor)->Get<Rml::Colourb>() !=
+          tiles[0]->GetProperty(Rml::PropertyId::BorderTopColor)->Get<Rml::Colourb>());
+    view.Release();
+}
+
+TEST_CASE("Auction Review purchase shows its state and reason next to it [auction][rml]")
+{
+    Fixture fixture;
+    for (const char* theme : {"legacy", "modern", "munolith"})
+    {
+        UI::RmlBridge::SetActiveThemeName(theme);
+        UI::RmlBridge::ThemedView<UI::AuctionHouse::WindowModel> view(
+            "auction_house", Bind,
+            {{"Data/Interface/RmlUi/auction_house.rml", [&fixture] { return fixture.context; }}});
+        REQUIRE(view.Ensure());
+        auto* document = view.Document();
+        auto& model = view.GetModel();
+        for (const auto& [width, height] : PlayerResolutions)
+            for (const char* state : {"ready", "shortfall", "invalid-quantity", "own-listing", "cannot-equip"})
+            {
+                INFO(std::string(theme), " ", width, "x", height, " ", std::string(state));
+                fixture.context->SetDimensions({width, height});
+                fixture.context->SetDensityIndependentPixelRatio(1.f);
+                const std::string_view name = state;
+                model = {};
+                const bool goods = name == "ready" || name == "shortfall" || name == "invalid-quantity";
+                model.goods = goods;
+                model.category = goods ? "1" : "0";
+                model.selected = true;
+                model.selectedName = goods ? "Jewel of Bless" : "Excellent Dragon Armor +9";
+                model.rows.assign(3, {model.selectedName, "", "590k Zen each", "20 available"});
+                model.quoteTiers = {{"590k", "6", "6"}, {"600k", "20", "2"}};
+                model.quoteTotal = "4,740,000 Zen";
+                model.buyQuantity = name == "invalid-quantity" ? "0" : "8";
+                model.buyHint = name == "invalid-quantity" ? "Whole number 1–26" : "26 available";
+                model.buyHintError = name == "invalid-quantity";
+                model.cannotEquip = name == "cannot-equip";
+                model.selectedPrice = "12.5kk Zen";
+                if (name == "shortfall")
+                {
+                    model.buyBlocked = true;
+                    model.buyNote = "Need 4,740,000 Zen, you have 1,000,000";
+                }
+                if (name == "own-listing")
+                {
+                    model.buyBlocked = true;
+                    model.buyNote = "This is your listing.";
+                }
+                Refresh(view, fixture.context);
+                auto* button = document->GetElementById("review-purchase");
+                REQUIRE(button);
+                CHECK(button->IsVisible(true));
+                CHECK(button->GetInnerRML() == "Review purchase");
+                CHECK(button->IsClassSet("disabled") == model.buyBlocked);
+                CHECK(button->IsClassSet("incomplete") == model.buyHintError);
+                auto* details = Single(document, "details");
+                CheckWithin(button, details);
+                const auto notes = Visible(document, "buy-note");
+                if (model.buyNote.empty())
+                    CHECK(notes.empty());
+                else
+                {
+                    REQUIRE(notes.size() == 1);
+                    CHECK(notes.front()->GetInnerRML() == model.buyNote);
+                    // Directly under the button.
+                    CHECK(Top(notes.front()) >= Bottom(button) - 1);
+                    CHECK(Top(notes.front()) - Bottom(button) < 1.5f * notes.front()->GetBox().GetSize(Rml::BoxArea::Border).y);
+                    CheckWithin(notes.front(), details);
+                }
             }
         view.Release();
     }

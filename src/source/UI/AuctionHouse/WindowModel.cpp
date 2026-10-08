@@ -43,6 +43,10 @@ void RegisterRows(Rml::DataModelConstructor& constructor)
     tier.RegisterMember("note", &TierModel::note);
     tier.RegisterMember("changed", &TierModel::changed);
     constructor.RegisterArray<std::vector<TierModel>>();
+    auto notice = constructor.RegisterStruct<NoticeModel>();
+    notice.RegisterMember("text", &NoticeModel::text);
+    notice.RegisterMember("link", &NoticeModel::link);
+    constructor.RegisterArray<std::vector<NoticeModel>>();
 }
 
 void BindFilterDraft(Rml::DataModelConstructor& c, WindowModel& m)
@@ -74,13 +78,38 @@ void BindBrowseState(Rml::DataModelConstructor& c, WindowModel& m)
     c.Bind("can_compare", &m.canCompare);
     c.Bind("selected_equip_reasons", &m.selectedEquipReasons);
 }
+
+void BindSellerHelp(Rml::DataModelConstructor& c, WindowModel& m)
+{
+    c.Bind("depth_open", &m.depthOpen);
+    c.Bind("depth_label", &m.depthLabel);
+    c.Bind("price_examples", &m.priceExamples);
+    c.Bind("price_grid", &m.priceGrid);
+    c.Bind("price_range", &m.priceRange);
+    c.Bind("buy_blocked", &m.buyBlocked);
+    c.Bind("quote_move", &m.quoteMove);
+    c.Bind("notices", &m.notices);
+}
 } // namespace
+
+bool MarkSelectedInventory(std::vector<RowModel>& inventory, int sellSlot)
+{
+    bool changed = false;
+    for (auto& row : inventory)
+    {
+        const bool selected = sellSlot >= 0 && row.index == sellSlot;
+        changed |= row.selected != selected;
+        row.selected = selected;
+    }
+    return changed;
+}
 
 void BindWindowModel(Rml::DataModelConstructor& c, WindowModel& m)
 {
     RegisterRows(c);
     BindFilterDraft(c, m);
     BindBrowseState(c, m);
+    BindSellerHelp(c, m);
     c.Bind("ancient_set", &m.ancientSet);
     c.Bind("sets", &m.sets);
     c.Bind("pending", &m.pending);

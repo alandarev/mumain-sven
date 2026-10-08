@@ -126,7 +126,7 @@ void Window::BindEvents(Rml::DataModelConstructor& c)
           [this](const auto&)
           {
               DismissReview();
-              SetStatus({});
+              ClearFeedback();
               auto& model = m_View.GetModel();
               model.quoteTotal.clear();
               RefreshBuyNote();
@@ -145,7 +145,7 @@ void Window::BindEvents(Rml::DataModelConstructor& c)
           [this](const auto&)
           {
               DismissReview();
-              SetStatus({});
+              ClearFeedback();
               SaveSellDraft();
               RefreshSelling();
           });
@@ -161,6 +161,28 @@ void Window::BindEvents(Rml::DataModelConstructor& c)
                   DismissReview();
           });
     event("confirm", [this](const auto&) { Confirm(); });
+    event("dismiss_status",
+          [this](const auto&)
+          {
+              m_Status.Clear();
+              ShowStatus();
+          });
+    event("dismiss_notice",
+          [this, index](const auto& args)
+          {
+              if (index(args) < 0)
+                  return;
+              m_Notices.Dismiss(static_cast<std::size_t>(index(args)));
+              ShowNotices();
+          });
+    event("toggle_depth",
+          [this](const auto&)
+          {
+              // Remembered for the window session (D17).
+              auto& model = m_View.GetModel();
+              model.depthOpen = !model.depthOpen;
+              m_View.MarkDirty("depth_open");
+          });
 }
 
 void Window::Dirty()
@@ -275,7 +297,15 @@ void Window::Dirty()
                                              "can_match",
                                              "can_undercut",
                                              "can_forget",
-                                             "sell_tiers"};
+                                             "sell_tiers",
+                                             "depth_open",
+                                             "depth_label",
+                                             "price_examples",
+                                             "price_grid",
+                                             "price_range",
+                                             "buy_blocked",
+                                             "quote_move",
+                                             "notices"};
     for (const char* field : fields)
         m_View.MarkDirty(field);
 }

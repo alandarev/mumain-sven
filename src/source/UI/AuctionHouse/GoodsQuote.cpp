@@ -133,6 +133,36 @@ std::string PriceChangeText(Market::Zen before, Market::Zen after)
     return CompactZen(before) + " → " + CompactZen(after);
 }
 
+std::string MarketDepthLabel(std::size_t tierCount)
+{
+    return "Market depth (" + std::to_string(tierCount) + (tierCount == 1 ? " price)" : " prices)");
+}
+
+std::string LowestMoveText(Market::Zen before, Market::Zen after)
+{
+    return std::string(after < before ? "Lowest fell " : "Lowest rose ") + PriceChangeText(before, after);
+}
+
+void LowestMove::Show(Market::Zen before, Market::Zen after, Time now)
+{
+    m_Text = LowestMoveText(before, after);
+    m_Until = now + Lifetime;
+}
+
+void LowestMove::Clear()
+{
+    m_Text.clear();
+    m_Until = {};
+}
+
+bool LowestMove::Expire(Time now)
+{
+    if (m_Text.empty() || now < m_Until)
+        return false;
+    Clear();
+    return true;
+}
+
 std::string QuoteAgeText(std::chrono::seconds age)
 {
     const auto seconds = std::max<long long>(0, age.count());

@@ -2,7 +2,7 @@ div { display: block; }
 /* Revision 7: a horizontal browse toolbar, compact feed and contextual side panel.
    em sizes keep chrome proportional to text; the shared window profile carries resolution and user scale. */
 #panel { width: 96%; max-width: 75.7em; height: 84%; max-height: 49.2em; box-sizing: border-box; display: flex; flex-direction: column; padding: 0.6em; pointer-events: auto; font-family: "token(font-body)"; font-size: 13rem; color: token(text-primary); background-color: token(surface-recessed); border: 1px token(border-inner); }
-#titlebar, .tabs, .browse-toolbar, .workspace, .status { position: relative; z-index: 1; }
+#titlebar, .tabs, .browse-toolbar, .workspace, .notices, .status { position: relative; z-index: 1; }
 #titlebar { display: flex; align-items: center; flex-shrink: 0; min-height: 3.8em; padding: 0 0.9em 0.3em; }
 .brand { margin-right: auto; }
 .heading { color: token(accent-gold); font-size: 1.25em; }
@@ -46,7 +46,8 @@ button.disabled { pointer-events: none; opacity: 0.45; }
 .matched { color: token(text-secondary); }
 .listing-action { text-align: right; flex-shrink: 0; margin-left: 0.8em; }
 .listing-action .muted { margin-top: 0.3em; }
-.details { width: 24%; flex-shrink: 0; padding-left: 1.1em; margin-left: 1.1em; border-left: 1px token(border-inner); }
+.details { width: 24%; flex-shrink: 0; display: flex; flex-direction: column; padding-left: 1.1em; margin-left: 1.1em; border-left: 1px token(border-inner); }
+.detail-scroll { flex: 1; min-height: 0; }
 .detail-hero { display: flex; align-items: center; margin-bottom: 1em; }
 .selected-icon { width: 3.2em; height: 3.2em; margin-right: 0.8em; flex-shrink: 0; }
 .item-detail, .item-options { white-space: pre-wrap; line-height: 1.45; margin-bottom: 0.8em; }
@@ -78,8 +79,8 @@ select option:hover, select option:checked { background-color: token(surface-con
 .inventory-item span { flex: 1; font-size: 0.95em; }
 .selling .details { flex: 1; width: auto; margin: 0; padding: 0 0 0 1.3em; border: 0; }
 .selling .item-detail, .selling .requirements { display: none; }
-.selling .item-options { margin: 0.6em 0 1em; }
-.selling .details label { margin-top: 1.1em; }
+.selling .item-options { margin: 0.2em 0 0.4em; }
+.selling .details label { margin-top: 0.8em; }
 .status { flex-shrink: 0; padding: 0.6em; color: token(text-secondary); }
 .loading, .empty { padding: 2em 0.8em; color: token(text-secondary); text-align: center; }
 .empty .quiet { display: block; margin: 0.4em auto; }
@@ -165,31 +166,26 @@ select selectvalue { display: block; width: 100%; box-sizing: border-box; paddin
 
 .browse-toolbar { z-index: 2; }
 
-/* Match the approved content heights while preserving the viewport safe area. */
+/* One panel size for every tab and category, inside the viewport safe area: the window never moves
+   while the player switches; content scrolls inside it. */
 #panel { height: 49.2em; max-height: 84%; }
-#panel.selling { height: 43.6em; }
-#panel.goods { height: 41em; }
-#panel.managing { height: 28em; }
-#panel.empty-list { height: 19.4em; }
 .managing .listing { min-height: 4.8em; }
-.selling .workspace { width: 90%; max-width: 54em; align-self: center; box-sizing: border-box; }
-.selling .inventory-pane { width: 35%; }
+/* Sell: the inventory column sits flush with the panel content, the detail pane takes the rest. */
+.selling .inventory-pane { width: 34%; }
 .sell-fields { display: flex; flex-direction: column; }
-.sell-fields .primary { align-self: flex-end; }
-.sale-exact { font-size: 1.15em; margin-top: 0.5em; }
 .quantity-input, .market-actions { display: flex; align-items: center; }
 .quantity-input .max { flex-shrink: 0; margin-left: 0.4em; padding: 0.4em 0.6em; white-space: nowrap; color: token(accent-gold); }
-.price-label { display: flex; align-items: baseline; margin-top: 1.1em; }
+.price-label { display: flex; align-items: baseline; margin-top: 0.8em; }
 .selling .details .price-label label { flex: 1; margin: 0 0 0.35em; }
 .price-source { color: token(accent-gold); font-size: 0.85em; margin-left: 0.5em; white-space: nowrap; }
 .forget { padding: 0 0 0 0.6em; color: token(text-secondary); font-size: 0.85em; text-decoration: underline; }
-.price-help { margin-top: 0.3em; }
+.price-help { margin-top: 0.3em; line-height: 1.35; }
 .price-note { margin-top: 0.3em; color: token(accent-gold); font-size: 0.85em; }
 .market { margin-top: 0.6em; }
 .market-lowest { color: token(text-secondary); font-size: 0.9em; }
 .market-actions .quiet { flex: 1; margin-top: 0.3em; border: 1px token(border-inner); }
 .market-actions .quiet + .quiet { margin-left: 0.4em; }
-.sell-depth { max-height: 9em; overflow-y: auto; margin: 0.5em 0; border-top: 1px token(border-inner); }
+.sell-depth { max-height: 9em; overflow-y: auto; margin: 0 0 0.5em; border-top: 1px token(border-inner); }
 .sell-depth .depth-row { display: flex; justify-content: space-between; padding: 0.35em 0; border-bottom: 1px token(border-inner); }
 .sell-depth .depth-row span:first-child { color: token(accent-gold); }
 .filter-card { height: 64%; }
@@ -231,3 +227,28 @@ select selectvalue { display: block; width: 100%; box-sizing: border-box; paddin
 .refresh-inventory { margin-left: auto; padding: 0.2em 0.7em; border: 1px token(border-inner); white-space: nowrap; }
 .refresh-quote:hover, .refresh-inventory:hover, .compare-market:hover, .empty .empty-actions .quiet:hover { color: token(text-primary); border-color: token(accent-gold); }
 .filter-error { position: relative; z-index: 1; margin-top: 0.6em; }
+
+/* Sell: the summary and Review listing are pinned under the scrolling details. */
+.sell-summary { flex-shrink: 0; margin-top: 0.4em; padding-top: 0.3em; border-top: 1px token(border-inner); }
+.sell-summary .fee-row { padding: 0.22em 0; }
+.sell-summary .fee-row .muted { font-size: 0.85em; }
+.sell-summary .sell-note { margin-top: 0.2em; }
+.summary-action { display: flex; align-items: center; margin-top: 0.3em; }
+.summary-action .listing-count { flex: 1 1 auto; margin: 0; }
+.summary-action .primary { margin-top: 0; }
+.selling .item-options { font-size: 0.9em; line-height: 1.3; }
+.selling .detail-hero { margin-bottom: 0.5em; }
+.depth-toggle { display: block; width: 100%; margin-top: 0.3em; padding: 0.35em 0; text-align: left; font-size: 0.9em; }
+.depth-toggle .disclosure { display: inline-block; width: 0; height: 0; margin-left: 0.5em; vertical-align: middle; border-left: 0.4em token(text-secondary); border-top: 0.3em transparent; border-bottom: 0.3em transparent; }
+.depth-toggle.open .disclosure { border-left: 0.3em transparent; border-right: 0.3em transparent; border-top: 0.4em token(text-secondary); border-bottom: 0; }
+.inventory-item.selected { border-color: token(accent-gold); background-color: token(surface-control); }
+
+/* Browse: buy readiness and the moved lowest price. */
+.action.btn.incomplete { opacity: 0.45; }
+.quote-move { margin-bottom: 0.4em; color: token(accent-gold); font-size: 0.9em; }
+
+/* Sale notices above the result line; both stay until the next action or their ×. */
+.notices { flex-shrink: 0; border-top: 1px token(border-inner); }
+.notice { display: flex; align-items: center; padding: 0.3em 0.6em; color: token(text-primary); }
+.notice-text { flex: 1 1 auto; }
+.status-close { flex-shrink: 0; margin-left: 0.4em; padding: 0.1em 0.5em; }

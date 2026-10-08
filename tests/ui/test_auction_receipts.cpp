@@ -85,45 +85,168 @@ TEST_CASE("Auction claim receipt names counts and the reasons anything was kept 
     claim.itemsMoved = 2;
     claim.zenCollected = 11250000;
     auto receipt = BuildReceipt(claim, {});
-    CHECK(receipt.text == "Collected 3 · 2 items, 11,250,000 Zen");
+    CHECK(receipt.text == "Collected 3 deliveries · 2 items, 11,250,000 Zen");
     CHECK(receipt.tone == StatusTone::Success);
 
     claim.result = Market::Result::Partial;
     claim.remainingEntries = 2;
     claim.keptBack = 1;
     receipt = BuildReceipt(claim, {});
-    CHECK(receipt.text == "Collected 3 · 2 items, 11,250,000 Zen · 2 left: bag full");
+    CHECK(receipt.text == "Collected 3 deliveries · 2 items, 11,250,000 Zen · 2 deliveries left: no bag space");
     CHECK(receipt.tone == StatusTone::Error);
     claim.keptBack = 2;
-    CHECK(BuildReceipt(claim, {}).text == "Collected 3 · 2 items, 11,250,000 Zen · 2 left: Zen limit");
+    CHECK(BuildReceipt(claim, {}).text ==
+          "Collected 3 deliveries · 2 items, 11,250,000 Zen · 2 deliveries left: Zen limit");
     claim.keptBack = 3;
     claim.completedEntries = 0;
     claim.itemsMoved = 0;
     claim.zenCollected = 0;
-    CHECK(BuildReceipt(claim, {}).text == "Nothing collected · 2 left: bag full, Zen limit");
+    CHECK(BuildReceipt(claim, {}).text == "Nothing collected · 2 deliveries left: no bag space, Zen limit");
 }
 
-TEST_CASE("Auction status replacement cancels the earlier expiry and errors persist [auction][receipts]")
+TEST_CASE("Auction Collection counts are deliveries, not items [auction][receipts]")
+{
+    auto claim = MakeOutcome(Market::Operation::Claim);
+    claim.completedEntries = 5;
+    claim.zenCollected = 4780800;
+    CHECK(BuildReceipt(claim, {}).text == "Collected 5 deliveries · 4,780,800 Zen");
+    claim.completedEntries = 1;
+    claim.zenCollected = 0;
+    claim.itemsMoved = 2;
+    CHECK(BuildReceipt(claim, {}).text == "Collected 1 delivery · 2 items");
+    claim = MakeOutcome(Market::Operation::Claim, Market::Result::Partial);
+    claim.remainingEntries = 1;
+    claim.keptBack = 1;
+    CHECK(BuildReceipt(claim, {}).text == "Nothing collected · 1 delivery left: no bag space");
+}
+
+TEST_CASE("Auction result line stays until it is replaced or cleared, never by time [auction][receipts]")
 {
     StatusLine status;
-    const auto start = RequestClock::Time{} + std::chrono::seconds(100);
-    status.Show("Listed 6 × Jewel of Bless at 590,000 · fee 177,000", StatusTone::Success, StatusLink::OwnListings,
-                start);
-    CHECK_FALSE(status.Expire(start + std::chrono::seconds(7)));
-    // An error replaces the receipt; the receipt's expiry must not clear it.
-    status.Show("Not enough Zen.", StatusTone::Error, StatusLink::None, start + std::chrono::seconds(7));
-    CHECK_FALSE(status.Expire(start + StatusLine::Lifetime));
-    CHECK_FALSE(status.Expire(start + std::chrono::minutes(10)));
+    status.Show("Listed 6 × Jewel of Bless at 590,000 · fee 177,000", StatusTone::Success, StatusLink::OwnListings);
+    // No lifetime: the receipt and its link stay however long the player reads (D18).
+    CHECK(status.Text() == "Listed 6 × Jewel of Bless at 590,000 · fee 177,000");
+    CHECK(status.Link() == StatusLink::OwnListings);
+    // An error replaces the receipt and stays as well.
+    status.Show("Not enough Zen.", StatusTone::Error, StatusLink::None);
     CHECK(status.Text() == "Not enough Zen.");
+    CHECK(status.Tone() == StatusTone::Error);
     CHECK(status.Link() == StatusLink::None);
-    // A new success restarts the lifetime from its own time.
-    status.Show("Collected 1", StatusTone::Success, StatusLink::None, start + std::chrono::minutes(10));
-    CHECK_FALSE(status.Expire(start + std::chrono::minutes(10) + std::chrono::seconds(7)));
-    CHECK(status.Expire(start + std::chrono::minutes(10) + StatusLine::Lifetime));
+    // The next deliberate action, or ×, clears it.
+    status.Clear();
     CHECK(status.Text().empty());
+    CHECK(status.Link() == StatusLink::None);
+    // An empty line never keeps a link.
+    status.Show({}, StatusTone::Success, StatusLink::Collection);
+    CHECK(status.Link() == StatusLink::None);
     CHECK(StatusLinkName(StatusLink::Collection) == "collection");
     CHECK(StatusLinkName(StatusLink::OwnListings) == "own");
-    CHECK(OutcomeUnknownText.starts_with("Outcome unknown"));
+}
+
+TEST_CASE("Auction outcome unknown names the bag, the Collection and My auctions [auction][receipts]")
+{
+    CHECK(OutcomeUnknownText ==
+          "Outcome unknown. Reopen Zyro and check your bag, Collection and My auctions before retrying.");
+}
+
+TEST_CASE("Auction sale and expiry notices name the item and where it went [auction][receipts]")
+{
+    Market::Notice notice;
+    notice.kind = Market::NoticeKind::SoldToInventory;
+    notice.quantity = 6;
+    notice.net = 3186000;
+    auto line = DescribeNotice(notice, "Jewel of Bless");
+    CHECK(line.text == "Sold 6 × Jewel of Bless · 3,186,000 Zen added to your bag");
+    CHECK(line.link == StatusLink::None);
+    notice.kind = Market::NoticeKind::SoldToCollection;
+    line = DescribeNotice(notice, "Jewel of Bless");
+    CHECK(line.text == "Sold 6 × Jewel of Bless · 3,186,000 Zen waiting in your Collection");
+    CHECK(line.link == StatusLink::Collection);
+    notice.kind = Market::NoticeKind::ExpiredToCollection;
+    notice.quantity = 1;
+    notice.net = 0;
+    line = DescribeNotice(notice, "Dragon Armor +9");
+    CHECK(line.text == "Expired: Dragon Armor +9 · returned to your Collection");
+    CHECK(line.link == StatusLink::Collection);
+    notice.kind = Market::NoticeKind::ExpiredToInventory;
+    notice.quantity = 4;
+    CHECK(DescribeNotice(notice, "Jewel of Soul").text == "Expired: 4 × Jewel of Soul · returned to your bag");
+    notice = {};
+    notice.kind = Market::NoticeKind::DeliveriesWaiting;
+    notice.pendingCollection = 2;
+    line = DescribeNotice(notice, {});
+    CHECK(line.text == "2 deliveries waiting in your Collection");
+    CHECK(line.link == StatusLink::Collection);
+}
+
+TEST_CASE("Auction notices stack newest first, at most three, and never touch the result line [auction][receipts]")
+{
+    StatusLine status;
+    status.Show("Bought 8 Jewel of Bless for 4,730,000 Zen · 8 in your bag", StatusTone::Success, StatusLink::None);
+    NoticeLines notices;
+    for (int i = 1; i <= 4; ++i)
+        notices.Push({"Notice " + std::to_string(i), StatusLink::Collection});
+    REQUIRE(notices.Lines().size() == NoticeLines::MaximumLines);
+    CHECK(notices.Lines()[0].text == "Notice 4");
+    CHECK(notices.Lines()[2].text == "Notice 2");
+    CHECK(status.Text() == "Bought 8 Jewel of Bless for 4,730,000 Zen · 8 in your bag");
+    notices.Dismiss(0);
+    REQUIRE(notices.Lines().size() == 2);
+    CHECK(notices.Lines()[0].text == "Notice 3");
+    notices.Dismiss(5);
+    CHECK(notices.Lines().size() == 2);
+    notices.Clear();
+    CHECK(notices.Lines().empty());
+}
+
+TEST_CASE("Auction My auctions rows and the cancel review name remaining quantity and unit price [auction][receipts]")
+{
+    Market::OwnListing jewels;
+    jewels.kind = 2;
+    jewels.listed = 8;
+    jewels.remaining = 6;
+    jewels.unitPrice = 590000;
+    Market::OwnListing armour;
+    armour.kind = 1;
+    armour.listed = armour.remaining = 1;
+    armour.unitPrice = 12500000;
+    CHECK(OwnListingLine(jewels, 48) == "6 remaining of 8 · 590k Zen each · 48h");
+    CHECK(OwnListingLine(armour, 3) == "12.5kk Zen · 3h");
+    auto cancel = DescribeCancelReview(jewels, false);
+    CHECK(cancel.total == "6 remaining × 590,000 Zen each");
+    CHECK(cancel.fee == "Posting fee not refunded");
+    cancel = DescribeCancelReview(armour, true);
+    CHECK(cancel.total == "12,500,000 Zen");
+    CHECK(cancel.fee == "Posting fee refunded");
+}
+
+TEST_CASE("Auction Review purchase readiness for quantity, Zen and own listings [auction][receipts]")
+{
+    BuyFacts facts{.quantityValid = true, .ownListing = false, .total = 4740000, .wallet = 5000000};
+    auto readiness = DescribeBuyReadiness(facts);
+    CHECK(readiness.ready);
+    CHECK_FALSE(readiness.blocked);
+    CHECK(readiness.reason.empty());
+    // A shortfall disables the button with the exact amounts beside it.
+    facts.wallet = 1000000;
+    readiness = DescribeBuyReadiness(facts);
+    CHECK_FALSE(readiness.ready);
+    CHECK(readiness.blocked);
+    CHECK(readiness.reason == "Need 4,740,000 Zen, you have 1,000,000");
+    // An invalid quantity is not a disabled button: pressing it focuses the field.
+    facts.quantityValid = false;
+    readiness = DescribeBuyReadiness(facts);
+    CHECK_FALSE(readiness.ready);
+    CHECK_FALSE(readiness.blocked);
+    CHECK(readiness.focusQuantity);
+    // The player's own listing.
+    facts = {.quantityValid = true, .ownListing = true, .total = 100, .wallet = 1000};
+    readiness = DescribeBuyReadiness(facts);
+    CHECK(readiness.blocked);
+    CHECK(readiness.reason == "This is your listing.");
+    // No known total yet (the quote is on its way): nothing blocks.
+    facts = {.quantityValid = true, .ownListing = false, .total = 0, .wallet = 0};
+    CHECK(DescribeBuyReadiness(facts).ready);
 }
 
 TEST_CASE("Auction listing review shows the unit price line fee terms and proceeds [auction][receipts]")
@@ -137,7 +260,7 @@ TEST_CASE("Auction listing review shows the unit price line fee terms and procee
     CHECK(goods.total == "6 × 590,000 = 3,540,000 Zen");
     CHECK(goods.fees == "Posting fee 177,000 (5 %, charged now, not refunded)\n"
                         "Sale fee 354,000 (10 %, when sold)\n"
-                        "You receive 3,186,000 if all sell\n"
+                        "Receive if all sell 3,186,000\n"
                         "Duration 48 h");
     rules.postingFeeFlat = 1000;
     rules.refundPostingFee = true;

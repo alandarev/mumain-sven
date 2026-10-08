@@ -461,3 +461,14 @@ TEST_CASE("Auction price grid walk from 1 to the maximum price is reversible [au
     CHECK(price == rules.maxPrice);
     CHECK(count == 2650);
 }
+
+TEST_CASE("Auction sale notice keeps the revision so an open review stays valid [auction][state]")
+{
+    Session session;
+    REQUIRE(GetState().IsOpen());
+    const auto revision = GetState().Revision();
+    ReceivePacket(Load("auction-notice-sold"));
+    REQUIRE(session.listener.notices.size() == 1);
+    CHECK(GetState().Revision() == revision);
+    CHECK(GetState().Notices().size() == 1);
+}

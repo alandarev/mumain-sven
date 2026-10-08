@@ -106,6 +106,7 @@ void Window::Show(bool show)
     m_ActionQueued = false;
     m_View.GetModel().busy = false;
     m_ActionSentAt = {};
+    m_RefreshAfterReview = false;
     DismissReview();
     DismissFilters();
     EndComparison();
@@ -155,6 +156,7 @@ void Window::OnClosed()
     m_KeepGoods.reset();
     ClearQuote();
     ClearSellSelection();
+    m_View.GetModel().depthOpen = false;
     m_SentRead = Read::None;
     Dirty();
 }
@@ -231,8 +233,7 @@ bool Window::Update()
     RefreshLiveQuote(now);
     PumpRequests(now);
     SyncIcons();
-    if (m_Status.Expire(now))
-        ShowStatus();
+    ShowLowestMove(now);
     if (m_Dirty)
     {
         Dirty();
@@ -270,15 +271,33 @@ bool Window::UpdateKeyEvent()
 
 void Window::SetStatus(const std::string& text, bool error)
 {
-    m_Status.Show(text, error ? StatusTone::Error : StatusTone::Info, StatusLink::None,
-                  RequestClock::Time::clock::now());
+    m_Status.Show(text, error ? StatusTone::Error : StatusTone::Info, StatusLink::None);
     ShowStatus();
 }
 
 void Window::ShowReceipt(const Receipt& receipt)
 {
-    m_Status.Show(receipt.text, receipt.tone, receipt.link, RequestClock::Time::clock::now());
+    m_Status.Show(receipt.text, receipt.tone, receipt.link);
     ShowStatus();
+}
+
+void Window::ShowNotices()
+{
+    auto& model = m_View.GetModel();
+    model.notices.clear();
+    for (const auto& line : m_Notices.Lines())
+        model.notices.push_back({line.text, Rml::String(StatusLinkName(line.link))});
+    m_View.MarkDirty("notices");
+}
+
+void Window::ClearFeedback()
+{
+    m_Status.Clear();
+    ShowStatus();
+    if (m_Notices.Lines().empty())
+        return;
+    m_Notices.Clear();
+    ShowNotices();
 }
 
 void Window::ShowStatus()
@@ -310,7 +329,7 @@ void Window::SwitchTab(const Rml::String& tab)
     m_View.GetModel().rows.clear();
     m_View.GetModel().count.clear();
     m_View.GetModel().more = false;
-    SetStatus({});
+    ClearFeedback();
     if (tab == "browse")
         FilterChanged();
     else if (tab == "own")
@@ -331,6 +350,7 @@ void Window::FilterChanged()
     if (m_View.GetModel().busy || m_View.GetModel().review)
         return;
     m_Generation++;
+    ClearFeedback();
     RefreshFilterSummary();
     RefreshBrowseState();
     m_SearchAt = RequestClock::Time::clock::now() + SearchDebounce;

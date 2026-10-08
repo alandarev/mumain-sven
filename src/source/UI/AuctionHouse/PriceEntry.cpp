@@ -4,6 +4,8 @@
 #include "UI/AuctionHouse/Presentation.h"
 
 #include <limits>
+#include <span>
+#include <vector>
 
 namespace UI::AuctionHouse
 {
@@ -14,6 +16,45 @@ constexpr auto AnyZen = std::numeric_limits<Market::Zen>::max();
 std::string MaximumPriceText(const Market::Rules& rules)
 {
     return "The maximum price is " + ExactZen(rules.maxPrice) + " Zen.";
+}
+
+struct PriceExample
+{
+    Market::Zen price;
+    std::string_view text;
+};
+
+// One example per magnitude: the first of each group that is a valid price under the rules.
+constexpr PriceExample ThousandExamples[] = {{590'000, "590k"}, {500'000, "500k"}, {100'000, "100k"}};
+constexpr PriceExample MillionExamples[] = {{1'500'000, "1.5kk"}, {2'000'000, "2kk"}, {1'000'000, "1kk"}};
+constexpr PriceExample BillionExamples[] = {{1'200'000'000, "1.2b"}, {1'000'000'000, "1b"}};
+
+std::optional<PriceExample> FirstValid(const Market::Rules& rules, std::span<const PriceExample> examples)
+{
+    for (const auto& example : examples)
+        if (example.price <= rules.maxPrice && Market::PriceOnStep(rules, example.price))
+            return example;
+    return std::nullopt;
+}
+
+std::vector<PriceExample> ValidExamples(const Market::Rules& rules)
+{
+    std::vector<PriceExample> examples;
+    for (const auto group :
+         {std::span<const PriceExample>(ThousandExamples), std::span<const PriceExample>(MillionExamples),
+          std::span<const PriceExample>(BillionExamples)})
+        if (const auto example = FirstValid(rules, group))
+            examples.push_back(*example);
+    return examples;
+}
+
+// "~1 %" for precision 2: a step is at most 10^-precision of the price.
+std::string StepSizeText(std::uint8_t precision)
+{
+    constexpr std::uint8_t WholePercentPrecision = 2;
+    if (precision <= WholePercentPrecision)
+        return "~" + std::to_string(precision == 1 ? 10 : 1) + " %";
+    return "~0." + std::string(precision - WholePercentPrecision - 1, '0') + "1 %";
 }
 
 // A known lowest price as a valid starting price for an empty field.
@@ -184,6 +225,20 @@ bool PriceEntry::Prefill(const Market::Rules& rules, std::optional<std::string_v
         m_Source = PriceSource::None;
     }
     return m_Text != before || m_Source != beforeSource;
+}
+
+PriceHelp DescribePriceHelp(const Market::Rules& rules)
+{
+    PriceHelp help;
+    for (const auto& example : ValidExamples(rules))
+        help.examples += (help.examples.empty() ? "" : " · ") + std::string(example.text);
+    const std::string keys = "↑/↓ one step · Shift ten.";
+    help.grid = rules.priceStepPrecision
+                    ? "Prices round down to " + StepSizeText(rules.priceStepPrecision) + " steps · " + keys
+                    : keys;
+    if (rules.maxPrice)
+        help.range = "1 – " + ExactZen(rules.maxPrice) + " Zen";
+    return help;
 }
 
 std::string_view PriceSourceLabel(PriceSource source)

@@ -143,7 +143,7 @@ void Window::HandlePage(Market::Operation operation)
     RefreshRows();
     if (reselect && m_Selected >= 0 && m_Read == Read::None)
         m_Read = Read::Quote;
-    // An empty page supersedes a read error, but a receipt stays for its lifetime.
+    // An empty page supersedes a read error; a receipt stays until the next deliberate action.
     if (model.rows.empty() && !model.more && m_Status.Tone() != StatusTone::Success)
         SetStatus({});
 }
@@ -182,8 +182,8 @@ void Window::RefreshRows()
         {
             auto item = GoodsItem(goods);
             auto row = Describe(item.get(), 0);
-            row.price = CompactZen(goods.lowestUnitPrice) + " Zen / each";
-            row.exactPrice = ExactZen(goods.lowestUnitPrice) + " Zen / each";
+            row.price = CompactZen(goods.lowestUnitPrice) + " Zen each";
+            row.exactPrice = ExactZen(goods.lowestUnitPrice) + " Zen each";
             row.meta = std::to_string(goods.available) + " available";
             row.detail.clear();
             row.stats.clear();
@@ -199,14 +199,12 @@ void Window::RefreshRows()
             if (!item && listing.type < MAX_ITEM)
                 item = GoodsItem({listing.type, listing.level});
             auto row = Describe(item.get(), 0);
-            row.price = CompactZen(listing.unitPrice) + " Zen" + (listing.kind == 2 ? " / each" : "");
-            row.exactPrice = ExactZen(listing.unitPrice) + " Zen" + (listing.kind == 2 ? " / each" : "");
+            const bool goods = listing.kind == 2;
+            row.price = CompactZen(listing.unitPrice) + (goods ? " Zen each" : " Zen");
+            row.exactPrice = ExactZen(listing.unitPrice) + (goods ? " Zen each" : " Zen");
             const auto remaining = Market::SecondsRemaining(
                 listing.secondsLeft, Market::GetState().OwnListingsReceivedAt(), RequestClock::Time::clock::now());
-            row.meta =
-                (listing.kind == 2 ? std::to_string(listing.remaining) + "/" + std::to_string(listing.listed) + " · "
-                                   : "") +
-                std::to_string((remaining + 3599) / 3600) + "h";
+            row.meta = OwnListingLine(listing, (remaining + 3599) / 3600);
             add(std::move(item), std::move(row));
         }
     else if (model.tab == "collection")
@@ -304,30 +302,42 @@ void Window::HandleOutcome(Market::Operation operation)
         QueueRead(Read::Search, true);
 }
 
+std::string Window::NoticeItemName(const Market::Notice& notice) const
+{
+    if (notice.kind == Market::NoticeKind::DeliveriesWaiting)
+        return {};
+    // The notice carries the type and level only, as the Collection rows do.
+    auto item = GoodsItem({notice.type, notice.level});
+    return item ? Describe(item.get(), 0).name : std::string{};
+}
+
 void Window::OnNotice(const Market::Notice& notice)
 {
-    const bool sold =
-        notice.kind == Market::NoticeKind::SoldToCollection || notice.kind == Market::NoticeKind::SoldToInventory;
-    const std::string text = sold ? "Auction sold: " + ExactZen(notice.net) + " Zen."
-                             : notice.kind == Market::NoticeKind::DeliveriesWaiting ? "Collection ready."
-                                                                                    : "Auction expired.";
-    if (IsVisible())
+    const auto line = DescribeNotice(notice, NoticeItemName(notice));
+    if (!IsVisible())
     {
-        DismissReview();
-        const bool waiting = notice.kind == Market::NoticeKind::SoldToCollection ||
-                             notice.kind == Market::NoticeKind::ExpiredToCollection ||
-                             notice.kind == Market::NoticeKind::DeliveriesWaiting;
-        m_Status.Show(text, StatusTone::Info, waiting ? StatusLink::Collection : StatusLink::None,
-                      RequestClock::Time::clock::now());
-        ShowStatus();
-        RefreshRules();
-        m_View.GetModel().pending = notice.pendingCollection;
-        if (m_View.GetModel().tab == "own")
-            QueueRead(Read::Own, true);
-        if (m_View.GetModel().tab == "collection")
-            QueueRead(Read::Collection, true);
+        if (g_pChatListBox)
+            g_pChatListBox->AddText(L"", StringUtils::NarrowToWide(line.text).c_str(),
+                                    mu::ui::window::TYPE_SYSTEM_MESSAGE);
+        return;
     }
-    else if (g_pChatListBox)
-        g_pChatListBox->AddText(L"", StringUtils::NarrowToWide(text).c_str(), mu::ui::window::TYPE_SYSTEM_MESSAGE);
+    // Its own line: an open review, the result line and the draft stay as they are (D19).
+    m_Notices.Push(line);
+    ShowNotices();
+    RefreshRules();
+    m_View.GetModel().pending = notice.pendingCollection;
+    if (m_View.GetModel().review || m_View.GetModel().busy)
+        m_RefreshAfterReview = true;
+    else
+        RefreshListsAfterNotice();
+}
+
+void Window::RefreshListsAfterNotice()
+{
+    m_RefreshAfterReview = false;
+    if (m_View.GetModel().tab == "own")
+        QueueRead(Read::Own, true);
+    else if (m_View.GetModel().tab == "collection")
+        QueueRead(Read::Collection, true);
 }
 } // namespace UI::AuctionHouse

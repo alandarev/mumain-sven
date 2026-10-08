@@ -116,6 +116,11 @@ private:
     void SetStatus(const std::string& text, bool error = true);
     void ShowReceipt(const Receipt& receipt);
     void ShowStatus();
+    void ShowNotices();
+    // The player's next deliberate action clears the result line and the notices (D18, D19).
+    void ClearFeedback();
+    void RefreshListsAfterNotice();
+    std::string NoticeItemName(const Market::Notice& notice) const;
     void SwitchTab(const Rml::String& tab);
     void FilterChanged();
     void OpenFilters();
@@ -157,6 +162,8 @@ private:
     void RefreshLiveQuote(RequestClock::Time now);
     void RequestQuoteNow();
     void RefreshBuyNote();
+    void FocusBuyQuantity();
+    void ShowLowestMove(RequestClock::Time now);
     void SelectRow(int index);
     void SelectInventory(int slot);
     void ReviewBuy();
@@ -218,6 +225,9 @@ private:
     Icon m_SelectedIcon;
     Review m_Review;
     StatusLine m_Status;
+    NoticeLines m_Notices;
+    // A notice arrived while a review was open: the lists refresh when it closes.
+    bool m_RefreshAfterReview = false;
     PriceEntry m_PriceEntry;
     std::optional<Market::SellCheck> m_SellCheck;
     std::optional<Market::Quote> m_SellQuote;
@@ -234,6 +244,7 @@ private:
     std::vector<TierChange> m_TierChanges;
     Market::Zen m_PreviousLowest = 0;
     RequestClock::Time m_QuoteShownAt{}, m_HighlightUntil{};
+    LowestMove m_LowestMove;
     long long m_QuoteAgeSeconds = -1;
     // The goods row to select again when the goods list reloads after a purchase.
     std::optional<std::pair<std::uint16_t, std::uint8_t>> m_KeepGoods;

@@ -1,6 +1,9 @@
 #include "stdafx.h"
 #include "UI/AuctionHouse/Window.h"
 #include "Engine/Object/ZzzInfomation.h"
+#include "UI/AuctionHouse/PriceInput.h"
+
+#include <RmlUi/Core/ElementDocument.h>
 
 #include <limits>
 
@@ -48,6 +51,12 @@ void Window::RefreshQuote()
             m_PreviousLowest = lowestMoved ? before : 0;
             m_HighlightUntil = now + ChangeHighlight;
         }
+        if (lowestMoved)
+        {
+            m_LowestMove.Show(before, after, now);
+            model.quoteMove = m_LowestMove.Text();
+            m_View.MarkDirty("quote_move");
+        }
     }
     else
     {
@@ -89,7 +98,7 @@ void Window::ShowQuote(RequestClock::Time now)
     for (std::size_t i = 0; i < split.tiers.size(); ++i)
     {
         const auto& tier = split.tiers[i];
-        TierModel row{CompactZen(tier.unitPrice) + " Zen", std::to_string(tier.stock),
+        TierModel row{CompactZen(tier.unitPrice), std::to_string(tier.stock),
                       tier.inOrder ? std::to_string(tier.inOrder) : "–"};
         if (highlight && i < m_TierChanges.size())
         {
@@ -116,8 +125,8 @@ void Window::ShowQuote(RequestClock::Time now)
     row.changed = highlight && m_PreviousLowest != 0;
     row.price =
         (row.changed ? PriceChangeText(m_PreviousLowest, goods.lowestUnitPrice) : CompactZen(goods.lowestUnitPrice)) +
-        " Zen / each";
-    row.exactPrice = ExactZen(goods.lowestUnitPrice) + " Zen / each";
+        " Zen each";
+    row.exactPrice = ExactZen(goods.lowestUnitPrice) + " Zen each";
     m_View.MarkDirty("rows");
 }
 
@@ -129,6 +138,8 @@ void Window::ClearQuote()
     m_TierChanges.clear();
     m_PreviousLowest = 0;
     m_HighlightUntil = {};
+    m_LowestMove.Clear();
+    model.quoteMove.clear();
     m_QuoteAgeSeconds = -1;
     model.quoteTiers.clear();
     model.quoteTotal.clear();
@@ -144,25 +155,57 @@ void Window::RefreshBuyNote()
 {
     auto& model = m_View.GetModel();
     FieldHint hint;
-    std::string note;
+    BuyFacts facts;
+    facts.wallet = CharacterMachine ? CharacterMachine->Gold : 0;
     const bool browsing = model.tab == "browse" && model.selected && m_Selected >= 0;
+    bool known = false;
     if (browsing && model.goods && static_cast<std::size_t>(m_Selected) < m_Goods.size())
     {
+        known = true;
         hint = QuantityHint(model.buyQuantity, m_Goods[m_Selected].available);
-        if (CharacterMachine && m_ShownQuote && m_ShownQuote->fillableQuantity &&
-            m_ShownQuote->total > CharacterMachine->Gold)
-            note = ZenShortfallText(m_ShownQuote->total, CharacterMachine->Gold);
+        facts.quantityValid = !hint.error;
+        const auto quantity = ParseQuantity(model.buyQuantity, AnyQuantity);
+        if (m_ShownQuote && m_ShownQuote->fillableQuantity && quantity && m_ShownQuote->requestedQuantity == *quantity)
+            facts.total = m_ShownQuote->total;
     }
-    else if (browsing && !model.goods && static_cast<std::size_t>(m_Selected) < m_Listings.size() && CharacterMachine &&
-             m_Listings[m_Selected].price > CharacterMachine->Gold)
-        note = ZenShortfallText(m_Listings[m_Selected].price, CharacterMachine->Gold);
-    if (hint.text != model.buyHint || hint.error != model.buyHintError || note != model.buyNote)
+    else if (browsing && !model.goods && static_cast<std::size_t>(m_Selected) < m_Listings.size())
+    {
+        known = true;
+        facts.quantityValid = true;
+        facts.ownListing = m_Listings[m_Selected].ownListing;
+        facts.total = m_Listings[m_Selected].price;
+    }
+    // Without a character the wallet is unknown; ReviewBuy still refuses the purchase.
+    if (!CharacterMachine)
+        facts.total = 0;
+    const auto readiness = known ? DescribeBuyReadiness(facts) : BuyReadiness{};
+    if (hint.text != model.buyHint || hint.error != model.buyHintError || readiness.reason != model.buyNote ||
+        readiness.blocked != model.buyBlocked)
     {
         model.buyHint = std::move(hint.text);
         model.buyHintError = hint.error;
-        model.buyNote = std::move(note);
+        model.buyNote = readiness.reason;
+        model.buyBlocked = readiness.blocked;
         m_Dirty = true;
     }
+}
+
+void Window::FocusBuyQuantity()
+{
+    auto* document = m_View.Document();
+    auto* field = document ? document->GetElementById("buy-quantity") : nullptr;
+    if (!field)
+        return;
+    field->Focus();
+    SelectContentIfFocused(field);
+}
+
+void Window::ShowLowestMove(RequestClock::Time now)
+{
+    if (!m_LowestMove.Expire(now))
+        return;
+    m_View.GetModel().quoteMove.clear();
+    m_View.MarkDirty("quote_move");
 }
 
 void Window::RefreshLiveQuote(RequestClock::Time now)
@@ -201,7 +244,7 @@ void Window::RequestQuoteNow()
     if (model.busy || model.review || !model.goods || m_Selected < 0 ||
         static_cast<std::size_t>(m_Selected) >= m_Goods.size() || !ParseQuantity(model.buyQuantity, AnyQuantity))
         return;
-    SetStatus({});
+    ClearFeedback();
     m_QuoteRefresh.Schedule(RequestClock::Time::clock::now());
     if (m_Read == Read::None)
         m_Read = Read::Quote;
