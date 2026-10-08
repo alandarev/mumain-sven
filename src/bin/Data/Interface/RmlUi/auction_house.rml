@@ -27,7 +27,7 @@
         </div>
         <div class="empty" data-if="!loading &amp;&amp; rows.size == 0"><span data-if="tab == 'collection'">Nothing to collect</span><span data-if="tab == 'own'">No listings</span><span data-if="tab == 'browse'">No matches</span><button class="quiet" data-if="tab == 'browse'" data-event-click="reset">Reset filters</button></div><div class="loading" data-if="loading">Loading…</div><button class="quiet more" data-if="more &amp;&amp; !loading" data-event-click="more">Load more</button>
       </div>
-      <div class="depth" data-if="goods &amp;&amp; selected &amp;&amp; quote_tiers.size > 0"><div class="depth-row muted"><span>Unit price</span><span>Stock</span></div><div class="depth-row" data-for="tier : quote_tiers"><span>{{tier.value}}</span><span>{{tier.label}}</span></div></div>
+      <div class="depth scroll-pane" data-if="goods &amp;&amp; selected &amp;&amp; quote_tiers.size > 0"><div class="depth-row muted"><span>Unit price</span><span>Stock</span></div><div class="depth-row" data-for="tier : quote_tiers"><span>{{tier.value}}</span><span>{{tier.label}}</span></div></div>
     </div>
     <div class="main inventory-pane" data-if="tab == 'sell'">
       <div class="list-toolbar"><span>Inventory</span><button class="quiet" data-event-click="refresh">Refresh</button></div>

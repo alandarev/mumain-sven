@@ -241,3 +241,71 @@ TEST_CASE("Auction option dropdown selects a parameter by mouse [auction][rml]")
     CHECK(model.option == "1");
     view.Release();
 }
+
+TEST_CASE("Auction goods price tiers keep two readable columns when scrolling [auction][rml]")
+{
+    Fixture fixture;
+    for (const char* theme : {"legacy", "modern", "munolith"})
+    {
+        UI::RmlBridge::SetActiveThemeName(theme);
+        UI::RmlBridge::ThemedView<UI::AuctionHouse::WindowModel> view(
+            "auction_house", Bind,
+            {{"Data/Interface/RmlUi/auction_house.rml", [&fixture] { return fixture.context; }}});
+        REQUIRE(view.Ensure());
+        auto* document = view.Document();
+        auto& model = view.GetModel();
+        model.goods = true;
+        model.selected = true;
+        model.selectedName = "Jewel of Bless";
+        model.rows = {{"Jewel of Chaos", "", "150k Zen / each"},
+                      {"Jewel of Bless", "", "591k Zen / each"},
+                      {"Jewel of Soul", "", "1.2k Zen / each"},
+                      {"Jewel of Life", "", "2.5kk Zen / each"}};
+        for (int width : {640, 1024, 1920})
+            for (float scale : {1.f, 1.6f})
+                for (int tierCount : {3, 4, 8})
+                {
+                    INFO(std::string(theme), " width ", width, " scale ", scale, " tiers ", tierCount);
+                    fixture.context->SetDimensions({width, width == 640 ? 480 : 768});
+                    fixture.context->SetDensityIndependentPixelRatio(scale);
+                    model.quoteTiers.assign(tierCount, {"591k Zen", "30"});
+                    for (const char* field : {"goods", "selected", "selected_name", "rows", "quote_tiers"})
+                        view.MarkDirty(field);
+                    document->Show();
+                    UI::RmlBridge::ApplyNativeTextSize(fixture.context);
+                    fixture.context->Update();
+                    fixture.context->Update();
+                    Rml::ElementList tables;
+                    document->GetElementsByClassName(tables, "depth");
+                    REQUIRE(tables.size() == 1);
+                    auto* table = tables.front();
+                    const float tableWidth = table->GetBox().GetSize(Rml::BoxArea::Content).x;
+                    REQUIRE(tableWidth > 0);
+                    Rml::ElementList rows;
+                    table->GetElementsByClassName(rows, "depth-row");
+                    std::erase_if(rows, [](Rml::Element* row) { return !row->IsVisible(true); });
+                    REQUIRE(rows.size() == tierCount + 1);
+                    for (auto* row : rows)
+                    {
+                        CHECK(row->GetBox().GetSize(Rml::BoxArea::Content).x > tableWidth * 0.9f);
+                        REQUIRE(row->GetNumChildren() == 2);
+                        auto* price = row->GetChild(0);
+                        auto* stock = row->GetChild(1);
+                        CHECK(price->GetAbsoluteOffset(Rml::BoxArea::Border).x +
+                                  price->GetBox().GetSize(Rml::BoxArea::Border).x <
+                              stock->GetAbsoluteOffset(Rml::BoxArea::Border).x);
+                    }
+                    if (tierCount == 8)
+                    {
+                        REQUIRE(table->GetScrollHeight() > table->GetClientHeight());
+                        table->SetScrollTop(table->GetScrollHeight());
+                        fixture.context->Update();
+                        auto* last = rows.back();
+                        CHECK(last->GetAbsoluteOffset(Rml::BoxArea::Border).y +
+                                  last->GetBox().GetSize(Rml::BoxArea::Border).y <=
+                              table->GetAbsoluteOffset(Rml::BoxArea::Content).y + table->GetClientHeight() + 1);
+                    }
+                }
+        view.Release();
+    }
+}
