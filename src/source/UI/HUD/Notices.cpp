@@ -16,6 +16,7 @@
 #include "UI/RmlBridge/RmlTheme.h"
 #include "UI/Scaling/UITransform.h"
 #include "Render/Text/CUIRenderText.h"
+#include "UI/Chat/ChatMessages.h"
 
 #include <RmlUi/Core/ElementDocument.h>
 
@@ -59,6 +60,13 @@ namespace
     UI::RmlBridge::ThemedView<UI::Notices::NoticesRmlModel> s_view{"notices", BindModel, {{"Data/Interface/RmlUi/notices.rml"}}};
     bool s_renderedThisFrame = false;
 
+    // The auction window fills the screen centre where the banner is drawn. While it is open the
+    // banner stays hidden and new notices go to the chat log, so prices and results stay readable.
+    bool CoveredByWindow()
+    {
+        return g_pNewUISystem && g_pNewUISystem->IsVisible(mu::ui::window::INTERFACE_AUCTION_HOUSE);
+    }
+
     // Shift the buffer up by one when it is full so the newest line fits.
     void Scroll()
     {
@@ -88,6 +96,11 @@ namespace UI::Notices
 
     void Create(const wchar_t* text, int color)
     {
+        if (CoveredByWindow())
+        {
+            UI::Chat::PostSystem(text, mu::ui::window::TYPE_SYSTEM_MESSAGE);
+            return;
+        }
         g_pRenderText->SetFont(g_hFontBold);
         const SIZE size = g_pRenderText->MeasureText(text, lstrlen(text));
 
@@ -204,6 +217,12 @@ namespace UI::Notices
             return;
         }
 #endif // KJH_ADD_INGAMESHOP_UI_SYSTEM
+
+        if (CoveredByWindow())
+        {
+            UI::RmlBridge::SyncDocumentVisibility(s_view.Document(), false);
+            return;
+        }
 
         s_view.Ensure();
         if (s_view.Document() != nullptr)
