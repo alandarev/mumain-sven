@@ -27,7 +27,9 @@ so ("Rounded to 93,000,000"); nothing is rounded while you are still typing.
 
 The − and + buttons, the Up and Down keys and the mouse wheel over the focused price
 field move to the previous or next valid price, and ten valid prices with Shift. A
-price off its step moves to the valid price below or above it. With an empty field,
+price off its step moves to the valid price below or above it, also when you press
+− or + right after typing it: leaving the field for a step does not round first, so
+93,240,000 goes to 93,000,000 with − and to 93,500,000 with +. With an empty field,
 + starts at the lowest price of other sellers of the same goods and − one step
 below it; otherwise the buttons stay disabled until a price is typed. At 1 and at
 the broker's maximum the corresponding direction is disabled and the field says why.

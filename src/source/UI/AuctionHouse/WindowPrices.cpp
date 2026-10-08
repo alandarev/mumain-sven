@@ -25,36 +25,9 @@ void Window::BindPriceEvents(Rml::DataModelConstructor& c)
         c.BindEventCallback(name, [handler = std::move(handler)](Rml::DataModelHandle, Rml::Event& event,
                                                                  const Rml::VariantList&) { handler(event); });
     };
-    bind("price_change",
-         [this](Rml::Event& event)
-         {
-             const bool commit = event.GetParameter<bool>("linebreak", false);
-             m_Events.push_back([this, commit] { EditPrice(commit); });
-         });
-    bind("price_commit", [this](Rml::Event&) { m_Events.push_back([this] { EditPrice(true); }); });
-    bind("price_key",
-         [this](Rml::Event& event)
-         {
-             if (const auto step = PriceStepFromKey(event))
-             {
-                 event.StopPropagation();
-                 m_Events.push_back([this, step = *step] { StepPrice(step); });
-             }
-         });
-    bind("price_wheel",
-         [this](Rml::Event& event)
-         {
-             // The wheel steps only over the − and + buttons; there nothing scrolls.
-             if (const auto step = PriceStepFromWheel(event))
-             {
-                 event.StopPropagation();
-                 m_Events.push_back([this, step = *step] { StepPrice(step); });
-             }
-         });
-    bind("minus", [this](Rml::Event& event)
-         { m_Events.push_back([this, steps = PriceStepsFromClick(event)] { StepPrice({false, steps}); }); });
-    bind("plus", [this](Rml::Event& event)
-         { m_Events.push_back([this, steps = PriceStepsFromClick(event)] { StepPrice({true, steps}); }); });
+    BindPriceFieldEvents(
+        c, {.edit = [this](bool commit) { m_Events.push_back([this, commit] { EditPrice(commit); }); },
+            .step = [this](PriceStepInput input) { m_Events.push_back([this, input] { StepPrice(input); }); }});
     bind("select_content",
          [this](Rml::Event& event)
          {

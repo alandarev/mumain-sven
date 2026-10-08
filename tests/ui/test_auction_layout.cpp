@@ -12,6 +12,8 @@
 #include <functional>
 #include <optional>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 namespace
 {
@@ -616,6 +618,177 @@ void CheckWithin(Rml::Element* element, Rml::Element* container)
     CHECK(Right(element) <= Right(container) + 1);
 }
 } // namespace
+
+namespace
+{
+// The window's EditPrice and StepPrice, queued as the window queues them for its next update.
+struct PriceFieldDriver
+{
+    UI::AuctionHouse::PriceEntry entry;
+    UI::AuctionHouse::Market::Rules rules;
+    UI::AuctionHouse::WindowModel* model = nullptr;
+    UI::RmlBridge::ThemedView<UI::AuctionHouse::WindowModel>* view = nullptr;
+    std::vector<std::function<void()>> queued;
+    int commits = 0;
+
+    UI::AuctionHouse::PriceFieldHandlers Handlers()
+    {
+        return {.edit = [this](bool commit) { queued.push_back([this, commit] { Edit(commit); }); },
+                .step = [this](UI::AuctionHouse::PriceStepInput input)
+                { queued.push_back([this, input] { Step(input); }); }};
+    }
+    void Edit(bool commit)
+    {
+        entry.Edit(model->price);
+        if (!commit)
+            return;
+        ++commits;
+        entry.Commit(rules);
+        Show();
+    }
+    void Step(UI::AuctionHouse::PriceStepInput input)
+    {
+        entry.Edit(model->price);
+        if (entry.Step(rules, input, 0))
+            Show();
+    }
+    void Show()
+    {
+        model->price = entry.Text();
+        view->MarkDirty("price");
+    }
+    void Run()
+    {
+        for (auto events = std::exchange(queued, {}); auto& event : events)
+            event();
+    }
+};
+} // namespace
+
+TEST_CASE("Auction − and + right after typing step once from the typed price, like the keys and the wheel [auction][rml]")
+{
+    Fixture fixture;
+    UI::RmlBridge::SetActiveThemeName("modern");
+    PriceFieldDriver driver;
+    driver.rules.priceStepPrecision = 2;
+    driver.rules.maxPrice = 2000000000;
+    auto bind = [&driver](Rml::DataModelConstructor& c, UI::AuctionHouse::WindowModel& model)
+    {
+        driver.model = &model;
+        BindExcept(c, model, {"price_change", "price_commit", "price_key", "price_wheel", "minus", "plus"});
+        UI::AuctionHouse::BindPriceFieldEvents(c, driver.Handlers());
+    };
+    UI::RmlBridge::ThemedView<UI::AuctionHouse::WindowModel> view(
+        "auction_house", bind, {{"Data/Interface/RmlUi/auction_house.rml", [&fixture] { return fixture.context; }}});
+    driver.view = &view;
+    REQUIRE(view.Ensure());
+    auto* document = view.Document();
+    auto& model = view.GetModel();
+    fixture.context->SetDimensions({1024, 768});
+    fixture.context->SetDensityIndependentPixelRatio(1.f);
+    model.tab = "sell";
+    model.selected = true;
+    model.selectedName = "Jewel of Bless";
+    model.sellGoods = true;
+    model.stepDown = model.stepUp = true;
+    model.durations = {{"48", "48 h"}};
+    for (const char* field : {"tab", "selected", "selected_name", "sell_goods", "step_down", "step_up", "durations"})
+        view.MarkDirty(field);
+    document->Show();
+    UI::RmlBridge::ApplyNativeTextSize(fixture.context);
+    fixture.context->Update();
+    fixture.context->Update();
+
+    auto* price = document->GetElementById("sell-price");
+    auto* down = document->GetElementById("price-down");
+    auto* up = document->GetElementById("price-up");
+    auto* quantity = document->GetElementById("sell-quantity");
+    REQUIRE(price);
+    REQUIRE(down);
+    REQUIRE(up);
+    REQUIRE(quantity);
+    auto moveTo = [&fixture](Rml::Element* element)
+    {
+        const auto position = element->GetAbsoluteOffset(Rml::BoxArea::Border);
+        const auto size = element->GetBox().GetSize(Rml::BoxArea::Border);
+        fixture.context->ProcessMouseMove(static_cast<int>(position.x + size.x / 2),
+                                          static_cast<int>(position.y + size.y / 2), 0);
+    };
+    auto settle = [&]
+    {
+        fixture.context->Update();
+        driver.Run();
+        fixture.context->Update();
+    };
+    auto press = [&](Rml::Element* element, int modifiers)
+    {
+        moveTo(element);
+        fixture.context->ProcessMouseButtonDown(0, modifiers);
+        fixture.context->ProcessMouseButtonUp(0, modifiers);
+        settle();
+    };
+    auto type = [&](const char* text)
+    {
+        press(price, 0);
+        REQUIRE(fixture.context->GetFocusElement() == price);
+        UI::AuctionHouse::SelectContentIfFocused(price);
+        fixture.context->ProcessTextInput(text);
+        settle();
+        REQUIRE(model.price == text);
+    };
+
+    struct Vector
+    {
+        bool up;
+        int modifiers;
+        const char* expected;
+    };
+    // D3: the typed off-step price is the start, so the first step down lands on the round-down value.
+    const Vector vectors[] = {{false, 0, "93,000,000"},
+                              {true, 0, "93,500,000"},
+                              {false, Rml::Input::KM_SHIFT, "88,500,000"},
+                              {true, Rml::Input::KM_SHIFT, "98,000,000"}};
+    for (const auto& vector : vectors)
+    {
+        INFO(std::string(vector.expected));
+        type("93,240,000");
+        driver.commits = 0;
+        press(vector.up ? up : down, vector.modifiers);
+        CHECK(model.price == vector.expected);
+        CHECK(driver.commits == 0);
+
+        type("93,240,000");
+        fixture.context->ProcessKeyDown(vector.up ? Rml::Input::KI_UP : Rml::Input::KI_DOWN, vector.modifiers);
+        settle();
+        CHECK(model.price == vector.expected);
+
+        type("93,240,000");
+        moveTo(vector.up ? up : down);
+        fixture.context->ProcessMouseWheel(Rml::Vector2f{0.f, vector.up ? -1.f : 1.f}, vector.modifiers);
+        settle();
+        CHECK(model.price == vector.expected);
+    }
+
+    // Leaving the field for anything else commits and rounds; the next − steps from the rounded price.
+    type("93,240,000");
+    driver.commits = 0;
+    press(quantity, 0);
+    CHECK(driver.commits == 1);
+    CHECK(model.price == "93,000,000");
+    CHECK(driver.entry.Note() == "Rounded to 93,000,000");
+    press(down, 0);
+    CHECK(model.price == "92,500,000");
+
+    // A disabled button does nothing, so leaving the field for it still commits.
+    model.stepDown = false;
+    view.MarkDirty("step_down");
+    fixture.context->Update();
+    type("93,240,000");
+    driver.commits = 0;
+    press(down, 0);
+    CHECK(driver.commits == 1);
+    view.Release();
+}
 
 TEST_CASE("Auction comparison banner, empty state, option marks and equip reasons stay inside the panel [auction][rml]")
 {
