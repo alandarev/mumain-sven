@@ -89,7 +89,7 @@ std::optional<std::uint32_t> ParseQuantity(std::string_view text, std::uint32_t 
     return value;
 }
 
-std::string ExactZen(Market::Zen value)
+std::string ExactZen(std::uint64_t value)
 {
     auto text = std::to_string(value);
     for (int pos = static_cast<int>(text.size()) - 3; pos > 0; pos -= 3)

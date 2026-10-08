@@ -24,11 +24,19 @@ void RegisterRows(Rml::DataModelConstructor& constructor)
     row.RegisterMember("summary", &RowModel::summary);
     row.RegisterMember("highlighted", &RowModel::highlighted);
     row.RegisterMember("units", &RowModel::units);
+    row.RegisterMember("changed", &RowModel::changed);
     constructor.RegisterArray<std::vector<RowModel>>();
     auto choice = constructor.RegisterStruct<ChoiceModel>();
     choice.RegisterMember("value", &ChoiceModel::value);
     choice.RegisterMember("label", &ChoiceModel::label);
     constructor.RegisterArray<std::vector<ChoiceModel>>();
+    auto tier = constructor.RegisterStruct<TierModel>();
+    tier.RegisterMember("price", &TierModel::price);
+    tier.RegisterMember("stock", &TierModel::stock);
+    tier.RegisterMember("order", &TierModel::order);
+    tier.RegisterMember("note", &TierModel::note);
+    tier.RegisterMember("changed", &TierModel::changed);
+    constructor.RegisterArray<std::vector<TierModel>>();
 }
 
 void BindFilterDraft(Rml::DataModelConstructor& c, WindowModel& m)
@@ -99,12 +107,17 @@ void BindWindowModel(Rml::DataModelConstructor& c, WindowModel& m)
     c.Bind("selected_tone", &m.selectedTone);
     c.Bind("quote_total", &m.quoteTotal);
     c.Bind("quote_tiers", &m.quoteTiers);
+    c.Bind("quote_order", &m.quoteOrder);
+    c.Bind("quote_beyond", &m.quoteBeyond);
+    c.Bind("quote_short", &m.quoteShort);
+    c.Bind("quote_age", &m.quoteAge);
     c.Bind("stock", &m.stock);
     c.Bind("duration_value", &m.durationValue);
     c.Bind("confirm_title", &m.confirmTitle);
     c.Bind("confirm_name", &m.confirmName);
     c.Bind("confirm_total", &m.confirmTotal);
     c.Bind("confirm_fee", &m.confirmFee);
+    c.Bind("confirm_detail", &m.confirmDetail);
     c.Bind("confirm_action", &m.confirmAction);
     c.Bind("loading", &m.loading);
     c.Bind("more", &m.more);

@@ -28,8 +28,10 @@ price off its step moves to the valid price below or above it. With an empty fie
 below it; otherwise the buttons stay disabled until a price is typed. At 1 and at
 the broker's maximum the corresponding direction is disabled and the field says why.
 
-While you price goods, the Sell tab shows the lowest price of other sellers and up
-to eight price tiers of the market, refreshed every five seconds. Match lowest
+While you price goods, the Sell tab shows the lowest price of other sellers, the
+stock at that price and the stock of all quoted tiers ("Lowest 600,000 · 20 in
+stock · 50 total"), and up to eight price tiers of the market, refreshed every five
+seconds. Match lowest
 copies the lowest price and Undercut sets the highest valid price below it. A
 refresh never replaces a price you have typed. Equipment is never priced from
 other listings. Max (n) fills in the whole quantity you hold; clicking into a
@@ -58,6 +60,18 @@ Items and proceeds are delivered to inventory while the character is talking to
 a broker, as far as inventory space and the Zen limit allow. The remainder stays
 in Collection. Away from a broker, delivery waits in Collection. Notices identify
 whether a sale or expiry reached inventory or is waiting for collection.
+
+While Browse shows a selected jewel or material, its quote refreshes every five
+seconds ("Updated 3 s ago"; Refresh asks at once). The refresh pauses while a review
+is open or a request is pending, and only one auction tab polls at a time, so a
+window stays far below the broker's limit of five requests per second. A new price
+tier, a changed stock ("4 → 10") and a changed lowest price ("595k → 590k") are
+marked for about three seconds. The price table's In your order column shows how
+many units of the entered quantity each price fills, cheapest first, with the order
+total below it; units filled beyond the eight shown tiers appear as "+N at higher
+prices · X Zen", and "Only N available" when less is for sale than entered. The
+purchase review repeats that split per price. After a purchase the goods stay
+selected and their quote refreshes.
 
 Browse equipment by category, name, excellent option, class, upgrade, sockets and
 price. Can equip now limits the results to items your current character can use.

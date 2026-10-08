@@ -4,6 +4,7 @@
 
 #include "GameLogic/AuctionHouse/AuctionHouse.h"
 #include "GameLogic/AuctionHouse/AuctionHousePriceMemory.h"
+#include "UI/AuctionHouse/GoodsQuote.h"
 #include "UI/AuctionHouse/PriceEntry.h"
 #include "UI/AuctionHouse/Presentation.h"
 #include "UI/AuctionHouse/WindowModel.h"
@@ -130,6 +131,10 @@ private:
     void RefreshRules();
     void RefreshSelling();
     void RefreshQuote();
+    void ShowQuote(RequestClock::Time now);
+    void ClearQuote();
+    void RefreshLiveQuote(RequestClock::Time now);
+    void RequestQuoteNow();
     void SelectRow(int index);
     void SelectInventory(int slot);
     void ReviewBuy();
@@ -199,5 +204,14 @@ private:
     std::string m_PriceMemoryOwner;
     std::filesystem::path m_PriceMemoryPath;
     std::optional<RememberedListing> m_PublishedPrice;
+    // The live quote of the selected goods row (D7): the shown answer, its change marks and their expiry.
+    QuoteRefresh m_QuoteRefresh;
+    std::optional<Market::Quote> m_ShownQuote;
+    std::vector<TierChange> m_TierChanges;
+    Market::Zen m_PreviousLowest = 0;
+    RequestClock::Time m_QuoteShownAt{}, m_HighlightUntil{};
+    long long m_QuoteAgeSeconds = -1;
+    // The goods row to select again when the goods list reloads after a purchase.
+    std::optional<std::pair<std::uint16_t, std::uint8_t>> m_KeepGoods;
 };
 } // namespace UI::AuctionHouse

@@ -287,24 +287,13 @@ void Window::RefreshSellMarket()
     if (!model.sellGoods || !m_SellCheck)
         return;
     const auto lowest = SellLowest();
+    const auto tiers =
+        m_SellQuote ? std::span<const Market::PriceTier>(m_SellQuote->tiers) : std::span<const Market::PriceTier>{};
+    model.marketLowest = MarketLowestText(lowest, tiers);
     if (lowest == 0)
-    {
-        model.marketLowest = "No other sellers";
         return;
-    }
-    model.marketLowest = "Lowest " + ExactZen(lowest);
-    if (!m_SellQuote || m_SellQuote->tiers.empty())
-        return;
-    std::uint64_t stock = 0;
-    for (const auto& tier : m_SellQuote->tiers)
-    {
-        stock += tier.quantity;
+    for (const auto& tier : tiers)
         model.sellTiers.push_back({ExactZen(tier.unitPrice), std::to_string(tier.quantity)});
-    }
-    // Only the cheapest tiers arrive, so a full table means at least this many.
-    constexpr std::size_t MaximumTiers = 8;
-    model.marketLowest +=
-        " · " + std::to_string(stock) + (m_SellQuote->tiers.size() >= MaximumTiers ? "+" : "") + " in stock";
 }
 
 void Window::QueueSellMarketRefresh(RequestClock::Time now)

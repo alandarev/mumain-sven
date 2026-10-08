@@ -198,8 +198,7 @@ void Window::SelectRow(int index)
     if (static_cast<std::size_t>(index) < m_Icons.size() && m_Icons[index].item)
         m_SelectedIcon.item.reset(g_pNewItemMng->DuplicateItem(m_Icons[index].item.get()));
     model.buyQuantity = "1";
-    model.quoteTotal.clear();
-    model.quoteTiers.clear();
+    ClearQuote();
     if (model.tab == "browse" && model.goods)
         QueueRead(Read::Quote);
     m_Dirty = true;

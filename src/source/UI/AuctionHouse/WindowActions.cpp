@@ -16,6 +16,7 @@ void Window::OpenReview(Review review, const Rml::String& name, const Rml::Strin
     model.confirmTitle = title;
     model.confirmName = name;
     model.confirmAction = action;
+    model.confirmDetail.clear();
     model.confirmTotal = ExactZen(review.amount) + " Zen";
     model.confirmFee = review.action == Action::Publish ? "Posting fee " + ExactZen(review.fee) + " Zen" : "";
     model.confirmBalance.clear();
@@ -54,10 +55,17 @@ void Window::ReviewBuy()
         const auto quantity = ParseQuantity(model.buyQuantity, std::numeric_limits<std::uint32_t>::max());
         const auto& row = m_Goods.at(m_Selected);
         if (!quote || !quantity || !*quantity || quote->type != row.type || quote->level != row.level ||
-            quote->requestedQuantity != *quantity || quote->fillableQuantity < *quantity ||
-            quote->result != Market::Result::Success || Market::GetState().IsPending(Market::Operation::Quote))
+            quote->requestedQuantity != *quantity || Market::GetState().IsPending(Market::Operation::Quote))
         {
             QueueRead(Read::Quote);
+            return;
+        }
+        if (quote->result != Market::Result::Success || quote->fillableQuantity < *quantity)
+        {
+            const auto shortfall = ShortfallText(SplitOrder(*quote));
+            SetStatus(quote->result == Market::Result::InsufficientStock && !shortfall.empty()
+                          ? shortfall + "."
+                          : ResultText(quote->result));
             return;
         }
         review.action = Action::BuyGoods;
@@ -93,6 +101,16 @@ void Window::ReviewBuy()
     }
     OpenReview(review, model.selectedName + (model.goods ? " ×" + std::to_string(review.quantity) : ""), "Buy item",
                "Buy");
+    if (model.goods && m_Review.action == Action::BuyGoods)
+    {
+        // The review repeats the split per price; the receipt reports the actual charge.
+        std::string lines;
+        for (const auto& line : OrderSplitLines(SplitOrder(*Market::GetState().CurrentQuote())))
+            lines += (lines.empty() ? "" : "\n") + line;
+        auto& shown = m_View.GetModel();
+        shown.confirmDetail = std::move(lines);
+        shown.confirmTotal = "Total " + ExactZen(review.amount) + " Zen";
+    }
 }
 
 void Window::ReviewSale()

@@ -67,15 +67,15 @@ void BindExcept(Rml::DataModelConstructor& c, UI::AuctionHouse::WindowModel& mod
                 std::initializer_list<std::string_view> handled)
 {
     UI::AuctionHouse::BindWindowModel(c, model);
-    for (const char* name : {"close",          "tab",         "filter",         "reset",         "category",
-                             "equipment",      "select",      "inventory",      "hover",         "inventory_hover",
-                             "similar",        "leave",       "refresh",        "more",          "quote",
-                             "sell_change",    "minus",       "plus",           "buy",           "sell",
-                             "cancel_listing", "claim",       "dismiss",        "confirm",       "usable",
-                             "luck",           "skill",       "open_filters",   "apply_filters", "cancel_filters",
-                             "clear_filter",   "draft_luck",  "draft_skill",    "price_change",  "price_commit",
-                             "price_key",      "price_wheel", "select_content", "match_lowest",  "undercut",
-                             "forget_price",   "max_quantity"})
+    for (const char* name : {"close",          "tab",          "filter",         "reset",         "category",
+                             "equipment",      "select",       "inventory",      "hover",         "inventory_hover",
+                             "similar",        "leave",        "refresh",        "more",          "quote",
+                             "sell_change",    "minus",        "plus",           "buy",           "sell",
+                             "cancel_listing", "claim",        "dismiss",        "confirm",       "usable",
+                             "luck",           "skill",        "open_filters",   "apply_filters", "cancel_filters",
+                             "clear_filter",   "draft_luck",   "draft_skill",    "price_change",  "price_commit",
+                             "price_key",      "price_wheel",  "select_content", "match_lowest",  "undercut",
+                             "forget_price",   "max_quantity", "refresh_quote"})
         if (std::find(handled.begin(), handled.end(), name) == handled.end())
             c.BindEventCallback(name, [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {});
 }
@@ -197,11 +197,15 @@ TEST_CASE("Auction native document stays bounded across tabs themes and scale [a
                     view.MarkDirty("confirm_name");
                     model.confirmTotal = "4,294,967,295 Zen";
                     view.MarkDirty("confirm_total");
+                    model.confirmDetail = "6 × 590,000 = 3,540,000\n2 × 595,000 = 1,190,000\n"
+                                          "+20 at higher prices · 12,400,000 Zen";
+                    view.MarkDirty("confirm_detail");
                     fixture.context->Update();
                     Rml::ElementList cards;
                     document->GetElementsByClassName(cards, "review-card");
                     REQUIRE(cards.size() == 1);
                     CHECK(cards.front()->GetBox().GetSize(Rml::BoxArea::Border).x <= size.x);
+                    CHECK(cards.front()->GetBox().GetSize(Rml::BoxArea::Border).y <= size.y);
                     model.review = false;
                     view.MarkDirty("review");
                     fixture.context->Update();
@@ -264,7 +268,7 @@ TEST_CASE("Auction option dropdown selects a parameter by mouse [auction][rml]")
     view.Release();
 }
 
-TEST_CASE("Auction goods price tiers keep two readable columns when scrolling [auction][rml]")
+TEST_CASE("Auction goods price tiers keep three readable columns and the order footer [auction][rml]")
 {
     Fixture fixture;
     for (const char* theme : {"legacy", "modern", "munolith"})
@@ -290,8 +294,17 @@ TEST_CASE("Auction goods price tiers keep two readable columns when scrolling [a
                     INFO(std::string(theme), " width ", width, " scale ", scale, " tiers ", tierCount);
                     fixture.context->SetDimensions({width, width == 640 ? 480 : 768});
                     fixture.context->SetDensityIndependentPixelRatio(scale);
-                    model.quoteTiers.assign(tierCount, {"591k Zen", "30"});
-                    for (const char* field : {"goods", "selected", "selected_name", "rows", "quote_tiers"})
+                    model.quoteTiers.assign(tierCount, {"591k Zen", "30", "–"});
+                    model.quoteTiers.front() = {"590k Zen", "4 → 10", "10", "new", true};
+                    model.quoteOrder = "10 for 5,900,000 Zen";
+                    model.quoteBeyond = tierCount == 8 ? "+20 at higher prices · 12,400,000 Zen" : "";
+                    model.quoteShort = "Only 30 available";
+                    model.quoteTotal = "5,900,000 Zen";
+                    model.quoteAge = "Updated 3 s ago";
+                    model.buyQuantity = "10";
+                    for (const char* field :
+                         {"goods", "selected", "selected_name", "rows", "quote_tiers", "quote_order", "quote_beyond",
+                          "quote_short", "quote_total", "quote_age", "buy_quantity"})
                         view.MarkDirty(field);
                     document->Show();
                     UI::RmlBridge::ApplyNativeTextSize(fixture.context);
@@ -307,16 +320,43 @@ TEST_CASE("Auction goods price tiers keep two readable columns when scrolling [a
                     table->GetElementsByClassName(rows, "depth-row");
                     std::erase_if(rows, [](Rml::Element* row) { return !row->IsVisible(true); });
                     REQUIRE(rows.size() == tierCount + 1);
+                    auto right = [](Rml::Element* element)
+                    {
+                        return element->GetAbsoluteOffset(Rml::BoxArea::Border).x +
+                               element->GetBox().GetSize(Rml::BoxArea::Border).x;
+                    };
+                    const float tableRight = table->GetAbsoluteOffset(Rml::BoxArea::Content).x + tableWidth;
                     for (auto* row : rows)
                     {
                         CHECK(row->GetBox().GetSize(Rml::BoxArea::Content).x > tableWidth * 0.9f);
-                        REQUIRE(row->GetNumChildren() == 2);
+                        REQUIRE(row->GetNumChildren() == 3);
                         auto* price = row->GetChild(0);
                         auto* stock = row->GetChild(1);
-                        CHECK(price->GetAbsoluteOffset(Rml::BoxArea::Border).x +
-                                  price->GetBox().GetSize(Rml::BoxArea::Border).x <
+                        auto* order = row->GetChild(2);
+                        CHECK(price->GetAbsoluteOffset(Rml::BoxArea::Border).x <
                               stock->GetAbsoluteOffset(Rml::BoxArea::Border).x);
+                        CHECK(stock->GetAbsoluteOffset(Rml::BoxArea::Border).x <
+                              order->GetAbsoluteOffset(Rml::BoxArea::Border).x);
+                        CHECK(right(order) <= tableRight + 1);
                     }
+                    Rml::ElementList footers;
+                    table->GetElementsByClassName(footers, "depth-footer");
+                    std::erase_if(footers, [](Rml::Element* footer) { return !footer->IsVisible(true); });
+                    CHECK(footers.size() == (tierCount == 8 ? 2u : 1u));
+                    for (auto* footer : footers)
+                        CHECK(right(footer) <= tableRight + 1);
+                    // The freshness line and its Refresh control stay inside the details pane.
+                    Rml::ElementList freshness;
+                    document->GetElementsByClassName(freshness, "refresh-quote");
+                    REQUIRE(freshness.size() == 1);
+                    auto* refresh = freshness.front();
+                    CHECK(refresh->IsVisible(true));
+                    auto* details = refresh->GetParentNode();
+                    while (details && !details->IsClassSet("details"))
+                        details = details->GetParentNode();
+                    REQUIRE(details);
+                    CHECK(right(refresh) <= right(details) + 1);
+                    CHECK(refresh->GetBox().GetSize(Rml::BoxArea::Border).x > 0);
                     if (tierCount == 8)
                     {
                         REQUIRE(table->GetScrollHeight() > table->GetClientHeight());

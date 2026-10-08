@@ -124,7 +124,24 @@ void Window::HandlePage(Market::Operation operation)
         m_Total = static_cast<std::uint32_t>(state.OwnListings().size());
         model.more = false;
     }
+    const bool reselect = operation == O::GoodsList && m_SentRestart && m_KeepGoods;
+    if (reselect)
+    {
+        // After a purchase the bought goods stay selected, with their quantity, and their quote refreshes.
+        const auto keep = *std::exchange(m_KeepGoods, std::nullopt);
+        const auto kept = std::find_if(m_Goods.begin(), m_Goods.end(), [&keep](const auto& goods)
+                                       { return goods.type == keep.first && goods.level == keep.second; });
+        if (kept != m_Goods.end())
+        {
+            m_Selected = static_cast<int>(kept - m_Goods.begin());
+            model.selected = true;
+        }
+        else
+            ClearQuote();
+    }
     RefreshRows();
+    if (reselect && m_Selected >= 0 && m_Read == Read::None)
+        m_Read = Read::Quote;
     if (model.rows.empty() && !model.more)
         SetStatus({});
 }
@@ -227,6 +244,7 @@ void Window::HandleOutcome(Market::Operation operation)
     const auto outcome = Market::GetState().LastOutcome(operation);
     if (!outcome)
         return;
+    const auto review = m_Review;
     m_View.GetModel().busy = false;
     m_ActionSentAt = {};
     DismissReview();
@@ -267,8 +285,13 @@ void Window::HandleOutcome(Market::Operation operation)
         QueueRead(Read::Own, true);
     else if (operation == O::Claim)
         QueueRead(Read::Collection, true);
+    else if (operation == O::BuyGoods)
+    {
+        m_KeepGoods.emplace(review.type, review.level);
+        QueueRead(Read::Goods, true);
+    }
     else
-        QueueRead(m_View.GetModel().goods ? Read::Goods : Read::Search, true);
+        QueueRead(Read::Search, true);
 }
 
 void Window::OnNotice(const Market::Notice& notice)

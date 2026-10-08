@@ -92,44 +92,4 @@ void Window::RefreshSelling()
     model.sellReady = !model.busy && check.activeListings < rules.maxActiveListings && CharacterMachine &&
                       *fee <= CharacterMachine->Gold;
 }
-
-void Window::RefreshQuote()
-{
-    auto& model = m_View.GetModel();
-    model.quoteTotal.clear();
-    const auto& quote = Market::GetState().CurrentQuote();
-    if (!quote || m_Selected < 0 || static_cast<std::size_t>(m_Selected) >= m_Goods.size())
-        return;
-    auto& goods = m_Goods[m_Selected];
-    const auto quantity = ParseQuantity(model.buyQuantity, std::numeric_limits<std::uint32_t>::max());
-    if (!quantity || quote->type != goods.type || quote->level != goods.level || quote->requestedQuantity != *quantity)
-        return;
-    model.stock = std::to_string(quote->result == Market::Result::Success ? goods.available : quote->fillableQuantity) +
-                  " available";
-    if (quote->result != Market::Result::Success || quote->fillableQuantity < *quantity)
-    {
-        SetStatus(ResultText(quote->result));
-        m_Dirty = true;
-        return;
-    }
-    if (!quote->tiers.empty())
-    {
-        goods.lowestUnitPrice = quote->tiers.front().unitPrice;
-        RefreshRows();
-    }
-    model.quoteTotal = ExactZen(quote->total) + " Zen";
-    model.selectedDetail.clear();
-    model.quoteTiers.clear();
-    for (const auto& tier : quote->tiers)
-    {
-        model.quoteTiers.push_back({CompactZen(tier.unitPrice) + " Zen", std::to_string(tier.quantity)});
-    }
-    if (m_Review.action == Action::BuyGoods && !model.busy)
-    {
-        // The revised quote is displayed, but never sent until a new explicit review.
-        DismissReview();
-        SetStatus("Price changed. Review the new total.");
-    }
-    m_Dirty = true;
-}
 } // namespace UI::AuctionHouse

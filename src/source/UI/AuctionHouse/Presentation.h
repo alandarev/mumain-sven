@@ -16,7 +16,8 @@ namespace Market = GameLogic::AuctionHouse;
 // Decimal arithmetic only: an entered amount must resolve to an exact whole Zen.
 std::optional<Market::Zen> ParseZen(std::string_view text, Market::Zen limit);
 std::optional<std::uint32_t> ParseQuantity(std::string_view text, std::uint32_t limit);
-std::string ExactZen(Market::Zen value);
+// Grouped digits; wide enough for a quantity times a unit price.
+std::string ExactZen(std::uint64_t value);
 std::string CompactZen(Market::Zen value);
 std::string ResultText(Market::Result result);
 

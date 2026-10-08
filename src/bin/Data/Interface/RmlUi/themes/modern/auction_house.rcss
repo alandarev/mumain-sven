@@ -176,3 +176,15 @@ select selectvalue { display: block; width: 100%; box-sizing: border-box; paddin
 .sell-depth .depth-row span:first-child { color: token(accent-gold); }
 .filter-card { height: 64%; }
 .panel-inset { position: absolute; z-index: 1; left: 2px; top: 2px; right: 2px; bottom: 2px; border: 1px #676758; pointer-events: none; }
+
+/* Live goods quote: the order column, change marks and freshness. */
+.goods .depth-row > span { flex: 1 1 0; }
+.goods .depth-row > span + span { text-align: right; }
+.depth-row.changed { background-color: rgba(255,214,0,38); }
+.tier-note { color: token(accent-gold); font-size: 0.85em; }
+.depth-footer { padding: 0.45em 0; text-align: right; font-size: 0.9em; }
+.listing.changed .row-preview { color: token(accent-gold); }
+.field-note { margin-top: 0.3em; font-size: 0.85em; }
+.quote-freshness { display: flex; align-items: center; justify-content: space-between; margin: 0.4em 0 0.6em; }
+.refresh-quote { padding: 0.2em 0.6em; border: 1px token(border-inner); }
+.review-card > .review-detail { margin-bottom: 0.4em; }

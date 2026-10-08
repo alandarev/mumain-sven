@@ -20,11 +20,21 @@ struct RowModel
     Rml::String summary, stats, options, requirements;
     bool highlighted = false;
     int units = 1;
+    // A goods row whose lowest price just changed in the live quote.
+    bool changed = false;
 };
 
 struct ChoiceModel
 {
     Rml::String value, label;
+};
+
+// One price tier of the buyer's goods quote: its stock, the units of the entered order it fills,
+// and a change mark ("new", or the stock as "4 → 10") while the live quote highlights it.
+struct TierModel
+{
+    Rml::String price, stock, order, note;
+    bool changed = false;
 };
 
 struct AdvancedFilters
@@ -54,12 +64,16 @@ struct WindowModel
     Rml::String selectedSeller;
     Rml::String quoteTotal, stock, durationValue;
     Rml::String confirmTitle, confirmName, confirmTotal, confirmFee, confirmAction;
+    // Review lines above the total: the order split per price, or an item's option summary.
+    Rml::String confirmDetail;
     bool loading = false, more = false, selected = false, cannotEquip = false;
     bool stepDown = false, stepUp = false, statusError = false;
     bool goods = false, sellGoods = false, sellReady = false, busy = false, review = false;
     std::vector<RowModel> rows, inventory;
     std::vector<ChoiceModel> options, types, durations, sets;
-    std::vector<ChoiceModel> quoteTiers;
+    std::vector<TierModel> quoteTiers;
+    // Below the buyer's tiers: "8 for 4,730,000 Zen", "+N at higher prices · X Zen", "Only N available".
+    Rml::String quoteOrder, quoteBeyond, quoteShort, quoteAge;
     // Sell price entry: where the value came from, a hint or reason, and the goods market beside it.
     Rml::String priceSource, priceNote, marketLowest, maxQuantity;
     bool canMatch = false, canUndercut = false, canForget = false;

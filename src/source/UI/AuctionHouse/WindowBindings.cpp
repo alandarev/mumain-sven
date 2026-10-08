@@ -161,6 +161,7 @@ void Window::BindEvents(Rml::DataModelConstructor& c)
               SaveSellDraft();
               RefreshSelling();
           });
+    event("refresh_quote", [this](const auto&) { RequestQuoteNow(); });
     event("buy", [this](const auto&) { ReviewBuy(); });
     event("sell", [this](const auto&) { ReviewSale(); });
     event("cancel_listing", [this, index](const auto& args) { ReviewCancel(index(args)); });
@@ -235,12 +236,17 @@ void Window::Dirty()
                                              "selected_tone",
                                              "quote_total",
                                              "quote_tiers",
+                                             "quote_order",
+                                             "quote_beyond",
+                                             "quote_short",
+                                             "quote_age",
                                              "stock",
                                              "duration_value",
                                              "confirm_title",
                                              "confirm_name",
                                              "confirm_total",
                                              "confirm_fee",
+                                             "confirm_detail",
                                              "confirm_action",
                                              "loading",
                                              "more",

@@ -151,6 +151,8 @@ void Window::OnClosed()
     m_View.GetModel().loading = false;
     m_SellDrafts.clear();
     m_PublishedPrice.reset();
+    m_KeepGoods.reset();
+    ClearQuote();
     ClearSellSelection();
     m_SentRead = Read::None;
     Dirty();
@@ -224,6 +226,7 @@ bool Window::Update()
         QueueSellMarketRefresh(now);
     }
     CheckScroll();
+    RefreshLiveQuote(now);
     PumpRequests(now);
     SyncIcons();
     if (m_StatusUntil != RequestClock::Time{} && now >= m_StatusUntil)
@@ -283,6 +286,8 @@ void Window::SwitchTab(const Rml::String& tab)
     m_View.GetModel().tab = tab;
     m_Generation++;
     m_Selected = -1;
+    m_KeepGoods.reset();
+    ClearQuote();
     m_View.GetModel().selected = false;
     m_View.GetModel().rows.clear();
     m_View.GetModel().count.clear();
@@ -312,6 +317,8 @@ void Window::FilterChanged()
     m_SearchAt = RequestClock::Time::clock::now() + SearchDebounce;
     m_Read = Read::None;
     m_Selected = -1;
+    m_KeepGoods.reset();
+    ClearQuote();
     m_View.GetModel().selected = false;
     m_View.GetModel().rows.clear();
     m_View.GetModel().count.clear();
