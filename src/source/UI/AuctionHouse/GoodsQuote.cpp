@@ -60,17 +60,29 @@ std::string ShortfallText(const OrderSplit& split)
     return "Only " + std::to_string(split.fillable) + " available";
 }
 
-std::uint32_t AvailableAfterQuote(const Market::Quote& quote, std::uint32_t earlier)
+GoodsAvailability AvailableAfterQuote(const Market::Quote& quote)
 {
     if (quote.fillableQuantity < quote.requestedQuantity)
-        return quote.fillableQuantity;
+        return {quote.fillableQuantity, true};
     std::uint64_t stock = 0;
     for (const auto& tier : quote.tiers)
         stock += tier.quantity;
     const auto counted = static_cast<std::uint32_t>(std::min<std::uint64_t>(stock, UINT32_MAX));
     if (quote.tiers.size() < MaximumQuoteTiers)
-        return counted;
-    return std::max({counted, quote.fillableQuantity, earlier});
+        return {counted, true};
+    return {std::max(counted, quote.fillableQuantity), false};
+}
+
+bool GoodsCountNeeded(const GoodsAvailability& availability)
+{
+    return !availability.exact;
+}
+
+GoodsAvailability AvailableFromGoodsList(std::span<const Market::GoodsRow> rows, std::uint16_t type, std::uint8_t level)
+{
+    const auto row = std::find_if(rows.begin(), rows.end(), [type, level](const auto& goods)
+                                  { return goods.type == type && goods.level == level; });
+    return {row == rows.end() ? 0 : row->available, true};
 }
 
 std::string MarketLowestText(Market::Zen lowest, std::span<const Market::PriceTier> tiers)

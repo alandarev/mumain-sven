@@ -284,6 +284,21 @@ TEST_CASE("Auction listing review shows the unit price line fee terms and procee
     CHECK(PercentText(1000) == "10 %");
 }
 
+TEST_CASE("Auction buy quantity: an exact count is a ceiling, a lower bound is not [auction][receipts]")
+{
+    auto hint = BuyQuantityHint("56", {56, true});
+    CHECK(hint.text == "56 available");
+    CHECK_FALSE(hint.error);
+    CHECK(BuyQuantityHint("57", {56, true}).error);
+    // Eight full tiers: "40+ available", and a larger order may still be filled.
+    hint = BuyQuantityHint("57", {40, false});
+    CHECK(hint.text == "40+ available");
+    CHECK_FALSE(hint.error);
+    CHECK(BuyQuantityHint("0", {40, false}).error);
+    CHECK(BuyQuantityHint("1.5", {40, false}).error);
+    CHECK(BuyQuantityHint("", {40, false}).text == "Whole number from 1");
+}
+
 TEST_CASE("Auction inline validation names range shortfall count and sell reasons [auction][receipts]")
 {
     auto hint = QuantityHint("8", 8);

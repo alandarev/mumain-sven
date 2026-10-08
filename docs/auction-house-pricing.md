@@ -122,7 +122,11 @@ marked for about three seconds; a line such as "Lowest fell 600k → 590k" stays
 about ten seconds, or until you select another row or open a review. The price table's In your order column shows how
 many units of the entered quantity each price fills, cheapest first, with the order
 total below it; units filled beyond the eight shown tiers appear as "+N at higher
-prices · X Zen", and "Only N available" when less is for sale than entered. The
+prices · X Zen", and "Only N available" when less is for sale than entered. When
+the quote shows all eight tiers, more may be for sale above them: the window then
+asks the goods list for the exact count of that goods in the same refresh (two
+requests every five seconds); until it answers, the row reads "40+ available" and
+a larger quantity is not refused. The
 purchase review repeats that split per price. After a purchase the goods stay
 selected and their quote refreshes.
 

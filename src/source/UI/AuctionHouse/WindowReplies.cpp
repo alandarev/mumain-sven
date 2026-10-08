@@ -11,8 +11,10 @@ void Window::OnChanged(Market::Operation operation)
     if (!IsVisible())
         return;
     using O = Market::Operation;
-    if (operation == O::Search || operation == O::GoodsList || operation == O::OwnListings ||
-        operation == O::Collection)
+    if (operation == O::GoodsList && m_SentRead == Read::GoodsCount)
+        ApplyGoodsCount();
+    else if (operation == O::Search || operation == O::GoodsList || operation == O::OwnListings ||
+             operation == O::Collection)
         HandlePage(operation);
     else if (operation == O::SellCheck)
     {
@@ -72,6 +74,7 @@ void Window::HandlePage(Market::Operation operation)
         m_ListingTimes.clear();
         m_Listings.clear();
         m_Goods.clear();
+        m_SelectedCountExact = true;
         m_Collection.clear();
         model.rows.clear();
         m_Selected = -1;
@@ -187,7 +190,9 @@ void Window::RefreshRows()
             auto row = Describe(item.get(), 0);
             row.price = CompactZen(goods.lowestUnitPrice) + " Zen each";
             row.exactPrice = ExactZen(goods.lowestUnitPrice) + " Zen each";
-            row.meta = std::to_string(goods.available) + " available";
+            const bool selected =
+                static_cast<std::size_t>(&goods - m_Goods.data()) == static_cast<std::size_t>(m_Selected);
+            row.meta = AvailabilityText({goods.available, !selected || m_SelectedCountExact});
             row.detail.clear();
             row.stats.clear();
             row.options.clear();

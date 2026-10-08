@@ -3,6 +3,9 @@
 #include "GameLogic/AuctionHouse/AuctionHouse.h"
 #include "UI/AuctionHouse/Presentation.h"
 
+#include <algorithm>
+#include <limits>
+
 namespace UI::AuctionHouse
 {
 namespace
@@ -240,6 +243,20 @@ FieldHint QuantityHint(std::string_view text, std::uint32_t available)
     if (available == 0)
         return {"None available", true};
     return {available == 1 ? "Whole number 1" : "Whole number 1–" + std::to_string(available), true};
+}
+
+std::string AvailabilityText(const GoodsAvailability& availability)
+{
+    return std::to_string(availability.count) + (availability.exact ? " available" : "+ available");
+}
+
+FieldHint BuyQuantityHint(std::string_view text, const GoodsAvailability& availability)
+{
+    if (availability.exact)
+        return QuantityHint(text, availability.count);
+    if (ParseQuantity(text, std::numeric_limits<std::uint32_t>::max()))
+        return {AvailabilityText(availability), false};
+    return {"Whole number from 1", true};
 }
 
 std::string ZenShortfallText(std::uint64_t need, std::uint64_t have)

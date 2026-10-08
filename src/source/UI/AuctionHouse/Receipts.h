@@ -1,6 +1,7 @@
 #pragma once
 
 #include "GameLogic/AuctionHouse/AuctionHouseTypes.h"
+#include "UI/AuctionHouse/GoodsQuote.h"
 
 #include <cstdint>
 #include <span>
@@ -128,6 +129,11 @@ struct FieldHint
 
 // "8 available", or "Whole number 1–8" while the entered quantity is outside that range.
 FieldHint QuantityHint(std::string_view text, std::uint32_t available);
+// "56 available" or "40+ available".
+std::string AvailabilityText(const GoodsAvailability& availability);
+// The buyer's quantity: an exact count is the ceiling (QuantityHint); a lower bound only needs a
+// whole number from 1, and the quote tells how much of a larger order can be filled.
+FieldHint BuyQuantityHint(std::string_view text, const GoodsAvailability& availability);
 // "Need 177,000 Zen, you have 50,000".
 std::string ZenShortfallText(std::uint64_t need, std::uint64_t have);
 // The balance line of an open review: "Balance 33,544,050 Zen" after paying `debit` from `wallet`,

@@ -94,7 +94,7 @@ void Window::ReviewBuy()
     {
         const auto& row = m_Goods.at(m_Selected);
         // An invalid quantity points at its field instead of asking for a quote (D21).
-        if (QuantityHint(model.buyQuantity, row.available).error)
+        if (BuyQuantityHint(model.buyQuantity, SelectedAvailability()).error)
         {
             FocusBuyQuantity();
             return;

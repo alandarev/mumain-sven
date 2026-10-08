@@ -41,10 +41,24 @@ std::string OrderSummaryText(const OrderSplit& split);
 std::string BeyondTiersText(const OrderSplit& split);
 // "Only N available"; empty when the whole order is fillable.
 std::string ShortfallText(const OrderSplit& split);
-// The units of other sellers for sale after a quote. A shortfall answer counts them exactly; so do
-// fewer than MaximumQuoteTiers tiers (each tier carries its whole stock). With a full tier list the
-// count is only a lower bound, so the earlier count (the goods list) is kept when it is higher.
-std::uint32_t AvailableAfterQuote(const Market::Quote& quote, std::uint32_t earlier);
+// The units of other sellers for sale: exact, or a lower bound ("40+ available") that is no ceiling
+// for the quantity (CR-04).
+struct GoodsAvailability
+{
+    std::uint32_t count = 0;
+    bool exact = true;
+
+    bool operator==(const GoodsAvailability&) const = default;
+};
+
+// After a quote. A shortfall answer counts them exactly; so do fewer than MaximumQuoteTiers tiers
+// (each tier carries its whole stock). A full tier list is only a lower bound: the window then asks
+// the goods list (52) of that type for the exact count (GoodsCountNeeded).
+GoodsAvailability AvailableAfterQuote(const Market::Quote& quote);
+bool GoodsCountNeeded(const GoodsAvailability& availability);
+// The exact count from a goods-list answer for the goods' type; no row means none for sale.
+GoodsAvailability AvailableFromGoodsList(std::span<const Market::GoodsRow> rows, std::uint16_t type,
+                                         std::uint8_t level);
 
 // The selling context line: "Lowest 600,000 · 20 in stock · 50 total". The stock is the stock at
 // the lowest price; the total covers every quoted tier ("+" when the tier list is full).

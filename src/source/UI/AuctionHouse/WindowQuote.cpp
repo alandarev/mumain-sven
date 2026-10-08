@@ -69,8 +69,13 @@ void Window::RefreshQuote()
     m_QuoteAgeSeconds = -1;
     if (!quote->tiers.empty())
         goods.lowestUnitPrice = quote->tiers.front().unitPrice;
-    // "N available" follows every refreshed quote, not the goods list it was opened from.
-    goods.available = AvailableAfterQuote(*quote, goods.available);
+    // "N available" follows every refreshed quote, not the goods list it was opened from. A full tier
+    // list gives a lower bound, and the goods-list row of this type follows for the exact count.
+    const auto availability = AvailableAfterQuote(*quote);
+    goods.available = availability.count;
+    m_SelectedCountExact = availability.exact;
+    if (GoodsCountNeeded(availability) && m_Read == Read::None)
+        m_Read = Read::GoodsCount;
     ShowQuote(now);
     RefreshBuyNote();
     if (m_Review.action == Action::BuyGoods && !model.busy)
@@ -127,7 +132,35 @@ void Window::ShowQuote(RequestClock::Time now)
         (row.changed ? PriceChangeText(m_PreviousLowest, goods.lowestUnitPrice) : CompactZen(goods.lowestUnitPrice)) +
         " Zen each";
     row.exactPrice = ExactZen(goods.lowestUnitPrice) + " Zen each";
+    row.meta = AvailabilityText(SelectedAvailability());
     m_View.MarkDirty("rows");
+}
+
+GoodsAvailability Window::SelectedAvailability() const
+{
+    if (m_Selected < 0 || static_cast<std::size_t>(m_Selected) >= m_Goods.size())
+        return {};
+    return {m_Goods[m_Selected].available, m_SelectedCountExact};
+}
+
+void Window::ApplyGoodsCount()
+{
+    m_SentRead = Read::None;
+    const auto& state = Market::GetState();
+    const auto outcome = state.LastOutcome(Market::Operation::GoodsList);
+    if (outcome && outcome->result == Market::Result::Busy)
+        m_Clock.Busy(RequestClock::Time::clock::now());
+    // A failed count keeps the lower bound; the next capped quote asks again.
+    if (!outcome || outcome->result != Market::Result::Success || m_Selected < 0 ||
+        static_cast<std::size_t>(m_Selected) >= m_Goods.size())
+        return;
+    auto& goods = m_Goods[m_Selected];
+    if (goods.type != m_GoodsCountFor.first || goods.level != m_GoodsCountFor.second)
+        return;
+    goods.available = AvailableFromGoodsList(state.Goods().rows, goods.type, goods.level).count;
+    m_SelectedCountExact = true;
+    ShowQuote(RequestClock::Time::clock::now());
+    RefreshBuyNote();
 }
 
 void Window::ClearQuote()
@@ -135,6 +168,7 @@ void Window::ClearQuote()
     auto& model = m_View.GetModel();
     m_QuoteRefresh.Stop();
     m_ShownQuote.reset();
+    m_SelectedCountExact = true;
     m_TierChanges.clear();
     m_PreviousLowest = 0;
     m_HighlightUntil = {};
@@ -162,7 +196,7 @@ void Window::RefreshBuyNote()
     if (browsing && model.goods && static_cast<std::size_t>(m_Selected) < m_Goods.size())
     {
         known = true;
-        hint = QuantityHint(model.buyQuantity, m_Goods[m_Selected].available);
+        hint = BuyQuantityHint(model.buyQuantity, SelectedAvailability());
         facts.quantityValid = !hint.error;
         const auto quantity = ParseQuantity(model.buyQuantity, AnyQuantity);
         if (m_ShownQuote && m_ShownQuote->fillableQuantity && quantity && m_ShownQuote->requestedQuantity == *quantity)

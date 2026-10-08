@@ -75,6 +75,8 @@ private:
         Own,
         Collection,
         Quote,
+        // The goods-list row of the selected goods, for its exact count after a capped quote (CR-04).
+        GoodsCount,
         Sell,
         SellQuote
     };
@@ -163,6 +165,10 @@ private:
     void RefreshLiveQuote(RequestClock::Time now);
     void RequestQuoteNow();
     void RefreshBuyNote();
+    // The selected goods' units for sale: exact from the goods list, or a lower bound after a quote
+    // with a full tier list until the goods-list count answers.
+    GoodsAvailability SelectedAvailability() const;
+    void ApplyGoodsCount();
     void FocusBuyQuantity();
     void ShowLowestMove(RequestClock::Time now);
     void SelectRow(int index);
@@ -256,6 +262,8 @@ private:
     RequestClock::Time m_QuoteShownAt{}, m_HighlightUntil{};
     LowestMove m_LowestMove;
     long long m_QuoteAgeSeconds = -1;
+    bool m_SelectedCountExact = true;
+    std::pair<std::uint16_t, std::uint8_t> m_GoodsCountFor{};
     // The goods row to select again when the goods list reloads after a purchase.
     std::optional<std::pair<std::uint16_t, std::uint8_t>> m_KeepGoods;
 };

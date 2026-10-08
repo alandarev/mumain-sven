@@ -2,6 +2,8 @@
 #include "UI/AuctionHouse/GoodsQuote.h"
 #include "UI/AuctionHouse/RequestClock.h"
 
+#include <algorithm>
+#include <utility>
 #include <vector>
 
 using namespace UI::AuctionHouse;
@@ -80,18 +82,40 @@ TEST_CASE("Auction order split says how much is available when stock is short [a
 TEST_CASE("Auction availability follows each quote [auction][goods-quote]")
 {
     // Fewer than eight tiers carry the whole stock: the live finding (list said 50, tiers held 56).
-    CHECK(AvailableAfterQuote(MakeQuote(8, {{590000, 6}, {600000, 20}, {650000, 30}}, 8, 4740000), 50) == 56);
-    CHECK(AvailableAfterQuote(MakeQuote(1, {{600000, 19}, {650000, 30}}, 1, 600000), 50) == 49);
+    CHECK(AvailableAfterQuote(MakeQuote(8, {{590000, 6}, {600000, 20}, {650000, 30}}, 8, 4740000)) ==
+          GoodsAvailability{56, true});
+    CHECK(AvailableAfterQuote(MakeQuote(1, {{600000, 19}, {650000, 30}}, 1, 600000)) == GoodsAvailability{49, true});
     // A shortfall answer is exact, whatever the tiers.
-    CHECK(AvailableAfterQuote(MakeQuote(999, {{600000, 18}, {650000, 30}}, 48, 0), 50) == 48);
+    CHECK(AvailableAfterQuote(MakeQuote(999, {{600000, 18}, {650000, 30}}, 48, 0)) == GoodsAvailability{48, true});
     // Nothing for sale.
-    CHECK(AvailableAfterQuote(MakeQuote(1, {}, 0, 0), 12) == 0);
-    // A full tier list is only a lower bound: keep the higher earlier count.
+    CHECK(AvailableAfterQuote(MakeQuote(1, {}, 0, 0)) == GoodsAvailability{0, true});
+    CHECK_FALSE(GoodsCountNeeded(AvailableAfterQuote(MakeQuote(1, {{600000, 19}}, 1, 600000))));
+}
+
+TEST_CASE("Auction eight tiers give a lower bound until the goods list counts hidden tiers [auction][goods-quote]")
+{
     std::vector<Market::PriceTier> eight;
+    eight.reserve(MaximumQuoteTiers);
     for (Market::Zen i = 0; i < MaximumQuoteTiers; ++i)
         eight.push_back({1000000 + 50000 * i, 5});
-    CHECK(AvailableAfterQuote(MakeQuote(1, eight, 1, 1000000), 70) == 70);
-    CHECK(AvailableAfterQuote(MakeQuote(1, eight, 1, 1000000), 30) == 40);
+    const auto capped = AvailableAfterQuote(MakeQuote(1, eight, 1, 1000000));
+    CHECK(capped == GoodsAvailability{40, false});
+    CHECK(GoodsCountNeeded(capped));
+    // A larger order fills from hidden tiers: the fillable quantity raises the bound.
+    CHECK(AvailableAfterQuote(MakeQuote(55, eight, 55, 60000000)) == GoodsAvailability{55, false});
+
+    // The goods list counts every tier: 70 while hidden tiers hold 30 more.
+    const std::vector<Market::GoodsRow> before{{7181, 0, 1000000, 70, 9}, {7181, 1, 9000000, 3, 1}};
+    CHECK(AvailableFromGoodsList(before, 7181, 0) == GoodsAvailability{70, true});
+    CHECK(AvailableFromGoodsList(before, 7181, 1) == GoodsAvailability{3, true});
+    // Hidden tiers sold out: the count drops to the shown 40, it is not kept at the earlier 70.
+    const std::vector<Market::GoodsRow> removed{{7181, 0, 1000000, 40, 8}};
+    CHECK(AvailableFromGoodsList(removed, 7181, 0) == GoodsAvailability{40, true});
+    // Hidden tiers grew: the count follows to 95.
+    const std::vector<Market::GoodsRow> grown{{7181, 0, 1000000, 95, 14}};
+    CHECK(AvailableFromGoodsList(grown, 7181, 0) == GoodsAvailability{95, true});
+    // The last listing went: none for sale.
+    CHECK(AvailableFromGoodsList({}, 7181, 0) == GoodsAvailability{0, true});
 }
 
 TEST_CASE("Auction selling line shows the stock at the lowest price and the quoted total [auction][goods-quote]")
@@ -166,6 +190,69 @@ TEST_CASE("Auction live goods quote polls every five seconds and pauses [auction
     }
     refresh.Stop();
     CHECK_FALSE(refresh.Due(start + std::chrono::hours(1), false));
+}
+
+TEST_CASE("Auction capped quotes add one goods-list count per cycle and stay far below the request limit [auction][goods-quote]")
+{
+    // As above, but every quote shows eight tiers, so the window follows each with the goods-list
+    // count (52) through the same single read slot and request clock.
+    std::vector<Market::PriceTier> eight;
+    eight.reserve(MaximumQuoteTiers);
+    for (Market::Zen i = 0; i < MaximumQuoteTiers; ++i)
+        eight.push_back({1000000 + 50000 * i, 5});
+    QuoteRefresh refresh;
+    RequestClock clock;
+    const auto start = RequestClock::Time{} + std::chrono::seconds(100);
+    refresh.Schedule(start);
+    enum class Read : std::uint8_t
+    {
+        None,
+        Quote,
+        GoodsCount
+    };
+    Read queued = Read::None, inFlight = Read::None;
+    std::vector<RequestClock::Time> sent;
+    int counts = 0;
+    RequestClock::Time answerAt{};
+    for (int ms = 0; ms <= 120000; ms += 100)
+    {
+        const auto now = start + std::chrono::milliseconds(ms);
+        if (answerAt != RequestClock::Time{} && now >= answerAt)
+        {
+            answerAt = {};
+            if (inFlight == Read::Quote)
+            {
+                refresh.Schedule(now);
+                if (GoodsCountNeeded(AvailableAfterQuote(MakeQuote(1, eight, 1, 1000000))) && queued == Read::None)
+                    queued = Read::GoodsCount;
+            }
+            inFlight = Read::None;
+        }
+        if (refresh.Due(now, queued != Read::None || inFlight != Read::None))
+        {
+            refresh.Schedule(now);
+            queued = Read::Quote;
+        }
+        if (queued != Read::None && inFlight == Read::None && clock.Ready(now))
+        {
+            clock.Sent(now);
+            inFlight = std::exchange(queued, Read::None);
+            counts += inFlight == Read::GoodsCount;
+            sent.push_back(now);
+            answerAt = now + std::chrono::milliseconds(200);
+        }
+    }
+    // Two requests per five seconds: 0.4 per second against the server's 5.
+    CHECK(counts >= 20);
+    CHECK(sent.size() <= 2 * 120 / 5 + 2);
+    for (std::size_t i = 0; i < sent.size(); ++i)
+    {
+        if (i > 0)
+            CHECK(sent[i] - sent[i - 1] >= std::chrono::milliseconds(260));
+        const auto window = std::count_if(sent.begin(), sent.end(), [&](const auto at)
+                                          { return at >= sent[i] && at < sent[i] + std::chrono::seconds(1); });
+        CHECK(window <= 2);
+    }
 }
 
 TEST_CASE("Auction moved lowest price keeps its text line for ten seconds [auction][goods-quote]")
