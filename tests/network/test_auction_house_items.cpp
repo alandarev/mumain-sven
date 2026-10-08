@@ -140,3 +140,44 @@ TEST_CASE("Auction preview copies retain sale identity separately [auction][item
     item->Key++;
     CHECK_FALSE(UI::AuctionHouse::SameInventoryItem(item, preview, sourceKey));
 }
+
+TEST_CASE("Auction equipment pricing identity ignores serial slot and durability [auction][items]")
+{
+    ItemCatalogue catalogue;
+    mu::ui::window::CItemMng manager;
+    auto bytes = AuctionFixture::Decode<GameLogic::AuctionHouse::SearchPage>("auction-search-result").rows[0].itemData;
+    auto* item = manager.CreateItem(bytes);
+    REQUIRE(item != nullptr);
+    auto* copy = manager.DuplicateItem(item);
+    REQUIRE(copy != nullptr);
+    copy->Durability = static_cast<BYTE>(item->Durability - 1);
+    copy->x = static_cast<BYTE>(item->x + 1);
+    copy->bySelectedSlotIndex = static_cast<BYTE>(item->bySelectedSlotIndex + 1);
+    const auto identity = UI::AuctionHouse::EquipmentPricingIdentity(*item);
+    CHECK_FALSE(identity.goods);
+    CHECK(identity.type == 5);
+    CHECK(identity.level == 9);
+    CHECK(identity.excellentFlags == 9);
+    CHECK(identity.luck);
+    CHECK(identity.skill);
+    CHECK(identity.optionLevel == 3);
+    CHECK(UI::AuctionHouse::EquipmentPricingIdentity(*copy) == identity);
+    const auto changed = [&](auto change)
+    {
+        auto other = *copy;
+        change(other);
+        return !(UI::AuctionHouse::EquipmentPricingIdentity(other) == identity);
+    };
+    CHECK(changed([](ITEM& other) { other.Level++; }));
+    CHECK(changed([](ITEM& other) { other.ExcellentFlags ^= 2; }));
+    CHECK(changed([](ITEM& other) { other.HasLuck = false; }));
+    CHECK(changed([](ITEM& other) { other.HasSkill = false; }));
+    CHECK(changed([](ITEM& other) { other.OptionLevel++; }));
+    CHECK(changed([](ITEM& other) { other.AncientDiscriminator = 2; }));
+    CHECK(changed([](ITEM& other) { other.AncientBonusOption = 10; }));
+    CHECK(changed([](ITEM& other) { other.SocketCount = 1; }));
+    CHECK(changed([](ITEM& other) { other.bySocketOption[0] = 7; }));
+    CHECK(changed([](ITEM& other) { other.Jewel_Of_Harmony_Option = 2; }));
+    CHECK(changed([](ITEM& other) { other.Jewel_Of_Harmony_OptionLevel = 4; }));
+    CHECK(changed([](ITEM& other) { other.option_380 = !other.option_380; }));
+}

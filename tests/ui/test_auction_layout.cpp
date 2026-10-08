@@ -75,7 +75,7 @@ void BindExcept(Rml::DataModelConstructor& c, UI::AuctionHouse::WindowModel& mod
                              "luck",           "skill",       "open_filters",   "apply_filters", "cancel_filters",
                              "clear_filter",   "draft_luck",  "draft_skill",    "price_change",  "price_commit",
                              "price_key",      "price_wheel", "select_content", "match_lowest",  "undercut",
-                             "max_quantity"})
+                             "forget_price",   "max_quantity"})
         if (std::find(handled.begin(), handled.end(), name) == handled.end())
             c.BindEventCallback(name, [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {});
 }
@@ -117,9 +117,10 @@ TEST_CASE("Auction native document stays bounded across tabs themes and scale [a
         model.marketLowest = "Lowest 1,990,000,000 · 2,000+ in stock";
         model.priceSource = "Current lowest";
         model.priceNote = "Rounded to 1,990,000,000";
+        model.canForget = true;
         model.sellTiers.assign(8, {"1,990,000,000", "250"});
         for (const char* field :
-             {"sell_goods", "max_quantity", "market_lowest", "price_source", "price_note", "sell_tiers"})
+             {"sell_goods", "max_quantity", "market_lowest", "price_source", "price_note", "can_forget", "sell_tiers"})
             view.MarkDirty(field);
         for (int width : {640, 1024, 1920})
             for (float scale : {1.f, 1.6f, 2.f})
@@ -373,15 +374,15 @@ TEST_CASE("Auction sell fields select on focus and route price keys and wheel [a
         model.sellGoods = true;
         model.maxQuantity = "Max (8)";
         model.marketLowest = "Lowest 595,000 · 10 in stock";
-        model.priceSource = "Current lowest";
+        model.priceSource = "Last price";
         model.price = "590,000";
-        model.canMatch = model.canUndercut = true;
+        model.canForget = model.canMatch = model.canUndercut = true;
         model.sellTiers = {{"595,000", "4"}, {"600,000", "6"}};
         model.durations = {{"48", "48 h"}};
         model.duration = "48 h";
         for (const char* field :
              {"tab", "selected", "selected_name", "sell_goods", "max_quantity", "market_lowest", "price_source",
-              "price", "can_match", "can_undercut", "sell_tiers", "durations", "duration"})
+              "price", "can_forget", "can_match", "can_undercut", "sell_tiers", "durations", "duration"})
             view.MarkDirty(field);
         document->Show();
         UI::RmlBridge::ApplyNativeTextSize(fixture.context);

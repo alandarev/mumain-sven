@@ -17,6 +17,7 @@ enum class PriceSource : std::uint8_t
 {
     None,
     Typed,
+    Remembered,
     Lowest
 };
 
@@ -63,9 +64,10 @@ public:
     PriceStepState Steps(const Market::Rules& rules, Market::Zen lowest) const;
     // Match lowest and Undercut: the player's choice, committed at once.
     void Choose(const Market::Rules& rules, Market::Zen price);
-    // A selected item's starting price: the unsaved draft, else the lowest other-seller price.
-    // Leaves an edited field alone and returns whether it wrote.
-    bool Prefill(const Market::Rules& rules, std::optional<std::string_view> draft, Market::Zen lowest);
+    // A selected item's starting price: the unsaved draft, else the remembered price, else the
+    // lowest other-seller price. Leaves an edited field alone and returns whether it wrote.
+    bool Prefill(const Market::Rules& rules, std::optional<std::string_view> draft,
+                 std::optional<Market::Zen> remembered, Market::Zen lowest);
 
 private:
     void Write(Market::Zen price);

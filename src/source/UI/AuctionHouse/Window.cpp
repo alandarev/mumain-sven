@@ -150,6 +150,7 @@ void Window::OnClosed()
     m_View.GetModel().inventory.clear();
     m_View.GetModel().loading = false;
     m_SellDrafts.clear();
+    m_PublishedPrice.reset();
     ClearSellSelection();
     m_SentRead = Read::None;
     Dirty();

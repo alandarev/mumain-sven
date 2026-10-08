@@ -62,7 +62,7 @@ struct WindowModel
     std::vector<ChoiceModel> quoteTiers;
     // Sell price entry: where the value came from, a hint or reason, and the goods market beside it.
     Rml::String priceSource, priceNote, marketLowest, maxQuantity;
-    bool canMatch = false, canUndercut = false;
+    bool canMatch = false, canUndercut = false, canForget = false;
     std::vector<ChoiceModel> sellTiers;
 };
 void BindWindowModel(Rml::DataModelConstructor& constructor, WindowModel& model);

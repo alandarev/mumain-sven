@@ -262,6 +262,7 @@ void Window::Dirty()
                                              "max_quantity",
                                              "can_match",
                                              "can_undercut",
+                                             "can_forget",
                                              "sell_tiers"};
     for (const char* field : fields)
         m_View.MarkDirty(field);

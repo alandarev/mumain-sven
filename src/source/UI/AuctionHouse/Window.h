@@ -3,6 +3,7 @@
 #include "stdafx.h"
 
 #include "GameLogic/AuctionHouse/AuctionHouse.h"
+#include "GameLogic/AuctionHouse/AuctionHousePriceMemory.h"
 #include "UI/AuctionHouse/PriceEntry.h"
 #include "UI/AuctionHouse/Presentation.h"
 #include "UI/AuctionHouse/WindowModel.h"
@@ -11,6 +12,7 @@
 #include "UI/RmlBridge/RmlThemedView.h"
 
 #include <deque>
+#include <filesystem>
 #include <functional>
 #include <memory>
 #include <unordered_map>
@@ -94,6 +96,11 @@ private:
     {
         Rml::String price, quantity;
     };
+    struct RememberedListing
+    {
+        Market::PricingIdentity identity;
+        Market::Zen price = 0;
+    };
 
     void Bind(Rml::DataModelConstructor& constructor, WindowModel& model);
     void BindEvents(Rml::DataModelConstructor& constructor);
@@ -137,6 +144,7 @@ private:
     void EditPrice(bool commit);
     std::optional<Market::Zen> CommitPrice();
     void ChoosePrice(std::optional<Market::Zen> price);
+    void ForgetPrice();
     void ShowPrice();
     void RefreshPriceEntry();
     void SaveSellDraft();
@@ -145,6 +153,8 @@ private:
     void RefreshSellMarket();
     void QueueSellMarketRefresh(RequestClock::Time now);
     Market::Zen SellLowest() const;
+    bool EnsurePriceMemory();
+    void RememberPublishedPrice();
     void SyncIcons();
     void Hover(int index, bool inventory);
     void ClearItems();
@@ -182,7 +192,12 @@ private:
     PriceEntry m_PriceEntry;
     std::optional<Market::SellCheck> m_SellCheck;
     std::optional<Market::Quote> m_SellQuote;
+    std::optional<Market::PricingIdentity> m_SellIdentity;
     std::unordered_map<std::uint32_t, SellDraft> m_SellDrafts;
     RequestClock::Time m_SellMarketAt{};
+    Market::PriceMemory m_PriceMemory;
+    std::string m_PriceMemoryOwner;
+    std::filesystem::path m_PriceMemoryPath;
+    std::optional<RememberedListing> m_PublishedPrice;
 };
 } // namespace UI::AuctionHouse

@@ -232,6 +232,8 @@ void Window::HandleOutcome(Market::Operation operation)
     DismissReview();
     if (outcome->result == Market::Result::Busy)
         m_Clock.Busy(RequestClock::Time::clock::now());
+    if (operation == Market::Operation::CreateListing && outcome->result != Market::Result::Success)
+        m_PublishedPrice.reset();
     if (outcome->result != Market::Result::Success)
     {
         SetStatus(ResultText(outcome->result));
@@ -255,6 +257,7 @@ void Window::HandleOutcome(Market::Operation operation)
     m_StatusUntil = RequestClock::Time::clock::now() + std::chrono::milliseconds(3200);
     if (operation == O::CreateListing)
     {
+        RememberPublishedPrice();
         m_SellDrafts.erase(m_SellKey);
         ClearSellSelection();
         RefreshInventory();

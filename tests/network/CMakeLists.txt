@@ -14,6 +14,9 @@ mu_add_test(NAME test_auction_house_state
         ${CMAKE_SOURCE_DIR}/src/source/GameLogic/AuctionHouse/AuctionHouseNameSearch.cpp
         ${CMAKE_SOURCE_DIR}/src/source/GameLogic/AuctionHouse/AuctionHouseFees.cpp
         ${CMAKE_SOURCE_DIR}/src/source/GameLogic/AuctionHouse/AuctionHousePrices.cpp)
+mu_add_test(NAME test_auction_house_price_memory
+    SOURCES test_auction_house_price_memory.cpp
+        ${CMAKE_SOURCE_DIR}/src/source/GameLogic/AuctionHouse/AuctionHousePriceMemory.cpp)
 foreach(auction_test IN ITEMS test_auction_house_packets test_auction_house_state)
     target_compile_definitions(${auction_test} PRIVATE
         AUCTION_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/auction")

@@ -157,35 +157,42 @@ TEST_CASE("Auction Match lowest and Undercut use the lowest other-seller price [
     CHECK(entry.Note() == "Rounded to 590,000");
 }
 
-TEST_CASE("Auction price prefill prefers the draft then the lowest price and keeps edits [auction][price-entry]")
+TEST_CASE("Auction price prefill prefers draft then remembered then lowest and keeps edits [auction][price-entry]")
 {
     const auto rules = MarketRules();
     PriceEntry entry;
-    REQUIRE(entry.Prefill(rules, std::string_view("12,500,000"), 600000));
+    REQUIRE(entry.Prefill(rules, std::string_view("12,500,000"), 590000, 600000));
     CHECK(entry.Text() == "12,500,000");
     CHECK(entry.Source() == PriceSource::Typed);
     CHECK(entry.Edited());
 
     entry.Reset();
-    REQUIRE(entry.Prefill(rules, std::nullopt, 600000));
+    REQUIRE(entry.Prefill(rules, std::nullopt, 590000, 600000));
+    CHECK(entry.Text() == "590,000");
+    CHECK(entry.Source() == PriceSource::Remembered);
+    CHECK(PriceSourceLabel(entry.Source()) == "Last price");
+    CHECK_FALSE(entry.Edited());
+
+    entry.Reset();
+    REQUIRE(entry.Prefill(rules, std::nullopt, 594000, 0)); // Remembered under an older rule.
+    CHECK(entry.Text() == "590,000");
+
+    entry.Reset();
+    REQUIRE(entry.Prefill(rules, std::nullopt, std::nullopt, 600000));
     CHECK(entry.Text() == "600,000");
     CHECK(PriceSourceLabel(entry.Source()) == "Current lowest");
-    CHECK_FALSE(entry.Edited());
     // A later answer may move an untouched lowest price...
-    REQUIRE(entry.Prefill(rules, std::nullopt, 590000));
+    REQUIRE(entry.Prefill(rules, std::nullopt, std::nullopt, 590000));
     CHECK(entry.Text() == "590,000");
     // ...but never a price the player has edited.
     REQUIRE(entry.Edit("610,000"));
     CHECK(entry.Source() == PriceSource::Typed);
     CHECK(PriceSourceLabel(entry.Source()).empty());
-    CHECK_FALSE(entry.Prefill(rules, std::nullopt, 580000));
+    CHECK_FALSE(entry.Prefill(rules, std::nullopt, 595000, 580000));
     CHECK(entry.Text() == "610,000");
 
     entry.Reset();
-    REQUIRE(entry.Prefill(rules, std::nullopt, 594000)); // An older off-step listing.
-    CHECK(entry.Text() == "590,000");
-    entry.Reset();
-    CHECK_FALSE(entry.Prefill(rules, std::nullopt, 0));
+    CHECK_FALSE(entry.Prefill(rules, std::nullopt, std::nullopt, 0));
     CHECK(entry.Text().empty());
     CHECK(entry.Source() == PriceSource::None);
 }

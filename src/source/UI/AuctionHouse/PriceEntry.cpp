@@ -153,7 +153,8 @@ void PriceEntry::Choose(const Market::Rules& rules, Market::Zen price)
     Commit(rules);
 }
 
-bool PriceEntry::Prefill(const Market::Rules& rules, std::optional<std::string_view> draft, Market::Zen lowest)
+bool PriceEntry::Prefill(const Market::Rules& rules, std::optional<std::string_view> draft,
+                         std::optional<Market::Zen> remembered, Market::Zen lowest)
 {
     if (m_Edited)
         return false;
@@ -167,7 +168,12 @@ bool PriceEntry::Prefill(const Market::Rules& rules, std::optional<std::string_v
         m_Edited = true;
         return true;
     }
-    if (const auto valid = ValidLowest(rules, lowest))
+    if (const auto price = remembered ? Market::RoundPriceDown(rules, *remembered) : std::nullopt)
+    {
+        Write(*price);
+        m_Source = PriceSource::Remembered;
+    }
+    else if (const auto valid = ValidLowest(rules, lowest))
     {
         Write(*valid);
         m_Source = PriceSource::Lowest;
@@ -184,6 +190,8 @@ std::string_view PriceSourceLabel(PriceSource source)
 {
     switch (source)
     {
+    case PriceSource::Remembered:
+        return "Last price";
     case PriceSource::Lowest:
         return "Current lowest";
     default:

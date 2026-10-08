@@ -227,4 +227,24 @@ bool SameInventoryItem(const ITEM* item, const ITEM* saved, std::uint32_t source
                       std::begin(saved->bySocketOption));
 }
 
+GameLogic::AuctionHouse::PricingIdentity EquipmentPricingIdentity(const ITEM& item)
+{
+    GameLogic::AuctionHouse::PricingIdentity identity;
+    identity.type = static_cast<std::uint16_t>(item.Type);
+    identity.level = static_cast<std::uint8_t>(item.Level);
+    identity.excellentFlags = item.ExcellentFlags;
+    identity.luck = item.HasLuck;
+    identity.skill = item.HasSkill;
+    identity.optionType = item.OptionType;
+    identity.optionLevel = item.OptionLevel;
+    identity.ancientDiscriminator = item.AncientDiscriminator;
+    identity.ancientBonus = item.AncientBonusOption;
+    identity.socketCount = item.SocketCount;
+    static_assert(std::tuple_size_v<decltype(identity.sockets)> == MAX_SOCKETS);
+    std::copy(std::begin(item.bySocketOption), std::end(item.bySocketOption), identity.sockets.begin());
+    identity.harmonyOption = item.Jewel_Of_Harmony_Option;
+    identity.harmonyLevel = item.Jewel_Of_Harmony_OptionLevel;
+    identity.option380 = item.option_380;
+    return identity;
+}
 } // namespace UI::AuctionHouse

@@ -188,6 +188,9 @@ void Window::Confirm()
             SetStatus("Item changed. Select it again.");
             return;
         }
+        m_PublishedPrice.reset();
+        if (m_SellIdentity)
+            m_PublishedPrice = RememberedListing{*m_SellIdentity, m_Review.amount};
     }
     m_Read = Read::None;
     m_ActionQueued = true;

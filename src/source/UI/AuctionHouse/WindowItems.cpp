@@ -153,6 +153,7 @@ void Window::SelectInventory(int slot)
     m_SelectedIcon = {Item(g_pNewItemMng->DuplicateItem(item)), nullptr};
     m_SellCheck.reset();
     m_SellQuote.reset();
+    m_SellIdentity.reset();
     m_PriceEntry.Reset();
     model.quantity = "1";
     model.maxQuantity.clear();
@@ -161,7 +162,7 @@ void Window::SelectInventory(int slot)
     if (const auto draft = m_SellDrafts.find(m_SellKey); draft != m_SellDrafts.end())
     {
         model.quantity = draft->second.quantity;
-        m_PriceEntry.Prefill(Market::GetState().GetRules(), draft->second.price, 0);
+        m_PriceEntry.Prefill(Market::GetState().GetRules(), draft->second.price, std::nullopt, 0);
     }
     ShowPrice();
     RefreshPriceEntry();

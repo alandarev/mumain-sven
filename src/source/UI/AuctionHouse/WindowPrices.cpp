@@ -1,6 +1,11 @@
 #include "stdafx.h"
 #include "UI/AuctionHouse/Window.h"
+#include "UI/AuctionHouse/ItemPresentation.h"
 #include "UI/AuctionHouse/PriceInput.h"
+#include "Core/Utilities/StringUtils.h"
+#include "Network/Server/ServerListManager.h"
+#include "Network/Server/WSclient.h"
+#include "Scenes/SceneCore.h"
 
 #include <RmlUi/Core/ElementDocument.h>
 #include <RmlUi/Core/Event.h>
@@ -75,6 +80,7 @@ void Window::BindPriceEvents(Rml::DataModelConstructor& c)
          });
     bind("undercut", [this](Rml::Event&)
          { m_Events.push_back([this] { ChoosePrice(UndercutPrice(Market::GetState().GetRules(), SellLowest())); }); });
+    bind("forget_price", [this](Rml::Event&) { m_Events.push_back([this] { ForgetPrice(); }); });
     bind("max_quantity",
          [this](Rml::Event&)
          {
@@ -152,6 +158,21 @@ void Window::ChoosePrice(std::optional<Market::Zen> price)
     RefreshSelling();
 }
 
+void Window::ForgetPrice()
+{
+    if (!m_SellIdentity || m_View.GetModel().busy || !EnsurePriceMemory())
+        return;
+    if (m_PriceMemory.Forget(*m_SellIdentity) && !m_PriceMemory.Save(m_PriceMemoryPath, m_PriceMemoryOwner))
+        SetStatus("Could not save the remembered prices.");
+    if (m_PriceEntry.Source() == PriceSource::Remembered)
+    {
+        m_PriceEntry.Reset();
+        m_PriceEntry.Prefill(Market::GetState().GetRules(), std::nullopt, std::nullopt, SellLowest());
+        ShowPrice();
+    }
+    RefreshSelling();
+}
+
 void Window::RefreshPriceEntry()
 {
     auto& model = m_View.GetModel();
@@ -167,6 +188,7 @@ void Window::RefreshPriceEntry()
         model.priceNote = steps.reason;
     model.canMatch = ready && lowest != 0 && Market::RoundPriceDown(rules, lowest).has_value();
     model.canUndercut = ready && UndercutPrice(rules, lowest).has_value();
+    model.canForget = m_SellIdentity && EnsurePriceMemory() && m_PriceMemory.Find(*m_SellIdentity).has_value();
 }
 
 void Window::SaveSellDraft()
@@ -189,6 +211,7 @@ void Window::ClearSellSelection()
     m_SellKey = 0;
     m_SellCheck.reset();
     m_SellQuote.reset();
+    m_SellIdentity.reset();
     m_PriceEntry.Reset();
     model.selected = false;
     model.sellGoods = false;
@@ -231,9 +254,19 @@ bool Window::AcceptSellCheck()
         model.quantity = "1";
     if (check->result != Market::Result::Success || check->reason != 0)
         return true;
+    if (!m_SellIdentity)
+    {
+        if (model.sellGoods)
+            m_SellIdentity = Market::GoodsPricingIdentity(check->type, check->level);
+        else if (m_SelectedIcon.item)
+            m_SellIdentity = EquipmentPricingIdentity(*m_SelectedIcon.item);
+    }
+    std::optional<Market::Zen> remembered;
+    if (m_SellIdentity && EnsurePriceMemory())
+        remembered = m_PriceMemory.Find(*m_SellIdentity);
     // Typing that has not been handled yet still counts as an edit, so a late answer cannot replace it.
     m_PriceEntry.Edit(model.price);
-    if (m_PriceEntry.Prefill(state.GetRules(), std::nullopt, SellLowest()))
+    if (m_PriceEntry.Prefill(state.GetRules(), std::nullopt, remembered, SellLowest()))
         ShowPrice();
     RefreshSellMarket();
     if (model.sellGoods)
@@ -284,4 +317,30 @@ void Window::QueueSellMarketRefresh(RequestClock::Time now)
     QueueRead(Read::Sell);
 }
 
+bool Window::EnsurePriceMemory()
+{
+    if (LogInID[0] == L'\0')
+        return false;
+    const auto owner =
+        Market::PriceMemoryOwner(szServerIpAddress ? StringUtils::WideToNarrow(szServerIpAddress) : std::string{},
+                                 g_ServerPort, StringUtils::WideToNarrow(g_ServerListManager->GetSelectServerName()),
+                                 g_ServerListManager->GetSelectServerIndex(), StringUtils::WideToNarrow(LogInID));
+    if (owner == m_PriceMemoryOwner)
+        return true;
+    m_PriceMemoryOwner = owner;
+    m_PriceMemoryPath = Market::PriceMemoryPath(owner);
+    // A missing or unreadable file starts an empty memory; the next publication rewrites it.
+    m_PriceMemory.Load(m_PriceMemoryPath, owner);
+    return true;
+}
+
+void Window::RememberPublishedPrice()
+{
+    const auto published = std::exchange(m_PublishedPrice, std::nullopt);
+    if (!published || !EnsurePriceMemory())
+        return;
+    m_PriceMemory.Remember(published->identity, published->price);
+    if (!m_PriceMemory.Save(m_PriceMemoryPath, m_PriceMemoryOwner))
+        SetStatus("Listed. The price could not be remembered.");
+}
 } // namespace UI::AuctionHouse

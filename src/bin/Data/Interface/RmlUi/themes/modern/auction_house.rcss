@@ -164,6 +164,7 @@ select selectvalue { display: block; width: 100%; box-sizing: border-box; paddin
 .price-label { display: flex; align-items: baseline; margin-top: 1.1em; }
 .selling .details .price-label label { flex: 1; margin: 0 0 0.35em; }
 .price-source { color: token(accent-gold); font-size: 0.85em; margin-left: 0.5em; white-space: nowrap; }
+.forget { padding: 0 0 0 0.6em; color: token(text-secondary); font-size: 0.85em; text-decoration: underline; }
 .price-help { margin-top: 0.3em; }
 .price-note { margin-top: 0.3em; color: token(accent-gold); font-size: 0.85em; }
 .market { margin-top: 0.6em; }

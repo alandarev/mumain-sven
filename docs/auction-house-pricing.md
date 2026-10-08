@@ -35,6 +35,19 @@ refresh never replaces a price you have typed. Equipment is never priced from
 other listings. Max (n) fills in the whole quantity you hold; clicking into a
 quantity or price field selects its content, so typing replaces it.
 
+The client remembers the price of every listing you publish, per server and
+account, so all characters of an account share it. Goods are remembered by type
+and level (loose jewels and bundles differ); equipment by type, upgrade level and
+every option (excellent options, luck, skill, additional option, ancient set,
+sockets, harmony and the level-380 option), never by its serial, slot or
+durability. Selecting an item to sell fills in, in this order, the price you were
+editing for that item in this window, the remembered price ("Last price", rounded
+down if the step rule changed), for goods the current lowest price of other
+sellers ("Current lowest"), or nothing. Forget deletes a remembered price. The
+memory keeps the 256 most recently published prices in
+`Config/auction-prices/<hash>.prices` beside the client; it holds no password or
+session data.
+
 Fees and listing durations also come from the broker. Posting costs the announced
 flat fee plus the listing total multiplied by its posting basis points, divided
 by 10,000 and rounded down. The sale fee uses the same rounding on the amount of
