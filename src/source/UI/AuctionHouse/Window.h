@@ -186,6 +186,8 @@ private:
     void DismissReview();
     // The open review's balance line follows the wallet (a sale notice or a claim can change it).
     void RefreshReviewBalance();
+    // Takes over a changed wallet everywhere it is shown; called every frame and after a rules refresh.
+    void SyncWallet();
     void Confirm();
     bool SendAction();
     void StepPrice(PriceStepInput input);

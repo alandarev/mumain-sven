@@ -194,15 +194,7 @@ bool Window::Update()
             return true;
     }
     const auto now = RequestClock::Time::clock::now();
-    if (CharacterMachine && m_Wallet != CharacterMachine->Gold)
-    {
-        m_Wallet = CharacterMachine->Gold;
-        m_View.GetModel().wallet = CompactZen(m_Wallet) + " Zen";
-        RefreshSelling();
-        RefreshBuyNote();
-        RefreshReviewBalance();
-        m_Dirty = true;
-    }
+    SyncWallet();
     if (m_View.GetModel().busy && m_ActionSentAt != RequestClock::Time{} && now - m_ActionSentAt > RequestTimeout)
     {
         SetStatus(std::string(OutcomeUnknownText));

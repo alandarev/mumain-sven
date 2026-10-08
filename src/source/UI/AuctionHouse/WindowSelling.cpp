@@ -21,10 +21,25 @@ void Window::RefreshRules()
     model.priceExamples = help.examples;
     model.priceGrid = help.grid;
     model.priceRange = help.range;
-    m_Wallet = CharacterMachine ? CharacterMachine->Gold : 0;
     if (CharacterMachine)
         model.wallet = CompactZen(static_cast<Market::Zen>(CharacterMachine->Gold)) + " Zen";
+    SyncWallet();
     RefreshSelling();
+    m_Dirty = true;
+}
+
+void Window::SyncWallet()
+{
+    // The one place that takes over a changed wallet, so every view of it follows: the header, the Sell
+    // fee check, the buy shortfall and an open review's balance. A notice's rules refresh used to take
+    // the new Zen over silently, which left an open review's balance stale.
+    if (!CharacterMachine || m_Wallet == CharacterMachine->Gold)
+        return;
+    m_Wallet = CharacterMachine->Gold;
+    m_View.GetModel().wallet = CompactZen(m_Wallet) + " Zen";
+    RefreshSelling();
+    RefreshBuyNote();
+    RefreshReviewBalance();
     m_Dirty = true;
 }
 
