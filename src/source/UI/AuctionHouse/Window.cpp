@@ -148,10 +148,9 @@ void Window::OnClosed()
     m_Collection.clear();
     m_View.GetModel().rows.clear();
     m_View.GetModel().inventory.clear();
-    m_View.GetModel().selected = false;
     m_View.GetModel().loading = false;
-    m_SellSlot = -1;
-    m_SellKey = 0;
+    m_SellDrafts.clear();
+    ClearSellSelection();
     m_SentRead = Read::None;
     Dirty();
 }
@@ -221,6 +220,7 @@ bool Window::Update()
         m_LastInventory = now;
         RefreshInventory();
         RefreshSelling();
+        QueueSellMarketRefresh(now);
     }
     CheckScroll();
     PumpRequests(now);
@@ -385,6 +385,8 @@ bool Window::SendRead(Read read)
         return Market::RequestCollection(m_Page);
     case Read::Sell:
         return m_SellSlot >= 0 && Market::CheckSell(static_cast<std::uint8_t>(m_SellSlot));
+    case Read::SellQuote:
+        return m_SellCheck && Market::RequestQuote(m_SellCheck->type, m_SellCheck->level, 1);
     case Read::Quote:
     {
         if (m_Selected < 0 || static_cast<std::size_t>(m_Selected) >= m_Goods.size())

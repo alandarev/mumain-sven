@@ -8,8 +8,13 @@ TEST_CASE("Auction Zen entry remains exact at limits and decimal shorthand [auct
 {
     constexpr auto limit = std::numeric_limits<Market::Zen>::max();
     CHECK(ParseZen("1.35kk", limit) == 1350000);
-    CHECK(ParseZen(" 4.294967295B ", limit) == limit);
-    CHECK(ParseZen("1.001k", limit) == 1001);
+    CHECK(ParseZen(" 4,294,967,295 ", limit) == limit);
+    CHECK(ParseZen("2.3b", limit) == 2300000000u);
+    CHECK(ParseZen("1.01k", limit) == 1010);
+    CHECK_FALSE(ParseZen("1.001k", limit));
+    CHECK_FALSE(ParseZen("1.000kk", limit));
+    CHECK_FALSE(ParseZen("1.234k", limit));
+    CHECK_FALSE(ParseZen("4.294967295B", limit));
     CHECK(ParseZen("999", 999) == 999);
     CHECK(ParseZen("1,000", limit) == 1000);
     CHECK(ParseZen("1.5 kk", limit) == 1500000);

@@ -53,7 +53,7 @@ TEST_CASE("Auction rules announce exact limits fees and durations [auction][netw
     CHECK(open.rules.saleFeeBasisPoints == 500);
     CHECK(open.rules.refundPostingFee);
     CHECK(open.rules.durations == std::vector<std::uint8_t>{12, 24, 48, 72});
-    CHECK(open.rules.goodsPriceDigits == 3);
+    CHECK(open.rules.priceStepPrecision == 3);
     CHECK_FALSE(Decode<RulesUpdate>("auction-house-state-closed").open);
 }
 

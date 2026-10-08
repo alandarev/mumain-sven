@@ -23,7 +23,7 @@ std::optional<ServerPacket> ParseRules(Reader& in)
     rules.refundPostingFee = (flags & 1) != 0;
     const auto count = in.Get<std::uint8_t>();
     const auto durations = in.Take(4);
-    rules.goodsPriceDigits = in.Get<std::uint8_t>();
+    rules.priceStepPrecision = in.Get<std::uint8_t>();
     if (state > 1 || count > 4 || durations.size() != 4 || flags > 1)
         return std::nullopt;
     if (update.open && (count == 0 || rules.pageSize == 0 || rules.maxActiveListings == 0 || rules.maxPrice == 0 ||

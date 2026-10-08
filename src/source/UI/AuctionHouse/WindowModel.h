@@ -60,6 +60,10 @@ struct WindowModel
     std::vector<RowModel> rows, inventory;
     std::vector<ChoiceModel> options, types, durations, sets;
     std::vector<ChoiceModel> quoteTiers;
+    // Sell price entry: where the value came from, a hint or reason, and the goods market beside it.
+    Rml::String priceSource, priceNote, marketLowest, maxQuantity;
+    bool canMatch = false, canUndercut = false;
+    std::vector<ChoiceModel> sellTiers;
 };
 void BindWindowModel(Rml::DataModelConstructor& constructor, WindowModel& model);
 } // namespace UI::AuctionHouse

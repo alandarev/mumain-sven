@@ -4,16 +4,36 @@ The client opens Auction House when Zyro sends the broker state. Browse, Sell,
 My auctions and Collection share the existing MU theme and item models. The
 server determines market availability and announces all pricing rules.
 
-Goods are priced in exact whole Zen per unit. The broker announces the allowed
-number of significant digits. With three digits, 2,450,000 Zen can move down to
-2,440,000 or up to 2,460,000. Crossing a power of ten uses the adjacent valid price:
-1,000,000 moves down to 999,000. Prices such as 2,449,999 are off the permitted
-step. A rule of zero digits removes this restriction. Individual item listings
-and quantity multiplied by unit price are not subject to this step rule.
+Prices are whole Zen and move in round steps of about 1 %. The step of a price is
+the largest number of the form 1, 2 or 5 × 10ⁿ that is at most the price divided by
+10^precision, and at least 1; a price is valid when it is a multiple of its step.
+The broker announces the precision (default 2, so every step is 0.4–1 % of the
+price; 0 removes the restriction). With precision 2, 600,000 moves down to 595,000
+or up to 605,000, 1,000,000 moves down to 995,000, and every whole number below 200
+is valid. The rule applies to the unit price of goods and to the price of an item,
+never to a quantity multiplied by a unit price. The server refuses a price that is
+off its step; the client never sends one.
 
-Stepping never silently rounds an entered price. The player chooses the adjacent
-price explicitly. An unavailable lower or upper price disables that direction;
-unit prices must stay positive and within the broker's announced maximum.
+Type a price as digits with optional comma grouping (`590,000`) or as a number with
+the suffix `k`, `kk`, `m` or `b` and at most two decimals (`590k`, `1.5kk`, `2.3b`).
+Other forms, such as `1.000kk`, are refused with a hint naming the accepted formats.
+When the price is committed — Enter, leaving the field, Review listing, or a step —
+a price off its step is rounded down to the nearest valid price and the field says
+so ("Rounded to 93,000,000"); nothing is rounded while you are still typing.
+
+The − and + buttons, the Up and Down keys and the mouse wheel over the focused price
+field move to the previous or next valid price, and ten valid prices with Shift. A
+price off its step moves to the valid price below or above it. With an empty field,
++ starts at the lowest price of other sellers of the same goods and − one step
+below it; otherwise the buttons stay disabled until a price is typed. At 1 and at
+the broker's maximum the corresponding direction is disabled and the field says why.
+
+While you price goods, the Sell tab shows the lowest price of other sellers and up
+to eight price tiers of the market, refreshed every five seconds. Match lowest
+copies the lowest price and Undercut sets the highest valid price below it. A
+refresh never replaces a price you have typed. Equipment is never priced from
+other listings. Max (n) fills in the whole quantity you hold; clicking into a
+quantity or price field selects its content, so typing replaces it.
 
 Fees and listing durations also come from the broker. Posting costs the announced
 flat fee plus the listing total multiplied by its posting basis points, divided

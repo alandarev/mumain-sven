@@ -120,5 +120,12 @@ void BindWindowModel(Rml::DataModelConstructor& c, WindowModel& m)
     c.Bind("options", &m.options);
     c.Bind("types", &m.types);
     c.Bind("durations", &m.durations);
+    c.Bind("price_source", &m.priceSource);
+    c.Bind("price_note", &m.priceNote);
+    c.Bind("market_lowest", &m.marketLowest);
+    c.Bind("max_quantity", &m.maxQuantity);
+    c.Bind("can_match", &m.canMatch);
+    c.Bind("can_undercut", &m.canUndercut);
+    c.Bind("sell_tiers", &m.sellTiers);
 }
 } // namespace UI::AuctionHouse

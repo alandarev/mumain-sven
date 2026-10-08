@@ -57,7 +57,7 @@ struct Rules
     std::uint16_t postingFeeBasisPoints = 0, saleFeeBasisPoints = 0;
     bool refundPostingFee = false;
     std::vector<std::uint8_t> durations;
-    std::uint8_t goodsPriceDigits = 0;
+    std::uint8_t priceStepPrecision = 0;
 };
 
 struct RulesUpdate

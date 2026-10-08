@@ -3,6 +3,7 @@
 #include "stdafx.h"
 
 #include "GameLogic/AuctionHouse/AuctionHouse.h"
+#include "UI/AuctionHouse/PriceEntry.h"
 #include "UI/AuctionHouse/Presentation.h"
 #include "UI/AuctionHouse/WindowModel.h"
 #include "UI/Core/WindowObject.h"
@@ -12,6 +13,7 @@
 #include <deque>
 #include <functional>
 #include <memory>
+#include <unordered_map>
 
 namespace mu::ui::window
 {
@@ -67,7 +69,8 @@ private:
         Own,
         Collection,
         Quote,
-        Sell
+        Sell,
+        SellQuote
     };
     enum class Action : std::uint8_t
     {
@@ -87,10 +90,15 @@ private:
         std::uint16_t type = 0;
         std::uint8_t level = 0, slot = 0, duration = 0;
     };
+    struct SellDraft
+    {
+        Rml::String price, quantity;
+    };
 
     void Bind(Rml::DataModelConstructor& constructor, WindowModel& model);
     void BindEvents(Rml::DataModelConstructor& constructor);
     void BindFilterEvents(Rml::DataModelConstructor& constructor);
+    void BindPriceEvents(Rml::DataModelConstructor& constructor);
     void Built();
     void Dirty();
     void SetStatus(const std::string& text, bool error = true);
@@ -125,7 +133,18 @@ private:
     void DismissReview();
     void Confirm();
     bool SendAction();
-    void StepPrice(bool up);
+    void StepPrice(PriceStepInput input);
+    void EditPrice(bool commit);
+    std::optional<Market::Zen> CommitPrice();
+    void ChoosePrice(std::optional<Market::Zen> price);
+    void ShowPrice();
+    void RefreshPriceEntry();
+    void SaveSellDraft();
+    void ClearSellSelection();
+    bool AcceptSellCheck();
+    void RefreshSellMarket();
+    void QueueSellMarketRefresh(RequestClock::Time now);
+    Market::Zen SellLowest() const;
     void SyncIcons();
     void Hover(int index, bool inventory);
     void ClearItems();
@@ -160,5 +179,10 @@ private:
     std::vector<Icon> m_Icons, m_InventoryIcons;
     Icon m_SelectedIcon;
     Review m_Review;
+    PriceEntry m_PriceEntry;
+    std::optional<Market::SellCheck> m_SellCheck;
+    std::optional<Market::Quote> m_SellQuote;
+    std::unordered_map<std::uint32_t, SellDraft> m_SellDrafts;
+    RequestClock::Time m_SellMarketAt{};
 };
 } // namespace UI::AuctionHouse

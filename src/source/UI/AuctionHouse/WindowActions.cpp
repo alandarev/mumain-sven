@@ -99,6 +99,7 @@ void Window::ReviewSale()
 {
     if (m_View.GetModel().busy || m_View.GetModel().review)
         return;
+    CommitPrice();
     RefreshSelling();
     const auto& model = m_View.GetModel();
     if (!model.sellReady || m_SellSlot < 0)

@@ -7,6 +7,11 @@
 
 namespace UI::AuctionHouse
 {
+namespace
+{
+constexpr std::uint64_t MaximumFractionScale = 100;
+}
+
 std::optional<Market::Zen> ParseZen(std::string_view text, Market::Zen limit)
 {
     while (!text.empty() && text.front() == ' ')
@@ -60,7 +65,7 @@ std::optional<Market::Zen> ParseZen(std::string_view text, Market::Zen limit)
             ++groupDigits;
         if (decimal)
         {
-            if (scale > 100000000)
+            if (scale >= MaximumFractionScale)
                 return std::nullopt;
             scale *= 10;
             fraction = true;

@@ -114,9 +114,12 @@ void Reset();
 
 std::optional<Zen> PostingFee(const Rules&, std::uint32_t quantity, Zen unitPrice);
 Zen SaleFee(const Rules&, Zen gross);
-bool GoodsPriceOnStep(const Rules&, Zen unitPrice);
-std::optional<Zen> PreviousGoodsPrice(const Rules&, Zen unitPrice);
-std::optional<Zen> NextGoodsPrice(const Rules&, Zen unitPrice);
+bool PriceOnStep(const Rules&, Zen price);
+std::optional<Zen> RoundPriceDown(const Rules&, Zen price);
+std::optional<Zen> PreviousPrice(const Rules&, Zen price);
+std::optional<Zen> NextPrice(const Rules&, Zen price);
+// Moves up to `steps` valid prices; stops early at 1 or MaxPrice and is empty when no step is possible.
+std::optional<Zen> StepPrice(const Rules&, Zen price, bool up, unsigned steps);
 std::uint32_t SecondsRemaining(std::uint32_t secondsLeft, ReceivedTime receivedAt, ReceivedTime now);
 enum class NameMatch : std::uint8_t
 {

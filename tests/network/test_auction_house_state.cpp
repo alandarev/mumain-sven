@@ -282,49 +282,45 @@ TEST_CASE("Auction countdown uses receive time and saturates at zero [auction][s
     CHECK(SecondsRemaining(60, then, then - std::chrono::seconds(1)) == 60);
 }
 
-TEST_CASE("Auction goods steps cross decimal boundaries and preserve exact prices [auction][prices]")
+TEST_CASE("Auction price steps follow the 1-2-5 rule at every precision [auction][prices]")
 {
     Rules rules;
     rules.maxPrice = 2000000000;
-    rules.goodsPriceDigits = 3;
-    CHECK(GoodsPriceOnStep(rules, 2450000));
-    CHECK(GoodsPriceOnStep(rules, 999000));
-    CHECK_FALSE(GoodsPriceOnStep(rules, 2449999));
-    CHECK_FALSE(GoodsPriceOnStep(rules, 0));
-    CHECK(PreviousGoodsPrice(rules, 2450000) == 2440000);
-    CHECK(NextGoodsPrice(rules, 2450000) == 2460000);
-    CHECK(PreviousGoodsPrice(rules, 1000000) == 999000);
-    CHECK(NextGoodsPrice(rules, 999000) == 1000000);
-    CHECK(PreviousGoodsPrice(rules, 2449999) == 2440000);
-    CHECK(NextGoodsPrice(rules, 2449999) == 2450000);
-    CHECK(PreviousGoodsPrice(rules, 1000) == 999);
-    CHECK(NextGoodsPrice(rules, 1000) == 1010);
-    CHECK_FALSE(PreviousGoodsPrice(rules, 1).has_value());
-    CHECK_FALSE(NextGoodsPrice(rules, rules.maxPrice).has_value());
-    CHECK_FALSE(NextGoodsPrice(rules, 0).has_value());
-    rules.goodsPriceDigits = 1;
-    CHECK(PreviousGoodsPrice(rules, 1000) == 900);
-    CHECK(NextGoodsPrice(rules, 1000) == 2000);
-    rules.goodsPriceDigits = 0;
-    CHECK(GoodsPriceOnStep(rules, 2449999));
-    CHECK(PreviousGoodsPrice(rules, 2450000) == 2449999);
-    CHECK(NextGoodsPrice(rules, 2450000) == 2450001);
+    rules.priceStepPrecision = 3;
+    CHECK(PriceOnStep(rules, 2450000));
+    CHECK(PriceOnStep(rules, 999000));
+    CHECK_FALSE(PriceOnStep(rules, 2449999));
+    CHECK_FALSE(PriceOnStep(rules, 0));
+    CHECK(NextPrice(rules, 2450000) == 2452000);
+    CHECK(PreviousPrice(rules, 2450000) == 2448000);
+    CHECK(PreviousPrice(rules, 1000000) == 999500);
+    CHECK(NextPrice(rules, 999500) == 1000000);
+    CHECK(PreviousPrice(rules, 1) == std::nullopt);
+    CHECK_FALSE(NextPrice(rules, rules.maxPrice).has_value());
+    CHECK_FALSE(NextPrice(rules, 0).has_value());
+    rules.priceStepPrecision = 1;
+    CHECK(NextPrice(rules, 1000) == 1100);
+    CHECK(PreviousPrice(rules, 1000) == 950);
+    rules.priceStepPrecision = 0;
+    CHECK(PriceOnStep(rules, 2449999));
+    CHECK(PreviousPrice(rules, 2450000) == 2449999);
+    CHECK(NextPrice(rules, 2450000) == 2450001);
     rules.maxPrice = std::numeric_limits<Zen>::max();
-    CHECK_FALSE(NextGoodsPrice(rules, rules.maxPrice).has_value());
-    rules.goodsPriceDigits = 3;
-    CHECK_FALSE(NextGoodsPrice(rules, rules.maxPrice - 1).has_value());
-    CHECK(PreviousGoodsPrice(rules, rules.maxPrice) == 4290000000u);
-    rules.goodsPriceDigits = std::numeric_limits<std::uint8_t>::max();
-    CHECK(GoodsPriceOnStep(rules, rules.maxPrice));
+    CHECK_FALSE(NextPrice(rules, rules.maxPrice).has_value());
+    rules.priceStepPrecision = 2;
+    CHECK_FALSE(NextPrice(rules, rules.maxPrice - 1).has_value());
+    CHECK(PreviousPrice(rules, rules.maxPrice) == 4280000000u);
+    rules.priceStepPrecision = std::numeric_limits<std::uint8_t>::max();
+    CHECK(PriceOnStep(rules, rules.maxPrice));
 }
 
-TEST_CASE("Auction goods listing rejects off-step units but leaves items and totals unrestricted [auction][state]")
+TEST_CASE("Auction listing rejects off-step prices for goods and items but not totals [auction][state]")
 {
     Session session;
     REQUIRE(CheckSell(12));
     ReceiveLatest("auction-sell-check-result");
     const auto& rules = GetState().GetRules();
-    REQUIRE(rules.goodsPriceDigits == 3);
+    REQUIRE(rules.priceStepPrecision == 3);
     const auto fee = PostingFee(rules, 1, 2449999);
     REQUIRE(fee.has_value());
     const auto before = sent.size();
@@ -336,7 +332,11 @@ TEST_CASE("Auction goods listing rejects off-step units but leaves items and tot
     auto item = ReplyWithId("auction-sell-check-result", LastId());
     item[9] = 1; // Server classifies this slot as an individual item.
     ReceivePacket(item);
-    REQUIRE(CreateListing(12, 1, 2449999, rules.durations.front(), *fee));
+    CHECK_FALSE(CreateListing(12, 1, 2449999, rules.durations.front(), *fee));
+    CHECK(sent.size() == before + 1);
+    const auto onStepFee = PostingFee(rules, 1, 2450000);
+    REQUIRE(onStepFee.has_value());
+    REQUIRE(CreateListing(12, 1, 2450000, rules.durations.front(), *onStepFee));
     auto refused = ReplyWithId("auction-create-listing-result", LastId());
     refused[6] = static_cast<std::uint8_t>(Result::PriceNotOnStep);
     std::fill(refused.begin() + 7, refused.end(), 0);
@@ -350,7 +350,7 @@ TEST_CASE("Auction goods listing rejects off-step units but leaves items and tot
     const auto totalFee = PostingFee(rules, 7, 999000);
     REQUIRE(totalFee.has_value());
     REQUIRE(CreateListing(12, 7, 999000, rules.durations.front(), *totalFee));
-    CHECK_FALSE(GoodsPriceOnStep(rules, 7 * 999000)); // Only the unit price is restricted.
+    CHECK_FALSE(PriceOnStep(rules, 7 * 999000)); // Only the unit price is restricted.
 }
 
 TEST_CASE("Auction inventory notices remain visible while the broker is closed [auction][state]")
@@ -390,4 +390,74 @@ TEST_CASE("Auction names narrow by slots and groups and never silently truncate 
     broad.pop_back();
     CHECK(ResolveNames(L"sword", 1, 0, broad, matches) == NameMatch::Ok);
     CHECK(matches.size() == 48);
+}
+
+TEST_CASE("Auction price steps and rounding match the server vectors [auction][prices]")
+{
+    Rules rules;
+    rules.priceStepPrecision = 2;
+    rules.maxPrice = 2000000000;
+    CHECK(NextPrice(rules, 8900) == 8950);
+    CHECK(PreviousPrice(rules, 8900) == 8850);
+    CHECK(NextPrice(rules, 600000) == 605000);
+    CHECK(PreviousPrice(rules, 600000) == 595000);
+    CHECK(NextPrice(rules, 595000) == 600000);
+    CHECK(NextPrice(rules, 1000000) == 1010000);
+    CHECK(PreviousPrice(rules, 1000000) == 995000);
+    CHECK(NextPrice(rules, 199) == 200);
+    CHECK(PreviousPrice(rules, 200) == 199);
+    CHECK(NextPrice(rules, 93240000) == 93500000);
+    CHECK(PreviousPrice(rules, 93240000) == 93000000);
+    CHECK(RoundPriceDown(rules, 93240000) == 93000000);
+    CHECK(RoundPriceDown(rules, 351) == 350);
+    CHECK(RoundPriceDown(rules, 594000) == 590000);
+    CHECK(RoundPriceDown(rules, 12550000) == 12500000);
+    CHECK(RoundPriceDown(rules, 29932843) == 29800000);
+    CHECK(RoundPriceDown(rules, 8950) == 8950);
+    for (Zen valid : {590000u, 595000u, 600000u, 605000u, 995000u, 1010000u, 1990000u, 2020000u, 4980000u, 5050000u,
+                      12400000u, 12500000u, 12600000u, 2000000000u})
+    {
+        INFO(valid);
+        CHECK(PriceOnStep(rules, valid));
+    }
+    for (Zen invalid : {594000u, 12550000u, 29932843u})
+    {
+        INFO(invalid);
+        CHECK_FALSE(PriceOnStep(rules, invalid));
+    }
+    CHECK(PreviousPrice(rules, 600000) == 595000);
+    CHECK(PreviousPrice(rules, 594000) == 590000);
+    CHECK_FALSE(PreviousPrice(rules, 1));
+    CHECK_FALSE(NextPrice(rules, rules.maxPrice));
+    CHECK_FALSE(RoundPriceDown(rules, 0));
+    CHECK_FALSE(RoundPriceDown(rules, rules.maxPrice + 1));
+    CHECK(StepPrice(rules, 8900, true, 1) == 8950);
+    CHECK(StepPrice(rules, 8950, false, 2) == 8850);
+    CHECK(StepPrice(rules, 600000, true, 10) == 650000);
+    CHECK(StepPrice(rules, 3, false, 10) == 1);
+    CHECK_FALSE(StepPrice(rules, 1, false, 10));
+    CHECK(StepPrice(rules, rules.maxPrice - 1, true, 10) == rules.maxPrice);
+    rules.priceStepPrecision = 0;
+    CHECK(RoundPriceDown(rules, 93240000) == 93240000);
+    CHECK(NextPrice(rules, 8900) == 8901);
+    CHECK(PreviousPrice(rules, 8900) == 8899);
+}
+
+TEST_CASE("Auction price grid walk from 1 to the maximum price is reversible [auction][prices]")
+{
+    Rules rules;
+    rules.priceStepPrecision = 2;
+    rules.maxPrice = 2000000000;
+    unsigned count = 1;
+    Zen price = 1;
+    bool reversible = true;
+    while (const auto next = NextPrice(rules, price))
+    {
+        reversible = reversible && PriceOnStep(rules, *next) && PreviousPrice(rules, *next) == price;
+        price = *next;
+        ++count;
+    }
+    CHECK(reversible);
+    CHECK(price == rules.maxPrice);
+    CHECK(count == 2650);
 }

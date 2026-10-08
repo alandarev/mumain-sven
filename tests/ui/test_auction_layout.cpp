@@ -1,11 +1,14 @@
 #include "stdafx.h"
 #include <doctest.h>
+#include "UI/AuctionHouse/PriceInput.h"
 #include "UI/AuctionHouse/WindowModel.h"
 #include "UI/RmlBridge/RmlThemedView.h"
 #include "UI/RmlBridge/RmlTheme.h"
 #include "UI/RmlBridge/RmlNativeText.h"
 #include <RmlUi/Core.h>
+#include <algorithm>
 #include <filesystem>
+#include <string_view>
 
 namespace
 {
@@ -60,17 +63,26 @@ private:
     std::string theme;
 };
 
-void Bind(Rml::DataModelConstructor& c, UI::AuctionHouse::WindowModel& model)
+void BindExcept(Rml::DataModelConstructor& c, UI::AuctionHouse::WindowModel& model,
+                std::initializer_list<std::string_view> handled)
 {
     UI::AuctionHouse::BindWindowModel(c, model);
-    for (const char* name :
-         {"close",        "tab",        "filter",         "reset",           "category",      "equipment",
-          "select",       "inventory",  "hover",          "inventory_hover", "similar",       "leave",
-          "refresh",      "more",       "quote",          "sell_change",     "minus",         "plus",
-          "buy",          "sell",       "cancel_listing", "claim",           "dismiss",       "confirm",
-          "usable",       "luck",       "skill",          "open_filters",    "apply_filters", "cancel_filters",
-          "clear_filter", "draft_luck", "draft_skill"})
-        c.BindEventCallback(name, [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {});
+    for (const char* name : {"close",          "tab",         "filter",         "reset",         "category",
+                             "equipment",      "select",      "inventory",      "hover",         "inventory_hover",
+                             "similar",        "leave",       "refresh",        "more",          "quote",
+                             "sell_change",    "minus",       "plus",           "buy",           "sell",
+                             "cancel_listing", "claim",       "dismiss",        "confirm",       "usable",
+                             "luck",           "skill",       "open_filters",   "apply_filters", "cancel_filters",
+                             "clear_filter",   "draft_luck",  "draft_skill",    "price_change",  "price_commit",
+                             "price_key",      "price_wheel", "select_content", "match_lowest",  "undercut",
+                             "max_quantity"})
+        if (std::find(handled.begin(), handled.end(), name) == handled.end())
+            c.BindEventCallback(name, [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {});
+}
+
+void Bind(Rml::DataModelConstructor& c, UI::AuctionHouse::WindowModel& model)
+{
+    BindExcept(c, model, {});
 }
 } // namespace
 
@@ -100,6 +112,15 @@ TEST_CASE("Auction native document stays bounded across tabs themes and scale [a
         model.types = {{"0", "All types"}, {"1", "Swords"}};
         model.durations = {{"48", "48 h"}};
         model.duration = "48 h";
+        model.sellGoods = true;
+        model.maxQuantity = "Max (250)";
+        model.marketLowest = "Lowest 1,990,000,000 · 2,000+ in stock";
+        model.priceSource = "Current lowest";
+        model.priceNote = "Rounded to 1,990,000,000";
+        model.sellTiers.assign(8, {"1,990,000,000", "250"});
+        for (const char* field :
+             {"sell_goods", "max_quantity", "market_lowest", "price_source", "price_note", "sell_tiers"})
+            view.MarkDirty(field);
         for (int width : {640, 1024, 1920})
             for (float scale : {1.f, 1.6f, 2.f})
                 for (const char* tab : {"browse", "sell", "own", "collection"})
@@ -306,6 +327,143 @@ TEST_CASE("Auction goods price tiers keep two readable columns when scrolling [a
                               table->GetAbsoluteOffset(Rml::BoxArea::Content).y + table->GetClientHeight() + 1);
                     }
                 }
+        view.Release();
+    }
+}
+
+TEST_CASE("Auction sell fields select on focus and route price keys and wheel [auction][rml]")
+{
+    Fixture fixture;
+    for (const char* theme : {"legacy", "modern"})
+    {
+        UI::RmlBridge::SetActiveThemeName(theme);
+        std::vector<UI::AuctionHouse::PriceStepInput> steps;
+        Rml::String focused;
+        auto bind = [&steps, &focused](Rml::DataModelConstructor& c, UI::AuctionHouse::WindowModel& model)
+        {
+            BindExcept(c, model, {"select_content", "price_key", "price_wheel"});
+            c.BindEventCallback("select_content",
+                                [&focused](Rml::DataModelHandle, Rml::Event& event, const Rml::VariantList&)
+                                { focused = event.GetCurrentElement()->GetId(); });
+            auto route = [&steps](auto read)
+            {
+                return [&steps, read](Rml::DataModelHandle, Rml::Event& event, const Rml::VariantList&)
+                {
+                    if (const auto step = read(event))
+                    {
+                        event.StopPropagation();
+                        steps.push_back(*step);
+                    }
+                };
+            };
+            c.BindEventCallback("price_key", route(&UI::AuctionHouse::PriceStepFromKey));
+            c.BindEventCallback("price_wheel", route(&UI::AuctionHouse::PriceStepFromWheel));
+        };
+        UI::RmlBridge::ThemedView<UI::AuctionHouse::WindowModel> view(
+            "auction_house", bind,
+            {{"Data/Interface/RmlUi/auction_house.rml", [&fixture] { return fixture.context; }}});
+        REQUIRE(view.Ensure());
+        auto* document = view.Document();
+        auto& model = view.GetModel();
+        fixture.context->SetDimensions({1024, 768});
+        fixture.context->SetDensityIndependentPixelRatio(1.f);
+        model.tab = "sell";
+        model.selected = true;
+        model.selectedName = "Jewel of Bless";
+        model.sellGoods = true;
+        model.maxQuantity = "Max (8)";
+        model.marketLowest = "Lowest 595,000 · 10 in stock";
+        model.priceSource = "Current lowest";
+        model.price = "590,000";
+        model.canMatch = model.canUndercut = true;
+        model.sellTiers = {{"595,000", "4"}, {"600,000", "6"}};
+        model.durations = {{"48", "48 h"}};
+        model.duration = "48 h";
+        for (const char* field :
+             {"tab", "selected", "selected_name", "sell_goods", "max_quantity", "market_lowest", "price_source",
+              "price", "can_match", "can_undercut", "sell_tiers", "durations", "duration"})
+            view.MarkDirty(field);
+        document->Show();
+        UI::RmlBridge::ApplyNativeTextSize(fixture.context);
+        fixture.context->Update();
+        fixture.context->Update();
+        INFO(std::string(theme));
+
+        auto* panel = document->GetElementById("panel");
+        auto* quantity = document->GetElementById("sell-quantity");
+        auto* price = document->GetElementById("sell-price");
+        REQUIRE(panel);
+        REQUIRE(quantity);
+        REQUIRE(price);
+        const float panelRight =
+            panel->GetAbsoluteOffset(Rml::BoxArea::Border).x + panel->GetBox().GetSize(Rml::BoxArea::Border).x;
+        Rml::ElementList controls;
+        document->GetElementsByClassName(controls, "market-actions");
+        REQUIRE(controls.size() == 1);
+        for (auto* control : {quantity, price, controls.front()})
+        {
+            CHECK(control->IsVisible(true));
+            CHECK(control->GetAbsoluteOffset(Rml::BoxArea::Border).x +
+                      control->GetBox().GetSize(Rml::BoxArea::Border).x <=
+                  panelRight + 1);
+        }
+        CHECK(price->GetAttribute<Rml::String>("placeholder", "") == "Enter price");
+        CHECK(price->GetBox().GetSize(Rml::BoxArea::Border).x > 80.f);
+        CHECK(quantity->GetBox().GetSize(Rml::BoxArea::Border).x > 40.f);
+
+        auto centre = [](Rml::Element* element)
+        {
+            const auto position = element->GetAbsoluteOffset(Rml::BoxArea::Border);
+            const auto size = element->GetBox().GetSize(Rml::BoxArea::Border);
+            return Rml::Vector2i{static_cast<int>(position.x + size.x / 2), static_cast<int>(position.y + size.y / 2)};
+        };
+        auto click = [&](Rml::Element* element)
+        {
+            const auto at = centre(element);
+            fixture.context->ProcessMouseMove(at.x, at.y, 0);
+            fixture.context->ProcessMouseButtonDown(0, 0);
+            fixture.context->ProcessMouseButtonUp(0, 0);
+            fixture.context->Update();
+        };
+
+        // Clicking into a quantity of 1 and typing 8 gives 8: the window selects after the click.
+        click(quantity);
+        CHECK(focused == "sell-quantity");
+        UI::AuctionHouse::SelectContentIfFocused(document->GetElementById(focused));
+        fixture.context->ProcessTextInput("8");
+        fixture.context->Update();
+        CHECK(model.quantity == "8");
+
+        click(price);
+        CHECK(focused == "sell-price");
+        steps.clear();
+        fixture.context->ProcessKeyDown(Rml::Input::KI_UP, 0);
+        fixture.context->ProcessKeyDown(Rml::Input::KI_DOWN, Rml::Input::KM_SHIFT);
+        fixture.context->ProcessKeyDown(Rml::Input::KI_LEFT, 0);
+        REQUIRE(steps.size() == 2);
+        CHECK(steps[0].up);
+        CHECK(steps[0].steps == 1);
+        CHECK_FALSE(steps[1].up);
+        CHECK(steps[1].steps == 10);
+
+        steps.clear();
+        CHECK_FALSE(fixture.context->ProcessMouseWheel(Rml::Vector2f{0.f, -1.f}, 0)); // Consumed by the field.
+        CHECK(fixture.context->ProcessMouseWheel(Rml::Vector2f{0.f, 1.f}, Rml::Input::KM_SHIFT) == false);
+        REQUIRE(steps.size() == 2);
+        CHECK(steps[0].up);
+        CHECK_FALSE(steps[1].up);
+        CHECK(steps[1].steps == 10);
+
+        // Not hovered, or not focused: the wheel is left to the page.
+        steps.clear();
+        const auto away = centre(quantity);
+        fixture.context->ProcessMouseMove(away.x, away.y, 0);
+        fixture.context->ProcessMouseWheel(Rml::Vector2f{0.f, -1.f}, 0);
+        click(quantity);
+        const auto over = centre(price);
+        fixture.context->ProcessMouseMove(over.x, over.y, 0);
+        fixture.context->ProcessMouseWheel(Rml::Vector2f{0.f, -1.f}, 0);
+        CHECK(steps.empty());
         view.Release();
     }
 }

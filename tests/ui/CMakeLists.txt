@@ -271,6 +271,15 @@ mu_add_test(
         ${CMAKE_SOURCE_DIR}/src/source/UI/AuctionHouse/PropertyQuery.cpp
 )
 mu_add_test(
+    NAME auction_price_entry_tests
+    SOURCES
+        test_auction_price_entry.cpp
+        ${CMAKE_SOURCE_DIR}/src/source/UI/AuctionHouse/PriceEntry.cpp
+        ${CMAKE_SOURCE_DIR}/src/source/UI/AuctionHouse/Presentation.cpp
+        ${CMAKE_SOURCE_DIR}/src/source/UI/AuctionHouse/PropertyQuery.cpp
+        ${CMAKE_SOURCE_DIR}/src/source/GameLogic/AuctionHouse/AuctionHousePrices.cpp
+)
+mu_add_test(
     NAME auction_layout_tests
     SOURCES
         test_auction_layout.cpp

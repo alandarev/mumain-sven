@@ -22,10 +22,14 @@ void Window::OnChanged(Market::Operation operation)
     }
     else if (operation == O::Quote)
     {
-        if (m_SentRead == Read::Quote)
+        const bool sellQuote = m_SentRead == Read::SellQuote;
+        if (m_SentRead == Read::Quote || sellQuote)
             m_SentRead = Read::None;
         m_View.GetModel().loading = false;
-        RefreshQuote();
+        if (sellQuote || m_View.GetModel().tab == "sell")
+            RefreshSellMarket();
+        else
+            RefreshQuote();
     }
     else
         HandleOutcome(operation);
@@ -251,9 +255,8 @@ void Window::HandleOutcome(Market::Operation operation)
     m_StatusUntil = RequestClock::Time::clock::now() + std::chrono::milliseconds(3200);
     if (operation == O::CreateListing)
     {
-        m_SellSlot = -1;
-        m_SellKey = 0;
-        m_View.GetModel().selected = false;
+        m_SellDrafts.erase(m_SellKey);
+        ClearSellSelection();
         RefreshInventory();
         RefreshSelling();
     }

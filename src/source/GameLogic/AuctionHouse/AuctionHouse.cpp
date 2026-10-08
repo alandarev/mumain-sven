@@ -8,7 +8,6 @@ namespace GameLogic::AuctionHouse
 namespace
 {
 Detail::Controller controller;
-constexpr std::uint8_t GoodsListingKind = 2;
 bool PriceValid(Zen price)
 {
     return price != 0 && price <= GetState().GetRules().maxPrice;
@@ -82,9 +81,7 @@ bool CheckSell(std::uint8_t slot)
 bool CreateListing(std::uint8_t slot, std::uint32_t quantity, Zen price, std::uint8_t duration, Zen fee)
 {
     const auto& rules = GetState().GetRules();
-    const auto& check = GetState().LastSellCheck();
-    if (check && check->result == Result::Success && check->reason == 0 && check->inventorySlot == slot &&
-        check->kind == GoodsListingKind && !GoodsPriceOnStep(rules, price))
+    if (!PriceOnStep(rules, price))
         return false;
     const auto expected = PostingFee(rules, quantity, price);
     if (!expected || *expected != fee ||

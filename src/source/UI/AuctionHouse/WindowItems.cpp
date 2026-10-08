@@ -151,8 +151,20 @@ void Window::SelectInventory(int slot)
     model.selectedRequirements = row.requirements;
     model.selectedTone = row.tone;
     m_SelectedIcon = {Item(g_pNewItemMng->DuplicateItem(item)), nullptr};
-    model.price.clear();
+    m_SellCheck.reset();
+    m_SellQuote.reset();
+    m_PriceEntry.Reset();
     model.quantity = "1";
+    model.maxQuantity.clear();
+    model.marketLowest.clear();
+    model.sellTiers.clear();
+    if (const auto draft = m_SellDrafts.find(m_SellKey); draft != m_SellDrafts.end())
+    {
+        model.quantity = draft->second.quantity;
+        m_PriceEntry.Prefill(Market::GetState().GetRules(), draft->second.price, 0);
+    }
+    ShowPrice();
+    RefreshPriceEntry();
     model.sellReady = false;
     model.sellGoods = false;
     DismissReview();

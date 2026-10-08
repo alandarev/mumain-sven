@@ -15,6 +15,7 @@ void Window::Bind(Rml::DataModelConstructor& constructor, WindowModel& model)
 void Window::BindEvents(Rml::DataModelConstructor& c)
 {
     BindFilterEvents(c);
+    BindPriceEvents(c);
     auto event = [this, &c](const char* name, const std::function<void(const Rml::VariantList&)>& action)
     {
         c.BindEventCallback(name, [this, action](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& args)
@@ -157,10 +158,9 @@ void Window::BindEvents(Rml::DataModelConstructor& c)
           {
               DismissReview();
               SetStatus({});
+              SaveSellDraft();
               RefreshSelling();
           });
-    event("minus", [this](const auto&) { StepPrice(false); });
-    event("plus", [this](const auto&) { StepPrice(true); });
     event("buy", [this](const auto&) { ReviewBuy(); });
     event("sell", [this](const auto&) { ReviewSale(); });
     event("cancel_listing", [this, index](const auto& args) { ReviewCancel(index(args)); });
@@ -255,7 +255,14 @@ void Window::Dirty()
                                              "inventory",
                                              "options",
                                              "types",
-                                             "durations"};
+                                             "durations",
+                                             "price_source",
+                                             "price_note",
+                                             "market_lowest",
+                                             "max_quantity",
+                                             "can_match",
+                                             "can_undercut",
+                                             "sell_tiers"};
     for (const char* field : fields)
         m_View.MarkDirty(field);
 }
