@@ -44,7 +44,7 @@ void Window::BindPriceEvents(Rml::DataModelConstructor& c)
     bind("price_wheel",
          [this](Rml::Event& event)
          {
-             // The wheel belongs to the field only while it is focused and hovered; then nothing scrolls.
+             // The wheel steps only over the − and + buttons; there nothing scrolls.
              if (const auto step = PriceStepFromWheel(event))
              {
                  event.StopPropagation();

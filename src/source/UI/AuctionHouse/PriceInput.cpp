@@ -34,14 +34,16 @@ std::optional<PriceStepInput> PriceStepFromKey(const Rml::Event& event)
 
 std::optional<PriceStepInput> PriceStepFromWheel(const Rml::Event& event)
 {
-    auto* field = event.GetCurrentElement();
-    auto* context = field ? field->GetContext() : nullptr;
-    if (!context || context->GetFocusElement() != field || !IsWithin(context->GetHoverElement(), field))
+    // Bound on the − and + buttons only: the wheel over the price field or anywhere else scrolls the page,
+    // so scrolling the panel can never change a price by accident.
+    auto* button = event.GetCurrentElement();
+    auto* context = button ? button->GetContext() : nullptr;
+    if (!context || !IsWithin(context->GetHoverElement(), button))
         return std::nullopt;
     const auto delta = event.GetParameter<float>("wheel_delta_y", 0.f);
     if (delta == 0.f)
         return std::nullopt;
-    // Wheel up (a negative delta) raises the price.
+    // Wheel up (a negative delta) raises the price, over either button.
     return PriceStepInput{delta < 0.f, StepsFor(event)};
 }
 

@@ -14,7 +14,7 @@ namespace UI::AuctionHouse
 {
 // Up and Down on the price field; Shift moves ten valid prices.
 std::optional<PriceStepInput> PriceStepFromKey(const Rml::Event& event);
-// The wheel steps only over the focused price field, one valid price per notch (ten with Shift).
+// The wheel steps only while it hovers the − or + button, one valid price per notch (ten with Shift).
 std::optional<PriceStepInput> PriceStepFromWheel(const Rml::Event& event);
 // − and + clicks: ten valid prices with Shift.
 unsigned PriceStepsFromClick(const Rml::Event& event);

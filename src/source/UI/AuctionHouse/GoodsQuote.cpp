@@ -60,6 +60,19 @@ std::string ShortfallText(const OrderSplit& split)
     return "Only " + std::to_string(split.fillable) + " available";
 }
 
+std::uint32_t AvailableAfterQuote(const Market::Quote& quote, std::uint32_t earlier)
+{
+    if (quote.fillableQuantity < quote.requestedQuantity)
+        return quote.fillableQuantity;
+    std::uint64_t stock = 0;
+    for (const auto& tier : quote.tiers)
+        stock += tier.quantity;
+    const auto counted = static_cast<std::uint32_t>(std::min<std::uint64_t>(stock, UINT32_MAX));
+    if (quote.tiers.size() < MaximumQuoteTiers)
+        return counted;
+    return std::max({counted, quote.fillableQuantity, earlier});
+}
+
 std::string MarketLowestText(Market::Zen lowest, std::span<const Market::PriceTier> tiers)
 {
     if (lowest == 0)

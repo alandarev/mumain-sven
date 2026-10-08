@@ -60,10 +60,8 @@ void Window::RefreshQuote()
     m_QuoteAgeSeconds = -1;
     if (!quote->tiers.empty())
         goods.lowestUnitPrice = quote->tiers.front().unitPrice;
-    // The quote counts every unit for sale (FillableQuantity of an unlimited order is not known, so
-    // a shortfall answer is the exact availability).
-    if (quote->fillableQuantity < quote->requestedQuantity)
-        goods.available = quote->fillableQuantity;
+    // "N available" follows every refreshed quote, not the goods list it was opened from.
+    goods.available = AvailableAfterQuote(*quote, goods.available);
     ShowQuote(now);
     RefreshBuyNote();
     if (m_Review.action == Action::BuyGoods && !model.busy)

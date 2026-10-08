@@ -41,6 +41,10 @@ std::string OrderSummaryText(const OrderSplit& split);
 std::string BeyondTiersText(const OrderSplit& split);
 // "Only N available"; empty when the whole order is fillable.
 std::string ShortfallText(const OrderSplit& split);
+// The units of other sellers for sale after a quote. A shortfall answer counts them exactly; so do
+// fewer than MaximumQuoteTiers tiers (each tier carries its whole stock). With a full tier list the
+// count is only a lower bound, so the earlier count (the goods list) is kept when it is higher.
+std::uint32_t AvailableAfterQuote(const Market::Quote& quote, std::uint32_t earlier);
 
 // The selling context line: "Lowest 600,000 · 20 in stock · 50 total". The stock is the stock at
 // the lowest price; the total covers every quoted tier ("+" when the tier list is full).

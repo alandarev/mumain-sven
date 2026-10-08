@@ -415,7 +415,7 @@ TEST_CASE("Auction goods price tiers keep three readable columns and the order f
     }
 }
 
-TEST_CASE("Auction sell fields select on focus and route price keys and wheel [auction][rml]")
+TEST_CASE("Auction sell fields select on focus; keys step, the wheel only over − and + [auction][rml]")
 {
     Fixture fixture;
     for (const char* theme : {"legacy", "modern"})
@@ -460,12 +460,14 @@ TEST_CASE("Auction sell fields select on focus and route price keys and wheel [a
         model.priceSource = "Last price";
         model.price = "590,000";
         model.canForget = model.canMatch = model.canUndercut = true;
+        model.stepDown = model.stepUp = true;
         model.sellTiers = {{"595,000", "4"}, {"600,000", "6"}};
         model.durations = {{"48", "48 h"}};
         model.duration = "48 h";
         for (const char* field :
              {"tab", "selected", "selected_name", "sell_goods", "max_quantity", "market_lowest", "price_source",
-              "price", "can_forget", "can_match", "can_undercut", "sell_tiers", "durations", "duration"})
+              "price", "can_forget", "can_match", "can_undercut", "step_down", "step_up", "sell_tiers", "durations",
+              "duration"})
             view.MarkDirty(field);
         document->Show();
         UI::RmlBridge::ApplyNativeTextSize(fixture.context);
@@ -530,22 +532,45 @@ TEST_CASE("Auction sell fields select on focus and route price keys and wheel [a
         CHECK_FALSE(steps[1].up);
         CHECK(steps[1].steps == 10);
 
+        // The wheel over the focused price field is left to the page: scrolling never changes a price.
         steps.clear();
-        CHECK_FALSE(fixture.context->ProcessMouseWheel(Rml::Vector2f{0.f, -1.f}, 0)); // Consumed by the field.
-        CHECK(fixture.context->ProcessMouseWheel(Rml::Vector2f{0.f, 1.f}, Rml::Input::KM_SHIFT) == false);
+        const auto over = centre(price);
+        fixture.context->ProcessMouseMove(over.x, over.y, 0);
+        fixture.context->ProcessMouseWheel(Rml::Vector2f{0.f, -1.f}, 0);
+        CHECK(steps.empty());
+
+        // Over − or +: one valid price per notch, ten with Shift, wheel up raises; the wheel is consumed there,
+        // also when the field does not have the focus.
+        auto* down = document->GetElementById("price-down");
+        auto* up = document->GetElementById("price-up");
+        REQUIRE(down);
+        REQUIRE(up);
+        click(quantity);
+        const auto plus = centre(up);
+        fixture.context->ProcessMouseMove(plus.x, plus.y, 0);
+        CHECK_FALSE(fixture.context->ProcessMouseWheel(Rml::Vector2f{0.f, -1.f}, 0));
+        const auto minus = centre(down);
+        fixture.context->ProcessMouseMove(minus.x, minus.y, 0);
+        CHECK_FALSE(fixture.context->ProcessMouseWheel(Rml::Vector2f{0.f, 1.f}, Rml::Input::KM_SHIFT));
         REQUIRE(steps.size() == 2);
         CHECK(steps[0].up);
+        CHECK(steps[0].steps == 1);
         CHECK_FALSE(steps[1].up);
         CHECK(steps[1].steps == 10);
 
-        // Not hovered, or not focused: the wheel is left to the page.
+        // A disabled stepper (at a limit, or no price yet) takes no wheel: the page scrolls instead.
+        steps.clear();
+        model.stepUp = false;
+        view.MarkDirty("step_up");
+        fixture.context->Update();
+        fixture.context->ProcessMouseMove(plus.x, plus.y, 0);
+        fixture.context->ProcessMouseWheel(Rml::Vector2f{0.f, -1.f}, 0);
+        CHECK(steps.empty());
+
+        // Elsewhere in the panel: left to the page.
         steps.clear();
         const auto away = centre(quantity);
         fixture.context->ProcessMouseMove(away.x, away.y, 0);
-        fixture.context->ProcessMouseWheel(Rml::Vector2f{0.f, -1.f}, 0);
-        click(quantity);
-        const auto over = centre(price);
-        fixture.context->ProcessMouseMove(over.x, over.y, 0);
         fixture.context->ProcessMouseWheel(Rml::Vector2f{0.f, -1.f}, 0);
         CHECK(steps.empty());
         view.Release();

@@ -77,6 +77,23 @@ TEST_CASE("Auction order split says how much is available when stock is short [a
     CHECK(OrderSplitLines(small).size() == 1);
 }
 
+TEST_CASE("Auction availability follows each quote [auction][goods-quote]")
+{
+    // Fewer than eight tiers carry the whole stock: the live finding (list said 50, tiers held 56).
+    CHECK(AvailableAfterQuote(MakeQuote(8, {{590000, 6}, {600000, 20}, {650000, 30}}, 8, 4740000), 50) == 56);
+    CHECK(AvailableAfterQuote(MakeQuote(1, {{600000, 19}, {650000, 30}}, 1, 600000), 50) == 49);
+    // A shortfall answer is exact, whatever the tiers.
+    CHECK(AvailableAfterQuote(MakeQuote(999, {{600000, 18}, {650000, 30}}, 48, 0), 50) == 48);
+    // Nothing for sale.
+    CHECK(AvailableAfterQuote(MakeQuote(1, {}, 0, 0), 12) == 0);
+    // A full tier list is only a lower bound: keep the higher earlier count.
+    std::vector<Market::PriceTier> eight;
+    for (Market::Zen i = 0; i < MaximumQuoteTiers; ++i)
+        eight.push_back({1000000 + 50000 * i, 5});
+    CHECK(AvailableAfterQuote(MakeQuote(1, eight, 1, 1000000), 70) == 70);
+    CHECK(AvailableAfterQuote(MakeQuote(1, eight, 1, 1000000), 30) == 40);
+}
+
 TEST_CASE("Auction selling line shows the stock at the lowest price and the quoted total [auction][goods-quote]")
 {
     const std::vector<Market::PriceTier> tiers{{600000, 20}, {605000, 30}};
