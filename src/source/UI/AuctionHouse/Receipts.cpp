@@ -247,6 +247,13 @@ std::string ZenShortfallText(std::uint64_t need, std::uint64_t have)
     return "Need " + ExactZen(need) + " Zen, you have " + ExactZen(have);
 }
 
+std::string ReviewBalanceText(std::uint64_t debit, std::uint64_t wallet)
+{
+    if (debit > wallet)
+        return ZenShortfallText(debit, wallet);
+    return "Balance " + ExactZen(wallet - debit) + " Zen";
+}
+
 std::string ListingCountText(std::uint8_t active, std::uint8_t maximum)
 {
     return "Listings " + std::to_string(active) + "/" + std::to_string(maximum);

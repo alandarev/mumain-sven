@@ -44,17 +44,25 @@ void Window::OpenReview(Review review, const Rml::String& name, const Rml::Strin
     model.confirmWarning.clear();
     model.confirmTotal = ExactZen(review.amount) + " Zen";
     model.confirmFee = review.action == Action::Publish ? "Posting fee " + ExactZen(review.fee) + " Zen" : "";
-    model.confirmBalance.clear();
-    if (CharacterMachine &&
-        (review.action == Action::BuyItem || review.action == Action::BuyGoods || review.action == Action::Publish))
-    {
-        const auto debit = review.action == Action::Publish ? review.fee : review.amount;
-        if (debit <= CharacterMachine->Gold)
-            model.confirmBalance = "Balance " + ExactZen(CharacterMachine->Gold - debit) + " Zen";
-    }
     model.review = true;
+    RefreshReviewBalance();
     m_ReviewNeedsFocus = true;
     m_Dirty = true;
+}
+
+void Window::RefreshReviewBalance()
+{
+    auto& model = m_View.GetModel();
+    std::string balance;
+    const auto action = m_Review.action;
+    if (model.review && CharacterMachine &&
+        (action == Action::BuyItem || action == Action::BuyGoods || action == Action::Publish))
+        balance = ReviewBalanceText(action == Action::Publish ? m_Review.fee : m_Review.amount, CharacterMachine->Gold);
+    if (balance != model.confirmBalance)
+    {
+        model.confirmBalance = std::move(balance);
+        m_Dirty = true;
+    }
 }
 
 void Window::DismissReview()

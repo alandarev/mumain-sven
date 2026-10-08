@@ -196,6 +196,7 @@ bool Window::Update()
         m_View.GetModel().wallet = CompactZen(m_Wallet) + " Zen";
         RefreshSelling();
         RefreshBuyNote();
+        RefreshReviewBalance();
         m_Dirty = true;
     }
     if (m_View.GetModel().busy && m_ActionSentAt != RequestClock::Time{} && now - m_ActionSentAt > RequestTimeout)

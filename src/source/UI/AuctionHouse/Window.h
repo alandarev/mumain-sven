@@ -172,6 +172,8 @@ private:
     void Collect(int index);
     void OpenReview(Review review, const Rml::String& name, const Rml::String& title, const Rml::String& action);
     void DismissReview();
+    // The open review's balance line follows the wallet (a sale notice or a claim can change it).
+    void RefreshReviewBalance();
     void Confirm();
     bool SendAction();
     void StepPrice(PriceStepInput input);

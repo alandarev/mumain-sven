@@ -249,6 +249,17 @@ TEST_CASE("Auction Review purchase readiness for quantity, Zen and own listings 
     CHECK(DescribeBuyReadiness(facts).ready);
 }
 
+TEST_CASE("Auction review balance follows the wallet [auction][receipts]")
+{
+    // Opened at 33,545,250 Zen for a 1,200 Zen purchase.
+    CHECK(ReviewBalanceText(1200, 33545250) == "Balance 33,544,050 Zen");
+    // A sale notice adds 531,000 Zen while the review is open.
+    CHECK(ReviewBalanceText(1200, 34076250) == "Balance 34,075,050 Zen");
+    // Spending elsewhere leaves too little: the line says so instead of a negative balance.
+    CHECK(ReviewBalanceText(4740000, 1000000) == "Need 4,740,000 Zen, you have 1,000,000");
+    CHECK(ReviewBalanceText(5, 5) == "Balance 0 Zen");
+}
+
 TEST_CASE("Auction listing review shows the unit price line fee terms and proceeds [auction][receipts]")
 {
     Market::Rules rules;

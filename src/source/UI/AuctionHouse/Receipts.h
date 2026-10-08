@@ -130,6 +130,9 @@ struct FieldHint
 FieldHint QuantityHint(std::string_view text, std::uint32_t available);
 // "Need 177,000 Zen, you have 50,000".
 std::string ZenShortfallText(std::uint64_t need, std::uint64_t have);
+// The balance line of an open review: "Balance 33,544,050 Zen" after paying `debit` from `wallet`,
+// or "Need …, you have …" once the wallet no longer covers it. Recomputed whenever the Zen changes.
+std::string ReviewBalanceText(std::uint64_t debit, std::uint64_t wallet);
 // "Listings 19/20".
 std::string ListingCountText(std::uint8_t active, std::uint8_t maximum);
 // A My auctions row: "6 remaining of 8 · 590k Zen each · 48h", or "12.5kk Zen · 48h" for an item.
