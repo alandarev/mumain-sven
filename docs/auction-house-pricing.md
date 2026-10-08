@@ -98,7 +98,11 @@ log instead.
 
 The listing review shows the unit price line for goods ("6 × 590,000 = 3,540,000
 Zen"), the options of equipment, the posting fee with its terms ("5 %, charged now,
-not refunded"), the sale fee and "Receive if all sell". Buying equipment your
+not refunded"), the sale fee and "Receive if all sell". The sale fee is taken from
+each sale and rounded down per sale, so selling in parts can only leave you more:
+"Receive if all sell" is exact when every unit's fee is a whole number of Zen
+(at a 10 % fee, every price from 1,000 Zen up) and otherwise is a lower bound
+(two at 199: "at least 359"; two single sales give 360). Buying equipment your
 character cannot wear shows a Cannot Equip warning but stays allowed. Review
 purchase is disabled, with the reason under it, when you lack the Zen for the
 quoted total ("Need 4,740,000 Zen, you have 1,000,000") or the listing is your own;

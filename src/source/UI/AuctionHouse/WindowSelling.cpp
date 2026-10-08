@@ -100,7 +100,7 @@ void Window::RefreshSelling()
     model.saleTotal = ExactZen(static_cast<Market::Zen>(total)) + " Zen";
     model.postingFee = ExactZen(*fee) + " Zen";
     model.saleFee = ExactZen(saleFee) + " Zen";
-    model.proceeds = ExactZen(static_cast<Market::Zen>(total) - saleFee) + " Zen";
+    model.proceeds = ProceedsText(ProceedsIfAllSell(rules, *quantity, *price)) + " Zen";
     if (model.listingCountFull)
         model.sellNote = "Listing limit reached (" + model.listingCount + ").";
     else if (!CharacterMachine || *fee > CharacterMachine->Gold)

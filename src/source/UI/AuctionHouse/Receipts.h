@@ -116,6 +116,20 @@ struct ListingReviewText
     std::string total, fees;
 };
 
+// "Receive if all sell" (CR-05). The server takes the sale fee of each sale, rounded down, so several
+// partial sales can only leave the seller more than the fee on the whole total suggests. The amount is
+// exact for one unit and when every unit's fee is whole (unit price × basis points divisible by
+// 10,000); otherwise it is a lower bound.
+struct Proceeds
+{
+    std::uint64_t amount = 0;
+    bool exact = true;
+};
+
+Proceeds ProceedsIfAllSell(const Market::Rules& rules, std::uint32_t quantity, Market::Zen unitPrice);
+// "3,186,000" or "at least 359".
+std::string ProceedsText(const Proceeds& proceeds);
+
 // The listing review: the unit price line for goods, the posting fee with its terms, the sale fee,
 // "Receive if all sell" and the duration.
 ListingReviewText DescribeListingReview(const Market::Rules& rules, bool goods, std::uint32_t quantity,

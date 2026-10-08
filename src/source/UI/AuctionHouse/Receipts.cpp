@@ -215,6 +215,23 @@ std::string PercentText(std::uint16_t basisPoints)
     return text + " %";
 }
 
+Proceeds ProceedsIfAllSell(const Market::Rules& rules, std::uint32_t quantity, Market::Zen unitPrice)
+{
+    constexpr std::uint64_t BasisPointDivisor = 10000;
+    const auto total = std::uint64_t{quantity} * unitPrice;
+    // Above the Zen limit no listing is possible; the review then shows no fee, as before.
+    const std::uint64_t fee =
+        total <= rules.zenLimit
+            ? std::min<std::uint64_t>(total, Market::SaleFee(rules, static_cast<Market::Zen>(total)))
+            : 0;
+    return {total - fee, quantity <= 1 || std::uint64_t{unitPrice} * rules.saleFeeBasisPoints % BasisPointDivisor == 0};
+}
+
+std::string ProceedsText(const Proceeds& proceeds)
+{
+    return (proceeds.exact ? "" : "at least ") + ExactZen(proceeds.amount);
+}
+
 ListingReviewText DescribeListingReview(const Market::Rules& rules, bool goods, std::uint32_t quantity,
                                         Market::Zen unitPrice, Market::Zen postingFee, std::uint8_t durationHours)
 {
@@ -232,7 +249,8 @@ ListingReviewText DescribeListingReview(const Market::Rules& rules, bool goods, 
     const auto saleFee = total <= rules.zenLimit ? Market::SaleFee(rules, static_cast<Market::Zen>(total)) : 0;
     text.fees = "Posting fee " + ExactZen(postingFee) + " (" + terms + ")\nSale fee " + ExactZen(saleFee) + " (" +
                 PercentText(rules.saleFeeBasisPoints) + ", when sold)\nReceive if all sell " +
-                ExactZen(total - saleFee) + "\nDuration " + std::to_string(durationHours) + " h";
+                ProceedsText(ProceedsIfAllSell(rules, quantity, unitPrice)) + "\nDuration " +
+                std::to_string(durationHours) + " h";
     return text;
 }
 

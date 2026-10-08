@@ -251,7 +251,7 @@ TEST_CASE("Auction native document stays bounded across tabs themes and scale [a
                     view.MarkDirty("confirm_warning");
                     model.confirmFee = "Posting fee 100,000,000 (5 %, charged now, not refunded)\n"
                                        "Sale fee 200,000,000 (10 %, when sold)\n"
-                                       "Receive if all sell 1,800,000,000\nDuration 48 h";
+                                       "Receive if all sell at least 1,799,999,999\nDuration 48 h";
                     view.MarkDirty("confirm_fee");
                     fixture.context->Update();
                     Rml::ElementList cards;
@@ -1030,7 +1030,7 @@ void FillSellGoods(UI::AuctionHouse::WindowModel& model, int tierCount)
     model.saleTotal = "1,990,000,000 Zen";
     model.postingFee = "99,500,000 Zen";
     model.saleFee = "199,000,000 Zen";
-    model.proceeds = "1,791,000,000 Zen";
+    model.proceeds = "at least 1,791,000,000 Zen";
     model.listingCount = "Listings 19/20";
     model.sellNote = "Posting fee: Need 99,500,000 Zen, you have 50,000.";
     model.sellReady = false;
@@ -1059,7 +1059,7 @@ void FillSellEquipment(UI::AuctionHouse::WindowModel& model)
     model.saleTotal = "1,990,000,000 Zen";
     model.postingFee = "99,500,000 Zen";
     model.saleFee = "199,000,000 Zen";
-    model.proceeds = "1,791,000,000 Zen";
+    model.proceeds = "at least 1,791,000,000 Zen";
     model.listingCount = "Listings 20/20";
     model.listingCountFull = true;
     model.sellNote = "Listing limit reached (Listings 20/20).";

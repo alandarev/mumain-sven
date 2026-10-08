@@ -1,4 +1,5 @@
 #include <doctest.h>
+#include "GameLogic/AuctionHouse/AuctionHouse.h"
 #include "UI/AuctionHouse/Receipts.h"
 
 using namespace UI::AuctionHouse;
@@ -282,6 +283,45 @@ TEST_CASE("Auction listing review shows the unit price line fee terms and procee
     CHECK(PercentText(25) == "0.25 %");
     CHECK(PercentText(5) == "0.05 %");
     CHECK(PercentText(1000) == "10 %");
+}
+
+TEST_CASE("Auction proceeds are exact only when per-sale rounding cannot change them [auction][receipts]")
+{
+    Market::Rules rules;
+    rules.zenLimit = 2000000000;
+    rules.maxPrice = 2000000000;
+    rules.saleFeeBasisPoints = 1000;
+    // The server floors the fee of each sale: two single sales of 199 at 10 % leave 2 × 180 = 360.
+    auto proceeds = ProceedsIfAllSell(rules, 2, 199);
+    CHECK(proceeds.amount == 359);
+    CHECK_FALSE(proceeds.exact);
+    CHECK(ProceedsText(proceeds) == "at least 359");
+    // Every unit's fee is whole: any split gives the same total.
+    proceeds = ProceedsIfAllSell(rules, 6, 590000);
+    CHECK(proceeds.amount == 3186000);
+    CHECK(proceeds.exact);
+    CHECK(ProceedsText(proceeds) == "3,186,000");
+    // At 10 % that holds for every price of 1,000 and more on the price grid, and for one unit always.
+    CHECK(ProceedsIfAllSell(rules, 250, 1000).exact);
+    CHECK(ProceedsIfAllSell(rules, 1, 199).exact);
+    CHECK(ProceedsIfAllSell(rules, 1, 199).amount == 180);
+    // The lower bound holds for every split of the order.
+    for (std::uint32_t quantity = 2; quantity <= 12; ++quantity)
+        for (Market::Zen unit : {1u, 7u, 199u, 995u, 1000u, 1005u, 590000u})
+        {
+            const auto bound = ProceedsIfAllSell(rules, quantity, unit);
+            std::uint64_t singles = 0;
+            for (std::uint32_t i = 0; i < quantity; ++i)
+                singles += unit - Market::SaleFee(rules, unit);
+            CHECK(bound.amount <= singles);
+            if (bound.exact)
+                CHECK(bound.amount == singles);
+        }
+    rules.saleFeeBasisPoints = 250;
+    CHECK_FALSE(ProceedsIfAllSell(rules, 3, 1010).exact);
+    CHECK(ProceedsIfAllSell(rules, 3, 2000).exact);
+    const auto review = DescribeListingReview(rules, true, 2, 199, 0, 48);
+    CHECK(review.fees.find("Receive if all sell at least 389\n") != std::string::npos);
 }
 
 TEST_CASE("Auction buy quantity: an exact count is a ceiling, a lower bound is not [auction][receipts]")
