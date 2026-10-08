@@ -5,6 +5,26 @@
 
 namespace UI::AuctionHouse
 {
+namespace
+{
+// An equipment review's short identity: skill, luck, the additional option and every excellent option.
+std::string OptionSummary(const RowModel& row)
+{
+    std::string text = row.summary;
+    std::size_t start = 0;
+    while (start < row.options.size())
+    {
+        auto end = row.options.find('\n', start);
+        if (end == std::string::npos)
+            end = row.options.size();
+        if (end > start)
+            text += (text.empty() ? "" : " · ") + row.options.substr(start, end - start);
+        start = end + 1;
+    }
+    return text;
+}
+} // namespace
+
 void Window::OpenReview(Review review, const Rml::String& name, const Rml::String& title, const Rml::String& action)
 {
     if (m_View.GetModel().busy)
@@ -17,6 +37,7 @@ void Window::OpenReview(Review review, const Rml::String& name, const Rml::Strin
     model.confirmName = name;
     model.confirmAction = action;
     model.confirmDetail.clear();
+    model.confirmWarning.clear();
     model.confirmTotal = ExactZen(review.amount) + " Zen";
     model.confirmFee = review.action == Action::Publish ? "Posting fee " + ExactZen(review.fee) + " Zen" : "";
     model.confirmBalance.clear();
@@ -96,9 +117,10 @@ void Window::ReviewBuy()
     }
     if (!CharacterMachine || review.amount > CharacterMachine->Gold)
     {
-        SetStatus("Not enough Zen.");
+        SetStatus(ZenShortfallText(review.amount, CharacterMachine ? CharacterMachine->Gold : 0) + ".");
         return;
     }
+    review.subject = model.selectedName;
     OpenReview(review, model.selectedName + (model.goods ? " ×" + std::to_string(review.quantity) : ""), "Buy item",
                "Buy");
     if (model.goods && m_Review.action == Action::BuyGoods)
@@ -111,6 +133,14 @@ void Window::ReviewBuy()
         shown.confirmDetail = std::move(lines);
         shown.confirmTotal = "Total " + ExactZen(review.amount) + " Zen";
     }
+    else if (m_Review.action == Action::BuyItem && static_cast<std::size_t>(m_Selected) < model.rows.size())
+    {
+        auto& shown = m_View.GetModel();
+        const auto& row = shown.rows[m_Selected];
+        shown.confirmDetail = OptionSummary(row);
+        if (row.cannotEquip)
+            shown.confirmWarning = "Cannot Equip with this character. You can still buy it.";
+    }
 }
 
 void Window::ReviewSale()
@@ -122,7 +152,7 @@ void Window::ReviewSale()
     const auto& model = m_View.GetModel();
     if (!model.sellReady || m_SellSlot < 0)
     {
-        SetStatus("Check quantity, price and fees.");
+        SetStatus(model.sellNote.empty() ? "Check quantity, price and fees." : model.sellNote);
         return;
     }
     const auto& rules = Market::GetState().GetRules();
@@ -142,12 +172,14 @@ void Window::ReviewSale()
     review.slot = static_cast<std::uint8_t>(m_SellSlot);
     review.itemKey = m_SellKey;
     review.duration = static_cast<std::uint8_t>(*duration);
-    OpenReview(review, model.selectedName + (model.sellGoods ? " ×" + std::to_string(*quantity) : ""), "Review listing",
-               "Publish listing");
-    m_View.GetModel().confirmTotal = "Total " + model.saleTotal;
-    m_View.GetModel().confirmFee = "Posting fee " + model.postingFee + "\nSale fee " + model.saleFee +
-                                   "\nNet proceeds " + model.proceeds + "\nDuration " + std::to_string(*duration) +
-                                   " h";
+    review.subject = model.selectedName;
+    OpenReview(review, model.selectedName, "Review listing", "Publish listing");
+    const auto text = DescribeListingReview(rules, model.sellGoods, *quantity, *price, *fee, review.duration);
+    auto& shown = m_View.GetModel();
+    shown.confirmTotal = text.total;
+    shown.confirmFee = text.fees;
+    if (!model.sellGoods && m_SelectedIcon.item)
+        shown.confirmDetail = OptionSummary(Describe(m_SelectedIcon.item.get(), 0));
 }
 
 void Window::ReviewCancel(int index)
@@ -161,30 +193,34 @@ void Window::ReviewCancel(int index)
     review.action = Action::Cancel;
     review.id = rows[index].id;
     review.quantity = rows[index].remaining;
+    review.subject = m_View.GetModel().rows[index].name;
     OpenReview(review, m_View.GetModel().rows[index].name, "Cancel listing", "Cancel listing");
     m_View.GetModel().confirmTotal = "Remaining ×" + std::to_string(review.quantity);
     m_View.GetModel().confirmFee =
         Market::GetState().GetRules().refundPostingFee ? "Posting fee refunded" : "Posting fee kept";
 }
 
-void Window::ReviewClaim(int index)
+void Window::Collect(int index)
 {
-    if (m_View.GetModel().busy || m_View.GetModel().review)
+    auto& model = m_View.GetModel();
+    if (model.busy || model.review || !Market::GetState().IsOpen())
         return;
+    // Collecting only moves what the player already owns, so it acts at once (D13).
     Review review;
     review.action = Action::Claim;
-    Rml::String name = "All entries";
     if (index >= 0)
     {
         if (static_cast<std::size_t>(index) >= m_Collection.size())
             return;
         review.id = m_Collection[index].id;
-        review.amount = m_Collection[index].net;
-        name = m_View.GetModel().rows[index].name;
     }
-    OpenReview(review, name, "Collect", "Collect");
-    if (index < 0 || !review.amount)
-        m_View.GetModel().confirmTotal.clear();
+    review.revision = Market::GetState().Revision();
+    SetStatus({});
+    m_Review = review;
+    m_Read = Read::None;
+    m_ActionQueued = true;
+    model.busy = true;
+    m_Dirty = true;
 }
 
 void Window::Confirm()

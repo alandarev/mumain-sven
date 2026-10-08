@@ -142,7 +142,8 @@ void Window::HandlePage(Market::Operation operation)
     RefreshRows();
     if (reselect && m_Selected >= 0 && m_Read == Read::None)
         m_Read = Read::Quote;
-    if (model.rows.empty() && !model.more)
+    // An empty page supersedes a read error, but a receipt stays for its lifetime.
+    if (model.rows.empty() && !model.more && m_Status.Tone() != StatusTone::Success)
         SetStatus({});
 }
 
@@ -209,17 +210,23 @@ void Window::RefreshRows()
         for (const auto& entry : m_Collection)
         {
             auto item = Decode(entry.itemData);
-            if (!item && entry.type < MAX_ITEM && entry.kind != 2)
+            if (!item && entry.type < MAX_ITEM)
                 item = GoodsItem({entry.type, entry.level});
             auto row = Describe(item.get(), 0);
             if (entry.kind == 2)
             {
-                row.name = CompactZen(entry.net) + " Zen";
-                row.icon = "zen";
+                // Proceeds: the sold item (type and level; the exact variant is not on the wire), the
+                // quantity and the net; gross and fee expand under the row.
+                row.name = (row.name.empty() ? "Sold item" : row.name) +
+                           (entry.quantity > 1 ? " × " + std::to_string(entry.quantity) : "") + " · " +
+                           ExactZen(entry.net) + " Zen";
+                if (!item)
+                    row.icon = "zen";
                 row.meta = "Sold";
                 row.price.clear();
                 row.exactPrice = ExactZen(entry.net) + " Zen";
                 row.detail = "Gross " + ExactZen(entry.gross) + " Zen\nSale fee " + ExactZen(entry.fee) + " Zen";
+                row.breakdown = "Gross " + ExactZen(entry.gross) + " Zen · Sale fee " + ExactZen(entry.fee) + " Zen";
             }
             else
             {
@@ -252,11 +259,12 @@ void Window::HandleOutcome(Market::Operation operation)
         m_Clock.Busy(RequestClock::Time::clock::now());
     if (operation == Market::Operation::CreateListing && outcome->result != Market::Result::Success)
         m_PublishedPrice.reset();
-    if (outcome->result != Market::Result::Success)
+    using O = Market::Operation;
+    const bool partialClaim = operation == O::Claim && outcome->result == Market::Result::Partial;
+    if (outcome->result != Market::Result::Success && !partialClaim)
     {
+        // The draft stays as it was: the player can correct it and review again.
         SetStatus(ResultText(outcome->result));
-        if (outcome->result == Market::Result::Partial)
-            QueueRead(Read::Collection, true);
         if (outcome->result == Market::Result::RulesChanged)
             RefreshRules();
         if ((operation == Market::Operation::BuyListing) &&
@@ -264,18 +272,17 @@ void Window::HandleOutcome(Market::Operation operation)
             QueueRead(Read::Search, true);
         return;
     }
-    using O = Market::Operation;
+    auto receipt = BuildReceipt(*outcome, {review.subject, review.amount});
+    auto& model = m_View.GetModel();
     if (operation == O::Claim)
-        m_View.GetModel().pending = outcome->remainingEntries;
-    SetStatus(operation == O::CreateListing   ? "Listed."
-              : operation == O::CancelListing ? "Cancelled."
-              : operation == O::Claim         ? "Collected."
-                                              : "Purchased.",
-              false);
-    m_StatusUntil = RequestClock::Time::clock::now() + std::chrono::milliseconds(3200);
+        model.pending = outcome->remainingEntries;
+    else
+        model.pending += receipt.collectionEntries;
+    if (operation == O::CreateListing && !RememberPublishedPrice())
+        receipt.text += " · the price could not be remembered";
+    ShowReceipt(receipt);
     if (operation == O::CreateListing)
     {
-        RememberPublishedPrice();
         m_SellDrafts.erase(m_SellKey);
         ClearSellSelection();
         RefreshInventory();
@@ -304,7 +311,12 @@ void Window::OnNotice(const Market::Notice& notice)
     if (IsVisible())
     {
         DismissReview();
-        SetStatus(text, false);
+        const bool waiting = notice.kind == Market::NoticeKind::SoldToCollection ||
+                             notice.kind == Market::NoticeKind::ExpiredToCollection ||
+                             notice.kind == Market::NoticeKind::DeliveriesWaiting;
+        m_Status.Show(text, StatusTone::Info, waiting ? StatusLink::Collection : StatusLink::None,
+                      RequestClock::Time::clock::now());
+        ShowStatus();
         RefreshRules();
         m_View.GetModel().pending = notice.pendingCollection;
         if (m_View.GetModel().tab == "own")

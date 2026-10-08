@@ -6,6 +6,7 @@
 #include "GameLogic/AuctionHouse/AuctionHousePriceMemory.h"
 #include "UI/AuctionHouse/GoodsQuote.h"
 #include "UI/AuctionHouse/PriceEntry.h"
+#include "UI/AuctionHouse/Receipts.h"
 #include "UI/AuctionHouse/Presentation.h"
 #include "UI/AuctionHouse/WindowModel.h"
 #include "UI/Core/WindowObject.h"
@@ -92,6 +93,8 @@ private:
         std::uint32_t quantity = 0, itemKey = 0, revision = 0;
         std::uint16_t type = 0;
         std::uint8_t level = 0, slot = 0, duration = 0;
+        // The reviewed item's name, for the receipt.
+        std::string subject;
     };
     struct SellDraft
     {
@@ -110,6 +113,8 @@ private:
     void Built();
     void Dirty();
     void SetStatus(const std::string& text, bool error = true);
+    void ShowReceipt(const Receipt& receipt);
+    void ShowStatus();
     void SwitchTab(const Rml::String& tab);
     void FilterChanged();
     void OpenFilters();
@@ -135,12 +140,13 @@ private:
     void ClearQuote();
     void RefreshLiveQuote(RequestClock::Time now);
     void RequestQuoteNow();
+    void RefreshBuyNote();
     void SelectRow(int index);
     void SelectInventory(int slot);
     void ReviewBuy();
     void ReviewSale();
     void ReviewCancel(int index);
-    void ReviewClaim(int index);
+    void Collect(int index);
     void OpenReview(Review review, const Rml::String& name, const Rml::String& title, const Rml::String& action);
     void DismissReview();
     void Confirm();
@@ -159,7 +165,7 @@ private:
     void QueueSellMarketRefresh(RequestClock::Time now);
     Market::Zen SellLowest() const;
     bool EnsurePriceMemory();
-    void RememberPublishedPrice();
+    bool RememberPublishedPrice();
     void SyncIcons();
     void Hover(int index, bool inventory);
     void ClearItems();
@@ -173,8 +179,7 @@ private:
     mu::ui::window::CManager* m_Manager = nullptr;
     UI::RmlBridge::ThemedView<WindowModel> m_View;
     RequestClock m_Clock;
-    RequestClock::Time m_SearchAt{}, m_ReadSentAt{}, m_StatusUntil{}, m_LastInventory{}, m_LastExpiry{},
-        m_ActionSentAt{};
+    RequestClock::Time m_SearchAt{}, m_ReadSentAt{}, m_LastInventory{}, m_LastExpiry{}, m_ActionSentAt{};
     std::deque<std::function<void()>> m_Events;
     Read m_Read = Read::None, m_SentRead = Read::None;
     bool m_ReviewNeedsFocus = false;
@@ -194,6 +199,7 @@ private:
     std::vector<Icon> m_Icons, m_InventoryIcons;
     Icon m_SelectedIcon;
     Review m_Review;
+    StatusLine m_Status;
     PriceEntry m_PriceEntry;
     std::optional<Market::SellCheck> m_SellCheck;
     std::optional<Market::Quote> m_SellQuote;

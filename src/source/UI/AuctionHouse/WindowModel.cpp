@@ -25,6 +25,7 @@ void RegisterRows(Rml::DataModelConstructor& constructor)
     row.RegisterMember("highlighted", &RowModel::highlighted);
     row.RegisterMember("units", &RowModel::units);
     row.RegisterMember("changed", &RowModel::changed);
+    row.RegisterMember("breakdown", &RowModel::breakdown);
     constructor.RegisterArray<std::vector<RowModel>>();
     auto choice = constructor.RegisterStruct<ChoiceModel>();
     choice.RegisterMember("value", &ChoiceModel::value);
@@ -118,6 +119,17 @@ void BindWindowModel(Rml::DataModelConstructor& c, WindowModel& m)
     c.Bind("confirm_total", &m.confirmTotal);
     c.Bind("confirm_fee", &m.confirmFee);
     c.Bind("confirm_detail", &m.confirmDetail);
+    c.Bind("confirm_warning", &m.confirmWarning);
+    c.Bind("status_receipt", &m.statusReceipt);
+    c.Bind("status_link", &m.statusLink);
+    c.Bind("quantity_hint", &m.quantityHint);
+    c.Bind("quantity_hint_error", &m.quantityHintError);
+    c.Bind("listing_count", &m.listingCount);
+    c.Bind("listing_count_full", &m.listingCountFull);
+    c.Bind("sell_note", &m.sellNote);
+    c.Bind("buy_hint", &m.buyHint);
+    c.Bind("buy_hint_error", &m.buyHintError);
+    c.Bind("buy_note", &m.buyNote);
     c.Bind("confirm_action", &m.confirmAction);
     c.Bind("loading", &m.loading);
     c.Bind("more", &m.more);

@@ -22,6 +22,8 @@ struct RowModel
     int units = 1;
     // A goods row whose lowest price just changed in the live quote.
     bool changed = false;
+    // A sold Collection row's gross and fee, shown under the row while it is selected.
+    Rml::String breakdown;
 };
 
 struct ChoiceModel
@@ -65,7 +67,13 @@ struct WindowModel
     Rml::String quoteTotal, stock, durationValue;
     Rml::String confirmTitle, confirmName, confirmTotal, confirmFee, confirmAction;
     // Review lines above the total: the order split per price, or an item's option summary.
-    Rml::String confirmDetail;
+    Rml::String confirmDetail, confirmWarning;
+    // The status line: a receipt (success) is prominent; the link opens the Collection or My auctions.
+    bool statusReceipt = false;
+    Rml::String statusLink;
+    // Inline validation beside the fields: quantity range, listing count, why Review or Buy is unavailable.
+    Rml::String quantityHint, listingCount, sellNote, buyHint, buyNote;
+    bool quantityHintError = false, listingCountFull = false, buyHintError = false;
     bool loading = false, more = false, selected = false, cannotEquip = false;
     bool stepDown = false, stepUp = false, statusError = false;
     bool goods = false, sellGoods = false, sellReady = false, busy = false, review = false;

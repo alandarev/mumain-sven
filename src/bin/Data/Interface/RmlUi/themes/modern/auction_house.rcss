@@ -188,3 +188,11 @@ select selectvalue { display: block; width: 100%; box-sizing: border-box; paddin
 .quote-freshness { display: flex; align-items: center; justify-content: space-between; margin: 0.4em 0 0.6em; }
 .refresh-quote { padding: 0.2em 0.6em; border: 1px token(border-inner); }
 .review-card > .review-detail { margin-bottom: 0.4em; }
+
+/* Results and inline validation. */
+.status { display: flex; align-items: center; }
+.status-text { flex: 1 1 auto; }
+.status.receipt { color: token(accent-gold); border-top: 1px token(border-inner); }
+.status-link { flex-shrink: 0; margin-left: 0.6em; padding: 0.2em 0.7em; border: 1px token(border-inner); white-space: nowrap; }
+.listing .breakdown { font-size: 0.85em; }
+.review-card > .review-warning { position: relative; z-index: 1; margin-bottom: 0.4em; }

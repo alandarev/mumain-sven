@@ -42,6 +42,11 @@ void Window::RefreshSelling()
     model.postingFee.clear();
     model.saleFee.clear();
     model.proceeds.clear();
+    model.quantityHint.clear();
+    model.quantityHintError = false;
+    model.listingCount.clear();
+    model.listingCountFull = false;
+    model.sellNote.clear();
     if (m_SellSlot < 0)
     {
         RefreshPriceEntry();
@@ -61,12 +66,25 @@ void Window::RefreshSelling()
     if (!m_SellCheck)
         return;
     const auto& check = *m_SellCheck;
-    if (check.result != Market::Result::Success || check.reason != 0)
+    if (check.result != Market::Result::Success)
     {
-        SetStatus(check.result != Market::Result::Success ? ResultText(check.result) : "This item cannot be listed.");
+        SetStatus(ResultText(check.result));
+        return;
+    }
+    if (check.reason != 0)
+    {
+        model.sellNote = SellCheckReasonText(check.reason);
         return;
     }
     const auto& rules = Market::GetState().GetRules();
+    model.listingCount = ListingCountText(check.activeListings, rules.maxActiveListings);
+    model.listingCountFull = check.activeListings >= rules.maxActiveListings;
+    if (model.sellGoods)
+    {
+        const auto hint = QuantityHint(model.quantity, check.available);
+        model.quantityHint = hint.text;
+        model.quantityHintError = hint.error;
+    }
     const auto quantity = ParseQuantity(model.quantity, check.available);
     // Fees are shown for the price that a commit lists: the typed price rounded down to a valid one.
     const auto typed = ParseZen(model.price, rules.maxPrice);
@@ -77,7 +95,8 @@ void Window::RefreshSelling()
     const auto fee = Market::PostingFee(rules, *quantity, *price);
     if (!fee || total > rules.zenLimit)
     {
-        SetStatus("Price exceeds the market limit.");
+        model.sellNote =
+            "Total above the market limit of " + ExactZen(std::min(rules.maxPrice, rules.zenLimit)) + " Zen.";
         return;
     }
     const auto saleFee = Market::SaleFee(rules, static_cast<Market::Zen>(total));
@@ -85,10 +104,10 @@ void Window::RefreshSelling()
     model.postingFee = ExactZen(*fee) + " Zen";
     model.saleFee = ExactZen(saleFee) + " Zen";
     model.proceeds = ExactZen(static_cast<Market::Zen>(total) - saleFee) + " Zen";
-    if (check.activeListings >= rules.maxActiveListings)
-        SetStatus("Listing limit reached.");
+    if (model.listingCountFull)
+        model.sellNote = "Listing limit reached (" + model.listingCount + ").";
     else if (!CharacterMachine || *fee > CharacterMachine->Gold)
-        SetStatus("Not enough Zen for the posting fee.");
+        model.sellNote = "Posting fee: " + ZenShortfallText(*fee, CharacterMachine ? CharacterMachine->Gold : 0) + ".";
     model.sellReady = !model.busy && check.activeListings < rules.maxActiveListings && CharacterMachine &&
                       *fee <= CharacterMachine->Gold;
 }

@@ -192,11 +192,12 @@ bool Window::Update()
         m_Wallet = CharacterMachine->Gold;
         m_View.GetModel().wallet = CompactZen(m_Wallet) + " Zen";
         RefreshSelling();
+        RefreshBuyNote();
         m_Dirty = true;
     }
     if (m_View.GetModel().busy && m_ActionSentAt != RequestClock::Time{} && now - m_ActionSentAt > RequestTimeout)
     {
-        SetStatus("No response. Close and talk to Zyro again.");
+        SetStatus(std::string(OutcomeUnknownText));
         m_ActionSentAt = {};
     }
     if (now - m_LastExpiry >= std::chrono::minutes(1) && !m_View.GetModel().busy)
@@ -229,11 +230,8 @@ bool Window::Update()
     RefreshLiveQuote(now);
     PumpRequests(now);
     SyncIcons();
-    if (m_StatusUntil != RequestClock::Time{} && now >= m_StatusUntil)
-    {
-        m_StatusUntil = {};
-        SetStatus({});
-    }
+    if (m_Status.Expire(now))
+        ShowStatus();
     if (m_Dirty)
     {
         Dirty();
@@ -271,10 +269,26 @@ bool Window::UpdateKeyEvent()
 
 void Window::SetStatus(const std::string& text, bool error)
 {
-    m_View.GetModel().status = text;
-    m_View.GetModel().statusError = error;
-    m_View.MarkDirty("status");
-    m_View.MarkDirty("status_error");
+    m_Status.Show(text, error ? StatusTone::Error : StatusTone::Info, StatusLink::None,
+                  RequestClock::Time::clock::now());
+    ShowStatus();
+}
+
+void Window::ShowReceipt(const Receipt& receipt)
+{
+    m_Status.Show(receipt.text, receipt.tone, receipt.link, RequestClock::Time::clock::now());
+    ShowStatus();
+}
+
+void Window::ShowStatus()
+{
+    auto& model = m_View.GetModel();
+    model.status = m_Status.Text();
+    model.statusError = m_Status.Tone() == StatusTone::Error;
+    model.statusReceipt = m_Status.Tone() == StatusTone::Success;
+    model.statusLink = Rml::String(StatusLinkName(m_Status.Link()));
+    for (const char* field : {"status", "status_error", "status_receipt", "status_link"})
+        m_View.MarkDirty(field);
 }
 
 void Window::SwitchTab(const Rml::String& tab)

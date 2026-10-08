@@ -142,6 +142,7 @@ void Window::BindEvents(Rml::DataModelConstructor& c)
               SetStatus({});
               auto& model = m_View.GetModel();
               model.quoteTotal.clear();
+              RefreshBuyNote();
               const auto quantity = ParseQuantity(model.buyQuantity, std::numeric_limits<std::uint32_t>::max());
               if (!quantity || !*quantity)
               {
@@ -165,7 +166,7 @@ void Window::BindEvents(Rml::DataModelConstructor& c)
     event("buy", [this](const auto&) { ReviewBuy(); });
     event("sell", [this](const auto&) { ReviewSale(); });
     event("cancel_listing", [this, index](const auto& args) { ReviewCancel(index(args)); });
-    event("claim", [this, index](const auto& args) { ReviewClaim(index(args)); });
+    event("claim", [this, index](const auto& args) { Collect(index(args)); });
     event("dismiss",
           [this](const auto&)
           {
@@ -247,6 +248,15 @@ void Window::Dirty()
                                              "confirm_total",
                                              "confirm_fee",
                                              "confirm_detail",
+                                             "confirm_warning",
+                                             "quantity_hint",
+                                             "quantity_hint_error",
+                                             "listing_count",
+                                             "listing_count_full",
+                                             "sell_note",
+                                             "buy_hint",
+                                             "buy_hint_error",
+                                             "buy_note",
                                              "confirm_action",
                                              "loading",
                                              "more",

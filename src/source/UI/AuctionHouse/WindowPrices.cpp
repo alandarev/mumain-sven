@@ -323,13 +323,12 @@ bool Window::EnsurePriceMemory()
     return true;
 }
 
-void Window::RememberPublishedPrice()
+bool Window::RememberPublishedPrice()
 {
     const auto published = std::exchange(m_PublishedPrice, std::nullopt);
     if (!published || !EnsurePriceMemory())
-        return;
+        return true;
     m_PriceMemory.Remember(published->identity, published->price);
-    if (!m_PriceMemory.Save(m_PriceMemoryPath, m_PriceMemoryOwner))
-        SetStatus("Listed. The price could not be remembered.");
+    return m_PriceMemory.Save(m_PriceMemoryPath, m_PriceMemoryOwner);
 }
 } // namespace UI::AuctionHouse

@@ -119,8 +119,23 @@ TEST_CASE("Auction native document stays bounded across tabs themes and scale [a
         model.priceNote = "Rounded to 1,990,000,000";
         model.canForget = true;
         model.sellTiers.assign(8, {"1,990,000,000", "250"});
+        // Results and inline validation at their longest.
+        model.rows.front().selected = true;
+        model.rows.front().breakdown = "Gross 2,000,000,000 Zen · Sale fee 200,000,000 Zen";
+        model.status = "Bought 250 Jewel of Bless for 1,999,999,999 Zen · 248 in your bag, 2 in Collection";
+        model.statusReceipt = true;
+        model.statusLink = "collection";
+        model.quantityHint = "Whole number 1–250";
+        model.quantityHintError = true;
+        model.listingCount = "Listings 20/20";
+        model.listingCountFull = true;
+        model.sellNote = "Posting fee: Need 100,000,000 Zen, you have 1,999,999,999.";
+        model.buyHint = "Whole number 1–4,294,967,295";
+        model.buyNote = "Need 1,999,999,999 Zen, you have 50,000";
         for (const char* field :
-             {"sell_goods", "max_quantity", "market_lowest", "price_source", "price_note", "can_forget", "sell_tiers"})
+             {"sell_goods", "max_quantity", "market_lowest", "price_source", "price_note", "can_forget", "sell_tiers",
+              "status", "status_receipt", "status_link", "quantity_hint", "quantity_hint_error", "listing_count",
+              "listing_count_full", "sell_note", "buy_hint", "buy_note"})
             view.MarkDirty(field);
         for (int width : {640, 1024, 1920})
             for (float scale : {1.f, 1.6f, 2.f})
@@ -151,6 +166,28 @@ TEST_CASE("Auction native document stays bounded across tabs themes and scale [a
                     CHECK(size.y > 0);
                     CHECK(size.x <= width);
                     CHECK(size.y <= fixture.context->GetDimensions().y);
+                    {
+                        // The receipt's Open link stays inside the panel.
+                        Rml::ElementList links;
+                        document->GetElementsByClassName(links, "status-link");
+                        std::erase_if(links, [](Rml::Element* link) { return !link->IsVisible(true); });
+                        REQUIRE(links.size() == 1);
+                        const auto right = panel->GetAbsoluteOffset(Rml::BoxArea::Border).x + size.x;
+                        CHECK(links.front()->GetBox().GetSize(Rml::BoxArea::Border).x > 0);
+                        CHECK(links.front()->GetAbsoluteOffset(Rml::BoxArea::Border).x +
+                                  links.front()->GetBox().GetSize(Rml::BoxArea::Border).x <=
+                              right + 1);
+                        Rml::ElementList notes;
+                        document->GetElementsByClassName(notes, "field-note");
+                        for (auto* note : notes)
+                            if (note->IsVisible(true))
+                                CHECK(note->GetAbsoluteOffset(Rml::BoxArea::Border).x +
+                                          note->GetBox().GetSize(Rml::BoxArea::Border).x <=
+                                      right + 1);
+                        if (model.tab == "sell")
+                            CHECK(std::count_if(notes.begin(), notes.end(),
+                                                [](Rml::Element* note) { return note->IsVisible(true); }) == 3);
+                    }
                     if (model.tab == "browse")
                     {
                         Rml::ElementList toggles;
@@ -200,6 +237,12 @@ TEST_CASE("Auction native document stays bounded across tabs themes and scale [a
                     model.confirmDetail = "6 × 590,000 = 3,540,000\n2 × 595,000 = 1,190,000\n"
                                           "+20 at higher prices · 12,400,000 Zen";
                     view.MarkDirty("confirm_detail");
+                    model.confirmWarning = "Cannot Equip with this character. You can still buy it.";
+                    view.MarkDirty("confirm_warning");
+                    model.confirmFee = "Posting fee 100,000,000 (5 %, charged now, not refunded)\n"
+                                       "Sale fee 200,000,000 (10 %, when sold)\n"
+                                       "You receive 1,800,000,000 if all sell\nDuration 48 h";
+                    view.MarkDirty("confirm_fee");
                     fixture.context->Update();
                     Rml::ElementList cards;
                     document->GetElementsByClassName(cards, "review-card");

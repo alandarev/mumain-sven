@@ -61,6 +61,28 @@ a broker, as far as inventory space and the Zen limit allow. The remainder stays
 in Collection. Away from a broker, delivery waits in Collection. Notices identify
 whether a sale or expiry reached inventory or is waiting for collection.
 
+Every action ends with a receipt built from the broker's answer: what was listed
+and the posting fee charged, what was bought, the Zen actually paid and how many
+units went to the bag and how many to Collection, what a cancellation returned and
+where, and what a claim collected ("Collected 3 · 2 items, 11,250,000 Zen"), with
+the reason anything was kept back (bag full, Zen limit). A receipt offers Open (the
+Collection) or My auctions where that is where the result went, and the Collection
+badge counts the new entry at once. Receipts fade after about eight seconds; errors
+stay until your next action. When the broker does not answer an action at all, the
+window says the outcome is unknown and asks you to reopen the broker and check your
+bag and My auctions. Collect and Collect all act at once, without a review.
+
+The listing review shows the unit price line for goods ("6 × 590,000 = 3,540,000
+Zen"), the options of equipment, the posting fee with its terms ("5 %, charged now,
+not refunded"), the sale fee and what you receive if everything sells. Buying
+equipment your character cannot wear shows a Cannot Equip warning but stays allowed.
+Next to the fields the Sell tab says how many units you hold or the allowed range,
+the active listings against the limit ("Listings 19/20"), an exact posting-fee
+shortfall ("Need 177,000 Zen, you have 50,000") and why an item cannot be sold (not
+tradable, not accepted by the market, moved); Browse says the same for a purchase.
+A refused listing keeps your quantity and price. In Collection a sold row names the
+item, the quantity and the net Zen; selecting it shows the gross and the sale fee.
+
 While Browse shows a selected jewel or material, its quote refreshes every five
 seconds ("Updated 3 s ago"; Refresh asks at once). The refresh pauses while a review
 is open or a request is pending, and only one auction tab polls at a time, so a

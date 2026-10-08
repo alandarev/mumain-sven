@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "UI/AuctionHouse/Window.h"
+#include "Engine/Object/ZzzInfomation.h"
 
 #include <limits>
 
@@ -59,7 +60,12 @@ void Window::RefreshQuote()
     m_QuoteAgeSeconds = -1;
     if (!quote->tiers.empty())
         goods.lowestUnitPrice = quote->tiers.front().unitPrice;
+    // The quote counts every unit for sale (FillableQuantity of an unlimited order is not known, so
+    // a shortfall answer is the exact availability).
+    if (quote->fillableQuantity < quote->requestedQuantity)
+        goods.available = quote->fillableQuantity;
     ShowQuote(now);
+    RefreshBuyNote();
     if (m_Review.action == Action::BuyGoods && !model.busy)
     {
         // The revised quote is displayed, but never sent until a new explicit review.
@@ -132,7 +138,33 @@ void Window::ClearQuote()
     model.quoteBeyond.clear();
     model.quoteShort.clear();
     model.quoteAge.clear();
+    RefreshBuyNote();
     m_Dirty = true;
+}
+
+void Window::RefreshBuyNote()
+{
+    auto& model = m_View.GetModel();
+    FieldHint hint;
+    std::string note;
+    const bool browsing = model.tab == "browse" && model.selected && m_Selected >= 0;
+    if (browsing && model.goods && static_cast<std::size_t>(m_Selected) < m_Goods.size())
+    {
+        hint = QuantityHint(model.buyQuantity, m_Goods[m_Selected].available);
+        if (CharacterMachine && m_ShownQuote && m_ShownQuote->fillableQuantity &&
+            m_ShownQuote->total > CharacterMachine->Gold)
+            note = ZenShortfallText(m_ShownQuote->total, CharacterMachine->Gold);
+    }
+    else if (browsing && !model.goods && static_cast<std::size_t>(m_Selected) < m_Listings.size() && CharacterMachine &&
+             m_Listings[m_Selected].price > CharacterMachine->Gold)
+        note = ZenShortfallText(m_Listings[m_Selected].price, CharacterMachine->Gold);
+    if (hint.text != model.buyHint || hint.error != model.buyHintError || note != model.buyNote)
+    {
+        model.buyHint = std::move(hint.text);
+        model.buyHintError = hint.error;
+        model.buyNote = std::move(note);
+        m_Dirty = true;
+    }
 }
 
 void Window::RefreshLiveQuote(RequestClock::Time now)
