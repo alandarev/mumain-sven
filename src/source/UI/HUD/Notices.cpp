@@ -17,6 +17,7 @@
 #include "UI/Scaling/UITransform.h"
 #include "Render/Text/CUIRenderText.h"
 #include "UI/Chat/ChatMessages.h"
+#include "UI/HUD/NoticeRouting.h"
 
 #include <RmlUi/Core/ElementDocument.h>
 
@@ -60,8 +61,11 @@ namespace
     UI::RmlBridge::ThemedView<UI::Notices::NoticesRmlModel> s_view{"notices", BindModel, {{"Data/Interface/RmlUi/notices.rml"}}};
     bool s_renderedThisFrame = false;
 
+    std::function<void(std::wstring_view)> s_coveringWindowLine;
+
     // The auction window fills the screen centre where the banner is drawn. While it is open the
-    // banner stays hidden and new notices go to the chat log, so prices and results stay readable.
+    // banner stays hidden; RouteNotice decides where new notices go, so prices and results stay
+    // readable and no server-wide warning is missed.
     bool CoveredByWindow()
     {
         return g_pNewUISystem && g_pNewUISystem->IsVisible(mu::ui::window::INTERFACE_AUCTION_HOUSE);
@@ -94,12 +98,25 @@ namespace UI::Notices
         memset(s_notices, 0, sizeof(s_notices));
     }
 
+    void SetCoveringWindowLine(std::function<void(std::wstring_view text)> show)
+    {
+        s_coveringWindowLine = std::move(show);
+    }
+
     void Create(const wchar_t* text, int color)
     {
-        if (CoveredByWindow())
+        switch (RouteNotice(CoveredByWindow(), color, text ? std::wstring_view(text) : std::wstring_view{}))
         {
-            UI::Chat::PostSystem(text, mu::ui::window::TYPE_SYSTEM_MESSAGE);
+        case NoticeRoute::WindowLineAndChat:
+            if (s_coveringWindowLine)
+                s_coveringWindowLine(text);
+            UI::Chat::PostChat(L"", text, ChatKind(color));
             return;
+        case NoticeRoute::Chat:
+            UI::Chat::PostChat(L"", text, ChatKind(color));
+            return;
+        case NoticeRoute::Banner:
+            break;
         }
         g_pRenderText->SetFont(g_hFontBold);
         const SIZE size = g_pRenderText->MeasureText(text, lstrlen(text));

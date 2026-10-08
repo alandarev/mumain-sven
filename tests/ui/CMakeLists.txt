@@ -307,6 +307,12 @@ mu_add_test(
         ${CMAKE_SOURCE_DIR}/src/source/UI/AuctionHouse/PropertyQuery.cpp
 )
 mu_add_test(
+    NAME notice_routing_tests
+    SOURCES
+        test_notice_routing.cpp
+        ${CMAKE_SOURCE_DIR}/src/source/UI/HUD/NoticeRouting.cpp
+)
+mu_add_test(
     NAME auction_layout_tests
     SOURCES
         test_auction_layout.cpp

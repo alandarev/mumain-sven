@@ -285,6 +285,21 @@ TEST_CASE("Auction listing review shows the unit price line fee terms and procee
     CHECK(PercentText(1000) == "10 %");
 }
 
+TEST_CASE("Auction server announcements take one notice line and never push sale notices out [auction][receipts]")
+{
+    NoticeLines lines;
+    lines.Push({"Sold 6 × Jewel of Bless · 3,186,000 Zen added to your bag"});
+    lines.PushAnnouncement("Server restarts in 5 minutes");
+    lines.Push({"Expired: Dragon Armor +9 · returned to your Collection", StatusLink::Collection});
+    lines.PushAnnouncement("Server restarts in 4 minutes");
+    REQUIRE(lines.Lines().size() == 3);
+    CHECK(lines.Lines()[0].text == "Server restarts in 4 minutes");
+    CHECK(lines.Lines()[0].announcement);
+    CHECK(lines.Lines()[1].text.starts_with("Expired"));
+    CHECK(lines.Lines()[2].text.starts_with("Sold"));
+    CHECK_FALSE(lines.Lines()[1].announcement);
+}
+
 TEST_CASE("Auction proceeds are exact only when per-sale rounding cannot change them [auction][receipts]")
 {
     Market::Rules rules;

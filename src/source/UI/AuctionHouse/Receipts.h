@@ -63,6 +63,8 @@ struct NoticeLine
 {
     std::string text;
     StatusLink link = StatusLink::None;
+    // A server-wide announcement drawn here instead of over the window (D24).
+    bool announcement = false;
 };
 
 // Sale and expiry notices from the server (D19): their own lines above the result line, newest
@@ -73,6 +75,9 @@ public:
     static constexpr std::size_t MaximumLines = 3;
 
     void Push(NoticeLine line);
+    // The newest server announcement replaces an older one, so announcements never push sale
+    // notices out.
+    void PushAnnouncement(std::string text);
     void Dismiss(std::size_t index);
     void Clear();
     std::span<const NoticeLine> Lines() const

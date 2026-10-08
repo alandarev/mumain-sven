@@ -148,6 +148,12 @@ void NoticeLines::Push(NoticeLine line)
         m_Lines.resize(MaximumLines);
 }
 
+void NoticeLines::PushAnnouncement(std::string text)
+{
+    std::erase_if(m_Lines, [](const NoticeLine& line) { return line.announcement; });
+    Push({std::move(text), StatusLink::None, true});
+}
+
 void NoticeLines::Dismiss(std::size_t index)
 {
     if (index < m_Lines.size())

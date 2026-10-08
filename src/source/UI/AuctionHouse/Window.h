@@ -120,6 +120,8 @@ private:
     void ShowReceipt(const Receipt& receipt);
     void ShowStatus();
     void ShowNotices();
+    // A server-wide notice while the window covers the banner (UI::Notices, D24).
+    void ShowAnnouncement(std::wstring_view text);
     // The player's next deliberate action clears the result line and the notices (D18, D19).
     void ClearFeedback();
     void RefreshListsAfterNotice();

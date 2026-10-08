@@ -6,6 +6,8 @@
 #include "UI/RmlBridge/RmlDraggable.h"
 #include "UI/RmlBridge/RmlTooltip.h"
 #include "UI/Core/WindowCommon.h"
+#include "UI/HUD/Notices.h"
+#include "Core/Utilities/StringUtils.h"
 #include <limits>
 
 #include <RmlUi/Core/Context.h>
@@ -56,6 +58,7 @@ bool Window::Create(mu::ui::window::CManager* manager)
     m_Manager = manager;
     manager->AddUIObj(mu::ui::window::INTERFACE_AUCTION_HOUSE, this);
     Market::SetListener(this);
+    UI::Notices::SetCoveringWindowLine([this](std::wstring_view text) { ShowAnnouncement(text); });
     m_View.Ensure();
     if (Market::GetState().IsOpen())
         OnOpened();
@@ -67,6 +70,7 @@ void Window::Release()
     if (!m_Manager)
         return;
     Market::SetListener(nullptr);
+    UI::Notices::SetCoveringWindowLine(nullptr);
     m_View.Hide();
     UI::RmlBridge::Tooltip::Hide(this);
     ClearItems();
@@ -291,6 +295,15 @@ void Window::ShowNotices()
     for (const auto& line : m_Notices.Lines())
         model.notices.push_back({line.text, Rml::String(StatusLinkName(line.link))});
     m_View.MarkDirty("notices");
+}
+
+void Window::ShowAnnouncement(std::wstring_view text)
+{
+    if (!IsVisible() || text.empty())
+        return;
+    m_Notices.PushAnnouncement(StringUtils::WideToNarrow(std::wstring(text).c_str()));
+    ShowNotices();
+    m_Dirty = true;
 }
 
 void Window::ClearFeedback()

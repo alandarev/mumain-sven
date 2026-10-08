@@ -94,9 +94,12 @@ A sale or expiry while the window is open appears as its own line above the rece
 Collection" with Open Collection, "Expired: Dragon Armor +9 · returned to your
 Collection"); up to three stack, newest first. A notice never closes an open review
 and never replaces a receipt or an error; it stays until your next action or its ×.
-With the window closed it goes to the chat log. Server announcements (event
-openings and the like) are not drawn across the open window; they go to the chat
-log instead.
+With the window closed it goes to the chat log. Nothing of the screen-centre banner
+is drawn across the open window. Server-wide notices (operator and GM
+announcements, event openings, castle siege countdowns — the protocol does not
+tell a restart warning apart from an event opening) appear as a notice line in the
+window instead, and in the chat log in their gold. Guild notices, guild war and
+castle siege seal messages go to the chat log in their green.
 
 The listing review shows the unit price line for goods ("6 × 590,000 = 3,540,000
 Zen"), the options of equipment, the posting fee with its terms ("5 %, charged now,
