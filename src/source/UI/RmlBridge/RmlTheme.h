@@ -35,6 +35,9 @@ namespace UI::RmlBridge
     const std::string& GetActiveThemeName();
     // Shared HUD unit: user scale and content density, plus opt-in theme viewport growth.
     float ThemeHudUnitPixels(int windowHeight);
+    // Zero means the theme retains legacy scaling. legacyUnits adapts the shared curve to
+    // existing 640x480 window units; new window regions use the theme's own design units.
+    float ThemeWindowUnitPixels(int width, int height, bool legacyUnits = false);
     bool ThemeUsesCornerBuffStrip();
 
     // Overwrites the live active-theme cache GetActiveThemeName() reads

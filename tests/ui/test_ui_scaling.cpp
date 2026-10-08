@@ -981,3 +981,19 @@ TEST_CASE("window cursor centers detached content in the active layout [ui][scal
     CHECK(UI::Scaling::PositionX(dock, dockPosition.x + 20.0f) == doctest::Approx(1200.0f));
     CHECK(UI::Scaling::PositionY(dock, dockPosition.y + 30.0f) == doctest::Approx(540.0f));
 }
+
+TEST_CASE("responsive windows grow beyond 1080p without a fixed size cap [ui][scaling]")
+{
+    using UI::Scaling::ResponsiveWindowScale;
+    CHECK(ResponsiveWindowScale(1024, 768, 1024, 768, 1.f) == 1.f);
+    CHECK(ResponsiveWindowScale(1920, 1080, 1024, 768, 1.f) == doctest::Approx(1.185854f));
+    CHECK(ResponsiveWindowScale(3840, 2160, 1024, 768, 1.f) == doctest::Approx(1.677051f));
+    CHECK(ResponsiveWindowScale(7680, 4320, 1024, 768, 1.f) > 2.f);
+    CHECK(ResponsiveWindowScale(800, 600, 1024, 768, 1.f) == doctest::Approx(.78125f));
+    CHECK(ResponsiveWindowScale(3840, 2160, 1024, 768, 2.f) == doctest::Approx(2.371708f));
+    CHECK(ResponsiveWindowScale(3440, 1440, 1024, 768, 1.f) == ResponsiveWindowScale(2560, 1440, 1024, 768, 1.f));
+    CHECK(ResponsiveWindowScale(0, 1080, 1024, 768, 1.f) == 1.f);
+    CHECK(ResponsiveWindowScale(1920, 1080, 0, 768, 1.f) == 1.f);
+    CHECK(ResponsiveWindowScale(1920, 1080, 1024, 768, 0.f) == 1.f);
+    CHECK(ResponsiveWindowScale(1920, 1080, 1024, 768, std::numeric_limits<float>::infinity()) == 1.f);
+}

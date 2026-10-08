@@ -261,3 +261,13 @@ hit boxes against C++ constants, and native parts at `m_Pos + constant`.
 ## Open questions
 
 - How z-order and focus interact with regions.
+
+### Responsive themes
+
+A theme declaring WindowReferenceWidth/Height uses one shared responsive window
+curve for its usual panel/dock/floating transforms. `data-scale="window"` uses the
+theme's design units directly for new panels such as Armory; `panel` and `dock`
+adapt inherited 640×480 units to that same curve. `hud` retains its independent
+HUD scale. Use `max-height: 100%` for safe-area fitting, without a fixed pixel cap.
+Workspace slot positions are read before paint transforms, so center their layout
+through flex containers rather than translate transforms.

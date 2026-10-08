@@ -159,6 +159,15 @@ namespace UI::Scaling
     float GetWindowContentScale();
     // Viewport growth in density-independent units, with the reference size as a readable floor.
     float ReferenceHeightScale(int pixelHeight, int referenceHeight, float contentScale);
+    // Normal windows grow gently above their theme's design viewport; below it they fit linearly.
+    // Density is applied once. User preference is the caller's final multiplier.
+    float ResponsiveWindowScale(int width, int height, int referenceWidth, int referenceHeight, float contentScale);
+    void SetWindowDesignViewport(int width, int height);
+    // Zero means legacy scaling is active. legacyUnits converts design units to 640x480 units.
+    float WindowUnitScale(int width, int height, bool legacyUnits = false);
+    // New documents opt in without changing legacy windows in the same theme.
+    // Uses the theme's design viewport, or the shared 1024x768 design baseline.
+    float ResponsiveDocumentScale(int width, int height);
     void SetWindowContentScale(float contentScale);
     Transform GetActiveTransform();
     void SetActiveTransform(const Transform& transform);

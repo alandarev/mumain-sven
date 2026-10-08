@@ -2,9 +2,13 @@
 
 #include "stdafx.h"
 #include "UI/RmlBridge/RmlTheme.h"
+#include "UI/Scaling/UITransform.h"
+#include "Data/GameConfig/GameConfig.h"
 #include "UI/RmlBridge/RmlThemedView.h"
+#include "UI/RmlBridge/RmlNativeText.h"
 
 #include <RmlUi/Core.h>
+#include <RmlUi/Core/ComputedValues.h>
 
 #include <filesystem>
 #include <chrono>
@@ -360,7 +364,8 @@ TEST_CASE("theme inheritance resolves documents and stops invalid or cyclic fall
     }
     std::ofstream(themes / "child/theme.ini")
         << "[Meta]\nFallbackTheme=parent\nDisplayName=Test "
-           "child\n[Capabilities]\nCompactHud=1\nCornerBuffStrip=1\n[Layout]\nHudReferenceHeight=768\n";
+           "child\n[Capabilities]\nCompactHud=1\nCornerBuffStrip=1\n[Layout]\nHudReferenceHeight="
+           "768\nWindowReferenceWidth=1024\nWindowReferenceHeight=768\n";
     std::ofstream(themes / "parent/theme.ini") << "[Meta]\nFallbackTheme=cycle\n";
     std::ofstream(themes / "cycle/theme.ini") << "[Meta]\nFallbackTheme=child\n";
     std::ofstream(themes / "invalid/theme.ini") << "[Meta]\nFallbackTheme=../parent\n";
@@ -382,11 +387,91 @@ TEST_CASE("theme inheritance resolves documents and stops invalid or cyclic fall
     CHECK(UI::RmlBridge::ThemeUsesCornerBuffStrip());
     const float childReferenceUnit = UI::RmlBridge::ThemeHudUnitPixels(768);
     CHECK(UI::RmlBridge::ThemeHudUnitPixels(1080) == doctest::Approx(childReferenceUnit * 1.40625f));
+    const float windowUnit = UI::RmlBridge::ThemeWindowUnitPixels(1024, 768);
+    CHECK(UI::RmlBridge::ThemeWindowUnitPixels(1920, 1080) == doctest::Approx(windowUnit * 1.185854f));
+    CHECK(UI::RmlBridge::ThemeWindowUnitPixels(3840, 2160) == doctest::Approx(windowUnit * 1.677051f));
+    CHECK(UI::Scaling::PanelTransform(1920, 1080).scaleX ==
+          doctest::Approx(UI::RmlBridge::ThemeWindowUnitPixels(1920, 1080, true)));
+    CHECK(UI::Scaling::CompanionRatio(1920, 1080) == UI::Scaling::PanelTransform(1920, 1080).scaleX);
+    CHECK(UI::Scaling::FloatingWorkspaceTransform(1920, 1080).scaleX == UI::Scaling::CompanionRatio(1920, 1080));
+    CHECK(UI::Scaling::NativeTextPixelSize(UI::Scaling::FontRole::Normal, UI::Scaling::PanelTransform(3840, 2160)) >
+          UI::Scaling::NativeTextPixelSize(UI::Scaling::FontRole::Normal, UI::Scaling::PanelTransform(1920, 1080)));
+    auto& config = GameConfig::GetInstance();
+    const int savedPercent = config.GetUIScalePercent();
+    const float unitBefore = UI::RmlBridge::ThemeWindowUnitPixels(1920, 1080);
+    config.SetUIScalePercent(savedPercent * 2);
+    CHECK(UI::RmlBridge::ThemeWindowUnitPixels(1920, 1080) == doctest::Approx(unitBefore * 2.f));
+    config.SetUIScalePercent(savedPercent);
+    const float hudBefore = UI::Scaling::BottomHudScale(1920, 1080);
     CHECK(UI::RmlBridge::GetThemeDisplayName("child") == "Test child");
     UI::RmlBridge::SetActiveThemeName("parent");
+    CHECK(UI::RmlBridge::ThemeWindowUnitPixels(3840, 2160) == 0.f);
+    CHECK(UI::Scaling::BottomHudScale(1920, 1080) == hudBefore);
     CHECK_FALSE(UI::RmlBridge::ThemeUsesCompactHud());
     CHECK_FALSE(UI::RmlBridge::ThemeUsesCornerBuffStrip());
     CHECK(UI::RmlBridge::ThemeHudUnitPixels(1080) == doctest::Approx(childReferenceUnit));
     const auto available = UI::RmlBridge::DiscoverAvailableThemes();
     CHECK(std::find(available.begin(), available.end(), "child") != available.end());
+}
+
+TEST_CASE("window design units keep text and geometry together across themes [ui][scaling][rml]")
+{
+    Fixture fixture;
+    auto& config = GameConfig::GetInstance();
+    struct Restore
+    {
+        std::filesystem::path directory;
+        std::string theme;
+        int percent;
+        float density;
+        ~Restore()
+        {
+            GameConfig::GetInstance().SetUIScalePercent(percent);
+            UI::Scaling::SetWindowContentScale(density);
+            std::filesystem::current_path(directory);
+            UI::RmlBridge::SetActiveThemeName(theme);
+        }
+    } restore{std::filesystem::current_path(), UI::RmlBridge::GetActiveThemeName(), config.GetUIScalePercent(),
+              UI::Scaling::GetWindowContentScale()};
+    std::filesystem::current_path(fixture.Path("."));
+    for (const char* theme : {"legacy", "modern", "responsive"})
+    {
+        const auto path = std::filesystem::path("Data/Interface/RmlUi/themes") / theme;
+        std::filesystem::create_directories(path);
+        std::ofstream(path / "theme.ini")
+            << (std::string(theme) == "responsive" ? "[Layout]\nWindowReferenceWidth=1024\nWindowReferenceHeight=768\n"
+                                                   : "[Capabilities]\nNativeTextSize=0\n");
+        std::ofstream(path / "base.rcss") << "body {}";
+    }
+    const auto path = fixture.Write(
+        "responsive.rml", "<rml><head><style>div {display:block;} #panel {width:300rem;height:200rem;font-size:13rem;}"
+                          "</style></head><body class='window-design'><div id='panel'></div></body></rml>");
+    UI::RmlBridge::ThemedView<> view({fixture.Spec(path)});
+    REQUIRE(view.Ensure());
+    auto* document = view.Document();
+    document->Show();
+    UI::Scaling::SetWindowContentScale(1.f);
+    fixture.context->SetDensityIndependentPixelRatio(3.2f); // Global dp must not scale the panel again.
+    for (const char* theme : {"legacy", "modern", "responsive"})
+    {
+        UI::RmlBridge::SetActiveThemeName(theme);
+        for (const auto size : {Rml::Vector2i(1024, 768), Rml::Vector2i(1920, 1080), Rml::Vector2i(3840, 2160)})
+            for (int percent : {50, 100, 150})
+            {
+                INFO(theme, " ", size.x, "x", size.y, " ", percent);
+                config.SetUIScalePercent(percent);
+                fixture.context->SetDimensions(size);
+                const float hudBefore = UI::Scaling::BottomHudScale(size.x, size.y);
+                UI::RmlBridge::ApplyNativeTextSize(fixture.context);
+                fixture.context->Update();
+                const float unit = UI::Scaling::ResponsiveWindowScale(size.x, size.y, 1024, 768, 1.f) *
+                                   static_cast<float>(percent) / 100.f;
+                auto* panel = document->GetElementById("panel");
+                REQUIRE(panel);
+                CHECK(panel->GetBox().GetSize(Rml::BoxArea::Border).x == doctest::Approx(300.f * unit));
+                CHECK(panel->GetComputedValues().font_size() == doctest::Approx(13.f * unit));
+                CHECK(UI::Scaling::BottomHudScale(size.x, size.y) == hudBefore);
+            }
+    }
+    view.Release();
 }

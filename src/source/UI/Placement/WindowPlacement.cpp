@@ -11,6 +11,7 @@
 #include "UI/Core/WindowSystem.h"
 #include "UI/RmlBridge/RmlPanelGeometry.h"
 #include "UI/RmlBridge/RmlThemedView.h"
+#include "UI/RmlBridge/RmlTheme.h"
 #include "UI/Scaling/UITransform.h"
 
 #include <RmlUi/Core/Context.h>
@@ -123,6 +124,12 @@ float BaseRegionScale(Rml::Element* region, const UI::Scaling::Transform& dock)
         return UI::Scaling::PanelTransform(WindowWidth, WindowHeight).scaleX;
     if (scale == "hud")
         return UI::Scaling::BottomHudScale(WindowWidth, WindowHeight);
+    if (scale == "window")
+    {
+        const float unit =
+            UI::RmlBridge::ThemeWindowUnitPixels(static_cast<int>(WindowWidth), static_cast<int>(WindowHeight));
+        return unit > 0.f ? unit : dock.scaleX;
+    }
     return dock.scaleX;
 }
 

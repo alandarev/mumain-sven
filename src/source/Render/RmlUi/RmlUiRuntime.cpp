@@ -21,34 +21,16 @@
 
 namespace
 {
-    // Global UI scale -- the one RmlUi-native call site every `dp`-authored RCSS dimension
-    // responds to. Two multipliers, composed the same way
-    // UI::Scaling's own legacy transforms compose them (UITransform.cpp):
-    //   - GameConfig::GetUIScalePercent() -- the user's own preference dial.
-    //   - UI::Scaling::ViewportFitScale() -- auto-fit-to-window-size (the same formula
-    //     BottomHudScale uses for the dock row above the HUD), which
-    //     already folds in UI::Scaling::GetWindowContentScale() (OS display-scale/pixel-density)
-    //     internally -- do NOT also multiply GetWindowContentScale() here, it would double-count.
-    //
-    // Confirmed live on a 125%-scaled (non-high-DPI-pixel-density) display: contentScale folded
-    // into ViewportFitScale's UPPER bound only (see that function's own comment -- it used to also
-    // raise the lower bound, which overflowed every reference-pixel layout at/near the reference
-    // resolution). No double-scaling seen at the reference size after that fix. Whether a genuine
-    // high-pixel-density panel (SDL_GetWindowPixelDensity() > 1, not just an OS scale preference)
-    // needs anything different here is still unconfirmed.
-    //
-    // Re-applied on resize too: SetDensityIndependentPixelRatio() sets an absolute ratio, not a
-    // relative one, so it doesn't drift on its own, but re-asserting it here costs nothing and
-    // removes any doubt about whether some other code path could have reset it in between.
-    void ApplyUIScale(Rml::Context* context, int windowWidth, int windowHeight)
-    {
-        if (!context) return;
-        const int percent = GameConfig::GetInstance().GetUIScalePercent();
-        const float autoFit =
-            UI::Scaling::ViewportFitScale(windowWidth, windowHeight, UI::Scaling::MaximumPanelScale);
-        context->SetDensityIndependentPixelRatio((static_cast<float>(percent) / 100.0f) * autoFit);
-        UI::RmlBridge::ApplyNativeTextSize(context);
-    }
+// dp follows the active theme's shared companion scale. HUD regions keep their
+// separate viewport curve. Opt-in window-design documents use responsive rem units.
+void ApplyUIScale(Rml::Context* context, int windowWidth, int windowHeight)
+{
+    if (!context)
+        return;
+    UI::RmlBridge::GetActiveThemeName(); // Configure the low-level window profile before first layout.
+    context->SetDensityIndependentPixelRatio(UI::Scaling::CompanionRatio(windowWidth, windowHeight));
+    UI::RmlBridge::ApplyNativeTextSize(context);
+}
 
     bool IsTextEntry(const Rml::Element* element)
     {

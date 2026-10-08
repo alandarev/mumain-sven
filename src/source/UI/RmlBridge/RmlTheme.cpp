@@ -186,6 +186,24 @@ namespace UI::RmlBridge
             return value;
         }
 
+        std::pair<int, int> ComputeWindowReferenceSize(const std::string& themeName)
+        {
+            const auto iniPath = WidenAscii("Data/Interface/RmlUi/themes/" + themeName + "/theme.ini");
+            return {static_cast<int>(GetPrivateProfileIntW(L"Layout", L"WindowReferenceWidth", 0, iniPath.c_str())),
+                    static_cast<int>(GetPrivateProfileIntW(L"Layout", L"WindowReferenceHeight", 0, iniPath.c_str()))};
+        }
+
+        std::pair<int, int>& WindowReferenceSizeStorage()
+        {
+            static auto value = []
+            {
+                const auto size = ComputeWindowReferenceSize(ActiveThemeNameStorage());
+                UI::Scaling::SetWindowDesignViewport(size.first, size.second);
+                return size;
+            }();
+            return value;
+        }
+
         bool ComputeUsesCornerBuffStrip(const std::string& themeName)
         {
             const auto iniPath = WidenAscii("Data/Interface/RmlUi/themes/" + themeName + "/theme.ini");
@@ -208,6 +226,7 @@ namespace UI::RmlBridge
 
     const std::string& GetActiveThemeName()
     {
+        WindowReferenceSizeStorage();
         return ActiveThemeNameStorage();
     }
 
@@ -229,6 +248,12 @@ namespace UI::RmlBridge
                UI::Scaling::ReferenceHeightScale(windowHeight, HudReferenceHeightStorage(), density);
     }
 
+    float ThemeWindowUnitPixels(int width, int height, bool legacyUnits)
+    {
+        WindowReferenceSizeStorage();
+        return UI::Scaling::WindowUnitScale(width, height, legacyUnits);
+    }
+
     bool ThemeUsesCornerBuffStrip()
     {
         return UsesCornerBuffStripStorage();
@@ -240,6 +265,9 @@ namespace UI::RmlBridge
         UsesNativeTextSizeStorage() = ComputeUsesNativeTextSize(ActiveThemeNameStorage());
         UsesCompactHudStorage() = ComputeUsesCompactHud(ActiveThemeNameStorage());
         HudReferenceHeightStorage() = ComputeHudReferenceHeight(ActiveThemeNameStorage());
+        WindowReferenceSizeStorage() = ComputeWindowReferenceSize(ActiveThemeNameStorage());
+        const auto [width, height] = WindowReferenceSizeStorage();
+        UI::Scaling::SetWindowDesignViewport(width, height);
         UsesCornerBuffStripStorage() = ComputeUsesCornerBuffStrip(ActiveThemeNameStorage());
 
         // Both themes deliberately reuse the same <template name="..."> for a shared concept
@@ -552,6 +580,12 @@ namespace UI::RmlBridge
         }
 
         // Copy first -- see this function's own header comment (RmlTheme.h) for why.
+        auto& runtime = RmlUiRuntime::Instance();
+        if (runtime.IsCreated())
+        {
+            const auto size = runtime.GetContext()->GetDimensions();
+            runtime.OnResize(size.x, size.y);
+        }
         for (const ThemeReloadEntry& entry : ReloadOrder())
         {
             if (entry.callback)

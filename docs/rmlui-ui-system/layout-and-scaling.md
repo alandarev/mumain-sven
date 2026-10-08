@@ -38,9 +38,9 @@ using `px` throughout is simply unaffected by `UIScalePercent` until it's retrof
 already-migrated windows (login, menu bar, system menu, remember-password) still use `px` and
 that's fine; retrofit to `dp` opportunistically, not as a forced mass-edit.
 
-## Two scaling systems, cross-wired onto both axes
+## Legacy scaling and responsive window profiles
 
-A second, older scaling system also exists: `UI::Scaling` (`UITransform.cpp`), a window-size-driven
+Themes without a responsive window profile retain the older scaling system: `UI::Scaling` (`UITransform.cpp`), a window-size-driven
 auto-scale (`BottomHudScale`, `CappedUniformScale` → `PanelTransform`/`DockTransform`/
 `FloatingWorkspaceTransform`), clamped to a fixed range per layout kind. The ramp between the
 640×480 reference (1.0×) and each ceiling is **linear** — `ViewportFitScale()` is
@@ -207,3 +207,39 @@ open. These are not tracked: whoever touches a window checks them for it.
 - Whether `::CButton` (no production consumer) and `mu::ui::window::CButton` should merge. Each
   is in its own namespace; porting a window retires whichever it used, so this only matters for
   the shrinking native population.
+
+## Shared responsive window profile
+
+Themes opt in through `[Layout] WindowReferenceWidth` and `WindowReferenceHeight`
+in theme.ini. Munolith uses 1024×768. `ResponsiveWindowScale` compares both viewport
+axes against that design size, fits linearly below it, and grows by square root
+above it. This avoids filling a larger screen while continuing to grow on 4K/8K;
+there is no fixed pixel-size ceiling. Density enters once and UIScalePercent is a
+final proportional multiplier. Ultrawide width alone does not enlarge everything.
+
+The profile drives panel, dock and floating workspace transforms, RmlUi's dp ratio,
+native companion controls and normal-window typography. Inherited 640×480 window
+units are converted by the design/reference height ratio. New panels authored at
+the declared design size use a workspace region with `data-scale="window"`.
+Native text grows with the same transform instead of stopping at the old font cap.
+Legacy/modern themes without these keys retain their original scale and font rules.
+
+HUD growth stays separate: `HudReferenceHeight` and `ThemeHudUnitPixels` retain
+their existing behavior. Use window regions for ordinary panels; use hud regions
+and explicit HUD units for screen-edge displays. Do not add per-panel resolution
+formulas or physical pixel caps. Safe-area fitting remains necessary at small
+resolutions and large user preferences. Theme reload refreshes all RmlUi contexts
+so text, native controls and geometry agree immediately.
+
+### Opt-in design units across themes
+
+New documents can set `class="window-design"` on their body. The shared runtime
+sets their root font size to one responsive design pixel; RCSS can use `rem` for
+baseline dimensions and then `em` within components. For example, `font-size:
+13rem` on a panel gives 13px at 1024×768, about 15.4px at 1080p and 21.8px at 4K.
+Use viewport percentages as safe-area limits, rather than a fixed physical cap.
+
+This opt-in uses the same window curve and user preference in every theme. Themes
+without a declared window reference use the shared 1024×768 reference for these
+new documents only; their existing windows and HUD retain their previous behavior.
+Do not mix globally scaled `dp` geometry into a `window-design` component.

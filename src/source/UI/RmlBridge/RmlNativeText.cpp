@@ -14,6 +14,7 @@ namespace
 constexpr const char* kNativeTextClass = "native-text";
 constexpr const char* kSceneWindowScaleClass = "scene-window-scale";
 constexpr const char* kSceneBarScaleClass = "scene-bar-scale";
+constexpr const char* kWindowDesignClass = "window-design";
 } // namespace
 
 float SceneWindowRatio(int windowWidth, int windowHeight)
@@ -29,10 +30,19 @@ float SceneWindowPixelRatio(int windowWidth, int windowHeight)
 
 void ApplyNativeTextSize(Rml::ElementDocument* document)
 {
-    if (!ThemeUsesNativeTextSize() || !document || !document->GetContext())
+    if (!document || !document->GetContext())
         return;
 
     const Rml::Vector2i window = document->GetContext()->GetDimensions();
+    if (document->IsClassSet(kWindowDesignClass))
+    {
+        GetActiveThemeName(); // Initialize the theme profile before evaluating document units.
+        const float unit = UI::Scaling::ResponsiveDocumentScale(window.x, window.y);
+        document->SetProperty(Rml::PropertyId::FontSize, Rml::Property(unit, Rml::Unit::PX));
+        return;
+    }
+    if (!ThemeUsesNativeTextSize())
+        return;
     const auto transform = UI::Scaling::TransformForLayout(UI::Scaling::LayoutMode::Dialog, window.x, window.y);
     const float textPx = UI::Scaling::NativeTextPixelSize(UI::Scaling::FontRole::Normal, transform);
     const bool sceneWindow = document->IsClassSet(kSceneWindowScaleClass);
