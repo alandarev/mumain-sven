@@ -4,6 +4,8 @@
 #include "Engine/Object/ZzzInventory.h"
 #include "GameLogic/Items/CSItemOption.h"
 #include "GameLogic/Items/CComGem.h"
+#include "GameLogic/Items/ItemPickupText.h"
+#include "UI/Inventory/ItemMng.h"
 #include "Network/Server/SocketSystem.h"
 #include "Core/Utilities/StringUtils.h"
 #include "Character/CharacterManager.h"
@@ -81,8 +83,6 @@ void Options(RowModel& row, const ITEM* item)
         row.summary = "Skill";
     if (item->HasLuck)
         Append(row.summary, "Luck", " · ");
-    if (item->AncientDiscriminator && g_csItemOption.GetSetItemName(text, item->Type, item->AncientDiscriminator))
-        row.name = StringUtils::WideToNarrow(text) + row.name;
     for (int i = 0; i < std::min<int>(item->SpecialNum, MAX_ITEM_SPECIAL); ++i)
     {
         if (item->Special[i] == AT_LUCK)
@@ -193,9 +193,8 @@ RowModel DescribeItem(const ITEM* item, int index)
         row.name = "Unknown item";
         return row;
     }
-    wchar_t name[256]{};
-    GetItemName(item->Type, item->Level, name);
-    row.name = StringUtils::WideToNarrow(name);
+    // The tooltip's title, shared with the pickup chat line.
+    row.name = StringUtils::WideToNarrow(GameLogic::Items::ItemDisplayName(*item).c_str());
     if (COMGEM::isCompiledGem(item))
         row.name = StringUtils::WideToNarrow(ItemAttribute[item->Type].Name) + " ×" +
                    std::to_string(static_cast<int>(COMGEM::CalcCompiledCount(item)));
@@ -232,8 +231,6 @@ RowModel DescribeItem(const ITEM* item, int index)
     row.requirements = row.detail.substr(requirementsStart);
     if (!row.requirements.empty() && row.requirements.front() == '\n')
         row.requirements.erase(0, 1);
-    if (row.tone == "excellent")
-        row.name = "Excellent " + row.name;
     row.excellent = ExcellentMarks(GameLogic::AuctionHouse::ItemSlotMask(item->Type), item->ExcellentFlags);
     return row;
 }

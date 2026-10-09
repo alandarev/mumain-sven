@@ -5,8 +5,12 @@
 #include "Network/Server/WSclient.h"
 #include "GameLogic/AuctionHouse/AuctionHouse.h"
 #include "UI/AuctionHouse/ItemPresentation.h"
+#include "GameLogic/Items/ItemPickupText.h"
 
+#include <cwchar>
 #include <memory>
+#include <string>
+#include <vector>
 
 int CalcItemLength(std::span<const BYTE>);
 
@@ -18,12 +22,13 @@ public:
     ItemCatalogue() : saved(ItemAttribute), attributes(std::make_unique<ITEM_ATTRIBUTE[]>(MAX_ITEM))
     {
         ItemAttribute = attributes.get();
-        for (int type : {5, 26, 4105})
+        for (int type : {5, 26, 4097, 4105})
         {
             attributes[type].Width = 1;
             attributes[type].Height = 1;
             attributes[type].Level = 1;
         }
+        std::wcscpy(attributes[4097].Name, L"Dragon Armor");
     }
     ~ItemCatalogue()
     {
@@ -232,4 +237,30 @@ TEST_CASE("Auction rows keep the item's excellent options and Skill applies wher
     CHECK(row.excellent[0].matched);
     CHECK(row.excellent[1].label == "Mana on kill");
     CHECK_FALSE(row.excellent[1].matched);
+}
+
+TEST_CASE("Pickup chat lines group Zen digits and name items as the tooltip does [items][chat]")
+{
+    ItemCatalogue catalogue;
+    CHECK(GameLogic::Items::GroupedZen(0) == L"0");
+    CHECK(GameLogic::Items::GroupedZen(999) == L"999");
+    CHECK(GameLogic::Items::GroupedZen(1000) == L"1,000");
+    CHECK(GameLogic::Items::GroupedZen(3186000) == L"3,186,000");
+    CHECK(GameLogic::Items::GroupedZen(2000000000) == L"2,000,000,000");
+    CHECK(GameLogic::Items::ZenObtainedText(3186000) == L"3,186,000 Zen Obtained");
+
+    ITEM armor{};
+    armor.Type = 4097;
+    armor.Level = 9;
+    CHECK(GameLogic::Items::ItemDisplayName(armor) == L"Dragon Armor +9");
+    armor.ExcellentFlags = 0x3F;
+    CHECK(GameLogic::Items::ItemDisplayName(armor) == L"Excellent Dragon Armor +9");
+    CHECK(GameLogic::Items::ItemObtainedText(armor) == L"Excellent Dragon Armor +9 Obtained");
+    armor.Level = 0;
+    CHECK(GameLogic::Items::ItemDisplayName(armor) == L"Excellent Dragon Armor");
+    // The Horn of Fenrir uses its excellent bits for its kind: never "Excellent".
+    ITEM horn{};
+    horn.Type = ITEM_HORN_OF_FENRIR;
+    horn.ExcellentFlags = 0x01;
+    CHECK(GameLogic::Items::ItemDisplayName(horn).find(L"Excellent") == std::wstring::npos);
 }

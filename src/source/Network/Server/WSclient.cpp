@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "GameLogic/AuctionHouse/AuctionHouse.h"
+#include "GameLogic/Items/ItemPickupText.h"
 #include "App/Control/ControlTaps.h"
 #include "Core/Utilities/Log/MuLogger.h"
 #include "UI/Chat/Chat.h"
@@ -6100,7 +6101,6 @@ void ReceiveGetItem(std::span<const BYTE> ReceiveBuffer)
                 return;
             }
 
-            wchar_t szMessage[128];
             int backupGold = CharacterMachine->Gold;
             CharacterMachine->Gold =
                 (Data2->Money[0] << 24) + (Data2->Money[1] << 16) + (Data2->Money[2] << 8) + (Data2->Money[3]);
@@ -6108,10 +6108,8 @@ void ReceiveGetItem(std::span<const BYTE> ReceiveBuffer)
             int getGold = CharacterMachine->Gold - backupGold;
 
             if (getGold > 0)
-            {
-                mu_swprintf(szMessage, L"%d %ls %ls", getGold, I18N::Game::Zen, I18N::Game::Obtained);
-                UI::Chat::PostSystem(szMessage, mu::ui::window::TYPE_SYSTEM_MESSAGE);
-            }
+                UI::Chat::PostSystem(GameLogic::Items::ZenObtainedText(static_cast<std::uint64_t>(getGold)),
+                                     mu::ui::window::TYPE_SYSTEM_MESSAGE);
         }
         else
         {
@@ -6149,15 +6147,7 @@ void ReceiveGetItem(std::span<const BYTE> ReceiveBuffer)
                 RequestInventorySync();
             }
 
-            wchar_t szItem[64] = {
-                0,
-            };
-            int level = pickedItem->Level;
-            GetItemName(pickedItem->Type, level, szItem);
-
-            wchar_t szMessage[128];
-            mu_swprintf(szMessage, L"%ls %ls", szItem, I18N::Game::Obtained);
-            UI::Chat::PostSystem(szMessage, mu::ui::window::TYPE_SYSTEM_MESSAGE);
+            UI::Chat::PostSystem(GameLogic::Items::ItemObtainedText(*pickedItem), mu::ui::window::TYPE_SYSTEM_MESSAGE);
 
             int Type = pickedItem->Type;
             if (Type == ITEM_JEWEL_OF_BLESS || Type == ITEM_JEWEL_OF_SOUL || Type == ITEM_JEWEL_OF_LIFE ||
