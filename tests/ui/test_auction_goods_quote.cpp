@@ -3,6 +3,8 @@
 #include "UI/AuctionHouse/RequestClock.h"
 
 #include <algorithm>
+#include <optional>
+#include <span>
 #include <utility>
 #include <vector>
 
@@ -106,16 +108,91 @@ TEST_CASE("Auction eight tiers give a lower bound until the goods list counts hi
 
     // The goods list counts every tier: 70 while hidden tiers hold 30 more.
     const std::vector<Market::GoodsRow> before{{7181, 0, 1000000, 70, 9}, {7181, 1, 9000000, 3, 1}};
-    CHECK(AvailableFromGoodsList(before, 7181, 0) == GoodsAvailability{70, true});
-    CHECK(AvailableFromGoodsList(before, 7181, 1) == GoodsAvailability{3, true});
+    CHECK(AvailableFromGoodsList({before, 2, 0}, 7181, 0) == GoodsAvailability{70, true});
+    CHECK(AvailableFromGoodsList({before, 2, 0}, 7181, 1) == GoodsAvailability{3, true});
     // Hidden tiers sold out: the count drops to the shown 40, it is not kept at the earlier 70.
     const std::vector<Market::GoodsRow> removed{{7181, 0, 1000000, 40, 8}};
-    CHECK(AvailableFromGoodsList(removed, 7181, 0) == GoodsAvailability{40, true});
+    CHECK(AvailableFromGoodsList({removed, 1, 0}, 7181, 0) == GoodsAvailability{40, true});
     // Hidden tiers grew: the count follows to 95.
     const std::vector<Market::GoodsRow> grown{{7181, 0, 1000000, 95, 14}};
-    CHECK(AvailableFromGoodsList(grown, 7181, 0) == GoodsAvailability{95, true});
+    CHECK(AvailableFromGoodsList({grown, 1, 0}, 7181, 0) == GoodsAvailability{95, true});
     // The last listing went: none for sale.
-    CHECK(AvailableFromGoodsList({}, 7181, 0) == GoodsAvailability{0, true});
+    CHECK(AvailableFromGoodsList({{}, 0, 0}, 7181, 0) == GoodsAvailability{0, true});
+}
+
+namespace
+{
+// The server's goods list for one type (AuctionMarketReader.GetGoodsList): rows ordered by level,
+// pages of PageSize (at least 1), TotalCount over all pages.
+struct GoodsDirectory
+{
+    std::vector<Market::GoodsRow> rows;
+    std::uint8_t pageSize = 20;
+    int requests = 0;
+
+    std::vector<Market::GoodsRow> Page(std::uint16_t page)
+    {
+        ++requests;
+        const std::size_t size = std::max<std::size_t>(1, pageSize);
+        const auto first = std::min(rows.size(), page * size);
+        const auto last = std::min(rows.size(), first + size);
+        return {rows.begin() + static_cast<std::ptrdiff_t>(first), rows.begin() + static_cast<std::ptrdiff_t>(last)};
+    }
+};
+
+// What Window::ApplyGoodsCount does with each answer: the exact count, or the next page.
+std::optional<GoodsAvailability> CountThroughPages(GoodsDirectory& directory, std::uint8_t level)
+{
+    GoodsCountPaging paging;
+    paging.Start(7181, level);
+    while (true)
+    {
+        const auto rows = directory.Page(paging.Page());
+        if (const auto exact = paging.Apply(rows, static_cast<std::uint32_t>(directory.rows.size())))
+            return exact;
+        if (!paging.More())
+            return std::nullopt;
+    }
+}
+} // namespace
+
+TEST_CASE("Auction exact availability never reads a partial goods-list page as none for sale [auction][goods-quote]")
+{
+    // RR-02: three levels of Jewel of Bless; the selected level 1 sits on page 1 with PageSize 1.
+    const std::vector<Market::GoodsRow> levels{
+        {7181, 0, 590000, 70, 9}, {7181, 1, 5900000, 12, 3}, {7181, 3, 9000000, 2, 1}};
+    // One page alone does not say level 1 is missing: the count stays a lower bound.
+    CHECK_FALSE(AvailableFromGoodsList({std::span(levels).first(1), 3, 0}, 7181, 1));
+    for (const std::uint8_t pageSize : {std::uint8_t{1}, std::uint8_t{2}, std::uint8_t{20}, std::uint8_t{0}})
+    {
+        INFO(int(pageSize));
+        GoodsDirectory directory{levels, pageSize};
+        CHECK(CountThroughPages(directory, 1) == GoodsAvailability{12, true});
+        directory.requests = 0;
+        CHECK(CountThroughPages(directory, 3) == GoodsAvailability{2, true});
+        // Level 2 has nothing: none for sale once the list passes it (level 3) ...
+        CHECK(CountThroughPages(directory, 2) == GoodsAvailability{0, true});
+        // ... or ends before it.
+        CHECK(CountThroughPages(directory, 9) == GoodsAvailability{0, true});
+    }
+    // With PageSize 1 the selected level 1 is the second request; level 3 the third.
+    GoodsDirectory single{levels, 1};
+    CHECK(CountThroughPages(single, 1) == GoodsAvailability{12, true});
+    CHECK(single.requests == 2);
+
+    // Bounded: a type has at most 16 levels, so no more than 16 pages are asked for.
+    std::vector<Market::GoodsRow> all;
+    all.reserve(16);
+    for (std::uint8_t level = 0; level < 16; ++level)
+        all.push_back({7181, level, 1000, 1, 1});
+    GoodsDirectory sixteen{all, 1};
+    CHECK(CountThroughPages(sixteen, 15) == GoodsAvailability{1, true});
+    CHECK(sixteen.requests == 16);
+    // A list longer than any type can be (not a real answer) stops at the bound and keeps the lower bound.
+    const std::vector<Market::GoodsRow> endless(20, {7181, 0, 1000, 1, 1});
+    GoodsDirectory broken{endless, 1};
+    CHECK_FALSE(CountThroughPages(broken, 5));
+    CHECK(broken.requests == MaximumGoodsCountPages);
 }
 
 TEST_CASE("Auction selling line shows the stock at the lowest price and the quoted total [auction][goods-quote]")

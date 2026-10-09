@@ -267,7 +267,7 @@ private:
     LowestMove m_LowestMove;
     long long m_QuoteAgeSeconds = -1;
     bool m_SelectedCountExact = true;
-    std::pair<std::uint16_t, std::uint8_t> m_GoodsCountFor{};
+    GoodsCountPaging m_GoodsCount;
     // The goods row to select again when the goods list reloads after a purchase.
     std::optional<std::pair<std::uint16_t, std::uint8_t>> m_KeepGoods;
 };

@@ -75,7 +75,10 @@ void Window::RefreshQuote()
     goods.available = availability.count;
     m_SelectedCountExact = availability.exact;
     if (GoodsCountNeeded(availability) && m_Read == Read::None)
+    {
+        m_GoodsCount.Start(goods.type, goods.level);
         m_Read = Read::GoodsCount;
+    }
     ShowQuote(now);
     RefreshBuyNote();
     if (m_Review.action == Action::BuyGoods && !model.busy)
@@ -155,9 +158,18 @@ void Window::ApplyGoodsCount()
         static_cast<std::size_t>(m_Selected) >= m_Goods.size())
         return;
     auto& goods = m_Goods[m_Selected];
-    if (goods.type != m_GoodsCountFor.first || goods.level != m_GoodsCountFor.second)
+    if (goods.type != m_GoodsCount.Type() || goods.level != m_GoodsCount.Level())
         return;
-    goods.available = AvailableFromGoodsList(state.Goods().rows, goods.type, goods.level).count;
+    const auto& page = state.Goods();
+    const auto exact = m_GoodsCount.Apply(page.rows, page.totalCount);
+    if (!exact)
+    {
+        // The selected level may be on a later page; until then the count stays a lower bound.
+        if (m_GoodsCount.More() && m_Read == Read::None)
+            m_Read = Read::GoodsCount;
+        return;
+    }
+    goods.available = exact->count;
     m_SelectedCountExact = true;
     ShowQuote(RequestClock::Time::clock::now());
     RefreshBuyNote();

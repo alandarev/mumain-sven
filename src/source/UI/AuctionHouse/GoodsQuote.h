@@ -5,6 +5,7 @@
 
 #include <chrono>
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <string>
 #include <vector>
@@ -56,9 +57,60 @@ struct GoodsAvailability
 // the goods list (52) of that type for the exact count (GoodsCountNeeded).
 GoodsAvailability AvailableAfterQuote(const Market::Quote& quote);
 bool GoodsCountNeeded(const GoodsAvailability& availability);
-// The exact count from a goods-list answer for the goods' type; no row means none for sale.
-GoodsAvailability AvailableFromGoodsList(std::span<const Market::GoodsRow> rows, std::uint16_t type,
-                                         std::uint8_t level);
+// The goods list asked for one type holds one row per level, ordered by level, in pages of the
+// server's PageSize; a type has at most this many levels, so this many pages always reach the
+// selected one.
+inline constexpr std::uint16_t MaximumGoodsCountPages = 16;
+
+// One answered page of that list: its rows, the list's TotalCount and the rows of earlier pages.
+struct GoodsCountPage
+{
+    std::span<const Market::GoodsRow> rows;
+    std::uint32_t totalCount = 0, loadedBefore = 0;
+};
+
+// The exact count of the selected goods from one page: its row, or none for sale once the list
+// holds no more rows or has passed the selected level. Empty while the selected level may still be
+// on a later page (RR-02): the count stays a lower bound and the next page is asked for.
+std::optional<GoodsAvailability> AvailableFromGoodsList(const GoodsCountPage& page, std::uint16_t type,
+                                                        std::uint8_t level);
+
+// The window's exact count of the selected goods: which goods-list page to ask for next, and what
+// an answered page means (AvailableFromGoodsList).
+class GoodsCountPaging
+{
+public:
+    void Start(std::uint16_t type, std::uint8_t level)
+    {
+        *this = {};
+        m_Type = type;
+        m_Level = level;
+    }
+    std::uint16_t Type() const
+    {
+        return m_Type;
+    }
+    std::uint8_t Level() const
+    {
+        return m_Level;
+    }
+    std::uint16_t Page() const
+    {
+        return m_Page;
+    }
+    // The exact count, or empty; then More() tells whether the next page is worth asking for.
+    std::optional<GoodsAvailability> Apply(std::span<const Market::GoodsRow> rows, std::uint32_t totalCount);
+    bool More() const
+    {
+        return m_More;
+    }
+
+private:
+    std::uint16_t m_Type = 0, m_Page = 0;
+    std::uint8_t m_Level = 0;
+    std::uint32_t m_Loaded = 0;
+    bool m_More = false;
+};
 
 // The selling context line: "Lowest 600,000 · 20 in stock · 50 total". The stock is the stock at
 // the lowest price; the total covers every quoted tier ("+" when the tier list is full).

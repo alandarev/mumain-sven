@@ -451,9 +451,11 @@ bool Window::SendRead(Read read)
         if (m_Selected < 0 || static_cast<std::size_t>(m_Selected) >= m_Goods.size())
             return false;
         const auto& row = m_Goods[m_Selected];
-        m_GoodsCountFor = {row.type, row.level};
-        // One type, the first page: every level of it (a goods type has at most 16).
-        return Market::RequestGoodsList(std::span<const std::uint16_t>(&row.type, 1), 0);
+        if (m_GoodsCount.Page() == 0 || m_GoodsCount.Type() != row.type || m_GoodsCount.Level() != row.level)
+            m_GoodsCount.Start(row.type, row.level);
+        // One type: its levels in order, page by page until the selected one (ApplyGoodsCount).
+        const auto type = m_GoodsCount.Type();
+        return Market::RequestGoodsList(std::span<const std::uint16_t>(&type, 1), m_GoodsCount.Page());
     }
     case Read::Own:
         return Market::RequestOwnListings();

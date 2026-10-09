@@ -78,11 +78,33 @@ bool GoodsCountNeeded(const GoodsAvailability& availability)
     return !availability.exact;
 }
 
-GoodsAvailability AvailableFromGoodsList(std::span<const Market::GoodsRow> rows, std::uint16_t type, std::uint8_t level)
+std::optional<GoodsAvailability> AvailableFromGoodsList(const GoodsCountPage& page, std::uint16_t type,
+                                                        std::uint8_t level)
 {
+    const auto& rows = page.rows;
     const auto row = std::find_if(rows.begin(), rows.end(), [type, level](const auto& goods)
                                   { return goods.type == type && goods.level == level; });
-    return {row == rows.end() ? 0 : row->available, true};
+    if (row != rows.end())
+        return GoodsAvailability{row->available, true};
+    const bool exhausted = rows.empty() || std::uint64_t{page.loadedBefore} + rows.size() >= page.totalCount;
+    const bool passed =
+        !rows.empty() && (rows.back().type > type || (rows.back().type == type && rows.back().level > level));
+    if (exhausted || passed)
+        return GoodsAvailability{0, true};
+    return std::nullopt;
+}
+
+std::optional<GoodsAvailability> GoodsCountPaging::Apply(std::span<const Market::GoodsRow> rows,
+                                                         std::uint32_t totalCount)
+{
+    m_More = false;
+    const auto exact = AvailableFromGoodsList({rows, totalCount, m_Loaded}, m_Type, m_Level);
+    if (exact || m_Page + 1 >= MaximumGoodsCountPages)
+        return exact;
+    m_Loaded += static_cast<std::uint32_t>(rows.size());
+    ++m_Page;
+    m_More = true;
+    return std::nullopt;
 }
 
 std::string MarketLowestText(Market::Zen lowest, std::span<const Market::PriceTier> tiers)
