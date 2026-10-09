@@ -169,8 +169,9 @@ void Window::ApplyGoodsCount()
             m_Read = Read::GoodsCount;
         return;
     }
-    goods.available = exact->count;
-    m_SelectedCountExact = true;
+    const auto merged = MergeGoodsCount(goods.available, *exact);
+    goods.available = merged.count;
+    m_SelectedCountExact = merged.exact;
     ShowQuote(RequestClock::Time::clock::now());
     RefreshBuyNote();
 }

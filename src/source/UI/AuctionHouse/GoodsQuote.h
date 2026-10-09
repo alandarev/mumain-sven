@@ -75,6 +75,11 @@ struct GoodsCountPage
 std::optional<GoodsAvailability> AvailableFromGoodsList(const GoodsCountPage& page, std::uint16_t type,
                                                         std::uint8_t level);
 
+// Merges a goods-list count into the quote's lower bound. The quote is evidence too: a list count
+// below it (a listing vanished between two pages, or the list is older) is never taken as exact, so
+// a stocked level can't read as none for sale (RR-02 under churn); the next cycle counts again.
+GoodsAvailability MergeGoodsCount(std::uint32_t lowerBound, const GoodsAvailability& listCount);
+
 // The window's exact count of the selected goods: which goods-list page to ask for next, and what
 // an answered page means (AvailableFromGoodsList).
 class GoodsCountPaging

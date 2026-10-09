@@ -94,6 +94,13 @@ std::optional<GoodsAvailability> AvailableFromGoodsList(const GoodsCountPage& pa
     return std::nullopt;
 }
 
+GoodsAvailability MergeGoodsCount(std::uint32_t lowerBound, const GoodsAvailability& listCount)
+{
+    if (listCount.count >= lowerBound)
+        return listCount;
+    return {lowerBound, false};
+}
+
 std::optional<GoodsAvailability> GoodsCountPaging::Apply(std::span<const Market::GoodsRow> rows,
                                                          std::uint32_t totalCount)
 {

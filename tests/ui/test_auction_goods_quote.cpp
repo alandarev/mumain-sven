@@ -156,6 +156,24 @@ std::optional<GoodsAvailability> CountThroughPages(GoodsDirectory& directory, st
 }
 } // namespace
 
+TEST_CASE("Auction a goods-list count below the quote's lower bound stays a lower bound [auction][goods-quote]")
+{
+    // RR-02 under churn: page 0 holds level 0, level 0 vanishes before page 1, page 1 is empty, so the
+    // list says none for sale while the quote showed eight full tiers of the selected level.
+    const auto none = MergeGoodsCount(40, GoodsAvailability{0, true});
+    CHECK(none.count == 40);
+    CHECK_FALSE(none.exact);
+    // A stale row below the quote is not taken as exact either.
+    CHECK_FALSE(MergeGoodsCount(40, GoodsAvailability{35, true}).exact);
+    // At or above the lower bound the list count is the exact availability.
+    const auto equal = MergeGoodsCount(40, GoodsAvailability{40, true});
+    CHECK(equal.count == 40);
+    CHECK(equal.exact);
+    const auto more = MergeGoodsCount(40, GoodsAvailability{95, true});
+    CHECK(more.count == 95);
+    CHECK(more.exact);
+}
+
 TEST_CASE("Auction exact availability never reads a partial goods-list page as none for sale [auction][goods-quote]")
 {
     // RR-02: three levels of Jewel of Bless; the selected level 1 sits on page 1 with PageSize 1.

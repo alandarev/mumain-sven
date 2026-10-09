@@ -491,7 +491,10 @@ TEST_CASE("Auction a timed-out read's late answer cannot invalidate a later revi
     session.listener.changed.clear();
     ReceivePacket(late);
     CHECK(GetState().Revision() == reviewed);
-    CHECK(GetState().LastSellCheck()->requestId == checked);
+    // The refresh request cleared the controller's check; the abandoned late answer must not fill it
+    // (the window keeps its own cached check, which is what the review was opened from).
+    CHECK_FALSE(GetState().LastSellCheck().has_value());
+    CHECK(checked != 0);
     CHECK(session.listener.changed.empty());
     // Confirm: the revision is unchanged, the listing goes out.
     REQUIRE(CreateListing(12, 18, 1000000, 24, 181000));
