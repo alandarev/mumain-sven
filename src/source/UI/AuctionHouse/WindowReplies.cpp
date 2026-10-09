@@ -232,18 +232,18 @@ void Window::RefreshRows()
             auto row = Describe(item.get(), 0);
             if (entry.kind == 2)
             {
-                // Proceeds: the sold item (type and level; the exact variant is not on the wire), the
+                // Proceeds: the sold item as it looks (the item data of an item listing's display copy,
+                // e.g. "Excellent Dragon Armor +9"; goods and older entries by type and level), the
                 // quantity and the net; gross and fee expand under the row.
-                row.name = (row.name.empty() ? "Sold item" : row.name) +
-                           (entry.quantity > 1 ? " × " + std::to_string(entry.quantity) : "") + " · " +
-                           ExactZen(entry.net) + " Zen";
+                auto proceeds = DescribeProceedsRow(entry, row.name);
+                row.name = std::move(proceeds.name);
                 if (!item)
                     row.icon = "zen";
-                row.meta = "Sold";
+                row.meta = std::move(proceeds.meta);
                 row.price.clear();
-                row.exactPrice = ExactZen(entry.net) + " Zen";
-                row.detail = "Gross " + ExactZen(entry.gross) + " Zen\nSale fee " + ExactZen(entry.fee) + " Zen";
-                row.breakdown = "Gross " + ExactZen(entry.gross) + " Zen · Sale fee " + ExactZen(entry.fee) + " Zen";
+                row.exactPrice = std::move(proceeds.exactPrice);
+                row.detail = std::move(proceeds.detail);
+                row.breakdown = std::move(proceeds.breakdown);
             }
             else
             {

@@ -255,6 +255,28 @@ TEST_CASE("Auction sale notice names the sold item as its tooltip does, with Exc
     CHECK(UI::AuctionHouse::SerializedItemName(truncated, manager).empty());
 }
 
+TEST_CASE("Auction Collection names the sold item of proceeds as it looks, with Excellent [auction][items]")
+{
+    ItemCatalogue catalogue;
+    mu::ui::window::CItemMng manager;
+    const auto collection =
+        AuctionFixture::Decode<GameLogic::AuctionHouse::CollectionPage>("auction-collection-proceeds-item");
+    REQUIRE(collection.rows.size() == 1);
+    const auto& proceeds = collection.rows[0];
+    const auto name = UI::AuctionHouse::SerializedItemName(proceeds.itemData, manager);
+    CHECK(name == "Excellent Dragon Armor +9");
+    const auto row = UI::AuctionHouse::DescribeProceedsRow(proceeds, name);
+    CHECK(row.name == "Excellent Dragon Armor +9 · 24,120,000 Zen");
+    CHECK(row.meta == "Sold");
+    CHECK(row.exactPrice == "24,120,000 Zen");
+    CHECK(row.breakdown == "Gross 26,800,000 Zen · Sale fee 2,680,000 Zen");
+    // Goods and entries without a copy: the type and level name, the quantity, or "Sold item".
+    auto goods = proceeds;
+    goods.quantity = 8;
+    CHECK(UI::AuctionHouse::DescribeProceedsRow(goods, "Jewel of Bless").name == "Jewel of Bless × 8 · 24,120,000 Zen");
+    CHECK(UI::AuctionHouse::DescribeProceedsRow(proceeds, "").name == "Sold item · 24,120,000 Zen");
+}
+
 TEST_CASE("Pickup chat lines group Zen digits and name items as the tooltip does [items][chat]")
 {
     ItemCatalogue catalogue;

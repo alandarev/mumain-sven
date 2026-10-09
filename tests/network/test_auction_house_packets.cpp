@@ -170,6 +170,24 @@ TEST_CASE("Auction own listings and collection retain goods and native blobs [au
     CHECK(Decode<CollectionPage>("auction-collection-empty").rows.empty());
 }
 
+TEST_CASE("Auction proceeds of an item listing carry the sold item's data [auction][network]")
+{
+    const auto collection = Decode<CollectionPage>("auction-collection-proceeds-item");
+    CHECK(collection.requestId == 17);
+    CHECK(collection.totalCount == 1);
+    REQUIRE(collection.rows.size() == 1);
+    const auto& proceeds = collection.rows[0];
+    CHECK(proceeds.id == Id(0x70));
+    CHECK(proceeds.kind == 2);
+    CHECK(proceeds.type == 4097);
+    CHECK(proceeds.level == 9);
+    CHECK(proceeds.quantity == 1);
+    CHECK(proceeds.gross == 26800000);
+    CHECK(proceeds.fee == 2680000);
+    CHECK(proceeds.net == 24120000);
+    CHECK(proceeds.itemData == PacketBytes{0x80, 0x01, 0x09, 0x61, 0x08, 0x3F});
+}
+
 TEST_CASE("Auction mutation replies preserve delivery and partial claim amounts [auction][network]")
 {
     const auto buy = Decode<Outcome>("auction-buy-listing-result");

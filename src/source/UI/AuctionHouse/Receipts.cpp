@@ -330,6 +330,19 @@ std::string OwnListingLine(const Market::OwnListing& listing, std::uint32_t hour
            CompactZen(listing.unitPrice) + " Zen each · " + hours;
 }
 
+ProceedsRowText DescribeProceedsRow(const Market::CollectionEntry& entry, std::string_view itemName)
+{
+    ProceedsRowText text;
+    text.name = (itemName.empty() ? std::string("Sold item") : std::string(itemName)) +
+                (entry.quantity > 1 ? " × " + std::to_string(entry.quantity) : "") + " · " + ExactZen(entry.net) +
+                " Zen";
+    text.meta = "Sold";
+    text.exactPrice = ExactZen(entry.net) + " Zen";
+    text.detail = "Gross " + ExactZen(entry.gross) + " Zen\nSale fee " + ExactZen(entry.fee) + " Zen";
+    text.breakdown = "Gross " + ExactZen(entry.gross) + " Zen · Sale fee " + ExactZen(entry.fee) + " Zen";
+    return text;
+}
+
 CancelReviewText DescribeCancelReview(const Market::OwnListing& listing, bool refundPostingFee)
 {
     CancelReviewText text;

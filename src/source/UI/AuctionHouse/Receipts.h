@@ -183,6 +183,16 @@ std::string ListingCountText(std::uint8_t active, std::uint8_t maximum);
 // A My auctions row: "6 remaining of 8 · 590k Zen each · 48h", or "12.5kk Zen · 48h" for an item.
 std::string OwnListingLine(const Market::OwnListing& listing, std::uint32_t hoursLeft);
 
+struct ProceedsRowText
+{
+    std::string name, meta, exactPrice, detail, breakdown;
+};
+
+// A Collection row of proceeds: "Excellent Dragon Armor +9 · 24,120,000 Zen" or "Jewel of Bless × 8 ·
+// 7,600,000 Zen", meta "Sold"; gross and fee expand under the row. `itemName` names the sold item
+// as it looks when the entry carries its item data, else by type and level; empty: "Sold item".
+ProceedsRowText DescribeProceedsRow(const Market::CollectionEntry& entry, std::string_view itemName);
+
 struct CancelReviewText
 {
     std::string total, fee, unsold;
