@@ -215,5 +215,8 @@ struct Notice
     std::uint32_t quantity = 0;
     Zen net = 0;
     std::uint16_t pendingCollection = 0;
+    // The sold or expired individual item, serialized as in Collection rows; empty for goods, for
+    // deliveries waiting, from older servers, and when the trailing bytes are not valid item data.
+    std::vector<std::uint8_t> itemData;
 };
 } // namespace GameLogic::AuctionHouse

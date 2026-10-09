@@ -82,6 +82,11 @@ std::optional<ServerPacket> ParseNotice(Reader& in)
     notice.pendingCollection = in.Get<std::uint16_t>();
     if (notice.kind < NoticeKind::SoldToCollection || notice.kind > NoticeKind::ExpiredToInventory)
         return std::nullopt;
+    // @18 ItemData up to the packet length, for individual items only. Anything that is not valid item
+    // data is dropped and the notice keeps its type and level name: the item name is a nicety.
+    const auto item = in.Rest();
+    if (notice.kind != NoticeKind::DeliveriesWaiting && IsValidItemData(item))
+        notice.itemData.assign(item.begin(), item.end());
     return Finish(in, notice);
 }
 } // namespace GameLogic::AuctionHouse::Wire

@@ -1,6 +1,7 @@
 #include "AuctionFixture.h"
 
 #include <algorithm>
+#include <vector>
 
 using namespace GameLogic::AuctionHouse;
 using AuctionFixture::Decode;
@@ -226,6 +227,52 @@ TEST_CASE("Auction unsolicited notices and inventory sell check decode [auction]
     CHECK(check.activeListings == 3);
 }
 
+TEST_CASE("Auction sale notice carries the sold item's data after the 18 fixed bytes [auction][network]")
+{
+    // The server's golden packet: kind 4, Dragon Armor (4097) +9, 1 unit, 24,120,000 Zen, then ItemData.
+    const auto item = Decode<Notice>("auction-notice-sold-item");
+    CHECK(item.kind == NoticeKind::SoldToInventory);
+    CHECK(item.type == 4097);
+    CHECK(item.level == 9);
+    CHECK(item.quantity == 1);
+    CHECK(item.net == 24120000);
+    CHECK(item.pendingCollection == 0);
+    CHECK(item.itemData == std::vector<std::uint8_t>{0x80, 0x01, 0x09, 0x61, 0x08, 0x3F});
+    // The 18-byte notices (goods, older servers) still decode, without item data.
+    CHECK(Decode<Notice>("auction-notice-sold").itemData.empty());
+    CHECK(Decode<Notice>("auction-notice-deliveries-waiting").itemData.empty());
+
+    auto withLength = [](PacketBytes packet)
+    {
+        packet[1] = static_cast<std::uint8_t>(packet.size());
+        return ParseServerPacket(packet);
+    };
+    // Garbled or short trailing bytes keep the notice and drop only the item data.
+    for (const auto& tail : {std::vector<std::uint8_t>{0x80}, std::vector<std::uint8_t>{0x80, 0x01, 0x09, 0x61},
+                             std::vector<std::uint8_t>{0x80, 0x01, 0x09, 0x61, 0x08, 0x3F, 0x00},
+                             std::vector<std::uint8_t>{0x80, 0x01, 0x40, 0x61, 0x08, 0x3F}})
+    {
+        auto packet = Load("auction-notice-sold-item");
+        packet.resize(18);
+        packet.insert(packet.end(), tail.begin(), tail.end());
+        const auto parsed = withLength(packet);
+        REQUIRE(parsed.has_value());
+        CHECK(std::get<Notice>(*parsed).net == 24120000);
+        CHECK(std::get<Notice>(*parsed).itemData.empty());
+    }
+    // Deliveries waiting never carries an item.
+    auto waiting = Load("auction-notice-deliveries-waiting");
+    const std::vector<std::uint8_t> tail{0x80, 0x01, 0x09, 0x61, 0x08, 0x3F};
+    waiting.insert(waiting.end(), tail.begin(), tail.end());
+    const auto parsedWaiting = withLength(waiting);
+    REQUIRE(parsedWaiting.has_value());
+    CHECK(std::get<Notice>(*parsedWaiting).itemData.empty());
+    // A header length that does not match the packet is still refused.
+    auto mismatched = Load("auction-notice-sold-item");
+    mismatched.pop_back();
+    CHECK_FALSE(ParseServerPacket(mismatched).has_value());
+}
+
 TEST_CASE("Auction amended result and inventory notices decode without changing layout [auction][network]")
 {
     auto sold = Load("auction-notice-sold");
@@ -273,7 +320,12 @@ TEST_CASE("Auction parser refuses every truncated fixture and trailing bytes [au
         CHECK_FALSE(ParseServerPacket(packet).has_value());
         if (packet[0] == 0xC1) packet[1] = static_cast<std::uint8_t>(packet.size());
         else packet[2] = static_cast<std::uint8_t>(packet.size());
-        CHECK_FALSE(ParseServerPacket(packet).has_value());
+        // A notice runs to the packet length: trailing bytes are its item data, dropped when not
+        // valid (see "Auction sale notice carries the sold item's data …"). Every other packet refuses them.
+        if (name.starts_with("auction-notice"))
+            CHECK(std::get<Notice>(*ParseServerPacket(packet)).itemData.empty());
+        else
+            CHECK_FALSE(ParseServerPacket(packet).has_value());
     }
 }
 

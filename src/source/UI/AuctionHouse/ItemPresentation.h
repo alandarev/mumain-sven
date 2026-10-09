@@ -4,10 +4,20 @@
 #include "GameLogic/AuctionHouse/AuctionHousePriceMemory.h"
 #include "UI/AuctionHouse/EquipmentDetails.h"
 #include "UI/AuctionHouse/WindowModel.h"
+#include <span>
+#include <string>
 struct tagITEM;
+
+namespace mu::ui::window
+{
+class CItemMng;
+}
 
 namespace UI::AuctionHouse
 {
+// The name of an item serialized as in Collection rows and sale notices ("Excellent Dragon Armor +9");
+// empty when the bytes do not decode to an item.
+std::string SerializedItemName(std::span<const std::uint8_t> itemData, mu::ui::window::CItemMng& items);
 RowModel DescribeItem(const tagITEM* item, int index);
 // The current character's class and stats against the item's requirements, with the requirement reductions
 // that the native item tooltip applies (harmony and socket options). Empty without a character.

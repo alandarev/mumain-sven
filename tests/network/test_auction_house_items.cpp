@@ -5,6 +5,7 @@
 #include "Network/Server/WSclient.h"
 #include "GameLogic/AuctionHouse/AuctionHouse.h"
 #include "UI/AuctionHouse/ItemPresentation.h"
+#include "UI/AuctionHouse/Receipts.h"
 #include "GameLogic/Items/ItemPickupText.h"
 
 #include <cwchar>
@@ -237,6 +238,21 @@ TEST_CASE("Auction rows keep the item's excellent options and Skill applies wher
     CHECK(row.excellent[0].matched);
     CHECK(row.excellent[1].label == "Mana on kill");
     CHECK_FALSE(row.excellent[1].matched);
+}
+
+TEST_CASE("Auction sale notice names the sold item as its tooltip does, with Excellent [auction][items]")
+{
+    ItemCatalogue catalogue;
+    mu::ui::window::CItemMng manager;
+    const auto notice = AuctionFixture::Decode<GameLogic::AuctionHouse::Notice>("auction-notice-sold-item");
+    const auto name = UI::AuctionHouse::SerializedItemName(notice.itemData, manager);
+    CHECK(name == "Excellent Dragon Armor +9");
+    CHECK(UI::AuctionHouse::DescribeNotice(notice, name).text ==
+          "Sold Excellent Dragon Armor +9 · 24,120,000 Zen added to your bag");
+    // No or undecodable data: empty, and the window falls back to the type and level name.
+    CHECK(UI::AuctionHouse::SerializedItemName({}, manager).empty());
+    const std::vector<std::uint8_t> truncated{0x80, 0x01, 0x09};
+    CHECK(UI::AuctionHouse::SerializedItemName(truncated, manager).empty());
 }
 
 TEST_CASE("Pickup chat lines group Zen digits and name items as the tooltip does [items][chat]")

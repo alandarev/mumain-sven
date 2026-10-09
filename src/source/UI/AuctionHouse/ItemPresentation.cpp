@@ -235,6 +235,21 @@ RowModel DescribeItem(const ITEM* item, int index)
     return row;
 }
 
+std::string SerializedItemName(std::span<const std::uint8_t> itemData, mu::ui::window::CItemMng& items)
+{
+    if (itemData.size() < 5 || !ItemAttribute)
+        return {};
+    const int type = (itemData[0] >> 4) * MAX_ITEM_INDEX + ((itemData[0] & 15) << 8) + itemData[1];
+    if (type >= MAX_ITEM)
+        return {};
+    auto* item = items.CreateItem(itemData);
+    if (!item)
+        return {};
+    auto name = DescribeItem(item, 0).name;
+    items.DeleteItem(item);
+    return name;
+}
+
 std::optional<EquipFacts> CharacterEquipFacts(const ITEM& item)
 {
     if (!Hero || !CharacterAttribute || !ItemAttribute || item.Type < 0 || item.Type >= MAX_ITEM)

@@ -323,7 +323,11 @@ std::string Window::NoticeItemName(const Market::Notice& notice) const
 {
     if (notice.kind == Market::NoticeKind::DeliveriesWaiting)
         return {};
-    // The notice carries the type and level only, as the Collection rows do.
+    // An individual item comes with its data, named as its Collection row ("Excellent Dragon Armor +9");
+    // goods and older notices carry the type and level only.
+    if (!notice.itemData.empty() && g_pNewItemMng)
+        if (auto name = SerializedItemName(notice.itemData, *g_pNewItemMng); !name.empty())
+            return name;
     auto item = GoodsItem({notice.type, notice.level});
     return item ? Describe(item.get(), 0).name : std::string{};
 }

@@ -72,6 +72,12 @@ public:
         return field;
     }
 
+    // Every byte left, for a trailing field that runs to the packet length.
+    std::span<const std::uint8_t> Rest()
+    {
+        return Take(valid ? bytes.size() : 0);
+    }
+
     EntityId Id()
     {
         EntityId id{};
