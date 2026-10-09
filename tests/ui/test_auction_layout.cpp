@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include <doctest.h>
 #include "UI/AuctionHouse/PriceInput.h"
+#include "UI/AuctionHouse/ReviewGate.h"
+#include "UI/AuctionHouse/RowEvents.h"
 #include "UI/AuctionHouse/WindowModel.h"
 #include "UI/RmlBridge/RmlThemedView.h"
 #include "UI/RmlBridge/RmlTheme.h"
@@ -787,6 +789,122 @@ TEST_CASE("Auction − and + right after typing step once from the typed price, 
     driver.commits = 0;
     press(down, 0);
     CHECK(driver.commits == 1);
+    view.Release();
+}
+
+TEST_CASE("Auction Cancel and Collect inside a row do not select it, so a press during a read still acts [auction][rml]")
+{
+    // RR-01: with a read in flight the press waits in the ReviewGate; a row selection drops what
+    // waits there (Window::SelectRow). The handlers mirror the window's, through the production bindings.
+    Fixture fixture;
+    UI::RmlBridge::SetActiveThemeName("modern");
+    UI::AuctionHouse::ReviewGate gate;
+    bool readInFlight = false;
+    std::vector<int> selected;
+    std::vector<std::string> acted;
+    auto bind = [&](Rml::DataModelConstructor& c, UI::AuctionHouse::WindowModel& model)
+    {
+        BindExcept(c, model, {"select", "cancel_listing", "claim"});
+        UI::AuctionHouse::BindRowEvents(
+            c, {.select =
+                    [&](int row)
+                {
+                    gate.Cancel();
+                    selected.push_back(row);
+                },
+                .cancel = [&](int row)
+                { gate.Start(readInFlight, [&acted, row] { acted.push_back("cancel " + std::to_string(row)); }); },
+                .claim = [&](int row)
+                { gate.Start(readInFlight, [&acted, row] { acted.push_back("claim " + std::to_string(row)); }); }});
+    };
+    UI::RmlBridge::ThemedView<UI::AuctionHouse::WindowModel> view(
+        "auction_house", bind, {{"Data/Interface/RmlUi/auction_house.rml", [&fixture] { return fixture.context; }}});
+    REQUIRE(view.Ensure());
+    auto* document = view.Document();
+    auto& model = view.GetModel();
+    fixture.context->SetDimensions({1024, 768});
+    fixture.context->SetDensityIndependentPixelRatio(1.f);
+    document->Show();
+    UI::RmlBridge::ApplyNativeTextSize(fixture.context);
+
+    auto show = [&](const char* tab)
+    {
+        model = {};
+        model.tab = tab;
+        model.rows.assign(2, {"Jewel of Bless", "", "", "6 remaining of 8", ""});
+        for (int i = 0; i < 2; ++i)
+            model.rows[i].index = i;
+        view.MarkDirty("tab");
+        view.MarkDirty("rows");
+        fixture.context->Update();
+        fixture.context->Update();
+    };
+    auto click = [&](Rml::Element* element)
+    {
+        const auto position = element->GetAbsoluteOffset(Rml::BoxArea::Border);
+        const auto size = element->GetBox().GetSize(Rml::BoxArea::Border);
+        fixture.context->ProcessMouseMove(static_cast<int>(position.x + size.x / 2),
+                                          static_cast<int>(position.y + size.y / 2), 0);
+        fixture.context->ProcessMouseButtonDown(0, 0);
+        fixture.context->ProcessMouseButtonUp(0, 0);
+        fixture.context->Update();
+    };
+    // The shown rows; the data-for template itself stays in the document, hidden.
+    auto listingRows = [&]
+    {
+        Rml::ElementList rows;
+        document->GetElementsByClassName(rows, "listing");
+        std::erase_if(rows, [](Rml::Element* row) { return !row->IsVisible(true); });
+        return rows;
+    };
+    auto rowButton = [&](int row) -> Rml::Element*
+    {
+        const auto rows = listingRows();
+        REQUIRE(rows.size() == 2);
+        Rml::ElementList buttons;
+        rows[row]->GetElementsByTagName(buttons, "button");
+        // data-if hides the other tab's button.
+        std::erase_if(buttons, [](Rml::Element* button) { return !button->IsVisible(true); });
+        REQUIRE(buttons.size() == 1);
+        return buttons.front();
+    };
+
+    for (const char* tab : {"own", "collection"})
+    {
+        INFO(std::string(tab));
+        const std::string action = std::string(tab) == "own" ? "cancel 1" : "claim 1";
+        show(tab);
+        selected.clear();
+        acted.clear();
+        readInFlight = true;
+        click(rowButton(1));
+        CHECK(selected.empty());
+        CHECK(acted.empty());
+        REQUIRE(gate.Waiting());
+        // The answer arrives: the waiting action runs.
+        readInFlight = false;
+        auto start = gate.TakeWaiting(readInFlight);
+        REQUIRE(start);
+        start();
+        REQUIRE(acted.size() == 1);
+        CHECK(acted.front() == action);
+
+        // No read in flight: it acts at once, still without selecting.
+        acted.clear();
+        click(rowButton(0));
+        CHECK(selected.empty());
+        REQUIRE(acted.size() == 1);
+
+        // The row itself still selects.
+        const auto rows = listingRows();
+        REQUIRE(rows.size() == 2);
+        Rml::ElementList names;
+        rows[1]->GetElementsByClassName(names, "item-name");
+        REQUIRE_FALSE(names.empty());
+        click(names.front());
+        REQUIRE(selected.size() == 1);
+        CHECK(selected.front() == 1);
+    }
     view.Release();
 }
 
