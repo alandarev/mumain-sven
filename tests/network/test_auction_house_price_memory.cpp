@@ -2,12 +2,18 @@
 #include "GameLogic/AuctionHouse/AuctionHousePriceMemory.h"
 
 #include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <string>
 #include <thread>
 #include <vector>
+#ifndef _WIN32
+#include <fcntl.h>
+#include <sys/file.h>
+#include <unistd.h>
+#endif
 
 using namespace GameLogic::AuctionHouse;
 
@@ -306,3 +312,36 @@ TEST_CASE("Auction remembered-price writers never share a temporary file [auctio
     for (const auto& entry : std::filesystem::directory_iterator(directory.path))
         CHECK(entry.path().filename().string().find(".tmp") == std::string::npos);
 }
+
+#ifndef _WIN32
+TEST_CASE("Auction remembered-price update waits a bounded time for a stalled holder [auction][price-memory]")
+{
+    // RR3-01: another client of the account holding the lock (suspended, under a debugger) must not freeze the
+    // game thread; the update gives up after a short wait and reports that it was not saved.
+    TemporaryDirectory directory;
+    const auto owner = PriceMemoryOwner("127.126.3.1", 44405, "Mutilate", 1, "seller");
+    const auto path = directory.path / PriceMemoryPath(owner).filename();
+    std::filesystem::create_directories(directory.path);
+    auto lockPath = path;
+    lockPath += ".lock";
+    const int holder = open(lockPath.c_str(), O_RDWR | O_CREAT | O_CLOEXEC, 0600);
+    REQUIRE(holder >= 0);
+    REQUIRE(flock(holder, LOCK_EX) == 0);
+
+    PriceMemory store;
+    const auto started = std::chrono::steady_clock::now();
+    CHECK_FALSE(store.SavePublished(path, owner, GoodsPricingIdentity(14, 0), 590000));
+    const auto waited = std::chrono::steady_clock::now() - started;
+    CHECK(waited >= std::chrono::milliseconds(400));
+    CHECK(waited < std::chrono::seconds(3));
+    CHECK_FALSE(std::filesystem::exists(path));
+
+    // Once the holder lets go, the next update goes through.
+    close(holder);
+    CHECK(store.SavePublished(path, owner, GoodsPricingIdentity(14, 0), 590000));
+    PriceMemory saved;
+    REQUIRE(saved.Load(path, owner));
+    CHECK(saved.Entries().size() == 1);
+}
+#endif
+

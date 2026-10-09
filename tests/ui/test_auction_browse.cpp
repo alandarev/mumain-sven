@@ -220,6 +220,15 @@ TEST_CASE("Auction Filters price hint only suggests prices the filter accepts [a
         }
         CHECK(count >= 1);
     }
+    // RR3-02: below the smallest example (100k) the hint names no example, only the cap.
+    for (const GameLogic::AuctionHouse::Zen cap : {50000u, 1u})
+    {
+        INFO(cap);
+        rules.maxPrice = cap;
+        AdvancedFilters filters;
+        filters.maxPrice = "3b";
+        CHECK(FilterProblem(filters, false, rules) == "Max price: enter a whole number, up to " + ExactZen(cap) + ".");
+    }
 }
 
 TEST_CASE("Auction class labels include evolutions [auction][ui]")

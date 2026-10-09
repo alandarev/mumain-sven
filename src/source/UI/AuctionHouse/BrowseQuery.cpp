@@ -91,8 +91,9 @@ std::string FilterProblem(const AdvancedFilters& filters, bool toolbarOption, co
         const auto price = ParseZen(filters.maxPrice, rules.maxPrice);
         if (!price || *price == 0)
         {
+            // Only examples the filter accepts: below the smallest one (100k) the cap itself is the guide.
             const auto help = DescribePriceHelp(rules);
-            return "Max price: enter a whole number or " + (help.examples.empty() ? "590k" : help.examples) +
+            return "Max price: enter a whole number" + (help.examples.empty() ? "" : " or " + help.examples) +
                    ", up to " + ExactZen(rules.maxPrice) + ".";
         }
     }

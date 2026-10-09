@@ -6,6 +6,7 @@
 #include <fstream>
 #include <limits>
 #include <sstream>
+#include <thread>
 #ifdef _WIN32
 #include <windows.h>
 #else
@@ -19,6 +20,10 @@ namespace GameLogic::AuctionHouse
 namespace
 {
 constexpr int FileVersion = 1;
+// How long an update waits for another client of the account to finish its own; the game thread waits, so a
+// stalled holder (suspended, debugged) costs at most this, and the update then reports that it was not saved.
+constexpr auto LockWait = std::chrono::milliseconds(500);
+constexpr auto LockRetry = std::chrono::milliseconds(5);
 constexpr char HexDigits[] = "0123456789abcdef";
 constexpr std::uint64_t FnvOffset = 14695981039346656037ull;
 constexpr std::uint64_t FnvPrime = 1099511628211ull;
@@ -58,7 +63,8 @@ LineRead ReadLine(std::istream& in, std::string& line)
 }
 
 // An exclusive lock on `<store>.lock`, held across the read, change and replace of one update. The
-// operating system drops it when the process ends, so a crash leaves no stale lock.
+// operating system drops it when the process ends, so a crash leaves no stale lock. Taking it never blocks
+// longer than LockWait.
 class StoreLock
 {
 public:
@@ -69,13 +75,16 @@ public:
 #ifdef _WIN32
         m_Handle = CreateFileW(path.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
                                OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-        OVERLAPPED overlapped{};
-        m_Locked = m_Handle != INVALID_HANDLE_VALUE &&
-                   LockFileEx(m_Handle, LOCKFILE_EXCLUSIVE_LOCK, 0, 1, 0, &overlapped) != 0;
+        if (m_Handle == INVALID_HANDLE_VALUE)
+            return;
 #else
         m_File = open(path.c_str(), O_RDWR | O_CREAT | O_CLOEXEC, 0600);
-        m_Locked = m_File >= 0 && flock(m_File, LOCK_EX) == 0;
+        if (m_File < 0)
+            return;
 #endif
+        const auto deadline = std::chrono::steady_clock::now() + LockWait;
+        while (!(m_Locked = TryLock()) && std::chrono::steady_clock::now() < deadline)
+            std::this_thread::sleep_for(LockRetry);
     }
     ~StoreLock()
     {
@@ -95,6 +104,16 @@ public:
     }
 
 private:
+    bool TryLock()
+    {
+#ifdef _WIN32
+        OVERLAPPED overlapped{};
+        return LockFileEx(m_Handle, LOCKFILE_EXCLUSIVE_LOCK | LOCKFILE_FAIL_IMMEDIATELY, 0, 1, 0, &overlapped) != 0;
+#else
+        return flock(m_File, LOCK_EX | LOCK_NB) == 0;
+#endif
+    }
+
 #ifdef _WIN32
     HANDLE m_Handle = INVALID_HANDLE_VALUE;
 #else
