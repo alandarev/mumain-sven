@@ -1551,3 +1551,68 @@ TEST_CASE("Auction Review purchase shows its state and reason next to it [auctio
         view.Release();
     }
 }
+
+TEST_CASE("Auction a live market move does not move the purchase controls [auction][rml]")
+{
+    Fixture fixture;
+    for (const char* theme : {"legacy", "modern", "munolith"})
+    {
+        UI::RmlBridge::SetActiveThemeName(theme);
+        UI::RmlBridge::ThemedView<UI::AuctionHouse::WindowModel> view(
+            "auction_house", Bind,
+            {{"Data/Interface/RmlUi/auction_house.rml", [&fixture] { return fixture.context; }}});
+        REQUIRE(view.Ensure());
+        auto* document = view.Document();
+        auto& model = view.GetModel();
+        for (const auto& [width, height] : PlayerResolutions)
+        {
+            INFO(std::string(theme), " ", width, "x", height);
+            fixture.context->SetDimensions({width, height});
+            fixture.context->SetDensityIndependentPixelRatio(1.f);
+            model = {};
+            model.goods = true;
+            model.category = "1";
+            model.selected = true;
+            model.selectedName = "Jewel of Bless";
+            model.rows.assign(3, {model.selectedName, "", "595k Zen each", "22 available"});
+            model.quoteTiers = {{"595k", "4", "4"}, {"600k", "18", "4"}};
+            model.quoteTotal = "4,780,000 Zen";
+            model.buyQuantity = "8";
+            model.buyHint = "22 available";
+            model.quoteAge = "Updated 3 s ago";
+            Refresh(view, fixture.context);
+            auto* quantity = document->GetElementById("buy-quantity");
+            auto* button = document->GetElementById("review-purchase");
+            REQUIRE(quantity);
+            REQUIRE(button);
+            const float quantityTop = Top(quantity);
+            const float buttonTop = Top(button);
+            CHECK(Visible(document, "quote-move").empty());
+
+            // The cheaper offer arrives while the player reaches for Review purchase.
+            model.quoteTiers = {{"590k", "6", "6"}, {"595k", "4", "2"}, {"600k", "18", "-"}};
+            model.quoteTotal = "4,730,000 Zen";
+            model.buyHint = "28 available";
+            model.quoteMove = "Lowest fell 595k → 590k";
+            Refresh(view, fixture.context);
+            const auto moves = Visible(document, "quote-move");
+            REQUIRE(moves.size() == 1);
+            CHECK(moves.front()->GetInnerRML() == model.quoteMove);
+            auto* details = Single(document, "details");
+            CheckWithin(moves.front(), details);
+            CHECK(std::abs(Top(quantity) - quantityTop) < 0.5f);
+            CHECK(std::abs(Top(button) - buttonTop) < 0.5f);
+            const auto refresh = Visible(document, "refresh-quote");
+            REQUIRE(refresh.size() == 1);
+            CheckWithin(refresh.front(), details);
+            CHECK(Bottom(moves.front()) <= Top(button));
+
+            // When the move text expires the age returns in the same row.
+            model.quoteMove.clear();
+            Refresh(view, fixture.context);
+            CHECK(Visible(document, "quote-move").empty());
+            CHECK(std::abs(Top(button) - buttonTop) < 0.5f);
+        }
+        view.Release();
+    }
+}

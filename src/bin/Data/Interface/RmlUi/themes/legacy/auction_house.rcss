@@ -245,7 +245,7 @@ select selectvalue { display: block; width: 100%; box-sizing: border-box; paddin
 
 /* Browse: buy readiness and the moved lowest price. */
 .action.btn.incomplete { opacity: 0.45; }
-.quote-move { margin-bottom: 0.4em; color: token(accent-gold); font-size: 0.9em; }
+.quote-move { color: token(accent-gold); }
 
 /* Sale notices above the result line; both stay until the next action or their ×. */
 .notices { flex-shrink: 0; border-top: 1px token(border-inner); }
