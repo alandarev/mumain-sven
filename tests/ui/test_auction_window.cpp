@@ -390,6 +390,10 @@ TEST_CASE("Auction window stays open while a sent action awaits its answer, then
     CHECK(Market::GetState().IsOpen());
     CHECK(Market::GetState().IsPending(Market::Operation::Claim));
     CHECK(fixture.Shows(UI::AuctionHouse::StillAnsweringText));
+    // Not an error: the result line keeps its neutral tone.
+    auto* status = fixture.Document()->QuerySelector("div.status");
+    REQUIRE(status);
+    CHECK_FALSE(status->IsClassSet("danger"));
     CHECK(closedDialogs == 0);
 
     auto* close = fixture.Document()->QuerySelector("button.close");
@@ -422,6 +426,7 @@ TEST_CASE("Auction window stays open while a sent action awaits its answer, then
     CHECK(fixture.window->IsVisible());
     fixture.Step(16000);
     CHECK(fixture.Shows("Outcome unknown"));
+    CHECK(fixture.Document()->QuerySelector("div.status")->IsClassSet("danger"));
     fixture.Click(fixture.Document()->QuerySelector("button.close"));
     CHECK_FALSE(fixture.window->IsVisible());
     CHECK(closedDialogs == 2);

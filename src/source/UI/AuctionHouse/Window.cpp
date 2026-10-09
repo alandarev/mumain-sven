@@ -64,7 +64,8 @@ void Window::RequestClose()
     if (AwaitingAction())
     {
         // Closing would only drop the answer: the request is already with the broker (D27).
-        SetStatus(std::string(StillAnsweringText));
+        // Not an error: the action is under way (neutral tone).
+        SetStatus(std::string(StillAnsweringText), false);
         return;
     }
     Show(false);

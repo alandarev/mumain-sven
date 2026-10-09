@@ -311,6 +311,11 @@ std::string ReviewBalanceText(ReviewDebit kind, std::uint64_t debit, std::uint64
            ExactZen(wallet - debit) + " Zen";
 }
 
+std::string ResultCountText(std::uint32_t count, bool ownListings)
+{
+    return ownListings ? std::to_string(count) + " active" : Count(count, "listing", "listings");
+}
+
 std::string ListingCountText(std::uint8_t active, std::uint8_t maximum)
 {
     return "Listings " + std::to_string(active) + "/" + std::to_string(maximum);

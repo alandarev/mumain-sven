@@ -224,6 +224,15 @@ TEST_CASE("Auction My auctions rows and the cancel review name remaining quantit
     CHECK(cancel.unsold == "Unsold items return to your bag; what does not fit goes to Collection.");
 }
 
+TEST_CASE("Auction result count line uses the singular for one listing [auction][receipts]")
+{
+    CHECK(ResultCountText(0, false) == "0 listings");
+    CHECK(ResultCountText(1, false) == "1 listing");
+    CHECK(ResultCountText(2, false) == "2 listings");
+    CHECK(ResultCountText(1, true) == "1 active");
+    CHECK(ResultCountText(5, true) == "5 active");
+}
+
 TEST_CASE("Auction Review purchase readiness for quantity, Zen and own listings [auction][receipts]")
 {
     BuyFacts facts{.quantityValid = true, .ownListing = false, .total = 4740000, .wallet = 5000000};

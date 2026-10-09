@@ -254,10 +254,11 @@ void Window::RefreshRows()
             }
             add(std::move(item), std::move(row));
         }
-    model.count = model.tab == "browse" && model.goods ? (model.more ? "" : std::to_string(m_Goods.size()))
-                                                       : std::to_string(m_Total);
-    if (!model.count.empty())
-        model.count += model.tab == "own" ? " active" : " listings";
+    const bool goodsListing = model.tab == "browse" && model.goods;
+    model.count =
+        goodsListing && model.more
+            ? std::string{}
+            : ResultCountText(goodsListing ? static_cast<std::uint32_t>(m_Goods.size()) : m_Total, model.tab == "own");
     if (model.tab == "collection")
         model.pending = static_cast<int>(m_Total);
     m_Dirty = true;

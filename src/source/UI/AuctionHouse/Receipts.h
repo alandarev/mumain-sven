@@ -176,6 +176,8 @@ enum class ReviewDebit : std::uint8_t
 // fee") once `debit` is paid from `wallet`, or "Need …, you have …" once the wallet no longer covers
 // it. Recomputed whenever the Zen changes.
 std::string ReviewBalanceText(ReviewDebit kind, std::uint64_t debit, std::uint64_t wallet);
+// The result list's count line: "1 listing", "2 listings"; My auctions: "3 active".
+std::string ResultCountText(std::uint32_t count, bool ownListings);
 // "Listings 19/20".
 std::string ListingCountText(std::uint8_t active, std::uint8_t maximum);
 // A My auctions row: "6 remaining of 8 · 590k Zen each · 48h", or "12.5kk Zen · 48h" for an item.
