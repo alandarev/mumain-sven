@@ -155,6 +155,7 @@ private:
     void QueueRead(Read read, bool restart = false);
     void PumpRequests(RequestClock::Time now);
     bool SendRead(Read read);
+    static Market::Operation ReadOperation(Read read);
     void HandlePage(Market::Operation operation);
     void HandleOutcome(Market::Operation operation);
     void RefreshRows();

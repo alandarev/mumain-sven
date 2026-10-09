@@ -472,3 +472,44 @@ TEST_CASE("Auction sale notice keeps the revision so an open review stays valid 
     CHECK(GetState().Revision() == revision);
     CHECK(GetState().Notices().size() == 1);
 }
+
+TEST_CASE("Auction a timed-out read's late answer cannot invalidate a later review [auction][state]")
+{
+    // CR-02 residual: the window gives up a read after its timeout and lets a new review open from
+    // the cached sell check. The late answer must neither bump the revision nor replace the check.
+    Session session;
+    REQUIRE(CheckSell(12));
+    ReceiveLatest("auction-sell-check-result");
+    REQUIRE(GetState().LastSellCheck().has_value());
+    const auto checked = GetState().LastSellCheck()->requestId;
+
+    REQUIRE(CheckSell(12)); // The 5 s refresh, never answered in time.
+    const auto late = ReplyWithId("auction-sell-check-result", LastId());
+    CHECK(AbandonRead(Operation::SellCheck));
+    CHECK_FALSE(GetState().IsPending(Operation::SellCheck));
+    const auto reviewed = GetState().Revision(); // Review listing opens now.
+    session.listener.changed.clear();
+    ReceivePacket(late);
+    CHECK(GetState().Revision() == reviewed);
+    CHECK(GetState().LastSellCheck()->requestId == checked);
+    CHECK(session.listener.changed.empty());
+    // Confirm: the revision is unchanged, the listing goes out.
+    REQUIRE(CreateListing(12, 18, 1000000, 24, 181000));
+    ReceiveLatest("auction-create-listing-result");
+    CHECK(GetState().LastOutcome(Operation::CreateListing)->result == Result::Success);
+
+    // A new read after that is answered as usual.
+    REQUIRE(CheckSell(12));
+    ReceiveLatest("auction-sell-check-result");
+    CHECK(GetState().LastSellCheck()->requestId == LastId());
+
+    // Every read kind can be given up; nothing pending is a no-op; an action never.
+    REQUIRE(RequestQuote(7181, 0, 1));
+    CHECK(AbandonRead(Operation::Quote));
+    CHECK_FALSE(AbandonRead(Operation::Quote));
+    REQUIRE(RequestCollection(0));
+    CHECK(AbandonRead(Operation::Collection));
+    REQUIRE(Claim(Id(1)));
+    CHECK_FALSE(AbandonRead(Operation::Claim));
+    CHECK(GetState().IsPending(Operation::Claim));
+}

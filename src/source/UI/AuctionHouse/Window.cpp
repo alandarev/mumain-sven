@@ -215,8 +215,9 @@ bool Window::Update()
     }
     if (m_SentRead != Read::None && now - m_ReadSentAt > RequestTimeout)
     {
-        m_SentRead = Read::None;
-        // A late answer would still change the market revision; the player starts the review again.
+        // Its late answer is ignored, so it cannot change the revision under a later review (CR-02).
+        Market::AbandonRead(ReadOperation(std::exchange(m_SentRead, Read::None)));
+        // A review waiting for it starts again when the player asks again.
         m_ReviewGate.Cancel();
         m_View.GetModel().loading = false;
         SetStatus("Request timed out. Refresh to retry.");
@@ -436,6 +437,30 @@ void Window::PumpRequests(RequestClock::Time now)
     m_ReadSentAt = now;
     m_SentRead = read;
     m_SentGeneration = m_Generation;
+}
+
+Market::Operation Window::ReadOperation(Read read)
+{
+    using O = Market::Operation;
+    switch (read)
+    {
+    case Read::Search:
+        return O::Search;
+    case Read::Goods:
+    case Read::GoodsCount:
+        return O::GoodsList;
+    case Read::Own:
+        return O::OwnListings;
+    case Read::Collection:
+        return O::Collection;
+    case Read::Quote:
+    case Read::SellQuote:
+        return O::Quote;
+    case Read::Sell:
+        return O::SellCheck;
+    default:
+        return O::Count;
+    }
 }
 
 bool Window::SendRead(Read read)

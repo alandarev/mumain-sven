@@ -75,6 +75,17 @@ void Controller::Changed(Operation op)
         listener->OnChanged(op);
 }
 
+bool Controller::Abandon(Operation op)
+{
+    // An action's answer is its outcome; only a read may be given up.
+    if (op >= Operation::Count || IsMutation(op))
+        return false;
+    auto& request = state.requests[static_cast<std::size_t>(op)];
+    const bool pending = request.pending;
+    request.pending = false;
+    return pending;
+}
+
 bool Controller::Accept(Operation op, const Reply& reply, bool replacementQuote)
 {
     if (!state.open)

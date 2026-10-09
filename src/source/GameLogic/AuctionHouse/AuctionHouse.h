@@ -108,6 +108,9 @@ bool CancelListing(const EntityId&);
 bool RequestOwnListings();
 bool RequestCollection(std::uint16_t page);
 bool Claim(const EntityId&);
+// A read the window gave up on (timed out): its late answer is ignored, so it can neither change
+// the market revision under a later review nor replace newer data. Actions cannot be abandoned.
+bool AbandonRead(Operation op);
 void Close();
 void ReceivePacket(std::span<const std::uint8_t>);
 void Reset();

@@ -18,6 +18,7 @@ public:
     }
     std::uint16_t NextId();
     bool Send(Operation op, PacketBytes packet);
+    bool Abandon(Operation op);
     void Receive(std::span<const std::uint8_t> packet);
     void Reset();
 

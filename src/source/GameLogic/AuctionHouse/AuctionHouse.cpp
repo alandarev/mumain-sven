@@ -113,6 +113,11 @@ bool Claim(const EntityId& id)
     return controller.Send(Operation::Claim, BuildClaimRequest(controller.NextId(), id));
 }
 
+bool AbandonRead(Operation op)
+{
+    return controller.Abandon(op);
+}
+
 void Close()
 {
     const bool wasOpen = GetState().IsOpen();
