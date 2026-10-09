@@ -135,6 +135,8 @@ std::vector<TierChange> CompareTiers(std::span<const Market::PriceTier> before,
 bool AnyTierChange(std::span<const TierChange> changes);
 std::string StockChangeText(std::uint32_t before, std::uint32_t after);
 std::string PriceChangeText(Market::Zen before, Market::Zen after);
+// The quote row before a first answer for the selected goods; Refresh beside it asks at once.
+inline constexpr std::string_view NoQuoteYetText = "No prices yet";
 std::string QuoteAgeText(std::chrono::seconds age);
 // "Lowest fell 600k → 590k" or "Lowest rose 590k → 600k".
 std::string LowestMoveText(Market::Zen before, Market::Zen after);

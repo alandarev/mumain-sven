@@ -22,7 +22,7 @@ void Window::BindEvents(Rml::DataModelConstructor& c)
                             { m_Events.push_back([action, args] { action(args); }); });
     };
     auto index = [](const auto& args) { return args.empty() ? -1 : args.front().template Get<int>(); };
-    event("close", [this](const auto&) { Show(false); });
+    event("close", [this](const auto&) { RequestClose(); });
     event("wallet",
           [this](const auto&)
           {

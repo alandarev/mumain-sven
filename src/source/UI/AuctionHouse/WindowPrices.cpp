@@ -252,7 +252,7 @@ bool Window::AcceptSellCheck()
     RefreshSellMarket();
     if (model.sellGoods)
         QueueRead(Read::SellQuote);
-    m_SellMarketAt = RequestClock::Time::clock::now() + SellMarketRefresh;
+    m_SellMarketAt = Now() + SellMarketRefresh;
     return true;
 }
 

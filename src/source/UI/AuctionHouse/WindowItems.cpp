@@ -197,6 +197,7 @@ void Window::SelectRow(int index)
         return;
     ClearFeedback();
     m_ReviewGate.Cancel();
+    m_KeepGoods.reset();
     m_Selected = index;
     for (auto& row : model.rows)
         row.selected = row.index == index;

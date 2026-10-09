@@ -39,11 +39,35 @@ void CenterPanel(Rml::Element* panel)
 
 } // namespace
 
-Window::Window()
-    : m_View("auction_house", [this](auto& c, auto& model) { Bind(c, model); },
-             {{"Data/Interface/RmlUi/auction_house.rml"}}, {.afterBuild = [this] { Built(); }})
+Window::Window(Environment environment)
+    : m_Now(std::move(environment.clock)),
+      m_View("auction_house", [this](auto& c, auto& model) { Bind(c, model); },
+             {{"Data/Interface/RmlUi/auction_house.rml", std::move(environment.context)}},
+             {.afterBuild = [this] { Built(); }})
 {
     CObject::Show(false);
+}
+
+RequestClock::Time Window::Now() const
+{
+    return m_Now ? m_Now() : RequestClock::Time::clock::now();
+}
+
+bool Window::AwaitingAction() const
+{
+    // Sent and not yet answered or timed out; a queued action has not left and closing drops it.
+    return m_View.GetModel().busy && m_ActionSentAt != RequestClock::Time{};
+}
+
+void Window::RequestClose()
+{
+    if (AwaitingAction())
+    {
+        // Closing would only drop the answer: the request is already with the broker (D27).
+        SetStatus(std::string(StillAnsweringText));
+        return;
+    }
+    Show(false);
 }
 
 Window::~Window()
@@ -193,7 +217,7 @@ bool Window::Update()
         if (!IsVisible())
             return true;
     }
-    const auto now = RequestClock::Time::clock::now();
+    const auto now = Now();
     SyncWallet();
     if (m_View.GetModel().busy && m_ActionSentAt != RequestClock::Time{} && now - m_ActionSentAt > RequestTimeout)
     {
@@ -265,7 +289,7 @@ bool Window::UpdateKeyEvent()
     else if (m_View.GetModel().review && !m_View.GetModel().busy)
         DismissReview();
     else
-        Show(false);
+        RequestClose();
     return false;
 }
 
@@ -370,7 +394,7 @@ void Window::FilterChanged()
     ClearFeedback();
     RefreshFilterSummary();
     RefreshBrowseState();
-    m_SearchAt = RequestClock::Time::clock::now() + SearchDebounce;
+    m_SearchAt = Now() + SearchDebounce;
     m_Read = Read::None;
     m_Selected = -1;
     m_KeepGoods.reset();

@@ -109,6 +109,12 @@ void Window::ReviewBuy()
             QueueRead(Read::Quote);
             return;
         }
+        // A failed quote (Busy, Unavailable, …) is no answer about the market: ask again (FR-01).
+        if (quote->result != Market::Result::Success && quote->result != Market::Result::InsufficientStock)
+        {
+            QueueRead(Read::Quote);
+            return;
+        }
         if (quote->result != Market::Result::Success || quote->fillableQuantity < *quantity)
         {
             const auto shortfall = ShortfallText(SplitOrder(*quote));

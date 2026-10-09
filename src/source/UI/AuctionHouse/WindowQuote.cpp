@@ -25,7 +25,7 @@ void Window::RefreshQuote()
     const auto quantity = ParseQuantity(model.buyQuantity, AnyQuantity);
     if (!quantity || quote->type != goods.type || quote->level != goods.level || quote->requestedQuantity != *quantity)
         return;
-    const auto now = RequestClock::Time::clock::now();
+    const auto now = Now();
     // The next live refresh counts from this answer.
     m_QuoteRefresh.Schedule(now);
     if (quote->result == Market::Result::Busy)
@@ -152,7 +152,7 @@ void Window::ApplyGoodsCount()
     const auto& state = Market::GetState();
     const auto outcome = state.LastOutcome(Market::Operation::GoodsList);
     if (outcome && outcome->result == Market::Result::Busy)
-        m_Clock.Busy(RequestClock::Time::clock::now());
+        m_Clock.Busy(Now());
     // A failed count keeps the lower bound; the next capped quote asks again.
     if (!outcome || outcome->result != Market::Result::Success || m_Selected < 0 ||
         static_cast<std::size_t>(m_Selected) >= m_Goods.size())
@@ -172,7 +172,7 @@ void Window::ApplyGoodsCount()
     const auto merged = MergeGoodsCount(goods.available, *exact);
     goods.available = merged.count;
     m_SelectedCountExact = merged.exact;
-    ShowQuote(RequestClock::Time::clock::now());
+    ShowQuote(Now());
     RefreshBuyNote();
 }
 
@@ -260,10 +260,23 @@ void Window::RefreshLiveQuote(RequestClock::Time now)
     auto& model = m_View.GetModel();
     const bool watching = model.tab == "browse" && model.goods && model.selected && m_Selected >= 0 &&
                           static_cast<std::size_t>(m_Selected) < m_Goods.size();
-    if (!watching || !m_ShownQuote)
+    if (!watching)
         return;
-    const auto age = std::chrono::duration_cast<std::chrono::seconds>(now - m_QuoteShownAt);
-    if (age.count() != m_QuoteAgeSeconds)
+    // The selected row drives the polling, also before a first answer arrives: a Busy or timed-out
+    // first quote is asked again, and Refresh is there meanwhile (FR-01).
+    if (!m_QuoteRefresh.Active())
+        m_QuoteRefresh.Schedule(now);
+    if (!m_ShownQuote)
+    {
+        if (model.quoteAge != NoQuoteYetText)
+        {
+            m_QuoteAgeSeconds = -1;
+            model.quoteAge = std::string(NoQuoteYetText);
+            m_View.MarkDirty("quote_age");
+        }
+    }
+    else if (const auto age = std::chrono::duration_cast<std::chrono::seconds>(now - m_QuoteShownAt);
+             age.count() != m_QuoteAgeSeconds)
     {
         m_QuoteAgeSeconds = age.count();
         model.quoteAge = QuoteAgeText(age);
@@ -292,7 +305,7 @@ void Window::RequestQuoteNow()
         static_cast<std::size_t>(m_Selected) >= m_Goods.size() || !ParseQuantity(model.buyQuantity, AnyQuantity))
         return;
     ClearFeedback();
-    m_QuoteRefresh.Schedule(RequestClock::Time::clock::now());
+    m_QuoteRefresh.Schedule(Now());
     if (m_Read == Read::None)
         m_Read = Read::Quote;
 }

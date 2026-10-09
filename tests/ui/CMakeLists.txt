@@ -324,3 +324,15 @@ mu_add_test(
 target_compile_definitions(auction_layout_tests PRIVATE
     MU_AUCTION_BIN="${CMAKE_SOURCE_DIR}/src/bin"
 )
+mu_add_test(
+    NAME auction_window_tests
+    SOURCES
+        test_auction_window.cpp
+        ${CMAKE_SOURCE_DIR}/src/source/App/Platform/Windows/Winmain.cpp
+    LINK_LIBS MuClient
+)
+target_include_directories(auction_window_tests PRIVATE ${CMAKE_SOURCE_DIR}/tests/network)
+target_compile_definitions(auction_window_tests PRIVATE
+    MU_AUCTION_BIN="${CMAKE_SOURCE_DIR}/src/bin"
+    AUCTION_FIXTURE_DIR="${CMAKE_SOURCE_DIR}/tests/network/fixtures/auction"
+)

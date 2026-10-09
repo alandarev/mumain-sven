@@ -63,7 +63,7 @@ void Window::HandlePage(Market::Operation operation)
     if (outcome->result != Market::Result::Success)
     {
         if (outcome->result == Market::Result::Busy)
-            m_Clock.Busy(RequestClock::Time::clock::now());
+            m_Clock.Busy(Now());
         SetStatus(ResultText(outcome->result));
         model.more = false;
         return;
@@ -131,24 +131,32 @@ void Window::HandlePage(Market::Operation operation)
         m_Total = static_cast<std::uint32_t>(state.OwnListings().size());
         model.more = false;
     }
-    const bool reselect = operation == O::GoodsList && m_SentRestart && m_KeepGoods;
-    if (reselect)
+    // After a purchase the bought goods stay selected, with their quantity, and their quote refreshes.
+    // The reloaded directory is searched page by page until they are found or it ends (FR-03).
+    bool reselected = false;
+    if (operation == O::GoodsList && m_KeepGoods)
     {
-        // After a purchase the bought goods stay selected, with their quantity, and their quote refreshes.
-        const auto keep = *std::exchange(m_KeepGoods, std::nullopt);
+        const auto keep = *m_KeepGoods;
         const auto kept = std::find_if(m_Goods.begin(), m_Goods.end(), [&keep](const auto& goods)
                                        { return goods.type == keep.first && goods.level == keep.second; });
         if (kept != m_Goods.end())
         {
             m_Selected = static_cast<int>(kept - m_Goods.begin());
             model.selected = true;
+            m_KeepGoods.reset();
+            reselected = true;
         }
-        else
+        else if (!model.more)
+        {
+            m_KeepGoods.reset();
             ClearQuote();
+        }
     }
     RefreshRows();
-    if (reselect && m_Selected >= 0 && m_Read == Read::None)
+    if (reselected && m_Read == Read::None)
         m_Read = Read::Quote;
+    else if (m_KeepGoods && m_Read == Read::None)
+        QueueRead(Read::Goods);
     // An empty page supersedes a read error; a receipt stays until the next deliberate action.
     if (model.rows.empty() && !model.more && m_Status.Tone() != StatusTone::Success)
         SetStatus({});
@@ -265,7 +273,7 @@ void Window::HandleOutcome(Market::Operation operation)
     m_ActionSentAt = {};
     DismissReview();
     if (outcome->result == Market::Result::Busy)
-        m_Clock.Busy(RequestClock::Time::clock::now());
+        m_Clock.Busy(Now());
     if (operation == Market::Operation::CreateListing && outcome->result != Market::Result::Success)
         m_PublishedPrice.reset();
     using O = Market::Operation;

@@ -31,7 +31,14 @@ namespace UI::AuctionHouse
 class Window : public mu::ui::window::CObject, public Market::IListener
 {
 public:
-    Window();
+    // Where the window's document loads and what time it is; empty uses the game's RmlUi context
+    // and the steady clock. Tests drive the production window through them.
+    struct Environment
+    {
+        std::function<Rml::Context*()> context;
+        std::function<RequestClock::Time()> clock;
+    };
+    explicit Window(Environment environment = {});
     ~Window() override;
     bool Create(mu::ui::window::CManager* manager);
     void Release();
@@ -116,6 +123,10 @@ private:
     void BindPriceEvents(Rml::DataModelConstructor& constructor);
     void Built();
     void Dirty();
+    RequestClock::Time Now() const;
+    // Esc and ×: closes, except while a sent action awaits its answer (D27).
+    void RequestClose();
+    bool AwaitingAction() const;
     void SetStatus(const std::string& text, bool error = true);
     void ShowReceipt(const Receipt& receipt);
     void ShowStatus();
@@ -218,6 +229,7 @@ private:
     Item Decode(std::span<const std::uint8_t> bytes) const;
     Item GoodsItem(const Market::GoodsRow& goods) const;
 
+    std::function<RequestClock::Time()> m_Now;
     mu::ui::window::CManager* m_Manager = nullptr;
     UI::RmlBridge::ThemedView<WindowModel> m_View;
     RequestClock m_Clock;

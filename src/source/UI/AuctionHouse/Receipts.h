@@ -17,6 +17,10 @@ namespace Market = GameLogic::AuctionHouse;
 inline constexpr std::string_view OutcomeUnknownText =
     "Outcome unknown. Reopen Zyro and check your bag, Collection and My auctions before retrying.";
 
+// Esc or × while a sent action awaits its answer (D27).
+inline constexpr std::string_view StillAnsweringText =
+    "The broker is still answering. Closing now would not cancel the request.";
+
 enum class StatusTone : std::uint8_t
 {
     Info,
