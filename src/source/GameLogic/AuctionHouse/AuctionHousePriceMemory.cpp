@@ -1,11 +1,17 @@
 #include "GameLogic/AuctionHouse/AuctionHousePriceMemory.h"
 
 #include <algorithm>
+#include <atomic>
+#include <chrono>
 #include <fstream>
 #include <limits>
 #include <sstream>
 #ifdef _WIN32
 #include <windows.h>
+#else
+#include <fcntl.h>
+#include <sys/file.h>
+#include <unistd.h>
 #endif
 
 namespace GameLogic::AuctionHouse
@@ -49,6 +55,61 @@ LineRead ReadLine(std::istream& in, std::string& line)
         line += static_cast<char>(c);
     }
     return line.empty() ? LineRead::End : LineRead::Line;
+}
+
+// An exclusive lock on `<store>.lock`, held across the read, change and replace of one update. The
+// operating system drops it when the process ends, so a crash leaves no stale lock.
+class StoreLock
+{
+public:
+    explicit StoreLock(const std::filesystem::path& store)
+    {
+        auto path = store;
+        path += ".lock";
+#ifdef _WIN32
+        m_Handle = CreateFileW(path.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+                               OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+        OVERLAPPED overlapped{};
+        m_Locked = m_Handle != INVALID_HANDLE_VALUE &&
+                   LockFileEx(m_Handle, LOCKFILE_EXCLUSIVE_LOCK, 0, 1, 0, &overlapped) != 0;
+#else
+        m_File = open(path.c_str(), O_RDWR | O_CREAT | O_CLOEXEC, 0600);
+        m_Locked = m_File >= 0 && flock(m_File, LOCK_EX) == 0;
+#endif
+    }
+    ~StoreLock()
+    {
+#ifdef _WIN32
+        if (m_Handle != INVALID_HANDLE_VALUE)
+            CloseHandle(m_Handle);
+#else
+        if (m_File >= 0)
+            close(m_File);
+#endif
+    }
+    StoreLock(const StoreLock&) = delete;
+    StoreLock& operator=(const StoreLock&) = delete;
+    bool Locked() const
+    {
+        return m_Locked;
+    }
+
+private:
+#ifdef _WIN32
+    HANDLE m_Handle = INVALID_HANDLE_VALUE;
+#else
+    int m_File = -1;
+#endif
+    bool m_Locked = false;
+};
+
+unsigned long ProcessId()
+{
+#ifdef _WIN32
+    return GetCurrentProcessId();
+#else
+    return static_cast<unsigned long>(getpid());
+#endif
 }
 
 template <typename T> bool ReadField(std::istream& in, T& field, unsigned maximum)
@@ -117,6 +178,8 @@ std::optional<Zen> PriceMemory::Use(const PricingIdentity& identity)
     if (found == m_Entries.end())
         return std::nullopt;
     std::rotate(m_Entries.begin(), found, found + 1);
+    std::erase(m_Uses, identity);
+    m_Uses.push_back(identity);
     return m_Entries.front().price;
 }
 
@@ -136,11 +199,13 @@ bool PriceMemory::Forget(const PricingIdentity& identity)
 void PriceMemory::Clear()
 {
     m_Entries.clear();
+    m_Uses.clear();
 }
 
 bool PriceMemory::Load(const std::filesystem::path& path, std::string_view owner)
 {
     m_Entries.clear();
+    m_Uses.clear();
     std::ifstream file(path);
     if (!file)
         return false;
@@ -173,21 +238,70 @@ bool PriceMemory::Save(const std::filesystem::path& path, std::string_view owner
         std::filesystem::create_directories(path.parent_path(), error);
     if (error)
         return false;
-    auto temporary = path;
-    temporary += ".tmp";
+    const auto temporary = UniqueTemporaryPath(path);
     std::ofstream file(temporary, std::ios::trunc);
     file << FileVersion << '\n' << Hex(owner) << '\n';
     for (const auto& entry : m_Entries)
         WriteEntry(file, entry);
     file.close();
-    if (!file)
-        return false;
+    bool replaced = false;
+    if (file)
+    {
 #ifdef _WIN32
-    return MoveFileExW(temporary.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0;
+        replaced =
+            MoveFileExW(temporary.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0;
 #else
-    std::filesystem::rename(temporary, path, error);
-    return !error;
+        std::filesystem::rename(temporary, path, error);
+        replaced = !error;
 #endif
+    }
+    if (!replaced)
+        std::filesystem::remove(temporary, error);
+    return replaced;
+}
+
+template <typename Change>
+bool PriceMemory::Update(const std::filesystem::path& path, std::string_view owner, Change change)
+{
+    std::error_code error;
+    if (!path.parent_path().empty())
+        std::filesystem::create_directories(path.parent_path(), error);
+    const StoreLock lock(path);
+    if (!lock.Locked())
+        return false;
+    // The latest file, as other clients of the account left it; a missing or unreadable one is empty.
+    PriceMemory latest;
+    latest.Load(path, owner);
+    for (const auto& identity : m_Uses)
+        latest.Use(identity);
+    change(latest);
+    if (!latest.Save(path, owner))
+        return false;
+    m_Entries = std::move(latest.m_Entries);
+    m_Uses.clear();
+    return true;
+}
+
+bool PriceMemory::SavePublished(const std::filesystem::path& path, std::string_view owner,
+                                const PricingIdentity& identity, Zen price)
+{
+    return Update(path, owner, [&identity, price](PriceMemory& store) { store.Remember(identity, price); });
+}
+
+bool PriceMemory::SaveForgotten(const std::filesystem::path& path, std::string_view owner,
+                                const PricingIdentity& identity)
+{
+    return Update(path, owner, [&identity](PriceMemory& store) { store.Forget(identity); });
+}
+
+std::filesystem::path UniqueTemporaryPath(const std::filesystem::path& path)
+{
+    // The process id tells processes apart, the counter writers of one process, the clock a reused id.
+    static std::atomic<std::uint64_t> counter{0};
+    const auto ticks = std::chrono::steady_clock::now().time_since_epoch().count();
+    auto temporary = path;
+    temporary += ".tmp-" + std::to_string(ProcessId()) + "-" + std::to_string(++counter) + "-" + std::to_string(ticks);
+    return temporary;
 }
 
 std::string PriceMemoryOwner(std::string_view connectAddress, std::uint16_t connectPort, std::string_view serverName,

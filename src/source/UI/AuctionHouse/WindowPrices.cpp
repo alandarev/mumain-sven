@@ -135,7 +135,7 @@ void Window::ForgetPrice()
 {
     if (!m_SellIdentity || m_View.GetModel().busy || !EnsurePriceMemory())
         return;
-    if (m_PriceMemory.Forget(*m_SellIdentity) && !m_PriceMemory.Save(m_PriceMemoryPath, m_PriceMemoryOwner))
+    if (!m_PriceMemory.SaveForgotten(m_PriceMemoryPath, m_PriceMemoryOwner, *m_SellIdentity))
         SetStatus("Could not save the remembered prices.");
     if (m_PriceEntry.Source() == PriceSource::Remembered)
     {
@@ -311,7 +311,6 @@ bool Window::RememberPublishedPrice()
     const auto published = std::exchange(m_PublishedPrice, std::nullopt);
     if (!published || !EnsurePriceMemory())
         return true;
-    m_PriceMemory.Remember(published->identity, published->price);
-    return m_PriceMemory.Save(m_PriceMemoryPath, m_PriceMemoryOwner);
+    return m_PriceMemory.SavePublished(m_PriceMemoryPath, m_PriceMemoryOwner, published->identity, published->price);
 }
 } // namespace UI::AuctionHouse

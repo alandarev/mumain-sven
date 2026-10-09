@@ -49,7 +49,7 @@ public:
 
     std::optional<Zen> Find(const PricingIdentity& identity) const;
     // A prefill used the remembered price: it becomes the most recent entry. Memory only; the next
-    // Save persists the order.
+    // Save persists the order, and the next SavePublished or SaveForgotten carries it over.
     std::optional<Zen> Use(const PricingIdentity& identity);
     void Remember(const PricingIdentity& identity, Zen price);
     bool Forget(const PricingIdentity& identity);
@@ -60,10 +60,24 @@ public:
     }
     bool Load(const std::filesystem::path& path, std::string_view owner);
     bool Save(const std::filesystem::path& path, std::string_view owner) const;
+    // Publication and Forget with several clients of one account (FR-02): under a lock on the file,
+    // re-read it, apply this store's uses since the last update and the change, and replace it through
+    // a temporary file of this writer only. Another client's entries are kept, a forgotten one stays
+    // forgotten. The store then holds what was written.
+    bool SavePublished(const std::filesystem::path& path, std::string_view owner, const PricingIdentity& identity,
+                       Zen price);
+    bool SaveForgotten(const std::filesystem::path& path, std::string_view owner, const PricingIdentity& identity);
 
 private:
+    template <typename Change> bool Update(const std::filesystem::path& path, std::string_view owner, Change change);
+
     std::vector<Entry> m_Entries;
+    // Identities used (Use) since the last update, oldest first.
+    std::vector<PricingIdentity> m_Uses;
 };
+
+// A temporary path beside `path` that no other writer, in this or another process, uses.
+std::filesystem::path UniqueTemporaryPath(const std::filesystem::path& path);
 
 // The owner names the connect server, the selected game server and the account login, never a password.
 std::string PriceMemoryOwner(std::string_view connectAddress, std::uint16_t connectPort, std::string_view serverName,

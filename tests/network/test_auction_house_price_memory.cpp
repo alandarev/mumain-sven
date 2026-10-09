@@ -1,10 +1,12 @@
 #include <doctest.h>
 #include "GameLogic/AuctionHouse/AuctionHousePriceMemory.h"
 
+#include <atomic>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <thread>
 #include <vector>
 
 using namespace GameLogic::AuctionHouse;
@@ -220,4 +222,87 @@ TEST_CASE("Auction price memory survives a restart for its owner only [auction][
     PriceMemory damaged;
     CHECK_FALSE(damaged.Load(path, owner));
     CHECK(damaged.Entries().empty());
+}
+
+TEST_CASE("Auction remembered prices from two clients of one account are both kept [auction][price-memory]")
+{
+    // FR-02: two clients load the same store; each publishes from its own, by then stale, copy.
+    TemporaryDirectory directory;
+    const auto owner = PriceMemoryOwner("127.126.3.1", 44405, "Mutilate", 1, "seller");
+    const auto path = directory.path / PriceMemoryPath(owner).filename();
+    const auto bless = GoodsPricingIdentity(7181, 0), soul = GoodsPricingIdentity(7182, 0),
+               chaos = GoodsPricingIdentity(6159, 0);
+    {
+        PriceMemory seed;
+        seed.Remember(chaos, 2000000);
+        REQUIRE(seed.Save(path, owner));
+    }
+    PriceMemory first, second;
+    REQUIRE(first.Load(path, owner));
+    REQUIRE(second.Load(path, owner));
+    REQUIRE(first.SavePublished(path, owner, bless, 590000));
+    REQUIRE(second.SavePublished(path, owner, soul, 1200000));
+    PriceMemory saved;
+    REQUIRE(saved.Load(path, owner));
+    CHECK(saved.Find(bless) == 590000u);
+    CHECK(saved.Find(soul) == 1200000u);
+    CHECK(saved.Find(chaos) == 2000000u);
+    // The writer's own copy is what it wrote, the other client's publication included.
+    CHECK(second.Find(bless) == 590000u);
+    CHECK(saved.Entries().front().identity == soul);
+
+    // Forget in one client is not undone by the other's next publication from its stale copy.
+    REQUIRE(first.SaveForgotten(path, owner, chaos));
+    REQUIRE(second.Find(chaos));
+    REQUIRE(second.SavePublished(path, owner, bless, 595000));
+    REQUIRE(saved.Load(path, owner));
+    CHECK_FALSE(saved.Find(chaos));
+    CHECK(saved.Find(bless) == 595000u);
+    CHECK(saved.Find(soul) == 1200000u);
+
+    // A use in one client is carried over by its next update; the file holds the merged order.
+    REQUIRE(first.Load(path, owner));
+    REQUIRE(first.Use(soul));
+    REQUIRE(first.SavePublished(path, owner, chaos, 2100000));
+    REQUIRE(saved.Load(path, owner));
+    REQUIRE(saved.Entries().size() == 3);
+    CHECK(saved.Entries()[0].identity == chaos);
+    CHECK(saved.Entries()[1].identity == soul);
+    CHECK(saved.Entries()[2].identity == bless);
+}
+
+TEST_CASE("Auction remembered-price writers never share a temporary file [auction][price-memory]")
+{
+    TemporaryDirectory directory;
+    const auto owner = PriceMemoryOwner("127.126.3.1", 44405, "Mutilate", 1, "seller");
+    const auto path = directory.path / PriceMemoryPath(owner).filename();
+    CHECK(UniqueTemporaryPath(path) != UniqueTemporaryPath(path));
+    CHECK(UniqueTemporaryPath(path).parent_path() == path.parent_path());
+
+    // Overlapping updates from separate stores (separate lock handles): none is lost.
+    constexpr int Writers = 4, Publications = 25;
+    std::atomic<int> failed{0};
+    std::vector<std::thread> threads;
+    threads.reserve(Writers);
+    for (int writer = 0; writer < Writers; ++writer)
+        threads.emplace_back(
+            [&path, &owner, &failed, writer]
+            {
+                PriceMemory store;
+                store.Load(path, owner);
+                for (int n = 0; n < Publications; ++n)
+                    if (!store.SavePublished(path, owner,
+                                             GoodsPricingIdentity(static_cast<std::uint16_t>(writer * 100 + n), 0),
+                                             static_cast<Zen>(1000 + n)))
+                        ++failed;
+            });
+    for (auto& thread : threads)
+        thread.join();
+    CHECK(failed == 0);
+    PriceMemory saved;
+    REQUIRE(saved.Load(path, owner));
+    CHECK(saved.Entries().size() == Writers * Publications);
+    // No temporary file is left behind; only the store and its lock file remain.
+    for (const auto& entry : std::filesystem::directory_iterator(directory.path))
+        CHECK(entry.path().filename().string().find(".tmp") == std::string::npos);
 }
