@@ -57,7 +57,9 @@ void Window::RefreshReviewBalance()
     const auto action = m_Review.action;
     if (model.review && CharacterMachine &&
         (action == Action::BuyItem || action == Action::BuyGoods || action == Action::Publish))
-        balance = ReviewBalanceText(action == Action::Publish ? m_Review.fee : m_Review.amount, CharacterMachine->Gold);
+        balance = action == Action::Publish
+                      ? ReviewBalanceText(ReviewDebit::PostingFee, m_Review.fee, CharacterMachine->Gold)
+                      : ReviewBalanceText(ReviewDebit::Purchase, m_Review.amount, CharacterMachine->Gold);
     if (balance != model.confirmBalance)
     {
         model.confirmBalance = std::move(balance);
@@ -230,7 +232,7 @@ void Window::ReviewCancel(const Market::EntityId& id)
     auto& model = m_View.GetModel();
     model.confirmDetail = listing.kind == GoodsListingKind ? std::string{} : OptionSummary(row);
     model.confirmTotal = text.total;
-    model.confirmFee = text.fee;
+    model.confirmFee = text.fee + "\n" + text.unsold;
 }
 
 void Window::Collect(std::optional<Market::EntityId> id)

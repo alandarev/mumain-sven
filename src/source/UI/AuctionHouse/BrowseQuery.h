@@ -39,8 +39,9 @@ std::string EmptyResultText(Category category, const BrowseQuery& query);
 // clears the set and socket constraints, and Normal clears the excellent options.
 void ClearFamilyDependants(AdvancedFilters& filters);
 // Why the Filters dialog cannot be applied, or empty when it can. `toolbarOption` is the Option choice
-// beside the search field, which already asks for an excellent option.
-std::string FilterProblem(const AdvancedFilters& filters, bool toolbarOption, Market::Zen maxPriceLimit);
+// beside the search field, which already asks for an excellent option. The Max price hint shows the
+// same examples as the Sell price help, so none is above the announced maximum price (UX3-02).
+std::string FilterProblem(const AdvancedFilters& filters, bool toolbarOption, const Market::Rules& rules);
 // "Dark Knight (including evolutions)"; empty for any class or an unknown value.
 std::string ClassLineLabel(std::string_view classLine);
 } // namespace UI::AuctionHouse

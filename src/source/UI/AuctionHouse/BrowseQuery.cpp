@@ -1,5 +1,7 @@
 #include "UI/AuctionHouse/BrowseQuery.h"
 
+#include "UI/AuctionHouse/PriceEntry.h"
+
 #include <array>
 #include <charconv>
 
@@ -77,7 +79,7 @@ void ClearFamilyDependants(AdvancedFilters& filters)
     }
 }
 
-std::string FilterProblem(const AdvancedFilters& filters, bool toolbarOption, Market::Zen maxPriceLimit)
+std::string FilterProblem(const AdvancedFilters& filters, bool toolbarOption, const Market::Rules& rules)
 {
     const auto low = Upgrade(filters.upgradeMin), high = Upgrade(filters.upgradeMax);
     if (!low || !high)
@@ -86,9 +88,13 @@ std::string FilterProblem(const AdvancedFilters& filters, bool toolbarOption, Ma
         return "Upgrade min +" + filters.upgradeMin + " is above max +" + filters.upgradeMax + ".";
     if (!filters.maxPrice.empty())
     {
-        const auto price = ParseZen(filters.maxPrice, maxPriceLimit);
+        const auto price = ParseZen(filters.maxPrice, rules.maxPrice);
         if (!price || *price == 0)
-            return "Max price: enter 590,000 · 590k · 1.5kk · 2.3b, up to " + ExactZen(maxPriceLimit) + ".";
+        {
+            const auto help = DescribePriceHelp(rules);
+            return "Max price: enter a whole number or " + (help.examples.empty() ? "590k" : help.examples) +
+                   ", up to " + ExactZen(rules.maxPrice) + ".";
+        }
     }
     if (filters.family == NormalFamily &&
         (toolbarOption || filters.option != NoChoice || filters.minExcellent != NoChoice))

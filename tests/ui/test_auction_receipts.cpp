@@ -216,9 +216,12 @@ TEST_CASE("Auction My auctions rows and the cancel review name remaining quantit
     auto cancel = DescribeCancelReview(jewels, false);
     CHECK(cancel.total == "6 remaining × 590,000 Zen each");
     CHECK(cancel.fee == "Posting fee not refunded");
+    // Where the unsold units go (UX3-05).
+    CHECK(cancel.unsold == "Unsold items return to your bag; what does not fit goes to Collection.");
     cancel = DescribeCancelReview(armour, true);
     CHECK(cancel.total == "12,500,000 Zen");
     CHECK(cancel.fee == "Posting fee refunded");
+    CHECK(cancel.unsold == "Unsold items return to your bag; what does not fit goes to Collection.");
 }
 
 TEST_CASE("Auction Review purchase readiness for quantity, Zen and own listings [auction][receipts]")
@@ -252,13 +255,17 @@ TEST_CASE("Auction Review purchase readiness for quantity, Zen and own listings 
 
 TEST_CASE("Auction review balance follows the wallet [auction][receipts]")
 {
-    // Opened at 33,545,250 Zen for a 1,200 Zen purchase.
-    CHECK(ReviewBalanceText(1200, 33545250) == "Balance 33,544,050 Zen");
+    // Opened at 33,545,250 Zen for a 1,200 Zen purchase; the line says it is the balance after it (UX3-03).
+    constexpr auto Purchase = ReviewDebit::Purchase;
+    CHECK(ReviewBalanceText(Purchase, 1200, 33545250) == "Balance after purchase 33,544,050 Zen");
     // A sale notice adds 531,000 Zen while the review is open.
-    CHECK(ReviewBalanceText(1200, 34076250) == "Balance 34,075,050 Zen");
+    CHECK(ReviewBalanceText(Purchase, 1200, 34076250) == "Balance after purchase 34,075,050 Zen");
     // Spending elsewhere leaves too little: the line says so instead of a negative balance.
-    CHECK(ReviewBalanceText(4740000, 1000000) == "Need 4,740,000 Zen, you have 1,000,000");
-    CHECK(ReviewBalanceText(5, 5) == "Balance 0 Zen");
+    CHECK(ReviewBalanceText(Purchase, 4740000, 1000000) == "Need 4,740,000 Zen, you have 1,000,000");
+    CHECK(ReviewBalanceText(Purchase, 5, 5) == "Balance after purchase 0 Zen");
+    // A listing review debits the posting fee only.
+    CHECK(ReviewBalanceText(ReviewDebit::PostingFee, 70800, 1000000) == "Balance after posting fee 929,200 Zen");
+    CHECK(ReviewBalanceText(ReviewDebit::PostingFee, 70800, 70000) == "Need 70,800 Zen, you have 70,000");
 }
 
 TEST_CASE("Auction listing review shows the unit price line fee terms and proceeds [auction][receipts]")

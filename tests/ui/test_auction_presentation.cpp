@@ -54,6 +54,20 @@ TEST_CASE("Auction balance is always compact and never overstated [auction][ui]"
     CHECK(BalanceZen(4294967295) == "4,294.96kk");
 }
 
+TEST_CASE("Auction equipment details show the reduced requirement Cannot Equip uses [auction][ui]")
+{
+    // UX3-04: raw 400 Strength, harmony/socket reduction 30 -> details and refusal both say 370.
+    CHECK(EffectiveRequirement(400, 30) == 370);
+    CHECK(RequirementText("Strength", 400, 30) == "Strength 370 (base 400)");
+    // Unreduced: one number, as before.
+    CHECK(RequirementText("Agility", 120, 0) == "Agility 120");
+    CHECK(EffectiveRequirement(120, 0) == 120);
+    // A reduction beyond the requirement leaves none.
+    CHECK(EffectiveRequirement(20, 30) == 0);
+    CHECK(RequirementText("Strength", 20, 30) == "Strength 0 (base 20)");
+    CHECK(EffectiveRequirement(50, -5) == 50);
+}
+
 TEST_CASE("Auction parameter search intersects excellent option domains [auction][ui]")
 {
     Market::SearchFilter all;

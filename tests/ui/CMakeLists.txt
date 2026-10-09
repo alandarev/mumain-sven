@@ -301,6 +301,8 @@ mu_add_test(
     SOURCES
         test_auction_browse.cpp
         ${CMAKE_SOURCE_DIR}/src/source/UI/AuctionHouse/BrowseQuery.cpp
+        ${CMAKE_SOURCE_DIR}/src/source/UI/AuctionHouse/PriceEntry.cpp
+        ${CMAKE_SOURCE_DIR}/src/source/GameLogic/AuctionHouse/AuctionHousePrices.cpp
         ${CMAKE_SOURCE_DIR}/src/source/UI/AuctionHouse/BrowseState.cpp
         ${CMAKE_SOURCE_DIR}/src/source/UI/AuctionHouse/EquipmentDetails.cpp
         ${CMAKE_SOURCE_DIR}/src/source/UI/AuctionHouse/Presentation.cpp

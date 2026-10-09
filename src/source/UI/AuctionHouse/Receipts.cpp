@@ -303,11 +303,12 @@ std::string ZenShortfallText(std::uint64_t need, std::uint64_t have)
     return "Need " + ExactZen(need) + " Zen, you have " + ExactZen(have);
 }
 
-std::string ReviewBalanceText(std::uint64_t debit, std::uint64_t wallet)
+std::string ReviewBalanceText(ReviewDebit kind, std::uint64_t debit, std::uint64_t wallet)
 {
     if (debit > wallet)
         return ZenShortfallText(debit, wallet);
-    return "Balance " + ExactZen(wallet - debit) + " Zen";
+    return std::string(kind == ReviewDebit::PostingFee ? "Balance after posting fee " : "Balance after purchase ") +
+           ExactZen(wallet - debit) + " Zen";
 }
 
 std::string ListingCountText(std::uint8_t active, std::uint8_t maximum)
@@ -331,6 +332,7 @@ CancelReviewText DescribeCancelReview(const Market::OwnListing& listing, bool re
                      ? std::to_string(listing.remaining) + " remaining × " + ExactZen(listing.unitPrice) + " Zen each"
                      : ExactZen(listing.unitPrice) + " Zen";
     text.fee = refundPostingFee ? "Posting fee refunded" : "Posting fee not refunded";
+    text.unsold = "Unsold items return to your bag; what does not fit goes to Collection.";
     return text;
 }
 

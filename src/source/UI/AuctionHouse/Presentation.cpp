@@ -1,5 +1,6 @@
 #include "UI/AuctionHouse/Presentation.h"
 
+#include <algorithm>
 #include <array>
 #include <cctype>
 #include <limits>
@@ -122,6 +123,20 @@ std::string BalanceZen(Market::Zen value)
         return ExactZen(value);
     const Market::Zen hundredth = (value >= 1000000 ? 1000000 : 1000) / 100;
     return CompactZen(value - value % hundredth);
+}
+
+int EffectiveRequirement(int required, int reduction)
+{
+    return std::max(0, required - std::max(0, reduction));
+}
+
+std::string RequirementText(std::string_view stat, int required, int reduction)
+{
+    const auto effective = EffectiveRequirement(required, reduction);
+    auto text = std::string(stat) + " " + std::to_string(effective);
+    if (effective != required)
+        text += " (base " + std::to_string(required) + ")";
+    return text;
 }
 
 std::string ResultText(Market::Result result)

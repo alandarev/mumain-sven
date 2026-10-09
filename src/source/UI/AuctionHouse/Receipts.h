@@ -161,9 +161,17 @@ std::string AvailabilityText(const GoodsAvailability& availability);
 FieldHint BuyQuantityHint(std::string_view text, const GoodsAvailability& availability);
 // "Need 177,000 Zen, you have 50,000".
 std::string ZenShortfallText(std::uint64_t need, std::uint64_t have);
-// The balance line of an open review: "Balance 33,544,050 Zen" after paying `debit` from `wallet`,
-// or "Need …, you have …" once the wallet no longer covers it. Recomputed whenever the Zen changes.
-std::string ReviewBalanceText(std::uint64_t debit, std::uint64_t wallet);
+// What an open review's debit is (UX3-03).
+enum class ReviewDebit : std::uint8_t
+{
+    Purchase,
+    PostingFee
+};
+
+// The balance line of an open review: "Balance after purchase 33,544,050 Zen" (or "after posting
+// fee") once `debit` is paid from `wallet`, or "Need …, you have …" once the wallet no longer covers
+// it. Recomputed whenever the Zen changes.
+std::string ReviewBalanceText(ReviewDebit kind, std::uint64_t debit, std::uint64_t wallet);
 // "Listings 19/20".
 std::string ListingCountText(std::uint8_t active, std::uint8_t maximum);
 // A My auctions row: "6 remaining of 8 · 590k Zen each · 48h", or "12.5kk Zen · 48h" for an item.
@@ -171,11 +179,11 @@ std::string OwnListingLine(const Market::OwnListing& listing, std::uint32_t hour
 
 struct CancelReviewText
 {
-    std::string total, fee;
+    std::string total, fee, unsold;
 };
 
-// The cancel review: the remaining quantity at the exact unit price, and whether the posting fee
-// comes back ("Posting fee not refunded").
+// The cancel review: the remaining quantity at the exact unit price, whether the posting fee comes
+// back ("Posting fee not refunded"), and where the unsold items go (UX3-05).
 CancelReviewText DescribeCancelReview(const Market::OwnListing& listing, bool refundPostingFee);
 
 // Whether Review purchase can open (D21). An invalid quantity leaves the button pressable so that a

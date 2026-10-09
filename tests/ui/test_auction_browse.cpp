@@ -162,24 +162,64 @@ TEST_CASE("Auction removing a family clears the choices that depend on it [aucti
 
 TEST_CASE("Auction Filters dialog says why it cannot be applied [auction][ui]")
 {
-    constexpr GameLogic::AuctionHouse::Zen limit = 2000000000;
+    GameLogic::AuctionHouse::Rules rules;
+    rules.maxPrice = 2000000000;
+    rules.priceStepPrecision = 2;
     AdvancedFilters filters;
-    CHECK(FilterProblem(filters, false, limit).empty());
+    CHECK(FilterProblem(filters, false, rules).empty());
     filters.upgradeMin = "11";
     filters.upgradeMax = "7";
-    CHECK(FilterProblem(filters, false, limit) == "Upgrade min +11 is above max +7.");
+    CHECK(FilterProblem(filters, false, rules) == "Upgrade min +11 is above max +7.");
     filters.upgradeMax = "11";
     filters.maxPrice = "1.000kk";
-    CHECK(FilterProblem(filters, false, limit).starts_with("Max price: enter 590,000"));
+    CHECK(FilterProblem(filters, false, rules).starts_with("Max price: enter a whole number or"));
     filters.maxPrice = "0";
-    CHECK_FALSE(FilterProblem(filters, false, limit).empty());
+    CHECK_FALSE(FilterProblem(filters, false, rules).empty());
     filters.maxPrice = "1.5kk";
-    CHECK(FilterProblem(filters, false, limit).empty());
+    CHECK(FilterProblem(filters, false, rules).empty());
     filters.family = "1";
-    CHECK(FilterProblem(filters, true, limit).starts_with("Normal items have no excellent options"));
-    CHECK(FilterProblem(filters, false, limit).empty());
+    CHECK(FilterProblem(filters, true, rules).starts_with("Normal items have no excellent options"));
+    CHECK(FilterProblem(filters, false, rules).empty());
     filters.minExcellent = "2";
-    CHECK_FALSE(FilterProblem(filters, false, limit).empty());
+    CHECK_FALSE(FilterProblem(filters, false, rules).empty());
+}
+
+TEST_CASE("Auction Filters price hint only suggests prices the filter accepts [auction][ui]")
+{
+    // UX3-02: the hint recommended 2.3b while the default cap is 2,000,000,000.
+    GameLogic::AuctionHouse::Rules rules;
+    rules.priceStepPrecision = 2;
+    for (const GameLogic::AuctionHouse::Zen cap : {2000000000u, 5000000u, 800000u})
+    {
+        INFO(cap);
+        rules.maxPrice = cap;
+        AdvancedFilters filters;
+        filters.maxPrice = "3b";
+        const auto problem = FilterProblem(filters, false, rules);
+        REQUIRE(problem.starts_with("Max price: enter a whole number or "));
+        CHECK(problem.ends_with(", up to " + ExactZen(cap) + "."));
+        CHECK(problem.find("2.3b") == std::string::npos);
+        // Every example in it is accepted by the same filter.
+        auto examples = problem.substr(std::string("Max price: enter a whole number or ").size());
+        examples = examples.substr(0, examples.find(", up to"));
+        std::size_t start = 0;
+        int count = 0;
+        while (start < examples.size())
+        {
+            auto end = examples.find(" · ", start);
+            if (end == std::string::npos)
+                end = examples.size();
+            filters.maxPrice = examples.substr(start, end - start);
+            INFO(filters.maxPrice);
+            const auto price = ParseZen(filters.maxPrice, cap);
+            REQUIRE(price);
+            CHECK(*price <= cap);
+            CHECK(FilterProblem(filters, false, rules).empty());
+            ++count;
+            start = end == examples.size() ? end : end + std::string(" · ").size();
+        }
+        CHECK(count >= 1);
+    }
 }
 
 TEST_CASE("Auction class labels include evolutions [auction][ui]")

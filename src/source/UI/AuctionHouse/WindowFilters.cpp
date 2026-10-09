@@ -86,7 +86,7 @@ void Window::ApplyFilters()
 bool Window::CheckDraftFilters()
 {
     auto& m = m_View.GetModel();
-    auto problem = FilterProblem(m.draft, m.option != "0", Market::GetState().GetRules().maxPrice);
+    auto problem = FilterProblem(m.draft, m.option != "0", Market::GetState().GetRules());
     if (problem.empty() && !m.draft.ancientSet.empty())
     {
         std::vector<Market::SearchEntry> members;

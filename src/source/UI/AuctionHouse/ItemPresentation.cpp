@@ -138,25 +138,6 @@ void Harmony(RowModel& row, const ITEM* item)
     }
 }
 
-void Requirements(RowModel& row, const ITEM* item)
-{
-    if (item->RequireStrength)
-        Line(row, "Strength " + std::to_string(item->RequireStrength));
-    if (item->RequireDexterity)
-        Line(row, "Agility " + std::to_string(item->RequireDexterity));
-    if (item->RequireEnergy)
-        Line(row, "Energy " + std::to_string(item->RequireEnergy));
-    if (item->RequireVitality)
-        Line(row, "Vitality " + std::to_string(item->RequireVitality));
-    if (item->RequireCharisma)
-        Line(row, "Leadership " + std::to_string(item->RequireCharisma));
-    if (item->RequireLevel)
-        Line(row, "Level " + std::to_string(item->RequireLevel));
-    const auto maxDurability = CalcMaxDurability(item, &ItemAttribute[item->Type], item->Level);
-    if (item->Type / MAX_ITEM_INDEX < 12 && item->Durability < maxDurability)
-        Line(row, "Durability " + std::to_string(item->Durability) + "/" + std::to_string(maxDurability));
-}
-
 // Strength and agility the item's harmony and socket options take off its requirements.
 std::pair<int, int> RequirementReductions(const ITEM& item)
 {
@@ -179,6 +160,28 @@ std::pair<int, int> RequirementReductions(const ITEM& item)
             agility += g_SocketItemMgr.GetSocketOptionValue(&item, i);
     return {strength, agility};
 }
+// The requirements the details show: the same effective numbers Cannot Equip uses, with the base value
+// when harmony or socket options reduce it (UX3-04).
+void Requirements(RowModel& row, const ITEM* item)
+{
+    const auto [strengthDown, agilityDown] = RequirementReductions(*item);
+    if (item->RequireStrength)
+        Line(row, RequirementText("Strength", item->RequireStrength, strengthDown));
+    if (item->RequireDexterity)
+        Line(row, RequirementText("Agility", item->RequireDexterity, agilityDown));
+    if (item->RequireEnergy)
+        Line(row, "Energy " + std::to_string(item->RequireEnergy));
+    if (item->RequireVitality)
+        Line(row, "Vitality " + std::to_string(item->RequireVitality));
+    if (item->RequireCharisma)
+        Line(row, "Leadership " + std::to_string(item->RequireCharisma));
+    if (item->RequireLevel)
+        Line(row, "Level " + std::to_string(item->RequireLevel));
+    const auto maxDurability = CalcMaxDurability(item, &ItemAttribute[item->Type], item->Level);
+    if (item->Type / MAX_ITEM_INDEX < 12 && item->Durability < maxDurability)
+        Line(row, "Durability " + std::to_string(item->Durability) + "/" + std::to_string(maxDurability));
+}
+
 } // namespace
 
 RowModel DescribeItem(const ITEM* item, int index)
@@ -249,8 +252,10 @@ std::optional<EquipFacts> CharacterEquipFacts(const ITEM& item)
     const auto [strengthDown, agilityDown] = RequirementReductions(item);
     const auto& character = *CharacterAttribute;
     facts.stats = {
-        {"Strength", item.RequireStrength - strengthDown, character.Strength + character.AddStrength},
-        {"Agility", item.RequireDexterity - agilityDown, character.Dexterity + character.AddDexterity},
+        {"Strength", EffectiveRequirement(item.RequireStrength, strengthDown),
+         character.Strength + character.AddStrength},
+        {"Agility", EffectiveRequirement(item.RequireDexterity, agilityDown),
+         character.Dexterity + character.AddDexterity},
         {"Energy", item.RequireEnergy, character.Energy + character.AddEnergy},
         {"Vitality", item.RequireVitality, character.Vitality + character.AddVitality},
         {"Leadership", item.RequireCharisma, character.Charisma + character.AddCharisma},

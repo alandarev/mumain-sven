@@ -22,6 +22,10 @@ std::string CompactZen(Market::Zen value);
 // A balance in one compact form: thousands "k" or millions "kk" with at most two decimals, rounded down so it is
 // never overstated (28,470,000 -> "28.47kk", 19,823,999 -> "19.82kk"); below 1,000 the exact amount.
 std::string BalanceZen(Market::Zen value);
+// A requirement after the item's harmony and socket reductions, as Cannot Equip counts it.
+int EffectiveRequirement(int required, int reduction);
+// The details line of one requirement: "Strength 370 (base 400)" when reduced, else "Strength 400" (UX3-04).
+std::string RequirementText(std::string_view stat, int required, int reduction);
 std::string ResultText(Market::Result result);
 
 enum class Category : std::uint8_t
