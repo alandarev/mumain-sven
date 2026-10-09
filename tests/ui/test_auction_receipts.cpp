@@ -369,6 +369,29 @@ TEST_CASE("Auction proceeds are exact only when per-sale rounding cannot change 
     CHECK(review.fees.find("Receive if all sell at least 389\n") != std::string::npos);
 }
 
+TEST_CASE("Auction sale fee is capped at the gross before narrowing, as on the server [auction][receipts]")
+{
+    // FR-04: 30,000 bp of 2,000,000,000 is 6,000,000,000; narrowed first it read 1,705,032,704 and the
+    // review promised 294,967,296 Zen. The server takes the whole gross and pays nothing.
+    Market::Rules rules;
+    rules.zenLimit = 2000000000;
+    rules.maxPrice = 2000000000;
+    rules.saleFeeBasisPoints = 30000;
+    CHECK(Market::SaleFee(rules, 2000000000) == 2000000000u);
+    const auto proceeds = ProceedsIfAllSell(rules, 1, 2000000000);
+    CHECK(proceeds.amount == 0);
+    CHECK(ProceedsText(proceeds) == "0");
+    CHECK(ProceedsIfAllSell(rules, 4, 500000000).amount == 0);
+    // The largest fee rate and Zen value never wrap.
+    rules.saleFeeBasisPoints = 65535;
+    CHECK(Market::SaleFee(rules, 4294967295u) == 4294967295u);
+    // Below 100 % nothing changes.
+    rules.saleFeeBasisPoints = 10000;
+    CHECK(Market::SaleFee(rules, 2000000000) == 2000000000u);
+    rules.saleFeeBasisPoints = 1000;
+    CHECK(Market::SaleFee(rules, 2000000000) == 200000000u);
+}
+
 TEST_CASE("Auction buy quantity: an exact count is a ceiling, a lower bound is not [auction][receipts]")
 {
     auto hint = BuyQuantityHint("56", {56, true});
