@@ -84,7 +84,7 @@ void BindExcept(Rml::DataModelConstructor& c, UI::AuctionHouse::WindowModel& mod
                              "price_key",      "price_wheel",  "select_content", "match_lowest",  "undercut",
                              "forget_price",   "max_quantity", "refresh_quote",  "clear_name",    "back_to_selling",
                              "refresh_hover",  "draft_family", "draft_class",  "dismiss_status", "dismiss_notice",
-                             "toggle_depth"})
+                             "toggle_depth",   "wallet"})
         if (std::find(handled.begin(), handled.end(), name) == handled.end())
             c.BindEventCallback(name, [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {});
 }
@@ -1612,6 +1612,58 @@ TEST_CASE("Auction a live market move does not move the purchase controls [aucti
             Refresh(view, fixture.context);
             CHECK(Visible(document, "quote-move").empty());
             CHECK(std::abs(Top(button) - buttonTop) < 0.5f);
+        }
+        view.Release();
+    }
+}
+
+TEST_CASE("Auction balance toggles on click and its exact form fits the title bar [auction][rml]")
+{
+    Fixture fixture;
+    for (const char* theme : {"legacy", "modern", "munolith"})
+    {
+        UI::RmlBridge::SetActiveThemeName(theme);
+        int clicks = 0;
+        auto bind = [&clicks](Rml::DataModelConstructor& c, UI::AuctionHouse::WindowModel& model)
+        {
+            BindExcept(c, model, {"wallet"});
+            c.BindEventCallback("wallet", [&clicks](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&)
+                                { ++clicks; });
+        };
+        UI::RmlBridge::ThemedView<UI::AuctionHouse::WindowModel> view(
+            "auction_house", bind,
+            {{"Data/Interface/RmlUi/auction_house.rml", [&fixture] { return fixture.context; }}});
+        REQUIRE(view.Ensure());
+        auto* document = view.Document();
+        auto& model = view.GetModel();
+        for (const auto& [width, height] : PlayerResolutions)
+        {
+            INFO(std::string(theme), " ", width, "x", height);
+            fixture.context->SetDimensions({width, height});
+            fixture.context->SetDensityIndependentPixelRatio(1.f);
+            model = {};
+            model.wallet = "4,294,967,295 Zen";
+            Refresh(view, fixture.context);
+            auto* wallet = Single(document, "wallet");
+            auto* close = Single(document, "close");
+            auto* heading = Single(document, "heading");
+            auto* titlebar = document->GetElementById("titlebar");
+            REQUIRE(titlebar);
+            CheckWithin(wallet, titlebar);
+            CHECK(Right(wallet) <= Left(close));
+            CHECK(Right(heading) <= Left(wallet));
+            CHECK(Top(wallet) < Bottom(close));
+
+            const int before = clicks;
+            const auto position = wallet->GetAbsoluteOffset(Rml::BoxArea::Border);
+            const auto size = wallet->GetBox().GetSize(Rml::BoxArea::Border);
+            fixture.context->ProcessMouseMove(static_cast<int>(position.x + size.x / 2),
+                                              static_cast<int>(position.y + size.y / 2), 0);
+            fixture.context->ProcessMouseButtonDown(0, 0);
+            fixture.context->ProcessMouseButtonUp(0, 0);
+            fixture.context->Update();
+            CHECK(clicks == before + 1);
+            fixture.context->ProcessMouseMove(0, 0, 0);
         }
         view.Release();
     }

@@ -22,7 +22,7 @@ void Window::RefreshRules()
     model.priceGrid = help.grid;
     model.priceRange = help.range;
     if (CharacterMachine)
-        model.wallet = CompactZen(static_cast<Market::Zen>(CharacterMachine->Gold)) + " Zen";
+        ShowWallet(static_cast<Market::Zen>(CharacterMachine->Gold));
     SyncWallet();
     RefreshSelling();
     m_Dirty = true;
@@ -36,10 +36,18 @@ void Window::SyncWallet()
     if (!CharacterMachine || m_Wallet == CharacterMachine->Gold)
         return;
     m_Wallet = CharacterMachine->Gold;
-    m_View.GetModel().wallet = CompactZen(m_Wallet) + " Zen";
+    ShowWallet(m_Wallet);
     RefreshSelling();
     RefreshBuyNote();
     RefreshReviewBalance();
+    m_Dirty = true;
+}
+
+void Window::ShowWallet(Market::Zen zen)
+{
+    // One form for every amount: the compact form used to fall back to the exact amount whenever it had more
+    // than two decimals, so the header switched between "60kk Zen" and "19,823,000 Zen".
+    m_View.GetModel().wallet = (m_ExactWallet ? ExactZen(zen) : BalanceZen(zen)) + " Zen";
     m_Dirty = true;
 }
 

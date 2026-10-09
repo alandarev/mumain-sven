@@ -189,6 +189,8 @@ private:
     void RefreshReviewBalance();
     // Takes over a changed wallet everywhere it is shown; called every frame and after a rules refresh.
     void SyncWallet();
+    // The header balance: compact by default, the exact amount after a click on it (a click toggles back).
+    void ShowWallet(Market::Zen zen);
     void Confirm();
     bool SendAction();
     void StepPrice(PriceStepInput input);
@@ -223,7 +225,7 @@ private:
     std::deque<std::function<void()>> m_Events;
     Read m_Read = Read::None, m_SentRead = Read::None;
     bool m_ReviewNeedsFocus = false;
-    bool m_Restart = true, m_SentRestart = true, m_Dirty = true, m_ActionQueued = false;
+    bool m_Restart = true, m_SentRestart = true, m_Dirty = true, m_ActionQueued = false, m_ExactWallet = false;
     std::uint32_t m_Generation = 0, m_SentGeneration = 0;
     std::uint16_t m_Page = 0;
     std::uint32_t m_Total = 0, m_Loaded = 0;

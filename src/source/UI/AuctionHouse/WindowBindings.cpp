@@ -23,6 +23,13 @@ void Window::BindEvents(Rml::DataModelConstructor& c)
     };
     auto index = [](const auto& args) { return args.empty() ? -1 : args.front().template Get<int>(); };
     event("close", [this](const auto&) { Show(false); });
+    event("wallet",
+          [this](const auto&)
+          {
+              // SyncWallet keeps m_Wallet equal to the character's Zen every frame.
+              m_ExactWallet = !m_ExactWallet;
+              ShowWallet(m_Wallet);
+          });
     event("tab",
           [this](const auto& args)
           {

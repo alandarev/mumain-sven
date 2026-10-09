@@ -19,6 +19,9 @@ std::optional<std::uint32_t> ParseQuantity(std::string_view text, std::uint32_t 
 // Grouped digits; wide enough for a quantity times a unit price.
 std::string ExactZen(std::uint64_t value);
 std::string CompactZen(Market::Zen value);
+// A balance in one compact form: thousands "k" or millions "kk" with at most two decimals, rounded down so it is
+// never overstated (28,470,000 -> "28.47kk", 19,823,999 -> "19.82kk"); below 1,000 the exact amount.
+std::string BalanceZen(Market::Zen value);
 std::string ResultText(Market::Result result);
 
 enum class Category : std::uint8_t

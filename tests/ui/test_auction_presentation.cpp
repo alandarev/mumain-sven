@@ -37,6 +37,23 @@ TEST_CASE("Auction Zen entry remains exact at limits and decimal shorthand [auct
     CHECK(CompactZen(1000001) == "1,000,001");
 }
 
+TEST_CASE("Auction balance is always compact and never overstated [auction][ui]")
+{
+    CHECK(BalanceZen(28470000) == "28.47kk");
+    CHECK(BalanceZen(19823000) == "19.82kk");
+    CHECK(BalanceZen(45789999) == "45.78kk");
+    CHECK(BalanceZen(60000000) == "60kk");
+    CHECK(BalanceZen(1000000) == "1kk");
+    CHECK(BalanceZen(999999) == "999.99k");
+    CHECK(BalanceZen(590000) == "590k");
+    CHECK(BalanceZen(1234) == "1.23k");
+    CHECK(BalanceZen(1000) == "1k");
+    CHECK(BalanceZen(999) == "999");
+    CHECK(BalanceZen(0) == "0");
+    CHECK(BalanceZen(2000000000) == "2,000kk");
+    CHECK(BalanceZen(4294967295) == "4,294.96kk");
+}
+
 TEST_CASE("Auction parameter search intersects excellent option domains [auction][ui]")
 {
     Market::SearchFilter all;

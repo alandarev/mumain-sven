@@ -122,6 +122,7 @@ select option:hover, select option:checked { background-color: token(surface-con
 .scroll-pane scrollbarvertical sliderarrowdec, .scroll-pane scrollbarvertical sliderarrowinc, select selectbox scrollbarvertical sliderarrowdec, select selectbox scrollbarvertical sliderarrowinc { display: none; }
 
 #panel .heading, #panel .gold, #panel .wallet { color: #ffe600; }
+#panel .wallet:hover { color: #fff6a8; }
 #panel .listing.selected { background-color: #45402b; }
 #panel .item-icon { background-color: #0b0c08; border: 1px #4e4933; }
 

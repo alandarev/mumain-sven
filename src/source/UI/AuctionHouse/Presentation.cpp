@@ -116,6 +116,14 @@ std::string CompactZen(Market::Zen value)
     return result + (unit == 1000000 ? "kk" : "k");
 }
 
+std::string BalanceZen(Market::Zen value)
+{
+    if (value < 1000)
+        return ExactZen(value);
+    const Market::Zen hundredth = (value >= 1000000 ? 1000000 : 1000) / 100;
+    return CompactZen(value - value % hundredth);
+}
+
 std::string ResultText(Market::Result result)
 {
     using R = Market::Result;

@@ -8,6 +8,7 @@ div { display: block; }
 .heading { color: token(accent-gold); font-size: 1.25em; }
 .subtitle { margin-top: 0.5em; font-size: 0.9em; color: token(text-secondary); }
 .wallet { color: token(accent-gold); margin-right: 0.5em; }
+.wallet:hover { color: token(accent-gold-hover); }
 .close { width: 1.5em; height: 1.5em; padding: 0; font-size: 1.2em; }
 .tabs { display: flex; flex-shrink: 0; border: 1px token(border-inner); margin-bottom: 0.7em; background-color: rgba(0,0,0,130); }
 .tabs button { flex: none; width: auto; padding: 0.65em 1.2em; border-right: 1px token(border-inner); border-bottom: 2px transparent; }
