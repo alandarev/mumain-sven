@@ -4,6 +4,7 @@
 #include "UI/AuctionHouse/GoodsQuote.h"
 
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -68,25 +69,30 @@ struct NoticeLine
 };
 
 // Sale and expiry notices from the server (D19): their own lines above the result line, newest
-// first, at most MaximumLines. Like a receipt they stay until the next deliberate action or their ×.
+// first, at most MaximumLines. Above them one slot for a server announcement (D24), where the newest
+// replaces an older one; the two never evict each other (RR-03). Like a receipt they stay until the
+// next deliberate action or their ×.
 class NoticeLines
 {
 public:
     static constexpr std::size_t MaximumLines = 3;
 
     void Push(NoticeLine line);
-    // The newest server announcement replaces an older one, so announcements never push sale
-    // notices out.
     void PushAnnouncement(std::string text);
+    // `index` into Lines().
     void Dismiss(std::size_t index);
     void Clear();
+    // The announcement, if any, then the sale notices.
     std::span<const NoticeLine> Lines() const
     {
         return m_Lines;
     }
 
 private:
-    std::vector<NoticeLine> m_Lines;
+    void Compose();
+
+    std::optional<NoticeLine> m_Announcement;
+    std::vector<NoticeLine> m_Sales, m_Lines;
 };
 
 // "Sold 6 × Jewel of Bless · 3,186,000 Zen added to your bag", "Expired: Dragon Armor +9 · returned to

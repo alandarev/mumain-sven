@@ -143,26 +143,41 @@ void StatusLine::Clear()
 
 void NoticeLines::Push(NoticeLine line)
 {
-    m_Lines.insert(m_Lines.begin(), std::move(line));
-    if (m_Lines.size() > MaximumLines)
-        m_Lines.resize(MaximumLines);
+    line.announcement = false;
+    m_Sales.insert(m_Sales.begin(), std::move(line));
+    if (m_Sales.size() > MaximumLines)
+        m_Sales.resize(MaximumLines);
+    Compose();
 }
 
 void NoticeLines::PushAnnouncement(std::string text)
 {
-    std::erase_if(m_Lines, [](const NoticeLine& line) { return line.announcement; });
-    Push({std::move(text), StatusLink::None, true});
+    m_Announcement = NoticeLine{std::move(text), StatusLink::None, true};
+    Compose();
 }
 
 void NoticeLines::Dismiss(std::size_t index)
 {
-    if (index < m_Lines.size())
-        m_Lines.erase(m_Lines.begin() + static_cast<std::ptrdiff_t>(index));
+    if (m_Announcement && index == 0)
+        m_Announcement.reset();
+    else if (const auto sale = index - (m_Announcement ? 1 : 0); sale < m_Sales.size())
+        m_Sales.erase(m_Sales.begin() + static_cast<std::ptrdiff_t>(sale));
+    Compose();
 }
 
 void NoticeLines::Clear()
 {
+    m_Announcement.reset();
+    m_Sales.clear();
     m_Lines.clear();
+}
+
+void NoticeLines::Compose()
+{
+    m_Lines.clear();
+    if (m_Announcement)
+        m_Lines.push_back(*m_Announcement);
+    m_Lines.insert(m_Lines.end(), m_Sales.begin(), m_Sales.end());
 }
 
 NoticeLine DescribeNotice(const Market::Notice& notice, std::string_view itemName)

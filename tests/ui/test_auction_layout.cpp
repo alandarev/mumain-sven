@@ -1183,10 +1183,13 @@ void FillSellEquipment(UI::AuctionHouse::WindowModel& model)
     model.sellNote = "Listing limit reached (Listings 20/20).";
 }
 
-void AddLongestFeedback(UI::AuctionHouse::WindowModel& model, std::size_t notices)
+void AddLongestFeedback(UI::AuctionHouse::WindowModel& model, std::size_t notices, bool announcement = false)
 {
     model.status = "Outcome unknown. Reopen Zyro and check your bag, Collection and My auctions before retrying.";
     model.statusError = true;
+    if (announcement)
+        model.notices.push_back(
+            {"[Notice] The server restarts for maintenance in 5 minutes. Please log out in a safe place.", ""});
     for (std::size_t i = 0; i < notices; ++i)
         model.notices.push_back({"Sold 250 × Jewel of Bless · 1,791,000,000 Zen waiting in your Collection",
                                  "collection"});
@@ -1220,11 +1223,11 @@ TEST_CASE("Auction Sell summary and Review listing stay in view without scrollin
                     else
                         FillSellEquipment(model);
                     model.depthOpen = kind == "goods-depth-open";
-                    // A receipt with one notice, or the most feedback there can be: three notices and a
-                    // two-line error.
+                    // A receipt with one notice, or the most feedback there can be: an announcement, three
+                    // sale notices and a two-line error.
                     const bool mostFeedback = kind.ends_with("feedback");
                     if (mostFeedback)
-                        AddLongestFeedback(model, 3);
+                        AddLongestFeedback(model, 3, true);
                     if (kind.ends_with("notice"))
                     {
                         AddLongestFeedback(model, 1);
@@ -1364,7 +1367,7 @@ TEST_CASE("Auction panel keeps one rectangle across tabs and categories [auction
                  model = {};
                  model.tab = "collection";
                  model.rows.assign(2, jewel);
-                 AddLongestFeedback(model, 3);
+                 AddLongestFeedback(model, 3, true);
              }}};
         for (const auto& [width, height] : PlayerResolutions)
         {

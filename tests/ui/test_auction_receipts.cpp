@@ -285,19 +285,49 @@ TEST_CASE("Auction listing review shows the unit price line fee terms and procee
     CHECK(PercentText(1000) == "10 %");
 }
 
-TEST_CASE("Auction server announcements take one notice line and never push sale notices out [auction][receipts]")
+TEST_CASE("Auction a server announcement and sale notices never evict each other [auction][receipts]")
 {
+    auto sale = [](int n) { return NoticeLine{"Sold " + std::to_string(n) + " × Jewel of Bless"}; };
+    // Three sales, then an announcement: all four stay, the announcement on top.
     NoticeLines lines;
-    lines.Push({"Sold 6 × Jewel of Bless · 3,186,000 Zen added to your bag"});
+    for (int n = 1; n <= 3; ++n)
+        lines.Push(sale(n));
     lines.PushAnnouncement("Server restarts in 5 minutes");
-    lines.Push({"Expired: Dragon Armor +9 · returned to your Collection", StatusLink::Collection});
-    lines.PushAnnouncement("Server restarts in 4 minutes");
-    REQUIRE(lines.Lines().size() == 3);
-    CHECK(lines.Lines()[0].text == "Server restarts in 4 minutes");
+    REQUIRE(lines.Lines().size() == NoticeLines::MaximumLines + 1);
+    CHECK(lines.Lines()[0].text == "Server restarts in 5 minutes");
     CHECK(lines.Lines()[0].announcement);
-    CHECK(lines.Lines()[1].text.starts_with("Expired"));
-    CHECK(lines.Lines()[2].text.starts_with("Sold"));
-    CHECK_FALSE(lines.Lines()[1].announcement);
+    CHECK(lines.Lines()[1].text == "Sold 3 × Jewel of Bless");
+    CHECK(lines.Lines()[3].text == "Sold 1 × Jewel of Bless");
+
+    // An announcement, then three (and four) sales: the warning stays; only the oldest sale goes.
+    NoticeLines warned;
+    warned.PushAnnouncement("Server restarts in 5 minutes");
+    for (int n = 1; n <= 4; ++n)
+        warned.Push(sale(n));
+    REQUIRE(warned.Lines().size() == NoticeLines::MaximumLines + 1);
+    CHECK(warned.Lines()[0].text == "Server restarts in 5 minutes");
+    CHECK(warned.Lines()[1].text == "Sold 4 × Jewel of Bless");
+    CHECK(warned.Lines()[3].text == "Sold 2 × Jewel of Bless");
+    CHECK_FALSE(warned.Lines()[3].announcement);
+
+    // A newer announcement replaces the older one.
+    warned.PushAnnouncement("Server restarts in 4 minutes");
+    REQUIRE(warned.Lines().size() == NoticeLines::MaximumLines + 1);
+    CHECK(warned.Lines()[0].text == "Server restarts in 4 minutes");
+
+    // × on a line removes that line only.
+    warned.Dismiss(2);
+    REQUIRE(warned.Lines().size() == 3);
+    CHECK(warned.Lines()[0].announcement);
+    CHECK(warned.Lines()[1].text == "Sold 4 × Jewel of Bless");
+    CHECK(warned.Lines()[2].text == "Sold 2 × Jewel of Bless");
+    warned.Dismiss(0);
+    REQUIRE(warned.Lines().size() == 2);
+    CHECK_FALSE(warned.Lines()[0].announcement);
+    warned.Dismiss(5);
+    CHECK(warned.Lines().size() == 2);
+    warned.Clear();
+    CHECK(warned.Lines().empty());
 }
 
 TEST_CASE("Auction proceeds are exact only when per-sale rounding cannot change them [auction][receipts]")
