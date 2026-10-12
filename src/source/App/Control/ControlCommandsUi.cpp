@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "App/Control/ControlCommands.h"
 
+#include "Core/Text/Utf8.h"
+#include "Core/Utilities/Log/muConsoleDebug.h"
 #include "Render/Textures/ZzzOpenglUtil.h"
 #include "UI/NewUI/Dialogs/NewUIMessageBox.h"
 #include "UI/NewUI/Inventory/NewUIInventoryCtrl.h"
@@ -299,5 +301,21 @@ std::string SlotPixel(const Request& request, std::unique_ptr<Act>&)
         return EncodeError(request.EncodedId(), ErrorCode::NotOpen, "the window of that grid is not open");
     }
     return SquarePixel(request, **square, slot);
+}
+
+std::string Console(const Request& request, std::unique_ptr<Act>& /*act*/)
+{
+    std::string text;
+    if (!request.GetString("text", text) || text.empty() || text.front() != '$')
+    {
+        return EncodeError(request.EncodedId(), ErrorCode::BadRequest, "`text` is a `$` command, e.g. \"$fps\"");
+    }
+    if (!g_ConsoleDebug->CheckCommand(Core::Text::FromUtf8(text)))
+    {
+        return EncodeError(request.EncodedId(), ErrorCode::BadRequest, "the client has no `$` command `" + text + "`");
+    }
+    nlohmann::json result;
+    result["text"] = text;
+    return EncodeResult(request.EncodedId(), result.dump());
 }
 } // namespace App::Control::Commands

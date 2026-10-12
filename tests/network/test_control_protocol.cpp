@@ -83,9 +83,10 @@ TEST_CASE("Control protocol treats a blank line as no request [network][control-
 TEST_CASE("Control protocol serves the documented command vocabulary [network][control-protocol]")
 {
     const std::vector<std::string> expected = {
-        "ping",    "scene", "state", "nearby",   "events",   "wait-for", "screenshot", "login", "select-char", "logout",
-        "quit",    "move",  "warp",  "teleport", "attack",   "skill",    "pickup",     "use",   "equip",       "say",
-        "whisper", "party", "halt",  "hotkey",   "click-ui", "ui",       "slot-pixel", "trade", "type",
+        "ping",        "scene",  "state",      "nearby", "events",  "wait-for", "screenshot", "login",
+        "select-char", "logout", "quit",       "move",   "warp",    "teleport", "attack",     "skill",
+        "pickup",      "use",    "equip",      "say",    "whisper", "party",    "halt",       "hotkey",
+        "click-ui",    "ui",     "slot-pixel", "trade",  "type",    "console",
     };
 
     for (const std::string& command : expected)

@@ -39,6 +39,7 @@ const std::vector<CommandEntry>& CommandTable()
         {"screenshot", SceneRequirement::Any, &Commands::Screenshot},
         {"hotkey", SceneRequirement::Any, &Commands::Hotkey},
         {"type", SceneRequirement::Any, &Commands::Type},
+        {"console", SceneRequirement::Any, &Commands::Console},
         {"click-ui", SceneRequirement::Any, &Commands::ClickUi},
         {"ui", SceneRequirement::World, &Commands::Ui},
         {"slot-pixel", SceneRequirement::World, &Commands::SlotPixel},
