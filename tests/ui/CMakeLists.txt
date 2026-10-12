@@ -1,4 +1,9 @@
 mu_add_test(
+    NAME option_window_layout_tests
+    SOURCES test_option_window_layout.cpp
+)
+
+mu_add_test(
     NAME input_box_config_tests
     SOURCES test_input_box_config.cpp
     LINK_LIBS MuClient

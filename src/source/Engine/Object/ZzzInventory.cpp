@@ -6804,6 +6804,9 @@ bool UI::Items::ShouldAnimatePreview(bool pointerInside, bool pickedItemActive, 
 
 void RenderItem3D(float sx, float sy, float Width, float Height, int Type, int Level, int excellentFlags, int ancientDiscriminator, bool PickUp)
 {
+    // Item previews are screen-space: keep Classic texture sampling.
+    const mu::ScopedScreenSpaceSampling screenSpaceSampling;
+
     const bool Success = UI::Items::ShouldAnimatePreview(SEASON3B::CheckMouseIn(sx, sy, Width, Height),
                                                          g_pPickedItem != nullptr, PickUp);
 

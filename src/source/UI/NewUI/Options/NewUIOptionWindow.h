@@ -14,6 +14,7 @@
 #include "UI/NewUI/NewUIManager.h"
 #include "UI/NewUI/Inventory/NewUIMyInventory.h"
 #include "UI/NewUI/Widgets/NewUIComboBox.h"
+#include "UI/NewUI/Options/OptionWindowLayout.h"
 
 namespace UI::Options
 {
@@ -91,6 +92,8 @@ namespace SEASON3B
         void RenderFrame();
         void RenderContents();
         void RenderButtons();
+        void RenderCheckbox(const UI::Options::CheckRow& row, bool checked);
+        void RenderCheckRowLabel(const UI::Options::CheckRow& row, const wchar_t* label);
 
         // UpdateMouseEvent helpers
         void HandleCheckboxInputs();
@@ -114,6 +117,8 @@ namespace SEASON3B
         bool m_bRenderAllEffects;
         int m_iResolutionIndex;
         bool m_bWindowedMode;
+        // The "Enhanced graphics" checkbox: the look preset (Enhanced or Classic).
+        bool m_bEnhancedGraphics;
         int m_iLanguageIndex;
         int m_iFontIndex;
 
@@ -134,6 +139,7 @@ namespace SEASON3B
         void InitResolutionCombo();
         void SyncResolutionComboToWindow();
         void ApplyWindowModeToggle();
+        void ApplyEnhancedGraphics();
 
         void ApplyLanguage();
         int FindCurrentLanguageIndex();

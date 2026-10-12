@@ -171,7 +171,11 @@ bool SEASON3B::CNewUI3DCamera::Render()
     EnableDepthMask();
     mu::GetRenderer().ClearDepthBuffer();
 
-    Render3D();
+    {
+        // Models drawn into the UI are screen-space: keep Classic texture sampling.
+        const mu::ScopedScreenSpaceSampling screenSpaceSampling;
+        Render3D();
+    }
     UpdateMousePositionn();
 
     mu::GetRenderer().SetMatrixMode(GL_MODELVIEW);

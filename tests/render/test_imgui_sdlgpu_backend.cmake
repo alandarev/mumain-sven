@@ -311,42 +311,73 @@ if(end_frame_start EQUAL -1 OR end_frame_end EQUAL -1 OR NOT end_frame_start LES
 endif()
 math(EXPR end_frame_length "${end_frame_end} - ${end_frame_start}")
 string(SUBSTRING "${renderer_code}" ${end_frame_start} ${end_frame_length} end_frame)
-require_call_count(end_frame "SDL_BeginGPURenderPass" 1 "EndFrame must own exactly one render pass")
+
+# EndFrame replays the recorded frame through file-local helpers: one pass for a Classic frame, or
+# scene, bloom and UI passes for a post-processed one. The helpers sit right before EndFrame.
+string(FIND "${renderer_code}" "struct ReplayView" frame_replay_start)
+if(frame_replay_start EQUAL -1 OR NOT frame_replay_start LESS end_frame_start)
+    message(FATAL_ERROR "Could not isolate the frame replay helpers")
+endif()
+math(EXPR frame_replay_length "${end_frame_end} - ${frame_replay_start}")
+string(SUBSTRING "${renderer_code}" ${frame_replay_start} ${frame_replay_length} frame_replay)
+string(FIND "${frame_replay}" "static void ReplayCommands" replay_commands_start)
+string(FIND "${frame_replay}" "static SDL_GPUDepthStencilTargetInfo MakeDepthTarget" replay_commands_end)
+if(replay_commands_start EQUAL -1 OR replay_commands_end EQUAL -1
+        OR NOT replay_commands_start LESS replay_commands_end)
+    message(FATAL_ERROR "Could not isolate ReplayCommands()")
+endif()
+math(EXPR replay_commands_length "${replay_commands_end} - ${replay_commands_start}")
+string(SUBSTRING "${frame_replay}" ${replay_commands_start} ${replay_commands_length} replay_commands)
+
+require_call_count(frame_replay "SDL_BeginGPURenderPass" 1
+    "frame replay must begin every render pass through BeginReplayPass")
+require_call_count(end_frame "SDL_BeginGPURenderPass" 0
+    "EndFrame must begin its render passes through the replay helpers")
 require_call_count(end_frame "SDL_SubmitGPUCommandBuffer" 1 "EndFrame must keep one direct frame submission")
 require_call_count(end_frame "SDL_SubmitGPUCommandBufferAndAcquireFence" 0
     "EndFrame must not add a second frame submission through a fence")
 require_call_count(end_frame "PreparePendingEditorDrawData" 1
     "EndFrame must invoke the pending editor helper exactly once")
 forbid_symbol(end_frame "g_MuEditorCore.PrepareDrawData")
-require_call_count(end_frame "g_MuEditorCore\\.RenderDrawData" 1 "EndFrame must render ImGui draw data exactly once")
+require_call_count(frame_replay "g_MuEditorCore\\.RenderDrawData" 1
+    "frame replay must render ImGui draw data exactly once")
+forbid_symbol(end_frame "g_MuEditorCore.RenderDrawData")
 string(FIND "${end_frame}" "PreparePendingEditorDrawData(s_cmdBuf)" prepare_helper_call_position)
-string(FIND "${end_frame}" "SDL_BeginGPURenderPass" begin_pass_position)
-if(prepare_helper_call_position EQUAL -1 OR begin_pass_position EQUAL -1
-        OR NOT prepare_helper_call_position LESS begin_pass_position)
-    message(FATAL_ERROR "EndFrame must prepare pending editor draw data before SDL_BeginGPURenderPass")
+string(FIND "${end_frame}" "ReplayPostProcessedFrame(frameColorTexture" post_processed_replay_position)
+string(FIND "${end_frame}" "ReplayFrame(frameColorTexture" classic_replay_position)
+if(prepare_helper_call_position EQUAL -1 OR post_processed_replay_position EQUAL -1
+        OR classic_replay_position EQUAL -1
+        OR NOT prepare_helper_call_position LESS post_processed_replay_position
+        OR NOT prepare_helper_call_position LESS classic_replay_position)
+    message(FATAL_ERROR "EndFrame must prepare pending editor draw data before replaying the frame")
 endif()
-string(FIND "${end_frame}" "SDL_GPUViewport s_currentViewport" viewport_init_start)
-string(FIND "${end_frame}" "SDL_Rect s_currentScissor" viewport_init_end)
+string(FIND "${frame_replay}" "static ReplayView FullFrameView()" viewport_init_start)
+string(FIND "${frame_replay}" "static bool IsMultisampled()" viewport_init_end)
 if(viewport_init_start EQUAL -1 OR viewport_init_end EQUAL -1 OR NOT viewport_init_start LESS viewport_init_end)
     message(FATAL_ERROR "Could not isolate replay viewport initialization")
 endif()
 math(EXPR viewport_init_length "${viewport_init_end} - ${viewport_init_start}")
-string(SUBSTRING "${end_frame}" ${viewport_init_start} ${viewport_init_length} viewport_init)
+string(SUBSTRING "${frame_replay}" ${viewport_init_start} ${viewport_init_length} viewport_init)
 foreach(symbol IN ITEMS "{0.0f, 0.0f" "s_swapW" "s_swapH" "0.0f, 1.0f}")
     string(FIND "${viewport_init}" "${symbol}" viewport_symbol_position)
     if(viewport_symbol_position EQUAL -1)
         message(FATAL_ERROR "Missing SDL_GPU editor contract: replay initializes the active viewport to the full swapchain")
     endif()
 endforeach()
-require_match(end_frame
-    "case[ \t]+RenderCmdType::SetViewport[ \t]*:[ \t\r\n]*\\{[ \t\r\n]*s_currentViewport[ \t]*=[ \t]*cmd\.viewport[ \t]*;[ \t\r\n]*if[ \t]*\\([ \t]*replayState\.SelectViewport[ \t\r\n]*\\([ \t]*s_currentViewport[ \t]*\\)[ \t]*\\)[ \t\r\n]*SDL_SetGPUViewport[ \t\r\n]*\\([ \t]*s_renderPass[ \t]*,[ \t]*&s_currentViewport[ \t]*\\)[ \t]*;"
+require_match(replay_commands
+    "Render::SdlGpuReplayState[ \t]+replayState[ \t]*;[ \t\r\n]*if[ \t]*\\([ \t]*replayState\.SelectViewport[ \t\r\n]*\\([ \t]*view\.viewport[ \t]*\\)[ \t]*\\)[ \t\r\n]*SDL_SetGPUViewport[ \t\r\n]*\\([ \t]*s_renderPass[ \t]*,[ \t]*&view\.viewport[ \t]*\\)[ \t]*;[ \t\r\n]*if[ \t]*\\([ \t]*replayState\.SelectScissor[ \t\r\n]*\\([ \t]*view\.scissor[ \t]*\\)[ \t]*\\)[ \t\r\n]*SDL_SetGPUScissor[ \t\r\n]*\\([ \t]*s_renderPass[ \t]*,[ \t]*&view\.scissor[ \t]*\\)[ \t]*;"
+    "each replay pass owns a render-pass-local replay cache and starts from the carried viewport and scissor")
+string(REGEX MATCHALL "Render::SdlGpuReplayState[ \t]+replayState" replay_caches "${replay_commands}")
+list(LENGTH replay_caches replay_cache_count)
+if(NOT replay_cache_count EQUAL 1)
+    message(FATAL_ERROR "Invalid SDL_GPU editor contract: ReplayCommands must own exactly one replay cache")
+endif()
+require_match(replay_commands
+    "case[ \t]+RenderCmdType::SetViewport[ \t]*:[ \t\r\n]*\\{[ \t\r\n]*view\.viewport[ \t]*=[ \t]*cmd\.viewport[ \t]*;[ \t\r\n]*if[ \t]*\\([ \t]*replayState\.SelectViewport[ \t\r\n]*\\([ \t]*view\.viewport[ \t]*\\)[ \t]*\\)[ \t\r\n]*SDL_SetGPUViewport[ \t\r\n]*\\([ \t]*s_renderPass[ \t]*,[ \t]*&view\.viewport[ \t]*\\)[ \t]*;"
     "replay caches and applies the active viewport")
-require_match(end_frame
-    "case[ \t]+RenderCmdType::SetScissor[ \t]*:[ \t\r\n]*\\{[ \t\r\n]*s_currentScissor[ \t]*=[ \t]*cmd\.scissor[ \t]*;[ \t\r\n]*if[ \t]*\\([ \t]*replayState\.SelectScissor[ \t\r\n]*\\([ \t]*s_currentScissor[ \t]*\\)[ \t]*\\)[ \t\r\n]*SDL_SetGPUScissor[ \t\r\n]*\\([ \t]*s_renderPass[ \t]*,[ \t]*&s_currentScissor[ \t]*\\)[ \t]*;"
+require_match(replay_commands
+    "case[ \t]+RenderCmdType::SetScissor[ \t]*:[ \t\r\n]*\\{[ \t\r\n]*view\.scissor[ \t]*=[ \t]*cmd\.scissor[ \t]*;[ \t\r\n]*if[ \t]*\\([ \t]*replayState\.SelectScissor[ \t\r\n]*\\([ \t]*view\.scissor[ \t]*\\)[ \t]*\\)[ \t\r\n]*SDL_SetGPUScissor[ \t\r\n]*\\([ \t]*s_renderPass[ \t]*,[ \t]*&view\.scissor[ \t]*\\)[ \t]*;"
     "replay caches and applies the active scissor")
-require_match(end_frame
-    "Render::SdlGpuReplayState[ \t]+replayState[ \t]*;[ \t\r\n]*for[ \t]*\\([ \t]*const[ \t]+auto&[ \t]+cmd[ \t]*:[ \t]*s_renderCmds[ \t]*\\)"
-    "EndFrame owns one render-pass-local replay cache")
 foreach(helper IN ITEMS
         "BindReplayPipeline"
         "PushReplayVertexUniforms"
@@ -357,15 +388,15 @@ foreach(helper IN ITEMS
     require_match(renderer_code "${helper}" "renderer must use ${helper} for cached replay")
 endforeach()
 
-forbid_symbol(end_frame "if (!s_texturesInvalidated)")
+forbid_symbol(frame_replay "if (!s_texturesInvalidated)")
 require_match(renderer_code
     "if[ \t\r\n]*\\([ \t]*type[ \t]*==[ \t]*RenderCmdType::EditorOverlay[ \t]*\\)[ \t\r\n]*\\{[ \t\r\n]*return[ \t]+false[ \t]*;[ \t\r\n]*\\}[ \t\r\n]*#[ \t]*endif[ \t\r\n]*return[ \t]+IsDrawCommand[ \t\r\n]*\\([ \t]*type[ \t]*\\)[ \t]*;"
     "texture invalidation skips game draws but preserves state and editor markers")
-string(FIND "${end_frame}" "for (const auto& cmd : s_renderCmds)" replay_loop_position)
-string(FIND "${end_frame}" "if (s_texturesInvalidated && IsUnsafeInvalidatedDrawCommand(cmd.type))"
+string(FIND "${replay_commands}" "const RenderCmd& cmd = s_renderCmds[index];" replay_loop_position)
+string(FIND "${replay_commands}" "if (s_texturesInvalidated && IsUnsafeInvalidatedDrawCommand(cmd.type))"
     invalidated_skip_position)
-string(FIND "${end_frame}" "++s_dbgRenderCmdsReplayedThisFrame" replay_count_position)
-string(FIND "${end_frame}" "switch (cmd.type)" replay_switch_position)
+string(FIND "${replay_commands}" "++s_dbgRenderCmdsReplayedThisFrame" replay_count_position)
+string(FIND "${replay_commands}" "switch (cmd.type)" replay_switch_position)
 if(replay_loop_position EQUAL -1 OR invalidated_skip_position EQUAL -1 OR replay_count_position EQUAL -1
         OR replay_switch_position EQUAL -1
         OR NOT replay_loop_position LESS invalidated_skip_position
@@ -375,15 +406,15 @@ if(replay_loop_position EQUAL -1 OR invalidated_skip_position EQUAL -1 OR replay
         "Replay must skip unsafe invalidated game draws before counting processed commands")
 endif()
 
-string(FIND "${end_frame}" "case RenderCmdType::EditorOverlay:" marker_case_start)
-string(FIND "${end_frame}" "case RenderCmdType::DrawTriangles:" marker_case_end)
+string(FIND "${replay_commands}" "case RenderCmdType::EditorOverlay:" marker_case_start)
+string(FIND "${replay_commands}" "case RenderCmdType::DrawTriangles:" marker_case_end)
 if(marker_case_start EQUAL -1 OR marker_case_end EQUAL -1 OR NOT marker_case_start LESS marker_case_end)
     message(FATAL_ERROR "Could not isolate editor marker replay")
 endif()
 math(EXPR marker_case_length "${marker_case_end} - ${marker_case_start}")
-string(SUBSTRING "${end_frame}" ${marker_case_start} ${marker_case_length} marker_case)
+string(SUBSTRING "${replay_commands}" ${marker_case_start} ${marker_case_length} marker_case)
 require_match(marker_case
-    "g_MuEditorCore\.RenderDrawData[ \t\r\n]*\\([ \t]*s_cmdBuf[ \t]*,[ \t]*s_renderPass[ \t]*\\)[ \t]*;[ \t\r\n]*replayState\.Invalidate[ \t\r\n]*\\([ \t]*\\)[ \t]*;[ \t\r\n]*if[ \t]*\\([ \t]*replayState\.SelectViewport[ \t\r\n]*\\([ \t]*s_currentViewport[ \t]*\\)[ \t]*\\)[ \t\r\n]*SDL_SetGPUViewport[ \t\r\n]*\\([ \t]*s_renderPass[ \t]*,[ \t]*&s_currentViewport[ \t]*\\)[ \t]*;[ \t\r\n]*if[ \t]*\\([ \t]*replayState\.SelectScissor[ \t\r\n]*\\([ \t]*s_currentScissor[ \t]*\\)[ \t]*\\)[ \t\r\n]*SDL_SetGPUScissor[ \t\r\n]*\\([ \t]*s_renderPass[ \t]*,[ \t]*&s_currentScissor[ \t]*\\)[ \t]*;[ \t\r\n]*break[ \t]*;"
+    "g_MuEditorCore\.RenderDrawData[ \t\r\n]*\\([ \t]*s_cmdBuf[ \t]*,[ \t]*s_renderPass[ \t]*\\)[ \t]*;[ \t\r\n]*replayState\.Invalidate[ \t\r\n]*\\([ \t]*\\)[ \t]*;[ \t\r\n]*if[ \t]*\\([ \t]*replayState\.SelectViewport[ \t\r\n]*\\([ \t]*view\.viewport[ \t]*\\)[ \t]*\\)[ \t\r\n]*SDL_SetGPUViewport[ \t\r\n]*\\([ \t]*s_renderPass[ \t]*,[ \t]*&view\.viewport[ \t]*\\)[ \t]*;[ \t\r\n]*if[ \t]*\\([ \t]*replayState\.SelectScissor[ \t\r\n]*\\([ \t]*view\.scissor[ \t]*\\)[ \t]*\\)[ \t\r\n]*SDL_SetGPUScissor[ \t\r\n]*\\([ \t]*s_renderPass[ \t]*,[ \t]*&view\.scissor[ \t]*\\)[ \t]*;[ \t\r\n]*break[ \t]*;"
     "marker invalidates cached state then restores viewport and scissor")
 forbid_symbol(marker_case "return")
 

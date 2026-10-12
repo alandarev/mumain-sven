@@ -36,6 +36,9 @@
 #include "UI/Legacy/UIMapName.h"
 #include "UI/Scaling/UITransform.h"
 #include "Camera/CameraProjection.h"
+#include "Scenes/SceneLightingSetup.h"
+#include "Scenes/ScenePostProcessing.h"
+#include "Render/Lighting/DynamicLightHistory.h"
 #include "Camera/CameraManager.h"
 #include "Camera/CameraMode.h"
 #ifdef _EDITOR
@@ -267,7 +270,10 @@ static void UpdateUIAndInput()
  */
 static void UpdateGameEntities()
 {
-    MoveObjects();
+    {
+        Render::Lighting::LightSourceScope mapLights(Render::Lighting::LightSource::Map);
+        MoveObjects();
+    }
 
     if (!g_Camera.TopViewEnable)
         MoveItems();
@@ -281,8 +287,11 @@ static void UpdateGameEntities()
     MoveFishs();
     UI::Chat::MoveChat();
     UpdatePersonalShopTitleImp();
-    MoveHero();
-    MoveCharactersClient();
+    {
+        Render::Lighting::LightSourceScope characterLights(Render::Lighting::LightSource::Character);
+        MoveHero();
+        MoveCharactersClient();
+    }
     MoveMounts();
     ThePetProcess().UpdatePets();
     MovePoints();
@@ -384,6 +393,7 @@ static void SetupMainSceneViewport(int& outWidth, int& outHeight, BYTE& outByWat
         }
         // Don't disable fog - let BeginOpengl() handle it based on FogEnable
     }
+    Scenes::Lighting::SubmitSceneLighting();
     CameraProjection::ScreenToWorldRay(g_Camera, MouseX, MouseY, MouseTarget);
     App::Control::Frames::RecordWorldCamera();
 }
@@ -501,14 +511,20 @@ static void RenderGameWorld(BYTE& byWaterMap, int width, int height)
             {
                 if ((gMapManager.IsPKField() || IsDoppelGanger2()) && renderStatic)
                 {
-                    FRAME_PROFILE(Objects); RenderObjects();
+                    FRAME_PROFILE(Objects);
+                    Render::Lighting::LightSourceScope mapLights(Render::Lighting::LightSource::Map);
+                    RenderObjects();
                 }
                 { FRAME_PROFILE(Terrain); RenderTerrain(false); }
             }
     }
 
     if (!gMapManager.IsPKField() && !IsDoppelGanger2() && renderStatic)
-        { FRAME_PROFILE(Objects); RenderObjects(); }
+    {
+        FRAME_PROFILE(Objects);
+        Render::Lighting::LightSourceScope mapLights(Render::Lighting::LightSource::Map);
+        RenderObjects();
+    }
 
     if (renderEffects)
     {
@@ -532,7 +548,7 @@ static void RenderGameWorld(BYTE& byWaterMap, int width, int height)
         RenderLeaves();
 
     if (!gMapManager.InChaosCastle())
-        ThePetProcess().RenderPets();
+        Scenes::PostProcessing::RenderPetsWithoutBloom();
 
     if (renderEffects)
         RenderBoids(true);
@@ -699,6 +715,7 @@ bool RenderMainScene()
     }
 
     SetupMainSceneViewport(width, height, byWaterMap, cameraPos);
+    AddFrameHistoryLights();
     RenderGameWorld(byWaterMap, width, height);
 
 #ifdef _EDITOR
@@ -713,6 +730,8 @@ bool RenderMainScene()
             RenderFrustumWireframe(spectated->GetFrustum());
     }
 #endif
+
+    Scenes::PostProcessing::EndSceneGeometry();
 
     {
         FRAME_PROFILE(UI);

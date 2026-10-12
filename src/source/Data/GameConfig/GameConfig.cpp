@@ -5,6 +5,8 @@
 #include <imagehlp.h>
 #endif
 
+#include <array>
+
 #include "GameConfigConstants.h"
 #include "GameConfigValidation.h"
 #include "Core/Platform/WinCompat.h"
@@ -83,6 +85,11 @@ void GameConfig::Load()
     m_zoom = ReadInt(CfgSectionCamera, CfgKeyZoom, CfgDefaultZoom);
     m_sortParticleDraws = ReadBool(CfgSectionRender, CfgKeySortParticleDraws, CfgDefaultSortParticleDraws);
     m_vsyncEnabled = ReadBool(CfgSectionRender, CfgKeyVSync, CfgDefaultVSync);
+    m_look = ReadLookPreset(m_configPath);
+    m_anisotropy =
+        GameConfigValidation::ValidateAnisotropy(ReadInt(CfgSectionRender, CfgKeyAnisotropy, CfgDefaultAnisotropy));
+    m_antialiasing = GameConfigValidation::ValidateAntialiasing(
+        ReadInt(CfgSectionRender, CfgKeyAntialiasing, CfgDefaultAntialiasing));
 
     // Strip keys/sections we used to write but no longer use, so user config
     // files don't accumulate orphans. Append one line per retired key — no
@@ -127,6 +134,17 @@ void GameConfig::Save()
 
     WriteInt(CfgSectionCamera, CfgKeyZoom, m_zoom);
     WriteBool(CfgSectionRender, CfgKeyVSync, m_vsyncEnabled);
+    WriteString(CfgSectionRender, CfgKeyLook, GameConfigValidation::FormatLook(m_look));
+    WriteInt(CfgSectionRender, CfgKeyAnisotropy, m_anisotropy);
+    WriteInt(CfgSectionRender, CfgKeyAntialiasing, m_antialiasing);
+}
+
+LookPreset ReadLookPreset(const std::filesystem::path& configFile)
+{
+    std::array<wchar_t, 32> buffer{};
+    GetPrivateProfileStringW(CfgSections::CfgSectionRender, CfgKeys::CfgKeyLook, L"", buffer.data(),
+                             static_cast<DWORD>(buffer.size()), configFile.wstring().c_str());
+    return GameConfigValidation::ValidateLook(buffer.data());
 }
 
 std::vector<std::wstring> GameConfig::ReadStringList(const wchar_t* section, const wchar_t* keyPrefix)
@@ -191,6 +209,21 @@ void GameConfig::SetMusicVolume(int level)
 void GameConfig::SetVSyncEnabled(bool enabled)
 {
     m_vsyncEnabled = enabled;
+}
+
+void GameConfig::SetLook(LookPreset look)
+{
+    m_look = look;
+}
+
+void GameConfig::SetAnisotropy(int anisotropy)
+{
+    m_anisotropy = GameConfigValidation::ValidateAnisotropy(anisotropy);
+}
+
+void GameConfig::SetAntialiasing(int samples)
+{
+    m_antialiasing = GameConfigValidation::ValidateAntialiasing(samples);
 }
 
 void GameConfig::SetRememberMe(bool remember)

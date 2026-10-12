@@ -217,7 +217,7 @@ void CNewUIComboBox::Render()
 
     // Dropdown arrow glyph (plain text -- no asset needed)
     g_pRenderText->SetTextColor(255, 230, 200, 255);
-    g_pRenderText->RenderText(m_X + m_Width - ARROW_WIDTH, m_Y + TEXT_PAD_Y, m_bOpen ? L"^" : L"v");
+    g_pRenderText->RenderText(m_X + m_Width - ARROW_WIDTH, m_Y + TEXT_PAD_Y, m_bOpen != m_bOpensUpward ? L"^" : L"v");
 
     // --- Expanded list (drawn on top of anything below) ---
     if (!m_bOpen)
