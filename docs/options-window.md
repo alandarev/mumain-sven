@@ -48,7 +48,10 @@ window writes to these sections:
 - `[Window]` - width, height, windowed flag.
 - `[Render]` - the persisted `VSync` preference. `$vsync on` and `$vsync off`
   update it; startup and fullscreen/resolution changes reapply it before the
-  next frame begins.
+  next frame begins. `Look` (default `Classic`): the "Enhanced graphics"
+  checkbox, ticked for the Enhanced look and unticked for Classic, applied at
+  once; see [`enhanced-look.md`](enhanced-look.md). The Language and
+  Resolution lists open upwards so they do not cover the Close button.
 - `[Audio]` - volumes.
 - `[Login]` - language, and the remembered-credential keys (`RememberMe`,
   `SavePassword`, `EncryptedUsername`, `EncryptedPassword`); see
