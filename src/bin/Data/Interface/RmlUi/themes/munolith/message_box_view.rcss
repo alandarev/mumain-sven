@@ -1,0 +1,87 @@
+/* Modern theme for a native message box drawn by MessageBoxView: the modern panel surface and
+   buttons. Geometry is the legacy one (reference px). */
+
+#panel { position: absolute; transform-origin: left top; width: 230px; font-family: "token(font-body)"; pointer-events: auto; }
+#back {
+	position: absolute;
+	left: 0;
+	top: 0;
+	width: 230px;
+	background-color: token(surface-panel);
+	border: 1px token(border-frame);
+	border-radius: token(radius-sm)px;
+}
+/* This theme draws its own panel, so the legacy sprite frame has nothing to stack. */
+#frame { display: none; }
+.box-separator { position: absolute; left: 13px; width: 205px; height: 1px; background-color: token(border-frame); }
+
+#progress_back { position: absolute; left: 35px; width: 160px; height: 18px; background-color: token(surface-recessed); border-radius: token(radius-sm)px; }
+#progress_bar { position: absolute; left: 40px; height: 8px; background-color: token(accent-steel); }
+
+.sharp-text { display: block; position: absolute; white-space: nowrap; pointer-events: none; transform-origin: left top; }
+.box-line { white-space: pre; }
+.box-line.bold { font-weight: bold; }
+
+.box-btn {
+	display: block;
+	position: absolute;
+	background-color: token(surface-raised);
+	border: 1px token(border-frame);
+	border-radius: token(radius-sm)px;
+	pointer-events: auto;
+}
+.box-btn:hover { border-color: token(accent-steel-hover); }
+.box-btn:active { background-color: token(surface-recessed); }
+.box-btn.disabled { background-color: token(surface-recessed); }
+.box-label { color: token(text-primary); }
+.box-btn.disabled .box-label { color: token(text-muted); }
+
+/* The jewel list keeps native text metrics while RmlUi handles scrolling. */
+#list_box { position: absolute; left: 24px; top: 64.5px; width: 181px; height: 111px; pointer-events: none; background-color: token(surface-recessed); }
+#list { position: absolute; left: 25px; top: 65.5px; transform-origin: left top; overflow: hidden scroll; }
+.list-row { display: block; position: relative; pointer-events: auto; }
+.list-row-back { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; }
+.list-row.selected .list-row-back { background-color: token(accent-steel); }
+.list-row-text { position: absolute; left: 3.5714%; top: 23.0769%; white-space: pre; pointer-events: none; color: token(text-primary); }
+
+/* CGuild_ToPerson_Position's buttons, as its SetButtonInfo() placed them: the two appointments 114
+   wide at (57, 30) and (57, 57), OK and Close 64 wide at (48, 127) and (112, 127). */
+.guild-appoint .box-placed .box-btn { width: 64px; height: 29px; }
+.guild-appoint .box-placed .box-btn:nth-child(1) { left: 57px; top: 30px; width: 114px; }
+.guild-appoint .box-placed .box-btn:nth-child(2) { left: 57px; top: 57px; width: 114px; }
+.guild-appoint .box-placed .box-btn:nth-child(3) { left: 48px; top: 127px; }
+.guild-appoint .box-placed .box-btn:nth-child(4) { left: 112px; top: 127px; }
+
+
+/* Full native frame remains the source of height, including callers with a shorter backing. */
+#back { display: none; }
+#frame { display: block; position: absolute; left: 0; top: 0; width: 230px; box-sizing: border-box; background-color: #101b16; border: 1px #79734a; }
+#box_top { display: block; width: 230px; height: 67px; }
+#box_bottom { display: block; width: 230px; height: 50px; }
+.box-strip--middle { display: block; width: 230px; height: 15px; }
+.box-strip--divider { display: block; width: 223px; height: 21px; }
+#panel { font-family: "DejaVu Sans"; }
+.box-separator { background-color: #79734a; }
+#progress_back { background-color: #263126; border-radius: 0; }
+#progress_bar { background-color: #bfa561; }
+.box-btn { box-sizing: border-box; background-color: #17281b; border: 1px #6b6646; border-radius: 0; }
+.box-btn:hover { background-color: #293c24; border-color: #bfa561; }
+.box-btn:active { background-color: #101b16; }
+.box-btn.disabled, .box-btn.disabled:hover, .box-btn.disabled:active { background-color: #172018; border-color: #384436; pointer-events: none; }
+.box-label { color: #dfcc99; }
+.box-btn.disabled .box-label { color: #82917e; }
+#list_box { background-color: #142016; }
+.list-row.selected .list-row-back { background-color: #34462c; }
+.list-row-text { color: #d5ccb7; }
+
+@spritesheet box-btn-ok-sheet
+{
+	src: "../../../newui_button_ok.tga";
+	box-btn-ok-up: 0px 0px 54px 30px;
+	box-btn-ok-over: 0px 30px 54px 30px;
+	box-btn-ok-down: 0px 60px 54px 30px;
+}
+.box-btn.ok-art { decorator: image(box-btn-ok-up); }
+.box-btn.ok-art:hover { decorator: image(box-btn-ok-over); }
+.box-btn.ok-art:active { decorator: image(box-btn-ok-down); }
+.box-btn.ok-art .box-label { display: none; }

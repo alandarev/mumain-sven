@@ -398,6 +398,18 @@ void CUIWindowMgr::HideAllWindowClear()
     m_HideWindowList.clear();
 }
 
+bool CUIWindowMgr::HasReplayBlockingChildren() const
+{
+    if (!m_ForceTopWindowList.empty() || !m_MessageList.empty() || g_dwTopWindow != 0)
+        return true;
+    for (const auto& [id, window] : m_WindowMap)
+    {
+        if (window == nullptr || id != m_dwMainWindowUIID)
+            return true;
+    }
+    return false;
+}
+
 DWORD CUIWindowMgr::GetTopNotMainWindowUIID()
 {
     if (m_WindowArrangeList.empty() == TRUE) return 0;
@@ -995,7 +1007,7 @@ void CUIChatWindow::ConnectToChatServer(const wchar_t* pszIP, DWORD dwRoomNumber
 
     if (!_connection->IsConnected())
     {
-        // todo: write message, that it failed?
+        Lock(TRUE);
         return;
     }
 

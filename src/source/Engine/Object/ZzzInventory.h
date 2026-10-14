@@ -158,10 +158,13 @@ bool ShouldAnimatePreview(bool pointerInside, bool pickedItemActive, bool render
 
 // The box in window pixels; the item animates while the pointer is over it.
 void RenderItem3D(float sx, float sy, float Width, float Height, int Type, int Level, int excellentFlags, int ancientDiscriminator, bool PickUp = false);
+void RenderItem3DScaled(float sx, float sy, float width, float height, int type, int level, int excellentFlags,
+                        int ancientDiscriminator, float modelScale);
 // For a slot that already knows whether it is hovered -- an RmlUi element -- instead of testing the
 // legacy mouse globals against the rectangle, which need not be where the item is shown.
 void RenderItem3DWithHover(float sx, float sy, float Width, float Height, int Type, int Level, int excellentFlags, int ancientDiscriminator, bool hovered);
-void RenderObjectScreen(int Type, int ItemLevel, int excellentFlags, int ancientDiscriminator, vec3_t Target, int Select, bool PickUp);
+void RenderObjectScreen(int Type, int ItemLevel, int excellentFlags, int ancientDiscriminator, vec3_t Target,
+                        int Select, bool PickUp, float modelScale = 1.f);
 bool GetAttackDamage(int* iMinDamage, int* iMaxDamage);
 void GetItemName(int iType, int iLevel, wchar_t* Text);
 std::wstring GetItemDisplayName(ITEM* pItem);

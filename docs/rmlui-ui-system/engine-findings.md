@@ -242,6 +242,38 @@ implementation findings, not general policy; recheck them when updating the engi
   A listener on a parent also hears its children's; the parent's own `mouseout` is the one whose
   target is the parent (`UI::RmlBridge::ElementTooltip::Leave()`).
 
+## Hybrid panels and native theme verification
+
+The following were reproduced during Munolith integration. They concern this native engine;
+a browser accepting the same markup does not establish the same behavior here.
+
+| Failure signature | Verified response |
+|---|---|
+| Shared chrome missing although the document is open | Link the needed RCSS explicitly from the document. `@import` alone did not establish the expected shared inheritance. Supply a complete `base.rcss` for theme discovery. |
+| Timer/description lines run together | Declare `display: block` on flow rows; there is no browser user-agent stylesheet. |
+| A scroll list leaves almost no client width | Give its generated scrollbar an explicit width and inspect the resulting hit areas. |
+| Zero resource still paints a fill or trail | Explicitly hide the zero-height layers; verify both transient and settled zero states. Absolute-child clipping is not sufficient. |
+| A gear model is too small or touches labels | Keep the native image box separate from a sized, clipped image wrapper; labels remain outside. The approved Armory crop uses `overflow: hidden; clip: always` and explicit wrapper geometry. This does not invalidate the absolute-only atlas clipping limitation above. |
+| A held item disappears over an opaque panel | The item on the cursor draws into `cursor_item.rml`'s render target (`UI::Items::SyncCursorItemLayer()`), stacked over the panels; native drawing before the main context is covered. |
+| Disabled control stays disabled with a false model value | Use `data-attrif-disabled`; writing a false value with `data-attr-disabled` still leaves the boolean attribute present. |
+| Closing a tooltip crashes during focus/blur | Defer document hide/cleanup to normal frame work; hiding synchronously from its own focus path can reenter dispatch. |
+| Hover explanation stays stale while availability remains false | Cache failure identity and amounts too; missing mana can become missing AG without a boolean transition or pointer movement. |
+| Theme edits appear unchanged after switching away/back | Check source versus runtime assets and cold-restart the owned client. Loaded stylesheet caches can survive theme switches. |
+
+For grouped panes, remeasure reserved menu bounds after resize reflow; using only the first
+layout pass retained a wrongly fitted group after 4K→1080p. Verify top edges, saved anchors,
+close stability and actual hit areas together. Fit positions must not overwrite the user's
+preferred group anchor.
+
+For native item input, route modified gestures before ordinary pickup. Embedded and legacy
+extension controls have different dispatch paths. Inventory's Escape handling must let a
+merchant resolve quantity, purchase and repair state before clearing its own repair mode.
+
+Shared tooltip placement now measures the real viewport and flips when the other side fits.
+The removed item-tooltip Y=420 ceiling and too-small design-unit cursor gap are examples of
+why layout units cannot substitute for screen-overlay geometry. Check upper/middle/lower
+slots and cursor clearance with the actual rendered text height.
+
 ## CSS features this build lacks, and what to use instead
 
 For translating a browser mockup or ordinary CSS into a theme. The vendored RmlUi is upstream 6.3

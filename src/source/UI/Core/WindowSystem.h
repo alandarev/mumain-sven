@@ -91,6 +91,7 @@ namespace mu::ui::window
 {
     class CSystem
     {
+        friend class UiLifecycleFixture; // Test-owned objects without renderer startup.
         CManager* m_pNewUIMng;
         CHotKey* m_pNewUIHotKey;
         bool m_mouseInputCaptured = false;

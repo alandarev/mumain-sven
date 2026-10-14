@@ -94,6 +94,7 @@ private:
     };
     struct BalloonListModel
     {
+        bool creationActive = false;
         std::vector<BalloonEntry> balloons;
     };
     void BindRmlModel(Rml::DataModelConstructor& c, BalloonListModel& model);

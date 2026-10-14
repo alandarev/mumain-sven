@@ -54,6 +54,10 @@ public:
     {
         return m_fCurrentZoom;
     }
+    float GetCurrentPitch() const
+    {
+        return m_fCurrentPitch;
+    }
     void SetWebzenMail(BOOL bFlag)
     {
         m_bIsWebzenMail = bFlag;
@@ -77,6 +81,8 @@ public:
     // Driven by UI::Social::PhotoViewerControl, which owns these gestures while the viewer stands
     // behind an RmlUi document and the native press never arrives. See its header.
     void TurnBy(float degrees);
+    void TiltBy(float degrees);
+    void ZoomBy(float amount);
     void ResetView();
     void ToggleHelp();
 
@@ -84,6 +90,7 @@ protected:
     // The target's drawer: one frame of the character, framed for `width` x `height`.
     void RenderInto(std::uint32_t width, std::uint32_t height);
     void RenderPhotoCharacter(float aspect);
+    void ApplyViewTransform();
     int SetPhotoPose(int iCurrentAni, int iMoveDir = 0);
 
 protected:
@@ -107,6 +114,7 @@ protected:
     float m_fRotateClickPos_x;
     float m_fSettingZoom;
     float m_fCurrentZoom;
+    float m_fCurrentPitch = 0.f;
     BOOL m_bIsWebzenMail;
     // Last, so it is destroyed first and its drawer never runs against a half-destroyed viewer.
     UI::RmlBridge::RenderTarget m_Target;

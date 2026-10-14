@@ -24,6 +24,8 @@
 #include "Render/Text/CUIRenderText.h"
 
 #include <RmlUi/Core/ElementDocument.h>
+#include <RmlUi/Core/Element.h>
+#include <RmlUi/Core/Input.h>
 
 #include <algorithm>
 
@@ -65,6 +67,17 @@ DWORD ToRgba(const TextColor& color)
 int MeasureInReferenceUnits(const wchar_t* text, size_t length)
 {
     return g_pRenderText->MeasureText(text, static_cast<int>(length)).cx;
+}
+
+bool ScrollCommandPane(Rml::ElementDocument* document, const char* rowSelector, int direction)
+{
+    Rml::Element* pane = document != nullptr ? document->GetElementById("command_scroller") : nullptr;
+    if (pane == nullptr)
+        return false;
+    Rml::Element* row = pane->QuerySelector(rowSelector);
+    if (row != nullptr)
+        pane->SetScrollTop(pane->GetScrollTop() + direction * row->GetBox().GetSize(Rml::BoxArea::Margin).y);
+    return true;
 }
 
 } // namespace
@@ -176,6 +189,9 @@ void mu::ui::window::CChatCommandWindow::ShowPage(ePAGE page)
     StopEditing();
     m_page = page;
     m_scrollOffset = 0;
+    if (Rml::Element* pane =
+            m_RmlView.Document() != nullptr ? m_RmlView.Document()->GetElementById("command_scroller") : nullptr)
+        pane->SetScrollTop(0.f);
 
     switch (page)
     {
@@ -532,6 +548,10 @@ void mu::ui::window::CChatCommandWindow::HandleHit(ChatCommandAction action, int
             PlayBuffer(SOUND_CLICK01);
         }
         break;
+    case ChatCommandAction::FinishEditing:
+        if (m_editedParameter == index && m_editedParameter >= 0)
+            StopEditing();
+        break;
     }
 }
 
@@ -574,14 +594,22 @@ bool mu::ui::window::CChatCommandWindow::UpdateKeyEvent()
         return true;
     }
 
+    const bool down = IsPress(VK_DOWN);
+    const bool up = IsPress(VK_UP);
+    const char* rowSelector = m_page == PAGE_COMMANDS    ? ".command-entry"
+                              : m_page == PAGE_TEMPLATES ? ".template-row"
+                                                         : ".parameter";
+    if ((down || up) && ScrollCommandPane(m_RmlView.Document(), rowSelector, down ? 1 : -1))
+        return false;
+
     const auto hiddenRows = GetScrollableRowCount() - VISIBLE_ROWS;
-    if (IsPress(VK_DOWN) && m_scrollOffset < hiddenRows)
+    if (down && m_scrollOffset < hiddenRows)
     {
         ++m_scrollOffset;
         return false;
     }
 
-    if (IsPress(VK_UP) && m_scrollOffset > 0)
+    if (up && m_scrollOffset > 0)
     {
         --m_scrollOffset;
         return false;
@@ -667,22 +695,7 @@ void mu::ui::window::CChatCommandWindow::BindRmlModel(Rml::DataModelConstructor&
 {
     c.Bind("text_px", &model.textPx);
 
-    auto lineType = c.RegisterStruct<ChatCommandLine>();
-    lineType.RegisterMember("text", &ChatCommandLine::text);
-    lineType.RegisterMember("text_px", &ChatCommandLine::textPx);
-    c.RegisterArray<std::vector<ChatCommandLine>>();
-    c.Bind("title", &model.title);
-    c.Bind("empty_message", &model.emptyMessage);
-    c.Bind("description_lines", &model.descriptionLines);
-    c.Bind("template_rows", &model.templateRows);
-    c.Bind("favourite_action", &model.favouriteAction);
-    c.Bind("save_action", &model.saveAction);
-    auto commandRow = c.RegisterStruct<ChatCommandRow>();
-    commandRow.RegisterMember("text", &ChatCommandRow::text);
-    commandRow.RegisterMember("text_px", &ChatCommandRow::textPx);
-    commandRow.RegisterMember("favourite", &ChatCommandRow::favourite);
-    c.RegisterArray<std::vector<ChatCommandRow>>();
-    c.Bind("command_rows", &model.commandRows);
+    BindContentRows(c, model);
     auto parameter = c.RegisterStruct<ChatCommandParameterRow>();
     parameter.RegisterMember("label", &ChatCommandParameterRow::label);
     parameter.RegisterMember("label_text_px", &ChatCommandParameterRow::labelTextPx);
@@ -716,6 +729,21 @@ void mu::ui::window::CChatCommandWindow::BindRmlModel(Rml::DataModelConstructor&
                         { m_pendingLeft = true; });
     c.BindEventCallback("chat_command_right", [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&)
                         { m_pendingRight = true; });
+    // A full-content theme lets RmlUi scroll its pane. Do not also advance the legacy slice.
+    c.BindEventCallback("chat_command_scroll",
+                        [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) { MouseWheel = 0; });
+    c.BindEventCallback(
+        "chat_command_edit_key",
+        [this](Rml::DataModelHandle, Rml::Event& event, const Rml::VariantList&)
+        {
+            const int key = event.GetParameter<int>("key_identifier", 0);
+            if (m_editedParameter >= 0 &&
+                (key == Rml::Input::KI_RETURN || key == Rml::Input::KI_NUMPADENTER || key == Rml::Input::KI_ESCAPE))
+            {
+                m_pendingHits.push_back({ChatCommandAction::FinishEditing, m_editedParameter});
+                event.StopPropagation();
+            }
+        });
 
     wchar_t closeText[256] = {};
     mu_swprintf_s(closeText, I18N::Game::CloseS, L"J");
@@ -823,7 +851,7 @@ void mu::ui::window::CChatCommandWindow::SyncContent()
                 text += ParameterMarker;
 
             const ChatCommandLine row_line = line(text.c_str(), CONTENT_WIDTH);
-            commandRows.push_back({row_line.text, row_line.textPx, isFavourite});
+            commandRows.push_back({row_line.text, row_line.textPx, isFavourite, m_scrollOffset + row});
         }
     }
     else if (m_page == PAGE_PARAMETERS)
@@ -879,7 +907,9 @@ void mu::ui::window::CChatCommandWindow::SyncContent()
             const auto index = static_cast<size_t>(m_scrollOffset + row);
             if (index >= m_templates.size())
                 break;
-            templateRows.push_back(line(m_templates[index].Label.c_str(), CONTENT_WIDTH - ROW_HEIGHT));
+            ChatCommandLine entry = line(m_templates[index].Label.c_str(), CONTENT_WIDTH - ROW_HEIGHT);
+            entry.index = static_cast<int>(index);
+            templateRows.push_back(std::move(entry));
         }
     }
 
@@ -910,6 +940,12 @@ void mu::ui::window::CChatCommandWindow::SyncContent()
         m_RmlView.MarkDirty("parameters");
     }
 
+    SyncCompleteContent();
+    SyncNavigationLabels();
+}
+
+void mu::ui::window::CChatCommandWindow::SyncNavigationLabels()
+{
     // The left and right buttons: CButton::Render()'s label in the normal font, white.
     SyncField(m_RmlView.Binder(), &ChatCommandRmlModel::hasLeftButton, "has_left_button", HasLeftButton());
     SyncField(m_RmlView.Binder(), &ChatCommandRmlModel::hasRightButton, "has_right_button", HasRightButton());
@@ -920,4 +956,85 @@ void mu::ui::window::CChatCommandWindow::SyncContent()
                                                                 : I18N::Game::ChatCommandsExecute));
     SyncField(m_RmlView.Binder(), &ChatCommandRmlModel::labelLinePx, "label_line_px",
               CUIRenderTextSDLTtf::LineHeightPx(UI::Scaling::FontRole::Normal));
+}
+
+void mu::ui::window::CChatCommandWindow::SyncCompleteContent()
+{
+    if (m_page == PAGE_COMMANDS)
+        SyncCompleteCommands();
+    else if (m_page == PAGE_TEMPLATES)
+        SyncCompleteTemplates();
+
+    const ChatCommand* command = m_page == PAGE_PARAMETERS ? GetSelectedCommand() : nullptr;
+    SyncField(m_RmlView.Binder(), &ChatCommandRmlModel::descriptionText, "description_text",
+              command != nullptr ? StringUtils::WideToNarrow(command->Description.c_str()) : Rml::String());
+    const bool validParameter = command != nullptr && m_editedParameter >= 0 &&
+                                static_cast<size_t>(m_editedParameter) < command->Parameters.size();
+    SyncField(m_RmlView.Binder(), &ChatCommandRmlModel::editedParameterLabel, "edited_parameter_label",
+              validParameter ? StringUtils::WideToNarrow(command->Parameters[m_editedParameter].Name.c_str())
+                             : Rml::String());
+}
+
+void mu::ui::window::CChatCommandWindow::SyncCompleteCommands()
+{
+    std::vector<ChatCommandRow> rows;
+    rows.reserve(m_commandOrder.size());
+    for (size_t index = 0; index < m_commandOrder.size(); ++index)
+    {
+        const ChatCommand* command = GetCommandAt(static_cast<int>(index));
+        if (command == nullptr)
+            continue;
+        const bool favourite = GameLogic::Commands::Favourites::Contains(command->Command);
+        std::wstring label = favourite ? FavouriteMarker : L"";
+        label += command->Command;
+        if (!command->Parameters.empty())
+            label += ParameterMarker;
+        rows.push_back({StringUtils::WideToNarrow(label.c_str()), m_RmlView.GetModel().textPx, favourite,
+                        static_cast<int>(index)});
+    }
+    if (m_RmlView.GetModel().allCommandRows != rows)
+    {
+        m_RmlView.GetModel().allCommandRows = std::move(rows);
+        m_RmlView.MarkDirty("all_command_rows");
+    }
+}
+
+void mu::ui::window::CChatCommandWindow::SyncCompleteTemplates()
+{
+    std::vector<ChatCommandLine> rows;
+    rows.reserve(m_templates.size());
+    for (size_t index = 0; index < m_templates.size(); ++index)
+        rows.push_back({StringUtils::WideToNarrow(m_templates[index].Label.c_str()), m_RmlView.GetModel().textPx,
+                        static_cast<int>(index)});
+    if (m_RmlView.GetModel().allTemplateRows != rows)
+    {
+        m_RmlView.GetModel().allTemplateRows = std::move(rows);
+        m_RmlView.MarkDirty("all_template_rows");
+    }
+}
+
+void mu::ui::window::CChatCommandWindow::BindContentRows(Rml::DataModelConstructor& c, ChatCommandRmlModel& model)
+{
+    auto lineType = c.RegisterStruct<ChatCommandLine>();
+    lineType.RegisterMember("text", &ChatCommandLine::text);
+    lineType.RegisterMember("text_px", &ChatCommandLine::textPx);
+    lineType.RegisterMember("index", &ChatCommandLine::index);
+    c.RegisterArray<std::vector<ChatCommandLine>>();
+    c.Bind("title", &model.title);
+    c.Bind("empty_message", &model.emptyMessage);
+    c.Bind("description_lines", &model.descriptionLines);
+    c.Bind("template_rows", &model.templateRows);
+    c.Bind("all_template_rows", &model.allTemplateRows);
+    c.Bind("description_text", &model.descriptionText);
+    c.Bind("edited_parameter_label", &model.editedParameterLabel);
+    c.Bind("favourite_action", &model.favouriteAction);
+    c.Bind("save_action", &model.saveAction);
+    auto commandRow = c.RegisterStruct<ChatCommandRow>();
+    commandRow.RegisterMember("text", &ChatCommandRow::text);
+    commandRow.RegisterMember("text_px", &ChatCommandRow::textPx);
+    commandRow.RegisterMember("favourite", &ChatCommandRow::favourite);
+    commandRow.RegisterMember("index", &ChatCommandRow::index);
+    c.RegisterArray<std::vector<ChatCommandRow>>();
+    c.Bind("command_rows", &model.commandRows);
+    c.Bind("all_command_rows", &model.allCommandRows);
 }

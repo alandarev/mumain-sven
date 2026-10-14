@@ -74,7 +74,7 @@ void CPartyListWindow::Release()
 
 int CPartyListWindow::GetSelectedCharacter()
 {
-    if (m_iSelectedCharacter == -1)
+    if (m_iSelectedCharacter < 0 || m_iSelectedCharacter >= PartyNumber)
         return -1;
 
     return Party[m_iSelectedCharacter].index;
@@ -107,6 +107,8 @@ bool CPartyListWindow::BtnProcess()
         // The card under the pointer, from the document's hover (party_hover).
         if (i == m_HoveredCard)
         {
+            if (Party[i].index < 0 || Party[i].index >= MAX_CHARACTERS_CLIENT)
+                continue;
             m_iSelectedCharacter = i;
 
             if (SelectedCharacter == -1) {
@@ -195,6 +197,7 @@ void CPartyListWindow::BindRmlModel(Rml::DataModelConstructor& c, PartyListRmlMo
     card.RegisterMember("selected", &PartyListCardEntry::selected);
     card.RegisterMember("show_leave", &PartyListCardEntry::showLeave);
     card.RegisterMember("health_length", &PartyListCardEntry::healthLength);
+    card.RegisterMember("health_percent", &PartyListCardEntry::healthPercent);
     card.RegisterMember("index", &PartyListCardEntry::index);
     c.RegisterArray<std::vector<PartyListCardEntry>>();
     c.Bind("cards", &model.cards);
@@ -255,6 +258,8 @@ void CPartyListWindow::SyncCards()
         card.selected = !card.absent && m_iSelectedCharacter == i;
         card.showLeave = CanLeave(i);
         card.healthLength = HealthBarLength(member.stepHP);
+        constexpr float FullPercent = 100.f;
+        card.healthPercent = FullPercent * card.healthLength / HealthBarWidth;
         if (member.index >= 0 && member.index < MAX_CHARACTERS_CLIENT)
         {
             OBJECT* memberObject = &CharactersClient[member.index].Object;
@@ -276,7 +281,7 @@ void CPartyListWindow::SyncCards()
                                          return a.name == b.name && a.nameTextPx == b.nameTextPx &&
                                                 a.absent == b.absent && a.defenseBuff == b.defenseBuff &&
                                                 a.selected == b.selected && a.showLeave == b.showLeave &&
-                                                a.healthLength == b.healthLength;
+                                                a.healthLength == b.healthLength && a.healthPercent == b.healthPercent;
                                      });
     if (!changed)
         return;

@@ -1,0 +1,13 @@
+<rml>
+<head>
+    <title>Notices</title>
+    <link type="text/rcss" href="base.rcss"/>
+    <link type="text/rcss" href="notices.rcss"/>
+</head>
+<body data-model="notices">
+    <div class="notice-row" data-for="line : lines">
+        <span data-attr-class="'notice-text notice-text--' + line.kind"
+              data-style-font-size="text_px + 'px'">{{line.text}}</span>
+    </div>
+</body>
+</rml>

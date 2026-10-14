@@ -1,0 +1,7 @@
+<rml><head><title>Login overlay</title><link type="text/rcss" href="base.rcss"/><link type="text/rcss" href="../legacy/login_scene.rcss"/><link type="text/rcss" href="login_scene.rcss"/></head><body data-model="login_scene">	<div id="logo" data-if="logo_visible"
+	    >
+		<div id="logo-glow" data-style-opacity="glow_level"></div>
+		<img id="logo-image" src="../../../../Logo/MU-logo.tga" data-style-opacity="logo_level"
+		     data-style-image-color="logo_color"/>
+	</div>
+<div id="login_footer"><span id="footer_version" class="footer-text" data-style-font-size="(text_px < 12 ? 12 : (text_px > 16 ? 16 : text_px)) + 'px'">{{version}}</span><div class="footer-legal"><span id="footer_copyright" class="footer-text" data-style-font-size="(text_px < 12 ? 12 : (text_px > 16 ? 16 : text_px)) + 'px'">{{copyright}}</span><span id="footer_rights" class="footer-text" data-style-font-size="(text_px < 12 ? 12 : (text_px > 16 ? 16 : text_px)) + 'px'">{{rights}}</span></div></div></body></rml>

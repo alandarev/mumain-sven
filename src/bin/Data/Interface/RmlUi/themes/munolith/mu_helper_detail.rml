@@ -1,0 +1,188 @@
+<rml>
+<!-- bound-geometry: the three gauges' fill levels -->
+
+<head><link type="text/rcss" href="scaled_content.rcss"/>
+	<title>MU Helper Detail</title>
+	<link type="text/rcss" href="base.rcss"/>
+	<link type="text/rcss" href="my_inventory_shared.rcss"/><link type="text/rcss" href="social_shared.rcss"/>
+	<link type="text/rcss" href="mu_helper_common.rcss"/>
+	<link type="text/rcss" href="mu_helper_detail.rcss"/>
+</head>
+<body>
+	<div id="panel" data-model="mu_helper_detail"
+	    ><div class="stone"></div><div class="shade"></div>
+<div class="trim top-left"></div><div class="trim top-mid"></div><div class="trim top-right"></div><div class="trim side-left"></div><div class="trim side-right"></div><div class="trim bottom-left"></div><div class="trim bottom-mid"></div><div class="trim bottom-right"></div>
+
+
+
+
+
+		<span class="sharp-text mh-text mh-center mh-bold mh-title counter-scaled scaled-width-210 scaled-reference" data-class-hidden="!(page == 2 || page == 3)" data-style-font-size="text_px + 'px'">{{labels.title_activation}}</span>
+		<span class="sharp-text mh-text mh-center mh-bold mh-title counter-scaled scaled-width-210 scaled-reference" data-class-hidden="!(page == 4 || page == 5 || page == 6)" data-style-font-size="text_px + 'px'">{{labels.title_recovery}}</span>
+		<span class="sharp-text mh-text mh-center mh-bold mh-title counter-scaled scaled-width-210 scaled-reference" data-class-hidden="page != 7 &amp;&amp; page != 8" data-style-font-size="text_px + 'px'">{{labels.title_party}}</span>
+
+		<div id="pane_top" class="mh-pane" data-class-hidden="!(page == 2 || page == 3 || page == 4 || page == 5 || page == 6 || page == 7)">
+			<div class="p p-fill-tab"></div>
+			<div class="p p-fill-body"></div>
+			<div class="p p-tab-tl"></div>
+			<div class="p p-tab-tr"></div>
+			<div class="p p-tab-top"></div>
+			<div class="p p-tab-right"></div>
+			<div class="p p-box-tr"></div>
+			<div class="p p-box-bl"></div>
+			<div class="p p-box-br"></div>
+			<div class="p p-box-top"></div>
+			<div class="p p-box-right"></div>
+			<div class="p p-box-bottom"></div>
+			<div class="p p-left"></div>
+			<span class="sharp-text mh-text counter-scaled" data-class-hidden="!(page == 2 || page == 3)" data-style-font-size="text_px + 'px'">{{labels.pane_precon}}</span>
+			<span class="sharp-text mh-text counter-scaled" data-class-hidden="!(page == 4 || page == 5 || page == 6)" data-style-font-size="text_px + 'px'">{{labels.pane_auto_potion}}</span>
+			<span class="sharp-text mh-text counter-scaled" data-class-hidden="page != 7" data-style-font-size="text_px + 'px'">{{labels.pane_buff_support}}</span>
+		</div>
+		<div id="pane_lower" class="mh-pane" data-class-hidden="!(page == 2 || page == 3 || page == 4 || page == 5)">
+			<div class="p p-fill-tab"></div>
+			<div class="p p-fill-body"></div>
+			<div class="p p-tab-tl"></div>
+			<div class="p p-tab-tr"></div>
+			<div class="p p-tab-top"></div>
+			<div class="p p-tab-right"></div>
+			<div class="p p-box-tr"></div>
+			<div class="p p-box-bl"></div>
+			<div class="p p-box-br"></div>
+			<div class="p p-box-top"></div>
+			<div class="p p-box-right"></div>
+			<div class="p p-box-bottom"></div>
+			<div class="p p-left"></div>
+			<span class="sharp-text mh-text counter-scaled" data-class-hidden="!(page == 2 || page == 3)" data-style-font-size="text_px + 'px'">{{labels.pane_subcon}}</span>
+			<span class="sharp-text mh-text counter-scaled" data-class-hidden="page != 4" data-style-font-size="text_px + 'px'">{{labels.pane_auto_heal}}</span>
+			<span class="sharp-text mh-text counter-scaled" data-class-hidden="page != 5" data-style-font-size="text_px + 'px'">{{labels.pane_drain_life}}</span>
+		</div>
+		<div id="pane_heal_support" class="mh-pane mh-pane-h70" data-class-hidden="page != 8">
+			<div class="p p-fill-tab"></div>
+			<div class="p p-fill-body"></div>
+			<div class="p p-tab-tl"></div>
+			<div class="p p-tab-tr"></div>
+			<div class="p p-tab-top"></div>
+			<div class="p p-tab-right"></div>
+			<div class="p p-box-tr"></div>
+			<div class="p p-box-bl"></div>
+			<div class="p p-box-br"></div>
+			<div class="p p-box-top"></div>
+			<div class="p p-box-right"></div>
+			<div class="p p-box-bottom"></div>
+			<div class="p p-left"></div>
+			<span class="sharp-text mh-text counter-scaled" data-style-font-size="text_px + 'px'">{{labels.pane_heal_support}}</span>
+		</div>
+		<div id="pane_buff_support_elf" class="mh-pane" data-class-hidden="page != 8">
+			<div class="p p-fill-tab"></div>
+			<div class="p p-fill-body"></div>
+			<div class="p p-tab-tl"></div>
+			<div class="p p-tab-tr"></div>
+			<div class="p p-tab-top"></div>
+			<div class="p p-tab-right"></div>
+			<div class="p p-box-tr"></div>
+			<div class="p p-box-bl"></div>
+			<div class="p p-box-br"></div>
+			<div class="p p-box-top"></div>
+			<div class="p p-box-right"></div>
+			<div class="p p-box-bottom"></div>
+			<div class="p p-left"></div>
+			<span class="sharp-text mh-text counter-scaled" data-style-font-size="text_px + 'px'">{{labels.pane_buff_support}}</span>
+		</div>
+		<div class="mhd-page" data-class-hidden="!(page == 2 || page == 3)">
+			<div id="precon_range" class="mh-check mh-radio">
+				<div class="checkbox-box" data-class-checked="precon == 0" data-event-click="muhelper_detail_precon(0)"></div>
+				<span class="sharp-text mh-text checkbox-label counter-scaled" data-style-font-size="text_px + 'px'">{{labels.precon_hunt_range}}</span>
+			</div>
+			<div id="precon_attacking" class="mh-check mh-radio">
+				<div class="checkbox-box" data-class-checked="precon == 1" data-event-click="muhelper_detail_precon(1)"></div>
+				<span class="sharp-text mh-text checkbox-label counter-scaled" data-style-font-size="text_px + 'px'">{{labels.precon_attacking}}</span>
+			</div>
+			<div id="subcon_two" class="mh-check mh-radio">
+				<div class="checkbox-box" data-class-checked="subcon == 0" data-event-click="muhelper_detail_subcon(0)"></div>
+				<span class="sharp-text mh-text checkbox-label counter-scaled" data-style-font-size="text_px + 'px'">{{labels.subcon_two}}</span>
+			</div>
+			<div id="subcon_three" class="mh-check mh-radio">
+				<div class="checkbox-box" data-class-checked="subcon == 1" data-event-click="muhelper_detail_subcon(1)"></div>
+				<span class="sharp-text mh-text checkbox-label counter-scaled" data-style-font-size="text_px + 'px'">{{labels.subcon_three}}</span>
+			</div>
+			<div id="subcon_four" class="mh-check mh-radio">
+				<div class="checkbox-box" data-class-checked="subcon == 2" data-event-click="muhelper_detail_subcon(2)"></div>
+				<span class="sharp-text mh-text checkbox-label counter-scaled" data-style-font-size="text_px + 'px'">{{labels.subcon_four}}</span>
+			</div>
+			<div id="subcon_five" class="mh-check mh-radio">
+				<div class="checkbox-box" data-class-checked="subcon == 3" data-event-click="muhelper_detail_subcon(3)"></div>
+				<span class="sharp-text mh-text checkbox-label counter-scaled" data-style-font-size="text_px + 'px'">{{labels.subcon_five}}</span>
+			</div>
+		</div>
+		<div class="mhd-page" data-class-hidden="!(page == 4 || page == 5 || page == 6)">
+			<div id="gauge_potion" class="level-gauge mh-gauge">
+				<div class="level-gauge-hit mh-gauge-hit" data-event-mousedown="muhelper_detail_gauge(0)"
+				     data-event-drag="muhelper_detail_gauge(0)"
+				     data-event-mousescroll="muhelper_detail_gauge(0)"></div>
+			</div>
+			<div id="gauge_potion_fill" class="level-gauge-fill mh-gauge-fill" data-class-hidden="potion_level == 0"
+			     data-style-width="(potion_level * 12.4) + 'px'"
+			     data-style-decorator="'image(level-gauge-fill-' + potion_level + ')'"></div>
+			<span class="sharp-text mh-text mh-center counter-scaled scaled-width-124 scaled-reference" id="gauge_potion_label" data-style-font-size="text_px + 'px'">{{labels.hp_status}}</span>
+		</div>
+		<div class="mhd-page" data-class-hidden="page != 4 &amp;&amp; page != 5">
+			<div id="gauge_heal" class="level-gauge mh-gauge">
+				<div class="level-gauge-hit mh-gauge-hit" data-event-mousedown="muhelper_detail_gauge(1)"
+				     data-event-drag="muhelper_detail_gauge(1)"
+				     data-event-mousescroll="muhelper_detail_gauge(1)"></div>
+			</div>
+			<div id="gauge_heal_fill" class="level-gauge-fill mh-gauge-fill" data-class-hidden="heal_level == 0"
+			     data-style-width="(heal_level * 12.4) + 'px'"
+			     data-style-decorator="'image(level-gauge-fill-' + heal_level + ')'"></div>
+			<span class="sharp-text mh-text mh-center counter-scaled scaled-width-124 scaled-reference" id="gauge_heal_label" data-style-font-size="text_px + 'px'">{{labels.hp_status}}</span>
+		</div>
+		<div class="mhd-page" data-class-hidden="page != 7">
+			<div id="party_duration" class="mh-check">
+				<div class="checkbox-box" data-class-checked="party_duration" data-event-click="muhelper_detail_party_duration"></div>
+				<span class="sharp-text mh-text checkbox-label counter-scaled" data-style-font-size="text_px + 'px'">{{labels.party_duration}}</span>
+			</div>
+			<span class="sharp-text mh-text counter-scaled" id="time_space" data-style-font-size="text_px + 'px'">{{labels.time_space}}</span>
+			<div id="buff_plate" class="mh-number-plate"></div>
+			<input id="buff_interval" type="text" class="sharp-text text-field text-field--numeric mh-field counter-scaled scaled-width-17 scaled-height-12 scaled-reference"
+			       data-value="buff_interval" data-style-font-size="text_px + 'px'"/>
+			<span class="sharp-text mh-text counter-scaled" id="buff_unit" data-style-font-size="text_px + 'px'">s</span>
+		</div>
+		<div class="mhd-page" data-class-hidden="page != 8">
+			<div id="party_heal" class="mh-check">
+				<div class="checkbox-box" data-class-checked="party_heal" data-event-click="muhelper_detail_party_heal"></div>
+				<span class="sharp-text mh-text checkbox-label counter-scaled" data-style-font-size="text_px + 'px'">{{labels.party_heal}}</span>
+			</div>
+			<div id="gauge_party_heal" class="level-gauge mh-gauge">
+				<div class="level-gauge-hit mh-gauge-hit" data-event-mousedown="muhelper_detail_gauge(2)"
+				     data-event-drag="muhelper_detail_gauge(2)"
+				     data-event-mousescroll="muhelper_detail_gauge(2)"></div>
+			</div>
+			<div id="gauge_party_heal_fill" class="level-gauge-fill mh-gauge-fill" data-class-hidden="party_heal_level == 0"
+			     data-style-width="(party_heal_level * 12.4) + 'px'"
+			     data-style-decorator="'image(level-gauge-fill-' + party_heal_level + ')'"></div>
+			<span class="sharp-text mh-text mh-center counter-scaled scaled-width-124 scaled-reference" id="gauge_party_heal_label" data-style-font-size="text_px + 'px'">{{labels.hp_status_party}}</span>
+			<div id="party_duration_elf" class="mh-check">
+				<div class="checkbox-box" data-class-checked="party_duration" data-event-click="muhelper_detail_party_duration"></div>
+				<span class="sharp-text mh-text checkbox-label counter-scaled" data-style-font-size="text_px + 'px'">{{labels.party_duration}}</span>
+			</div>
+			<span class="sharp-text mh-text counter-scaled" id="time_space_elf" data-style-font-size="text_px + 'px'">{{labels.time_space}}</span>
+			<div id="buff_plate_elf" class="mh-number-plate"></div>
+			<input id="buff_interval_elf" type="text" class="sharp-text text-field text-field--numeric mh-field counter-scaled scaled-width-17 scaled-height-12 scaled-reference"
+			       data-value="buff_interval" data-style-font-size="text_px + 'px'"/>
+			<span class="sharp-text mh-text counter-scaled" id="buff_unit_elf" data-style-font-size="text_px + 'px'">s</span>
+		</div>
+
+		<div id="btn_save" class="mh-btn-igs" data-event-click="muhelper_detail_save"></div>
+		<span class="sharp-text mh-text mh-center mh-btn-label mh-btn-label-igs counter-scaled scaled-width-52 scaled-height-26 scaled-line-height-26 scaled-reference" id="btn_save_label" data-style-font-size="text_px + 'px'">{{labels.save}}</span>
+		<div id="btn_init" class="mh-btn-igs" data-event-click="muhelper_detail_init"></div>
+		<span class="sharp-text mh-text mh-center mh-btn-label mh-btn-label-igs counter-scaled scaled-width-52 scaled-height-26 scaled-line-height-26 scaled-reference" id="btn_init_label" data-style-font-size="text_px + 'px'">{{labels.init}}</span>
+
+		<div id="title" class="detail-drag"></div><div id="btn_corner_close" data-event-click="muhelper_detail_close"></div><div id="btn_exit" data-event-click="muhelper_detail_close"></div>
+		<span class="sharp-text tooltip tooltip-exit counter-scaled scaled-width-110 scaled-padding-2-4 scaled-reference"
+		      data-style-font-size="text_px + 'px'"
+
+		     ><span class="tooltip-text scaled-padding-0-3 scaled-reference">{{labels.close_tip}}</span></span>
+	</div>
+</body>
+</rml>

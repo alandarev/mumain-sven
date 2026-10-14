@@ -1,0 +1,12 @@
+/* Two-line location card; existing helper actions retain their native artwork. */
+#panel { width: 260dp; height: 37dp; background-color: #071711ef; border: 1px #8f7c4e; }
+#seg_a, #seg_b, #seg_c { decorator: none; }
+#text { left: 6dp; top: 3dp; width: 190dp; height: 32dp; text-align: left; color: #e3d6b4; font-size: 12dp; pointer-events: none; }
+#location_name, #location_coordinates { display: block; height: 16dp; line-height: 16dp; white-space: nowrap; }
+#location_name { overflow: hidden; text-overflow: ellipsis; }
+#location_coordinates { color: #bec9b6; }
+.mu-btn { top: 12dp; }
+#btn_config { left: auto; right: 30dp; }
+#btn_start, #btn_stop { left: auto; right: 8dp; }
+#btn_config:hover, #btn_start:hover, #btn_stop:hover { border: 1px #c4a65d; }
+.tooltip { top: 100%; margin-top: 3dp; left: 5dp; max-width: 250dp; white-space: normal; padding: 4dp 6dp; background-color: #071711f5; color: #e3d6b4; border: 1px #9c8855; font-size: 12dp; line-height: 1.35em; }

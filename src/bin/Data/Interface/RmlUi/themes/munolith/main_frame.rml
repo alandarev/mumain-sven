@@ -1,0 +1,127 @@
+<!-- rml-contract-optional-callback: item_hotkey_hover: CompactHud renders recovery information in each recovery slot tooltip -->
+<!-- rml-contract-optional-callback: item_hotkey_rightclick: CompactHud assignment uses compact_assign and its validated profile picker instead of the old potion-family popup -->
+<!-- rml-contract-optional-callback: item_hotkey_unhover: CompactHud recovery tooltips are document-owned rather than the native hotkey hover overlay -->
+<!-- rml-contract-optional-callback: mainframe_cshop_click: cash shop is excluded by operator scope -->
+<!-- rml-contract-optional-callback: skill_current_click: CompactHud mixed action slots use compact_activate and compact_assign instead of a separate current-skill popup -->
+<!-- rml-contract-optional-callback: skill_current_hover: CompactHud action slots expose their validated skill requirement and tooltip state directly -->
+<!-- rml-contract-optional-callback: skill_grid_click: CompactHud picker uses compact_choose with native skill identity validation -->
+<!-- rml-contract-optional-callback: skill_grid_hover: CompactHud picker labels and action-slot requirements replace the separate legacy skill-grid tooltip -->
+<!-- rml-contract-optional-callback: skill_hotkey_click: CompactHud ten stable mixed action slots invoke compact_activate through native skill use guards -->
+<!-- rml-contract-optional-callback: skill_hotkey_hover: CompactHud mixed action slots carry their own requirement and tooltip content -->
+<!-- rml-contract-optional-callback: skill_pet_click: CompactHud pet bindings invoke CSkillList::OnPetCellClick through CompactHud::Activate -->
+<!-- rml-contract-optional-callback: skill_pet_hover: CompactHud pet bindings provide their own tooltip and eligibility state -->
+<!-- rml-contract-optional-callback: skill_unhover: CompactHud action/picker tooltips are document-owned, not the legacy skill tooltip overlay -->
+<rml>
+<!-- bound-geometry: resource/trail/gain/cooldown wipes are authoritative or clock-driven fractions; picker height follows available choices and viewport, while the theme owns its row presentation -->
+
+<head>
+    <title>Compact crystal HUD</title>
+    <link type="text/rcss" href="../legacy/base.rcss"/>
+    <link type="text/rcss" href="../legacy/skill_icons.rcss"/>
+    <link type="text/rcss" href="../legacy/master_skill_icons.rcss"/>
+    <link type="text/rcss" href="compact_hud_art.rcss"/>
+    <link type="text/rcss" href="main_frame.rcss"/>
+</head>
+<body data-model="main_frame" data-style-font-size="compact_unit_px + 'px'" data-class-compact-medium="compact_medium" data-class-compact-narrow="compact_narrow">
+    <div id="hud_layout">
+    <div id="compact_hud">
+        <div class="hud-spine"></div>
+        <div class="resource-cluster">
+            <button id="health_recovery" class="action-slot recovery" data-class-unavailable="!hp_usable" data-class-cooling="hp_cooldown > 0" data-event-click="compact_recover('life')">
+                <!-- Live native item model; its render target follows this layout box. -->
+                <img id="health_item_view" class="item-view"/>
+                <div class="cooldown-mask" data-style-height="hp_cooldown * 100 + '%'"></div>
+                <span class="cooldown-number">{{hp_cooldown_text}}</span>
+                <span class="slot-key">{{hp_key}}</span><span class="slot-tier">{{hp_tier}}</span><span class="slot-count">{{hp_count}}</span>
+                <div class="tooltip">{{hp_item_tooltip}}</div>
+            </button>
+            <div id="health_resource" class="resource health" data-class-critical="hp_fraction &lt;= 0.25" data-class-poisoned="poisoned">
+                <div class="crystal">
+                    <div class="crystal-empty"></div>
+                    <div id="health_trail" class="crystal-clip" data-class-hidden="hp_trail_fraction &lt;= 0" data-style-height="hp_trail_fraction * 100 + '%'"><div class="crystal-energy crystal-trail"></div></div>
+                    <div id="health_fill" class="crystal-clip" data-class-hidden="hp_fraction &lt;= 0" data-style-height="hp_fraction * 100 + '%'"><div class="crystal-energy crystal-live"></div></div>
+                    <div class="heal-clip"><div class="heal-sweep" data-style-bottom="hp_heal_sweep * 100 + '%'" data-style-opacity="hp_heal_opacity"></div></div>
+                    <span id="health_value" class="resource-number">{{hp_current_text}}</span>
+                </div>
+                <div class="socket"></div><div class="tooltip">{{hp_tooltip}}</div>
+            </div>
+            <button id="antidote_recovery" class="action-slot recovery antidote" data-if="poisoned" data-class-unavailable="!antidote_usable" data-class-cooling="antidote_cooldown > 0" data-event-click="compact_recover('antidote')">
+                <img id="antidote_item_view" class="item-view"/>
+                <div class="cooldown-mask" data-style-height="antidote_cooldown * 100 + '%'"></div>
+                <span class="cooldown-number">{{antidote_cooldown_text}}</span>
+                <span class="slot-key">{{antidote_key}}</span><span class="slot-count">{{antidote_count}}</span>
+                <div class="tooltip">{{antidote_tooltip}}</div>
+            </button>
+        </div>
+        <div id="action_bar">
+            <div id="action_row">
+                <button class="action-slot binding" data-for="slot : slots" data-attr-id="'action_' + slot.index" data-class-selected="slot.selected" data-class-unavailable="!slot.usable" data-class-cooling="slot.cooldown > 0" data-event-click="compact_activate(slot.index)" data-event-mouseup="compact_assign(slot.index)">
+                    <div class="skill-view" data-if="!slot.item" data-style-decorator="slot.icon"></div>
+                    <img class="item-view" data-if="slot.item" data-attr-id="'action_item_view_' + slot.index"/>
+                    <div class="cooldown-mask" data-style-height="slot.cooldown * 100 + '%'"></div>
+                    <span class="cooldown-number">{{slot.cooldown_text}}</span><span class="slot-key">{{slot.key}}</span><span class="slot-count">{{slot.count}}</span>
+                    <div class="selected-pin"></div>
+                    <div class="tooltip"><div>{{slot.tooltip}}</div><div class="tooltip-requirement" data-if="slot.requirement != ''">{{slot.requirement}}</div><div class="tooltip-costs" data-if="slot.costs != ''">{{slot.costs}}</div></div>
+                </button>
+            </div>
+            <div id="ag_housing">
+                <div id="ag_track" data-class-low="ag_insufficient">
+                    <div class="ag-trail" data-style-width="ag_trail_fraction * 100 + '%'"></div>
+                    <div id="ag_fill" class="ag-live" data-style-width="ag_visual_fraction * 100 + '%'"></div>
+                    <div id="ag_cost" class="ag-cost" data-style-left="ag_cost_start * 100 + '%'" data-style-width="ag_cost_fraction * 100 + '%'"></div>
+                </div><div class="tooltip">{{compact_ag_tooltip}}</div>
+            </div>
+        </div>
+        <div class="resource-cluster mana-cluster">
+            <div id="mana_resource" class="resource mana">
+                <div class="crystal">
+                    <div class="crystal-empty"></div>
+                    <div id="mana_trail" class="crystal-clip" data-class-hidden="mp_trail_fraction &lt;= 0" data-style-height="mp_trail_fraction * 100 + '%'"><div class="crystal-energy crystal-trail"></div></div>
+                    <div id="mana_fill" class="crystal-clip" data-class-hidden="mp_fraction &lt;= 0" data-style-height="mp_fraction * 100 + '%'"><div class="crystal-energy crystal-live"></div></div>
+                    <div class="heal-clip"><div class="heal-sweep" data-style-bottom="mp_heal_sweep * 100 + '%'" data-style-opacity="mp_heal_opacity"></div></div>
+                    <span id="mana_value" class="resource-number">{{mp_current_text}}</span>
+                </div><div class="socket"></div><div class="tooltip">{{mp_tooltip}}</div>
+            </div>
+            <button id="mana_recovery" class="action-slot recovery" data-class-unavailable="!mp_usable" data-class-cooling="mp_cooldown > 0" data-event-click="compact_recover('mana')">
+                <img id="mana_item_view" class="item-view"/>
+                <div class="cooldown-mask" data-style-height="mp_cooldown * 100 + '%'"></div>
+                <span class="cooldown-number">{{mp_cooldown_text}}</span>
+                <span class="slot-key">{{mp_key}}</span><span class="slot-tier">{{mp_tier}}</span><span class="slot-count">{{mp_count}}</span>
+                <div class="tooltip">{{mp_item_tooltip}}</div>
+            </button>
+        </div>
+    </div>
+    <div id="experience" data-class-level-up="xp_level_up">
+        <div id="experience_track">
+            <div id="experience_fill" data-style-width="xp_visual_fraction * 100 + '%'"></div>
+            <div id="experience_gain" data-style-left="xp_gain_start * 100 + '%'" data-style-width="xp_gain_fraction * 100 + '%'" data-style-opacity="xp_gain_opacity"></div>
+            <!-- Nine fixed dividers make ten sections. The fill is progress through ONE level. -->
+            <div class="xp-divider xp-10"></div><div class="xp-divider xp-20"></div><div class="xp-divider xp-30"></div>
+            <div class="xp-divider xp-40"></div><div class="xp-divider xp-50"></div><div class="xp-divider xp-60"></div>
+            <div class="xp-divider xp-70"></div><div class="xp-divider xp-80"></div><div class="xp-divider xp-90"></div>
+            <div id="experience_tip" data-style-left="xp_visual_fraction * 100 + '%'"></div>
+        </div><div class="tooltip">{{xp_tooltip}}</div>
+    </div>
+    </div>
+    <div class="compact-popover-backdrop" data-if="compact_picker_open || compact_keys_open" data-event-click="compact_menu('close')"></div>
+    <div id="compact_picker" class="compact-popover" data-if="compact_picker_open">
+        <div class="popover-header"><span>{{compact_picker_title}}</span><button data-event-click="compact_menu('close')">Close</button></div>
+        <div class="popover-tabs"><button data-class-active="!compact_items_tab" data-event-click="compact_tab(0)">Skills</button><button data-class-active="compact_items_tab" data-event-click="compact_tab(1)">Consumables</button></div>
+        <div class="compact-choice-list" data-style-height="compact_choice_height + 'rem'">
+            <div class="compact-choice" data-for="choice : compact_choices" data-event-click="compact_choose(choice.kind, choice.identity, choice.item_level)">
+                <div class="choice-icon" data-if="choice.kind != 2" data-style-decorator="choice.icon"></div>
+                <img class="choice-icon" data-if="choice.kind == 2" data-attr-id="'choice_item_' + choice.identity + '_' + choice.item_level"/>
+                <span>{{choice.name}}</span>
+            </div>
+        </div>
+        <div class="popover-footer"><button data-event-click="compact_choose(0, -1, 0)">Clear slot</button><button data-event-click="compact_menu('keys')">Key bindings</button></div>
+    </div>
+    <div id="compact_key_editor" class="compact-popover" data-if="compact_keys_open">
+        <div class="popover-header"><span>Action bindings</span><button data-event-click="compact_menu('close')">Close</button></div>
+        <div class="compact-key-list"><button data-for="slot : compact_key_slots" data-event-click="compact_key_select(slot.index)"><span>{{slot.index &lt; 10 ? (slot.index == 9 ? '0' : slot.index + 1) : slot.index == 10 ? 'HP' : slot.index == 11 ? 'MP' : 'Cure'}}</span><span>{{slot.key}}</span></button></div>
+        <div class="compact-key-form"><span>{{compact_key_target}}</span><input type="text" maxlength="4" data-value="compact_key_input"/><button data-event-click="compact_key_apply">Apply</button></div>
+        <div class="key-error">{{compact_key_error}}</div>
+        <div class="popover-footer"><button data-event-click="compact_menu('defaults')">MU defaults</button><button data-class-active="compact_reduced_motion" data-event-click="compact_menu('motion')">Reduced motion</button></div>
+    </div>
+</body>
+</rml>

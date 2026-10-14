@@ -1,6 +1,8 @@
 
 #pragma once
 
+#include <chrono>
+
 #include "UI/Core/WindowManager.h"
 #include "UI/RmlBridge/RmlElementTooltip.h"
 #include "UI/RmlBridge/RmlThemedView.h"
@@ -52,10 +54,21 @@ namespace mu::ui::window
             // before ClosePositionedElements() places such children) -- don't retry a clipped-atlas
             // approach; named @spritesheet rects are the working mechanism.
             Rml::String decorator;
+            // A corner strip's (ThemeUsesCornerBuffStrip()): the remaining time, and the slot in
+            // `buffs` its events name.
+            Rml::String remaining;
+            int slot = 0;
+            bool expiring = false;
+            bool operator==(const BuffEntry&) const = default;
         };
         struct BuffStripRmlModel
         {
             std::vector<BuffEntry> buffs;
+            // The same buffs split for a corner strip.
+            std::vector<BuffEntry> beneficial;
+            std::vector<BuffEntry> harmful;
+            float unitPx = 1.f;
+            float viewportWidth = 1024.f;
         };
         void BindRmlModel(Rml::DataModelConstructor& c, BuffStripRmlModel& model);
         UI::RmlBridge::ThemedView<BuffStripRmlModel> m_RmlView{"buff_strip",
@@ -71,6 +84,9 @@ namespace mu::ui::window
         void SyncTooltip();
 
         void SyncRmlModel();
+        void SyncBuffEntries(bool cornerStrip);
         void OnBuffRightClick(int slot);
+        std::chrono::steady_clock::time_point m_NextEntrySync{};
+        bool m_CornerStrip = false;
     };
 }

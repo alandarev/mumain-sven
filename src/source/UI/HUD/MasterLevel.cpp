@@ -24,6 +24,8 @@
 #include "UI/RmlBridge/RmlElementBox.h"
 #include "UI/RmlBridge/RmlTooltip.h"
 #include "UI/Tooltip/LegacyTextListTooltip.h"
+#include "UI/Widgets/GameCursor.h"
+#include <utility>
 #include <RmlUi/Core/ElementDocument.h>
 
 namespace
@@ -44,6 +46,14 @@ namespace
     // From the experience area's top left: the original's (466, 26) against its (458, 11).
     constexpr float kExperienceHintX = 8.0f;
     constexpr float kExperienceHintY = 15.0f;
+
+    std::pair<float, float> PointerHintEdges(float belowAnchorY)
+    {
+        const auto cursor = UI::Scaling::ScreenOverlayTransform(WindowWidth, WindowHeight);
+        const float bottom = g_fWindowMouseY + UI::Scaling::SizeY(cursor, UI::Widgets::GameCursorSize);
+        const float top = g_fWindowMouseY - UI::Scaling::SizeY(cursor, 2.f * UI::Widgets::GameCursorHotspotInset);
+        return {std::max(belowAnchorY, bottom), top};
+    }
 
     template <typename Model>
     void SyncString(RmlModelBinder<Model>& binder, Rml::String Model::* field, const char* name, Rml::String value)
@@ -506,6 +516,7 @@ void mu::ui::window::CMasterLevel::BindRmlModel(Rml::DataModelConstructor& c, Ma
     node.RegisterMember("column", &MasterLevelNodeEntry::column);
     node.RegisterMember("slot", &MasterLevelNodeEntry::slot);
     node.RegisterMember("rank", &MasterLevelNodeEntry::rank);
+    node.RegisterMember("max_level", &MasterLevelNodeEntry::maxLevel);
     node.RegisterMember("icon", &MasterLevelNodeEntry::icon);
     node.RegisterMember("usable", &MasterLevelNodeEntry::usable);
     node.RegisterMember("arrow", &MasterLevelNodeEntry::arrow);
@@ -659,6 +670,7 @@ void mu::ui::window::CMasterLevel::RebuildNodeModel()
         entry.column = skillData.Group;
         entry.slot = UI::Skills::MasterTree::SlotInRank(skillData.Index);
         entry.rank = skillAttribute.SkillRank;
+        entry.maxLevel = skillData.MaxLevel;
         entry.icon = "image(" + UI::Skills::MasterTree::IconSpriteName(skillAttribute.Magic_Icon, usable) + ")";
         entry.usable = usable;
         entry.arrow = skillData.ArrowDirection;
@@ -673,8 +685,8 @@ void mu::ui::window::CMasterLevel::RebuildNodeModel()
                                      [](const MasterLevelNodeEntry& a, const MasterLevelNodeEntry& b)
                                      {
                                          return a.id == b.id && a.column == b.column && a.slot == b.slot &&
-                                                a.rank == b.rank &&
-                                                a.icon == b.icon && a.usable == b.usable && a.arrow == b.arrow &&
+                                                a.rank == b.rank && a.maxLevel == b.maxLevel && a.icon == b.icon &&
+                                                a.usable == b.usable && a.arrow == b.arrow &&
                                                 a.levelText == b.levelText;
                                      });
     if (!changed)
@@ -748,7 +760,8 @@ bool mu::ui::window::CMasterLevel::ShowNodeHint(int nodeId)
     const int lineCount = this->BuildNodeHintLines(it->second, tooltip->second);
 
     // The theme places the node: the hint hangs from the hovered one's drawn box, and goes above
-    // it in the tree's lower part.
+    // it in the tree's lower part. A theme that places the tree in a workspace slot hangs it from
+    // the pointer instead, flipping above the cursor rather than across it.
     Rml::ElementDocument* document = m_RmlView.Document();
     Rml::Element* node = document ? document->GetElementById("node_" + std::to_string(nodeId)) : nullptr;
     Rml::Element* panel = document ? document->GetElementById("panel") : nullptr;
@@ -758,10 +771,19 @@ bool mu::ui::window::CMasterLevel::ShowNodeHint(int nodeId)
         return false;
     const float scale = UI::RmlBridge::DrawnScale(*node);
     const bool lowerPart = scale > 0.f && (nodeOrigin.y - panelOrigin.y) / scale > kNodeHintFlipTop;
-    UI::Tooltip::ShowLegacyTextList(lineCount, nodeOrigin.x + kIconOffsetX * scale,
-                                    nodeOrigin.y + kNodeHintBelowIcon * scale,
-                                    lowerPart ? UI::Tooltip::Placement::Above : UI::Tooltip::Placement::Below,
-                                    &kNodeHintOwner);
+    float anchorY = nodeOrigin.y + kNodeHintBelowIcon * scale;
+    std::optional<float> flipAnchorY;
+    const bool slotted = IsInWorkspace();
+    if (slotted)
+    {
+        const auto [below, above] = PointerHintEdges(anchorY);
+        anchorY = below;
+        flipAnchorY = above;
+    }
+    UI::Tooltip::ShowLegacyTextList(lineCount, nodeOrigin.x + kIconOffsetX * scale, anchorY,
+                                    !slotted && lowerPart ? UI::Tooltip::Placement::Above
+                                                          : UI::Tooltip::Placement::Below,
+                                    &kNodeHintOwner, flipAnchorY);
     return true;
 }
 

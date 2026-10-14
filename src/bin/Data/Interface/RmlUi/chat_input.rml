@@ -39,13 +39,13 @@
 
 		<!-- Whisper target, then the message itself. Tab moves between them: that is RmlUi's own
 		     built-in document navigation, which replaces native's SetTabTarget() pairing. -->
-		<input id="whisper_field" type="text" class="text-field cib-whisper-field"
+		<input data-event-keydown="chat_history_key" data-event-keyup="chat_history_release" id="whisper_field" type="text" class="text-field cib-whisper-field"
 		       data-value="whisper_id" data-attrif-disabled="!whisper_send"/>
 		<!-- Native hides the whisper widget when whispering is off but still paints its text
 		     dimmed under a red wash; this overlay is that wash. -->
 		<div id="whisper_block" data-class-hidden="whisper_send"></div>
 
-		<input id="chat_field" type="text" class="text-field cib-chat-field" data-value="chat_text"/>
+		<input data-event-keydown="chat_history_key" data-event-keyup="chat_history_release" id="chat_field" type="text" class="text-field cib-chat-field" data-value="chat_text"/>
 	</div>
 </body>
 </rml>

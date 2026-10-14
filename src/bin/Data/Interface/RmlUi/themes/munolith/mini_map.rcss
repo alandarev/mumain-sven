@@ -1,0 +1,17 @@
+/* Native terrain, projection and marker artwork remain unchanged. */
+.dim { height: 480px; background-color: #071711df; }
+/* The frame encloses the viewport; the compact HUD overlays the continuous map. */
+.edge-bottom { top: 474px; }
+.corner-bl, .corner-br { top: 445px; }
+.side-frame { position: absolute; left: 0; top: 0; transform-origin: left top; transform: scale(1, 1.11627907); pointer-events: none; }
+.hint { background-color: #071711ef; border: 1px #9c8855; }
+.hint-text { color: #e4d8bd; }
+.close:hover { border: 1px #d6b66b; }
+#map_legend { position: absolute; left: 12dp; top: 12dp; width: 190dp; padding: 8dp 10dp; border: 1px #9c8855; background-color: #071711ee; color: #d5ccb7; font-family: "DejaVu Sans"; font-size: 12dp; pointer-events: none; }
+.map-caption { display: block; font-size: 15dp; font-weight: bold; color: #e6d3a7; margin-bottom: 5dp; }
+.legend-row { display: flex; align-items: center; gap: 5dp; }
+.legend-icon { display: inline-block; width: 12dp; height: 12dp; pointer-events: none; }
+.legend-hero { decorator: image(mm-hero); }
+.legend-npc { decorator: image(mm-npc); margin-left: 8dp; }
+.legend-portal { decorator: image(mm-portal); margin-left: 8dp; }
+.legend-help { display: block; color: #ada993; font-size: 10dp; margin-top: 5dp; }

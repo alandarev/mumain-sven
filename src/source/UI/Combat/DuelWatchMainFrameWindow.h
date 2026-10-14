@@ -81,6 +81,7 @@ public:
 private:
     void BuildRmlUi();
     void SyncView();
+    void SyncScores();
     std::vector<DuelWatchGaugeEntry> StepGauges();
 };
 }

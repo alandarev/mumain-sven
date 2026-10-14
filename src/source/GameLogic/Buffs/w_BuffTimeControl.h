@@ -1,5 +1,7 @@
 #pragma once
 
+#include "EffectDuration.h"
+
 SmartPointer(BuffTimeControl);
 
 class BuffTimeControl
@@ -10,6 +12,8 @@ public:
 
 public:
     void RegisterBuffTime(eBuffState bufftype, DWORD curbufftime);
+    void RefreshEffectDuration(eBuffState bufftype, std::uint32_t seconds);
+    void RemoveEffectDuration(eBuffState bufftype);
     bool UnRegisterBuffTime(eBuffState bufftype);
     bool IsBuffTime(eBuffTimeType bufftype);
 
@@ -17,6 +21,7 @@ public:
     void GetBuffStringTime(eBuffState bufftype, std::wstring& timeText);
     void GetBuffStringTime(DWORD type, std::wstring& timeText, bool issecond = true);
     const DWORD GetBuffTime(DWORD type);
+    DWORD GetRemainingMilliseconds(eBuffState bufftype) const;
     void GetStringTime(DWORD time, std::wstring& timeText, bool isSecond = true);
 
 private:
@@ -39,4 +44,5 @@ private:
 
 private:
     BuffTimeInfoMap m_BuffTimeList;
+    std::map<eBuffState, GameLogic::Buffs::EffectDuration> m_EffectDurations;
 };

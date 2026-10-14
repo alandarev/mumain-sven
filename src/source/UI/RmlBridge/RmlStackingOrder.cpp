@@ -103,6 +103,7 @@ constexpr DocumentPlacement Placements[] = {
     {"letter_read.rml", 6.0f, MainScene},
     {"letter_write.rml", 6.0f, MainScene},
     {"system_log.rml", 6.05f, MainScene},
+    {"cursed_temple_overlay.rml", 6.08f, MainScene},
     {"chat_log.rml", 6.1f, MainScene},
     {"chat_input.rml", 6.2f, MainScene},
     {"item_explanation.rml", 6.5f, MainScene},

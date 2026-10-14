@@ -1,0 +1,16 @@
+<rml>
+<!-- bound-geometry: the ticker scrolls right to left every frame, so the text's left and the band's fading height are its state, not a layout a theme could own -->
+
+<head>
+    <title>Scrolling announcements</title>
+    <link type="text/rcss" href="base.rcss"/>
+    <link type="text/rcss" href="slide_notice.rcss"/>
+</head>
+<body data-model="slide_notice">
+    <div id="band" data-if="shown" data-style-background-color="band_color">
+        <div id="slide_text" data-style-left="(text_x * root_scale) + 'px'"
+             data-style-font-size="(text_px &lt; 12 ? 12 : (text_px &gt; 20 ? 20 : text_px)) + 'px'"
+             data-style-color="text_color">{{text}}</div>
+    </div>
+</body>
+</rml>

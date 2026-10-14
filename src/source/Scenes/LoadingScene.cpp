@@ -15,7 +15,7 @@
 #include "SceneCommon.h"
 #include "UI/Dialogs/ReconnectDialog.h"
 #include "Render/RmlUi/RmlUiRuntime.h"
-#include "UI/RmlBridge/RmlTheme.h"
+#include "UI/RmlBridge/RmlThemedView.h"
 #include <RmlUi/Core/ElementDocument.h>
 
 
@@ -74,16 +74,12 @@ namespace
     // Owns the RmlUi loading-screen wallpaper document across the whole "entering the world"
     // gap, not just LoadingScene()'s own one-frame flash -- see HideLoadingSceneOverlay()'s
     // comment for why it now outlives this function.
-    Rml::ElementDocument* s_rmlLoadingDoc = nullptr;
+UI::RmlBridge::ThemedView<> s_loadingView{{{"Data/Interface/RmlUi/loading.rml"}}};
 }
 
 void HideLoadingSceneOverlay()
 {
-    if (s_rmlLoadingDoc)
-    {
-        s_rmlLoadingDoc->Close();
-        s_rmlLoadingDoc = nullptr;
-    }
+    s_loadingView.Release();
 }
 
 void LoadingScene(HDC hDC)
@@ -120,12 +116,9 @@ void LoadingScene(HDC hDC)
         // second copy on top of it.
         HideLoadingSceneOverlay();
 
-        if (RmlUiRuntime::Instance().IsCreated())
+        if (s_loadingView.Ensure())
         {
-            s_rmlLoadingDoc = RmlUiRuntime::Instance().GetContext()->LoadDocument("Data/Interface/RmlUi/loading.rml");
-            UI::RmlBridge::ApplyStackingDepth(s_rmlLoadingDoc, "loading.rml");
-            if (s_rmlLoadingDoc)
-                s_rmlLoadingDoc->Show();
+            s_loadingView.Document()->Show(Rml::ModalFlag::None, Rml::FocusFlag::None);
         }
     }
 
@@ -149,7 +142,7 @@ void LoadingScene(HDC hDC)
 #endif
     UI::Reconnect::RenderDialog();
 
-    // s_rmlLoadingDoc deliberately stays open here -- see this function's own header comment and
+    // s_loadingView deliberately stays open here -- see this function's own header comment and
     // HideLoadingSceneOverlay().
 
     SceneFlag = MAIN_SCENE;

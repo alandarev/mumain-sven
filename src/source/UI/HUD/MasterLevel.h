@@ -93,6 +93,11 @@ public:
     int GetCurSkillID() const;
     bool Create(CManager* pNewUIMng);
     void Release();
+    // A theme may give the tree a workspace slot (Munolith's master stage), which places #panel.
+    Rml::ElementDocument* GetPlacedDocument() const override
+    {
+        return m_RmlView.Document();
+    }
 
     void OpenMasterSkillTreeData(const wchar_t* path);
     void OpenMasterSkillTooltip(const wchar_t* path);

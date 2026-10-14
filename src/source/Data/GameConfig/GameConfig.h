@@ -80,6 +80,13 @@ public:
     int GetUIScalePercent() const { return m_uiScalePercent; }
     void SetUIScalePercent(int percent);
 
+    // A theme-declared window group's preferred anchor (UI::Placement, the slot region's
+    // data-position-key), saved when the player drops the group. Written immediately: a drag has
+    // no "Apply" step to wait for. GetWindowPosition returns false (outputs untouched) when nothing
+    // was saved for `windowId`.
+    bool GetWindowPosition(const std::wstring& windowId, int& outX, int& outY) const;
+    void SetWindowPosition(const std::wstring& windowId, int x, int y);
+
     // Chat commands - the favourites and the named templates of the command
     // window. They belong to the installation, not to a character.
     // A template is stored as "name|command|value|value|...".

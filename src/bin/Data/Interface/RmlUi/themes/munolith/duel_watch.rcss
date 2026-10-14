@@ -1,0 +1,13 @@
+#panel { width: 360px; height: 350px; pointer-events: auto; }
+.arena-description { position: absolute; left: 15px; top: 38px; transform-origin: left top; overflow: hidden auto; color: #bbc1af; white-space: normal; line-height: 1.4em; }
+.arena-rooms { position: absolute; left: 15px; top: 68px; transform-origin: left top; overflow: hidden auto; }
+.arena-room { display: flex; align-items: center; min-height: 50px; padding: 3px 0; box-sizing: border-box; border-bottom: 1px #394331; color: #c6cbb4; }
+.room-info { flex: 1 1 0; min-width: 0; }
+.room-heading { display: block; color: #d7b864; line-height: 1.4em; margin-bottom: 0; }
+.fighters { display: block; white-space: normal; line-height: 1.3em; }
+.fighters .versus { color: #8f9d84; font-size: 11px; }
+.room-empty { color: #899681; white-space: normal; line-height: 1.3em; }
+.arena-room > button { flex: 0 0 58px; min-height: 25px; margin-left: 6px; padding: 3px; }
+.arena-room.open > button { border-color: #7b8d56; }
+
+.desk-close .native-text { text-align: center; }

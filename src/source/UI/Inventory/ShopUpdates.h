@@ -16,7 +16,9 @@ struct ShopItem
 };
 
 // NPC shop.
-void NpcSaleFinished();
+void NpcSaleFinished(bool success);
+void NpcPurchaseFinished(bool success, int slot);
+void NpcRepairFinished(bool success);
 void SetNpcTaxRate(int rate);
 
 // This player's personal shop.

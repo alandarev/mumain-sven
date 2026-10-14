@@ -1,0 +1,3 @@
+/* The centered tree has no legacy bottom-padding band. */
+body { pointer-events: none; }
+#band { display: none; }

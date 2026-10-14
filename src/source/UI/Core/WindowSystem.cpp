@@ -554,9 +554,11 @@ bool CSystem::LoadMainSceneInterface()
     {
         UI::Placement::RegisterWindow(windowId, slotName, [&window]() -> CObject* { return window; }, document);
     };
+    slot(INTERFACE_MASTER_LEVEL, "master_level", m_pNewMaster_Level_Interface, "master_level.rml");
     slot(INTERFACE_CHARACTER, "character", m_pNewCharacterInfoWindow, "character_info.rml");
     slot(INTERFACE_MUHELPER, "mu_helper", m_pMuHelperConfig, "mu_helper_config.rml");
     slot(INTERFACE_MUHELPER_EXT, "mu_helper_detail", m_pMuHelperDetail, "mu_helper_detail.rml");
+    slot(INTERFACE_MUHELPER_SKILL_LIST, "mu_helper_skill_list", m_pMuHelperSkillPicker, "mu_helper_skill_picker.rml");
     slot(INTERFACE_PARTY, "party", m_pNewPartyInfoWindow, "party_info.rml");
     slot(INTERFACE_GUILDINFO, "guild_info", m_pNewGuildInfoWindow, "guild_info.rml");
     slot(INTERFACE_COMMAND, "command", m_pNewCommandWindow, "command_window.rml");
@@ -619,8 +621,6 @@ bool CSystem::LoadMainSceneInterface()
     hudSlot(INTERFACE_DUELWATCH_MAINFRAME, "duel_watch_hud", m_pNewDuelWatchMainFrameWindow, 640.f, 51.f);
     // Its slot is the list's bottom-left corner; the spectators stack upwards from it.
     hudSlot(INTERFACE_DUELWATCH_USERLIST, "duel_watch_users", m_pNewDuelWatchUserListWindow, 57.f, 0.f);
-    // Named only in data-closes.
-    UI::Placement::RegisterName(INTERFACE_MUHELPER_SKILL_LIST, "mu_helper_skill_list");
     // Places itself; its slot is only where it first opens (UI::Placement::InitialPosition()).
     UI::Placement::RegisterName(INTERFACE_FRIEND, "friends");
 
@@ -733,6 +733,9 @@ bool CSystem::IsVisible(DWORD dwKey)
 
 void CSystem::Show(DWORD dwKey)
 {
+    if (!UI::RmlBridge::ThemeShowsPersonalStore() &&
+        (dwKey == INTERFACE_MYSHOP_INVENTORY || dwKey == INTERFACE_PURCHASESHOP_INVENTORY))
+        return;
 #ifdef PBG_ADD_INGAMESHOP_UI_ITEMSHOP
     if (g_pInGameShop->IsInGameShop())
         return;

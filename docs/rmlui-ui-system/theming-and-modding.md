@@ -161,10 +161,67 @@ that survives a restart, use **Options → UI → Theme** or edit `[UI] RmlTheme
 is closed. The Options control uses `UI::Theme::Select(..., Persistence::Saved)` and rebuilds
 documents after the click dispatch has finished.
 
-**The maintained first-party themes are `legacy` and `modern`.** Custom folders use the same
-loading mechanism. The architecture policy's Custom/Test-theme checks seek to expose visual
-coupling; the current project uses modern's structural differences and the contract guard for
-that coverage. Update both built-in themes when window content or behavior changes.
+**The shipped themes are `legacy`, `modern` and `munolith`.** Custom folders use the same
+loading mechanism. Munolith implements the compact crystal HUD and its redesigned windows; the
+rest inherit legacy (`[Theme] Base=legacy`, see above). The mechanism remains theme-name-agnostic:
+adding a theme adds no C++ theme-name branch. Update the built-in themes together when window
+content or behavior changes.
+
+### Munolith HUD and action bindings
+
+Select **Munolith** in the existing theme setting, use `$theme munolith` for a session preview,
+or set `[UI] RmlTheme=munolith` in `config.ini` for startup. The bottom HUD has paired life/mana
+crystals, ten stable action slots, an embedded AG channel and a ten-section XP rail covering
+one level. SD has no visual element or recovery action. The antidote control appears near life
+only while poisoned. Resource totals stay immediate; separate loss trails and recovery sweeps
+show changes. The action editor's **Reduced motion** option disables those effects.
+
+The defaults are **1–9,0** for actions, **Q** for life, **W** for mana and **E** for the contextual
+antidote. **R** has no HUD binding. **Shift+1–4** retains native pet commands. Right-click a slot,
+left-click an empty slot, or open **Skills** in the upper-right menu to choose a learned skill
+or usable inventory consumable. Choosing an entry assigns it without activating it or changing
+the slot's key. An aimed skill is selected for the usual right-mouse cast. Life/Greater Fortitude
+and its supported master variants cast immediately through the native eligibility checks,
+then restore the selected aimed skill and target. Consumables also preserve the selected skill.
+
+Life/mana bindings aggregate their native potion family and use its strongest available tier.
+The model, size letter and stock show what will be used. Empty stock dims the assigned item;
+restocking restores it. Skill cooldown shutters use the native remaining delay. Potions currently
+have no established cooldown, so the HUD does not invent one. **Portal** in the upper-right menu
+uses a portal scroll if available; it can also be assigned from Consumables.
+
+**Keys** accepts letters, digits, F1–F12 and `None`; duplicate HUD keys are rejected. A remapped
+HUD action consumes that key before ordinary game shortcuts, so the player should choose which
+shortcut to give up. Chat, text fields and modal game dialogs suppress action activation.
+Bindings, item/skill identities and reduced motion are stored per character in
+`Config/action-bar/<hex-encoded-UTF8-name>.profile`, relative to the client runtime directory.
+Profiles are local player settings. An invalid file leaves MU defaults active; a failed save
+keeps the edits for the session and displays an error in the editor.
+
+Munolith overrides `main_frame.rml` and `main_frame_top.rml` and declares
+`[Capabilities] CompactHud=1`. The existing main-frame `ThemedView` still owns both documents.
+The capability adds the compact model and input routing; other themes keep their native HUD
+behavior. Presentation controllers are under `UI/HUD/`, and normal/master XP normalization is
+shared with the old decile fields. Item images are live render targets measured from RCSS boxes,
+not fixed-position overlays. Theme reload clears transient motion/popovers and disables hidden
+targets. Layout and ornament remain in the theme's RML/RCSS and atlas. Munolith declares
+`[Layout] HudReferenceHeight=768`: its HUD units grow with the viewport's height above this
+reference, multiplied by the player's UI scale. At 100%, a 1024×768 viewport uses one pixel
+per unit and 1920×1080 uses 1.40625 pixels. Display density is applied once; ultrawide screens
+use the same scale as other screens with the same height. Small viewports reflow the action
+row, and the top menus wrap when needed. Themes without this property retain explicit scaling.
+
+Munolith also overrides `buff_strip.rml` and declares `[Capabilities] CornerBuffStrip=1`.
+The existing buff-strip owner supplies separate beneficial and harmful arrays, stable ordering,
+original MU atlas icons and native tooltips. The corner strip shares the HUD units. Known native
+durations appear below icons as seconds, minutes or hours, with an accent in the final ten
+seconds. Effects without a known duration show no countdown. The workspace places passive
+system/error messages below the strip so they do not cover effects or their hover details.
+Right-click cancellation retains
+the original eligible-effect confirmation and server request. Legacy and modern keep their
+existing strip layout.
+Unmodified windows, `base.rcss` included, inherit the legacy skin through `Base=legacy`. The
+workspace override contains a complete stylesheet; RCSS `@import` is not used.
 
 ### `#backdrop` usage
 
@@ -380,6 +437,14 @@ their element's drawn size; choose their scaling deliberately.
   "make this draggable" property. Which windows drag is decided in
   [window-placement.md](window-placement.md) section 8.
 
+## Combined Warehouse
+
+`[Capabilities] EmbeddedVault=1` embeds the server-owned extra vault beside the
+base grid in one measured frame. Munolith supplies the matching foreground,
+background and workspace documents; other themes retain separate storage.
+See [Full Warehouse](munolith-warehouse.md) for anchors, native ownership and
+protection behavior. This setting does not grant extra capacity.
+
 ## Known limitations
 
 - **The `$theme` command is session-only.** `$theme <name>` (see
@@ -393,8 +458,8 @@ their element's drawn size; choose their scaling deliberately.
 - **Every themed document belongs to a `ThemedView`**, so `$theme` covers all of them; a new
   window declares one.
 - **Theme identity must never drive C++ branching** — `architecture-principles.md` §30. Where a
-  theme must change C++ behaviour, it declares a capability in `theme.ini` (`NativeTextSize` is the
-  one in use). Prefer removing the need: the main frame's `ProvidesOwnIconChrome` existed only so
+  theme must change C++ behaviour, it declares a capability in `theme.ini` (such as `NativeTextSize` or
+  `EmbeddedVault`). Prefer removing the need: the main frame's `ProvidesOwnIconChrome` existed only so
   C++ could skip drawing legacy chrome for the modern theme, and went away once that chrome was
   RCSS in the legacy theme's own stylesheet.
 - **RmlUi renders last in the frame**, so native content that must sit *in* a window's stacking

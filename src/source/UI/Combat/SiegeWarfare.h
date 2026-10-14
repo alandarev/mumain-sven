@@ -22,6 +22,7 @@ namespace mu::ui::window
 // (m_pSiegeWarUI) keeps the state and the input; siege_warfare.rml draws it.
 class CSiegeWarfare : public CObject
 {
+    friend class UiLifecycleFixture; // Test-owned objects without renderer startup.
 public:
     enum SIEGEWAR_TYPE
     {

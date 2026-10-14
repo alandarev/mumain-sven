@@ -154,6 +154,7 @@ public:
         return (m_WindowArrangeList.empty() == TRUE ? 0 : *m_WindowArrangeList.rbegin());
     }
     DWORD GetTopNotMainWindowUIID();
+    bool HasReplayBlockingChildren() const;
 
     void SendUIMessageToWindow(DWORD dwUIID, int iMessage, LONG_PTR iParam1, LONG_PTR iParam2);
 

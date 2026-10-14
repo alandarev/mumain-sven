@@ -138,3 +138,11 @@ TEST_CASE("scene messages cover scene windows and remain below blocking overlays
     CHECK(Depth("msg_win.rml") < Depth("loading.rml"));
     CHECK(Depth("msg_win.rml") < Depth("reconnect_dialog.rml"));
 }
+
+TEST_CASE("the held item stays above every item panel and the HUD [ui][stacking]")
+{
+    CHECK(SceneForDocument("cursor_item.rml") == DocumentScene::Main);
+    for (const char* name : {"character_info.rml", "my_inventory.rml", "npc_shop.rml",
+                             "trade.rml", "storage.rml", "main_frame.rml", "option_window.rml"})
+        CHECK_MESSAGE(Depth("cursor_item.rml") > Depth(name), name);
+}

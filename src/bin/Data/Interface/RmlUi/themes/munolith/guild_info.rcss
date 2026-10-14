@@ -1,0 +1,42 @@
+.guild-body { position: absolute; left: 15px; top: 42px; display: flex; align-items: stretch; }
+.guild-empty { position: absolute; left: 15px; top: 100px; color: #b2b7a6; }
+.guild-empty span { display: block; white-space: normal; }
+.guild-summary { box-sizing: border-box; flex: 0 0 auto; border-right: 1px #69745b55; }
+.guild-name { color: #e6cf91; margin-top: 9px; margin-bottom: 16px; white-space: normal; }
+.guild-fact { display: block; color: #bfc3af; margin-top: 12px; white-space: normal; }
+.guild-main { flex: 1 1 0; min-width: 0; }
+#guild_tabs { display: flex; margin-bottom: 10px; }
+.guild-tab { display: flex; flex: 1 1 0; align-items: center; justify-content: center; color: #a7b09b; border: 1px #4b5946; background-color: #111d19; cursor: pointer; }
+.guild-tab.selected { color: #f4d491; border-color: #ab9057; background-color: #343122; }
+.guild-heading, .list-head { color: #adbaa0; margin-bottom: 7px; }
+.list-head, .row-top { display: flex; justify-content: space-between; gap: 5px; }
+.guild-actions { display: flex; align-items: stretch; }
+.guild-actions .social-btn { display: flex; flex: 1 1 0; align-items: center; justify-content: center; white-space: normal; }
+.member-row { display: block; box-sizing: border-box; border-bottom: 1px #46503a66; background-color: #111c15; cursor: pointer; }
+.member-row:hover, .alliance-row:hover { background-color: #233226; }
+.member-row.selected, .alliance-row.selected { background-color: #4c4831; }
+.member-name { color: #c9d0bb; }
+.member-row.officer .member-name { color: #e1c788; }
+.member-server, .member-role { color: #a4b09a; white-space: nowrap; }
+.member-role { display: block; }
+.notice-row { display: block; white-space: normal; color: #c6cbb9; }
+.alliance-row { display: flex; align-items: center; border-bottom: 1px #46503a66; cursor: pointer; color: #c9d0bb; }
+.alliance-name { flex: 1 1 0; min-width: 0; }
+.alliance-row .social-mark { flex: 0 0 auto; }
+.alliance-note { display: block; margin-top: 4px; white-space: normal; color: #b8c1aa; }
+
+/* Counter-scaled content retains physical native typography while slot placement owns its root. */
+#title { width: calc(400px * var(--root-scale)); }
+.guild-empty { width: calc(370px * var(--root-scale)); }
+.guild-body { width: calc(370px * var(--root-scale)); height: calc(335px * var(--root-scale)); gap: calc(12px * var(--root-scale)); }
+.guild-summary { width: calc(120px * var(--root-scale)); padding-right: calc(10px * var(--root-scale)); }
+#guild_mark { width: calc(48px * var(--root-scale)); height: calc(48px * var(--root-scale)); }
+#guild_tabs { height: calc(26px * var(--root-scale)); gap: calc(4px * var(--root-scale)); }
+#gi_notice_list { height: calc(232px * var(--root-scale)); }
+.notice-row { padding: calc(3px * var(--root-scale)); }
+.guild-actions { height: calc(25px * var(--root-scale)); margin-top: calc(10px * var(--root-scale)); gap: calc(4px * var(--root-scale)); }
+#gi_member_list, #gi_union_list { height: calc(244px * var(--root-scale)); }
+.member-row { min-height: calc(34px * var(--root-scale)); padding: calc(4px * var(--root-scale)) calc(6px * var(--root-scale)); }
+.alliance-row { height: calc(36px * var(--root-scale)); gap: calc(6px * var(--root-scale)); }
+.alliance-row .social-mark { width: calc(24px * var(--root-scale)); height: calc(24px * var(--root-scale)); }
+.alliance-help { height: calc(272px * var(--root-scale)); }

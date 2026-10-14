@@ -1,0 +1,31 @@
+<rml>
+<head><link type="text/rcss" href="event_item_target.rcss"/><link type="text/rcss" href="scaled_content.rcss"/>
+<title>Reward counter</title>
+<link type="text/rcss" href="base.rcss"/>
+<link type="text/rcss" href="my_inventory_shared.rcss"/>
+<link type="text/rcss" href="castle_desks_common.rcss"/>
+<link type="text/rcss" href="reward_services.rcss"/>
+</head>
+<body data-model="lucky_coin_exchange">
+<div id="panel" class="coin-exchange" data-compact-scale="0.9" data-style---text-px="text_px"><div class="stone"></div><div class="shade"></div><div class="trim top-left"></div><div class="trim top-mid"></div><div class="trim top-right"></div><div class="trim side-left"></div><div class="trim side-right"></div><div class="trim bottom-left"></div><div class="trim bottom-mid"></div><div class="trim bottom-right"></div><img id="entry_item" class="entry-item"/>
+<div id="title">
+<span class="native-text scaled-width-250 readable-text counter-scaled scaled-reference">{{texts[0].text}}</span>
+</div>
+<button class="corner-close" data-event-click="window_close">×</button>
+<div class="exchange-notes scroll-pane scaled-width-250 scaled-height-105 readable-text counter-scaled scaled-reference">
+<div class="reward-line">{{texts[1].text}}</div>
+<div class="reward-line warning">{{texts[2].text}}</div>
+<div class="reward-line warning">{{texts[3].text}}</div>
+<div class="reward-line warning">{{texts[4].text}}</div>
+</div>
+<div class="exchange-actions">
+<button data-for="b, i : buttons" data-if="i < 3" data-class-locked="b.locked" data-attrif-disabled="b.locked" data-event-click="item_entry_press(i)">
+<span class="native-text scaled-width-240 readable-text counter-scaled scaled-reference">{{b.label}}</span>
+</button>
+</div>
+<button class="desk-close" data-event-click="item_entry_press(3)">
+<span class="native-text scaled-width-250 readable-text counter-scaled scaled-reference">{{buttons[3].label}}</span>
+</button>
+</div>
+</body>
+</rml>

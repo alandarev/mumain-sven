@@ -11,6 +11,7 @@
 #include "UI/RmlBridge/RmlDocumentVisibility.h"
 #include "UI/RmlBridge/RmlNativeTextSize.h"
 #include "UI/RmlBridge/RmlTheme.h"
+#include "UI/Placement/WindowPlacement.h"
 #include "Render/Text/CUIRenderText.h"
 
 #include <RmlUi/Core/ElementDocument.h>
@@ -105,6 +106,7 @@ bool mu::ui::window::CHelpWindow::Render()
 
 void mu::ui::window::CHelpWindow::BindRmlModel(Rml::DataModelConstructor& c, HelpWindowRmlModel& model)
 {
+    c.Bind("available_height", &model.availableHeight);
     c.Bind("text_px", &model.textPx);
     c.Bind("bold_text_px", &model.boldTextPx);
     c.Bind("line_height", &model.lineHeight);
@@ -139,6 +141,19 @@ void mu::ui::window::CHelpWindow::SyncRmlModel()
     UI::RmlBridge::SyncDocumentVisibilityInFront(m_RmlView.Document(), visible);
     if (!visible)
         return;
+
+    // Keep a scrollable reference above the HUD, including its wrapped layout.
+    float bottom = static_cast<float>(WindowHeight);
+    UI::Placement::PlacementParticipant::Box hud;
+    if (UI::Placement::SlotBox("main_hud", hud) && hud.top >= 0.f)
+        bottom = std::min(bottom, hud.top);
+    const float available = std::max(0.f, bottom - WindowHeight * 0.05f - 8.f);
+    auto& model = m_RmlView.GetModel();
+    if (model.availableHeight != available)
+    {
+        model.availableHeight = available;
+        m_RmlView.MarkDirty("available_height");
+    }
 
     RebuildPageModel();
 }

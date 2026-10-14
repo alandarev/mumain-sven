@@ -72,6 +72,7 @@ public:
 
 private:
     void BuildRmlUi();
+    void BindRoomRows(Rml::DataModelConstructor& c, DuelWatchRmlModel& model);
     void SyncRmlModel();
 };
 }

@@ -1,6 +1,11 @@
 #pragma once
 
 #include <vector>
+#include <memory>
+namespace UI::Character
+{
+class ArmoryController;
+}
 
 #include "UI/Core/WindowObject.h"
 #include "UI/Core/WindowManager.h"
@@ -10,9 +15,9 @@
 
 namespace Rml { class ElementDocument; }
 
-// Fully RmlUi-based (#panel, character_info.rml/.rcss) -- no permanently-native content (no live
-// 3D icon, no CUITextInputBox), unlike the inventory family it shares frame
-// assets with.
+// Fully RmlUi-based (#panel, character_info.rml/.rcss), with a theme-dependent layout. The Armory
+// controller supplies live 3D render targets and canonical stats when the active document includes
+// the model well.
 namespace mu::ui::window
 {
     class CCharacterInfoWindow : public CObject
@@ -152,6 +157,7 @@ namespace mu::ui::window
         };
 
         void BindRmlModel(Rml::DataModelConstructor& c, CharacterInfoRmlModel& model);
+        std::unique_ptr<UI::Character::ArmoryController> m_Armory;
         UI::RmlBridge::ThemedView<CharacterInfoRmlModel> m_RmlView{"character_info",
             [this](Rml::DataModelConstructor& c, CharacterInfoRmlModel& model) { BindRmlModel(c, model); },
             {{"Data/Interface/RmlUi/character_info.rml"}}};

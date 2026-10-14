@@ -1,0 +1,10 @@
+<rml>
+<head><title>Munolith menus</title><link type="text/rcss" href="../legacy/base.rcss"/><link type="text/rcss" href="main_frame_top.rcss"/></head>
+<body data-model="main_frame" data-style-font-size="compact_unit_px + 'px'">
+<div id="top_right_row"><div id="buttons_top">
+<button data-event-click="compact_menu('skills')">Skills</button><button data-event-click="compact_menu('portal')">Portal</button>
+<button data-event-click="mainframe_chainfo_click" data-class-open="chainfo_open">Character</button><button data-event-click="mainframe_myinven_click" data-class-open="myinven_open">Inventory</button>
+<button data-event-click="mainframe_friend_click" data-class-alert="friend_alert">Friends</button>
+<button data-event-click="compact_menu('keys')">Keys</button><button data-event-click="mainframe_window_click">Menu</button>
+</div></div>
+</body></rml>

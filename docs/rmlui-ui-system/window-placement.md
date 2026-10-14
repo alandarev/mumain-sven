@@ -180,6 +180,44 @@ the region's scale), scaled whole — RmlUi, native grids and 3D icons follow th
 Modern caps its docks below the header; legacy doesn't, so its docks reach the screen top as the
 original's did.
 
+### Fitting beside another region
+
+`data-ref-width` complements `data-ref-height`. When RCSS constrains a region's
+width or height below the declared reference dimensions, its windows use the
+smaller of the two fit ratios, preserving proportions and native hit geometry.
+Put a flexible region beside a fixed dock in ordinary flex flow to reserve the
+dock's width. Munolith uses the grouped placement described below for related item
+windows; the HUD keeps its independent scale.
+The service marks regions containing open slots with `occupied`; RCSS may hide
+an unoccupied region so its gap also collapses.
+Reference boxes stay at their requested size during fitting. After solving, a
+width-referenced column shrinks to the fitted width before final placement, so
+height fitting cannot leave unused column space between neighboring windows.
+
+### Related window groups
+
+A theme can opt into linked companion panes by adding `data-group="items"`,
+`data-anchor="inventory"` and `data-position-key="group.items"` to a region.
+Its slots remain in DOM order; each member is placed like any slot (`PlaceInWorkspace()`), shifted together, and RCSS sets `flex-direction: row`,
+`align-items: flex-start`, a gap and the region's safe-area limits. Each slot can
+choose `data-scale="window"` or an inherited `dock` scale, so design-unit panels
+and native inventory grids retain their appropriate unit conversions.
+
+The complete row fits proportionally inside its resolved region. A user's chosen
+anchor is saved separately from temporary fitting. Closing a companion keeps the
+remaining panes steady, including their current fitted size; closing the whole
+group, changing resolution or changing reserved HUD/menu dimensions allows a fresh
+fit. Menus that reflow after resize update the safe area before the layout settles.
+Returning to a larger resolution
+recovers the preferred anchor.
+
+Declare `data-drag-handle="#title"` on a slot to make its title move the linked
+group. The selector refers to that window's document. Controls and character-model
+orbit remain separate. Held items defer rearrangement until pickup is released or
+cancelled. Undeclared utilities stay independent, and existing NPC/trade close
+rules still control which windows actually open together. Omitting `data-group`
+retains the ordinary docking and drag behavior.
+
 ## 7. Arrangement rules
 
 Every rule in `CSystem::Show()`/`Hide()` is one of three kinds:
@@ -209,7 +247,8 @@ mutual exclusion. Unchecked: Chaos Castle's timer closes the chat input — over
 
 Dialogs, social windows and the inventory support dragging; positions are not saved across
 sessions. Workspace arrangement takes precedence over an inventory drag. Other docked windows
-remain in their slots.
+remain in their slots. A theme can additionally link a region's windows into a group
+(section 6): any member's title drags the whole group, and the group's anchor is saved.
 
 - The friend list, chat rooms and letters drag through `UI::RmlBridge::MakeDraggable()` and
   bounce back on screen. The friend list asks its `friends` slot only where it first opens
@@ -274,3 +313,34 @@ element geometry; check the remaining integration and validation limits below wh
 
 - Custom region arrangements need focus and overlap checks. Regions supply geometry;
   `RmlStackingOrder.cpp` supplies document depth, so moving a slot does not change its z-order.
+
+### Responsive themes
+
+A theme declaring WindowReferenceWidth/Height uses one shared responsive window
+curve for its usual panel/dock/floating transforms. `data-scale="window"` uses the
+theme's design units directly for new panels such as Armory; `panel` and `dock`
+adapt inherited 640×480 units to that same curve. `hud` retains its independent
+HUD scale. Use `max-height: 100%` for safe-area fitting, without a fixed pixel cap.
+Workspace slot positions are read before paint transforms, so center their layout
+through flex containers rather than translate transforms.
+
+### Theme-declared compact scale breakpoint
+
+A placed root may declare `data-compact-scale="0.9"`. The shared
+`UI::RmlBridge::ApplyLayoutScale` publishes `compact-scale` strictly when its canonical effective
+post-fit scale is below that finite positive threshold. Equality is not compact. RCSS owns both
+presentations; no per-window `root_scale` model or theme-name branch is involved.
+`data-layout-scale` is generated observation only, never layout input. Missing/invalid/removed
+opt-in clears generated state, and a rebuilt document starts without stale state.
+
+`SlotPlacement::Apply`/`Sync` use the same helper for ordinary and explicitly positioned document
+roots. Sync does not reset a player's drag. `RegisterWorkspaceDocument` uses the helper with its
+actual dp-to-window transform ratio and opt-in-only CSS publication, so Legacy/Modern roots with
+no declaration keep their prior CSS. The root getter follows reloads; no document-tree scan or
+second per-frame layout pass is introduced. Changing fit uses the placement solver's result, not
+an independent viewport/UI-scale approximation.
+
+Munolith's `scaled_content.rcss` holds reference lengths for counter-scaled native text/content.
+Its classes replace static inline scale expressions and remain ordinary overrideable selected-theme
+RCSS. Gameplay fractions, projected points, user resize and measured text boxes remain explicit
+state-driven geometry with per-document ownership comments.

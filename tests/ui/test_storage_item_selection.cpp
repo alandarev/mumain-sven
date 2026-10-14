@@ -1,6 +1,7 @@
 #include "doctest.h"
 
 #include <cwchar>
+#include <iterator>
 #include <ostream>
 
 #include "Core/Platform/SecureCrt.h"
@@ -13,9 +14,9 @@ namespace
 {
 StorageItem Row(int seq, const wchar_t* name)
 {
-    StorageItem item;
+    StorageItem item{};
     item.m_iStorageItemSeq = seq;
-    wcsncpy_s(item.m_szName, name, _TRUNCATE);
+    std::wcsncpy(item.m_szName, name, std::size(item.m_szName) - 1);
     return item;
 }
 } // namespace

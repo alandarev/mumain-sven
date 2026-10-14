@@ -5,6 +5,7 @@
 #include "UI/Core/WindowCommon.h" // ShowSystemMenuDialog
 #include "Audio/DSPlaySound.h"
 #include "I18N/All.h"
+#include "Character/CharacterManager.h"
 
 #include "Core/Utilities/StringUtils.h"
 #include "Render/RmlUi/RmlUiRuntime.h"
@@ -119,6 +120,18 @@ void mu::ui::window::CWindowMenu::RunMenuEntry(int entry)
 {
     switch (entry)
     {
+    case MENU_QUEST:
+        g_pNewUISystem->Hide(INTERFACE_WINDOW_MENU);
+        g_pCharacterInfoWindow->RmlClickQuest();
+        break;
+    case MENU_MASTER_SKILLS:
+        g_pNewUISystem->Hide(INTERFACE_WINDOW_MENU);
+        g_pCharacterInfoWindow->RmlClickMasterLevel();
+        break;
+    case MENU_PERSONAL_STORE:
+        g_pNewUISystem->Hide(INTERFACE_WINDOW_MENU);
+        g_pMyInventory->OpenPersonalStore();
+        break;
     case MENU_SYSTEM:
         g_pNewUISystem->Hide(mu::ui::window::INTERFACE_WINDOW_MENU);
         mu::ui::window::ShowSystemMenuDialog();
@@ -175,6 +188,14 @@ void mu::ui::window::CWindowMenu::BindRmlModel(Rml::DataModelConstructor& c, Win
     model.rows.clear();
     for (int i = 0; i < MENU_MAX_INDEX; ++i)
         model.rows.push_back({StringUtils::WideToNarrow(I18N::Game::Lookup(kMenuTextIds[i])), i});
+    if (UI::RmlBridge::ThemeUsesEmbeddedInventory())
+    {
+        model.rows.push_back({"Quest [T]", MENU_QUEST});
+        if (Hero && gCharacterManager.IsMasterLevel(Hero->Class) && Hero->Class != CLASS_TEMPLENIGHT)
+            model.rows.push_back({"Master Skills [A]", MENU_MASTER_SKILLS});
+        if (UI::RmlBridge::ThemeShowsPersonalStore())
+            model.rows.push_back({"Personal Store [S]", MENU_PERSONAL_STORE});
+    }
 }
 
 void mu::ui::window::CWindowMenu::BuildRmlUi()
@@ -192,6 +213,24 @@ void mu::ui::window::CWindowMenu::SyncRmlModel()
     UI::RmlBridge::SyncDocumentVisibilityInFront(m_RmlView.Document(), IsVisible());
     if (!IsVisible())
         return;
+
+    if (UI::RmlBridge::ThemeUsesEmbeddedInventory())
+    {
+        auto& rows = m_RmlView.GetModel().rows;
+        const bool master = Hero && gCharacterManager.IsMasterLevel(Hero->Class) && Hero->Class != CLASS_TEMPLENIGHT;
+        const bool store = UI::RmlBridge::ThemeShowsPersonalStore();
+        const size_t count = MENU_MAX_INDEX + 1 + (master ? 1 : 0) + (store ? 1 : 0);
+        if (rows.size() != count)
+        {
+            rows.resize(MENU_MAX_INDEX);
+            rows.push_back({"Quest [T]", MENU_QUEST});
+            if (master)
+                rows.push_back({"Master Skills [A]", MENU_MASTER_SKILLS});
+            if (store)
+                rows.push_back({"Personal Store [S]", MENU_PERSONAL_STORE});
+            m_RmlView.MarkDirty("rows");
+        }
+    }
 
     SyncTransform();
 }

@@ -2,11 +2,14 @@
 
 #include "stdafx.h"
 #include "UI/RmlBridge/RmlTheme.h"
+#include "UI/Scaling/UITransform.h"
+#include "Data/GameConfig/GameConfig.h"
 #include "UI/RmlBridge/RmlThemedView.h"
 
 #include <RmlUi/Core.h>
 
 #include <filesystem>
+#include <chrono>
 #include <fstream>
 #include <memory>
 #include <string>
@@ -61,8 +64,9 @@ public:
         REQUIRE(context != nullptr);
         resolved = context;
         UI::RmlBridge::SetContextResolver([this](std::string_view) { return resolved; });
-        m_Folder = std::filesystem::temp_directory_path() / "rml_themed_view_tests";
-        std::filesystem::remove_all(m_Folder);
+        // A folder per run, so concurrent test processes never share theme files.
+        m_Folder = std::filesystem::temp_directory_path() /
+            ("rml_themed_view_tests-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
         std::filesystem::create_directories(m_Folder);
         m_PreviousDirectory = std::filesystem::current_path();
         m_PreviousTheme = UI::RmlBridge::GetActiveThemeName();
@@ -345,4 +349,76 @@ TEST_CASE("a late model name and a hook before every unload [ui][rml-themed-view
     CHECK(unloads == 1);
     view.Release();
     CHECK(unloads == 2);
+}
+
+TEST_CASE("theme layout, inventory and capability settings inherit from the declared base [ui][rml-theme]")
+{
+    Fixture fixture;
+    const auto previousDirectory = std::filesystem::current_path();
+    const std::string previousTheme = UI::RmlBridge::GetActiveThemeName();
+    struct Restore
+    {
+        std::filesystem::path directory;
+        std::string theme;
+        ~Restore()
+        {
+            std::filesystem::current_path(directory);
+            UI::RmlBridge::SetActiveThemeName(theme);
+        }
+    } restore{previousDirectory, previousTheme};
+    std::filesystem::current_path(fixture.Path("."));
+    const std::filesystem::path themes = "Data/Interface/RmlUi/themes";
+    for (const auto* theme : {"child", "parent", "grandchild"})
+    {
+        std::filesystem::create_directories(themes / theme);
+        std::ofstream(themes / theme / "base.rcss") << "body {}";
+    }
+    std::ofstream(themes / "child/theme.ini")
+        << "[Theme]\nBase=parent\n[Meta]\nDisplayName=Test "
+           "child\n[Capabilities]\nCompactHud=1\nCornerBuffStrip=1\n[Layout]\nHudReferenceHeight="
+           "768\nWindowReferenceWidth=1024\nWindowReferenceHeight=768\n"
+           "[Inventory]\nPersonalStore=0\nExpansionLimit=2\n";
+    std::ofstream(themes / "parent/theme.ini") << "[Meta]\nDisplayName=Test parent\n";
+    // Inherits every setting from `child`, and overrides one.
+    std::ofstream(themes / "grandchild/theme.ini") << "[Theme]\nBase=child\n[Inventory]\nExpansionLimit=1\n";
+
+    UI::RmlBridge::SetActiveThemeName("child");
+    CHECK(UI::RmlBridge::ThemeUsesCompactHud());
+    CHECK(UI::RmlBridge::ThemeUsesCornerBuffStrip());
+    CHECK_FALSE(UI::RmlBridge::ThemeShowsPersonalStore());
+    CHECK(UI::RmlBridge::ThemeInventoryExpansionLimit() == 2);
+    const float childReferenceUnit = UI::RmlBridge::ThemeHudUnitPixels(768);
+    CHECK(UI::RmlBridge::ThemeHudUnitPixels(1080) == doctest::Approx(childReferenceUnit * 1.40625f));
+    const float windowUnit = UI::RmlBridge::ThemeWindowUnitPixels(1024, 768);
+    CHECK(UI::RmlBridge::ThemeWindowUnitPixels(1920, 1080) == doctest::Approx(windowUnit * 1.185854f));
+    CHECK(UI::RmlBridge::ThemeWindowUnitPixels(3840, 2160) == doctest::Approx(windowUnit * 1.677051f));
+    CHECK(UI::Scaling::PanelTransform(1920, 1080).scaleX ==
+          doctest::Approx(UI::RmlBridge::ThemeWindowUnitPixels(1920, 1080, true)));
+    CHECK(UI::Scaling::CompanionRatio(1920, 1080) == UI::Scaling::PanelTransform(1920, 1080).scaleX);
+    CHECK(UI::Scaling::DockRightTransform(1920, 1080).scaleX == UI::Scaling::CompanionRatio(1920, 1080));
+    CHECK(UI::Scaling::NativeTextPixelSize(UI::Scaling::FontRole::Normal, UI::Scaling::PanelTransform(3840, 2160)) >
+          UI::Scaling::NativeTextPixelSize(UI::Scaling::FontRole::Normal, UI::Scaling::PanelTransform(1920, 1080)));
+    auto& config = GameConfig::GetInstance();
+    const int savedPercent = config.GetUIScalePercent();
+    const float unitBefore = UI::RmlBridge::ThemeWindowUnitPixels(1920, 1080);
+    config.SetUIScalePercent(savedPercent * 2);
+    CHECK(UI::RmlBridge::ThemeWindowUnitPixels(1920, 1080) == doctest::Approx(unitBefore * 1.5f));
+    config.SetUIScalePercent(savedPercent);
+    const float hudBefore = UI::Scaling::BottomHudScale(1920, 1080);
+    CHECK(UI::RmlBridge::GetThemeDisplayName("child") == "Test child");
+    UI::RmlBridge::SetActiveThemeName("parent");
+    CHECK(UI::RmlBridge::ThemeShowsPersonalStore());
+    CHECK(UI::RmlBridge::ThemeInventoryExpansionLimit() == 4);
+    CHECK(UI::RmlBridge::ThemeWindowUnitPixels(3840, 2160) == 0.f);
+    CHECK(UI::Scaling::BottomHudScale(1920, 1080) == hudBefore);
+    CHECK_FALSE(UI::RmlBridge::ThemeUsesCompactHud());
+    CHECK_FALSE(UI::RmlBridge::ThemeUsesCornerBuffStrip());
+    CHECK(UI::RmlBridge::ThemeHudUnitPixels(1080) == doctest::Approx(childReferenceUnit));
+    UI::RmlBridge::SetActiveThemeName("grandchild");
+    CHECK(UI::RmlBridge::ThemeUsesCompactHud());
+    CHECK_FALSE(UI::RmlBridge::ThemeShowsPersonalStore());
+    CHECK(UI::RmlBridge::ThemeInventoryExpansionLimit() == 1);
+    CHECK(UI::RmlBridge::ThemeHudUnitPixels(768) == doctest::Approx(childReferenceUnit));
+    const auto available = UI::RmlBridge::DiscoverAvailableThemes();
+    CHECK(std::find(available.begin(), available.end(), "child") != available.end());
 }

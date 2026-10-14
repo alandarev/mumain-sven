@@ -11,6 +11,7 @@
 #include "UI/Inventory/InventoryCtrl.h"
 #include "UI/Inventory/MyInventory.h"
 #include "UI/RmlBridge/RmlThemedView.h"
+#include "UI/NPCs/PurchaseBatch.h"
 #include <span>
 
 namespace Rml { class ElementDocument; }
@@ -42,6 +43,18 @@ namespace mu::ui::window
         DWORD m_dwStandbyItemKey;
 
         bool m_bSellingItem;
+        UI::NPCs::PurchaseBatch m_Purchases;
+        DWORD m_QuantityKey = 0;
+        int m_OfferUnits = 1;
+        std::int64_t m_OfferEstimate = 0;
+        int m_BatchTax = 0;
+        unsigned long long m_NextPurchaseAt = 0;
+        unsigned long long m_FeedbackUntil = 0;
+        Rml::String m_Feedback;
+        Rml::String m_MerchantName;
+        bool m_RepairPending = false;
+        unsigned long long m_RepairStartedAt = 0;
+        unsigned long long m_RepairGoldBefore = 0;
 
         // Window frame/title/tax-rate line/repair buttons/repair-money strip are RmlUi; the
         // inventory grid stays native since its icons are live 3D model renders (same reasoning
@@ -52,6 +65,20 @@ namespace mu::ui::window
 
             Rml::String title;
             Rml::String taxRateText;
+            std::vector<int> rows;
+            Rml::String contextName;
+            Rml::String contextPrice;
+            Rml::String contextHint;
+            bool highlightVisible = false;
+            int highlightColumn = 0, highlightRow = 0, highlightWidth = 1, highlightHeight = 1;
+            bool buyPending = false;
+            bool repairActive = false;
+            bool quantityOpen = false;
+            int quantity = 1;
+            Rml::String quantityText = "1";
+            bool quantityValid = true;
+            Rml::String quantityName;
+            Rml::String quantityTotal;
 
             bool repairVisible = false;
             Rml::String repairTooltip;
@@ -76,6 +103,21 @@ namespace mu::ui::window
 
         void BuildRmlUi();
         void SyncRmlModel();
+        void BindCounterModel(Rml::DataModelConstructor& c, NPCShopRmlModel& model);
+        void SyncCounterModel();
+        void SyncCounterGrid();
+        void SyncCounterContext();
+        void SyncQuantityModel();
+        bool ProcessCounterClick(ITEM* item);
+        void OpenQuantity(ITEM* item);
+        void ConfirmQuantity();
+        void StartPurchase(ITEM* item, int offers);
+        void UpdatePurchase();
+        void RepairAll();
+        void UpdateRepairFeedback();
+        void SetFeedback(const Rml::String& text);
+        void ResetCounter();
+        bool SubmitSale();
 
     public:
         CNPCShop();
@@ -103,6 +145,7 @@ namespace mu::ui::window
 
         void ClosingProcess();
         void SetRepairShop(bool bRepair);
+        void SetMerchant(int characterIndex);
         bool IsRepairShop();
         // The shop's grid, for the control socket.
         CInventoryCtrl* GetInventoryCtrl() const { return m_pNewInventoryCtrl; }
@@ -119,6 +162,11 @@ namespace mu::ui::window
 
         void SetSellingItem(bool bFlag);
         bool IsSellingItem();
+        bool IsTransactionPending() const;
+        void PurchaseFinished(bool success);
+        void SaleFinished(bool success);
+        void RepairFinished(bool success);
+        bool SellPickedItem();
 
     private:
         void Init();

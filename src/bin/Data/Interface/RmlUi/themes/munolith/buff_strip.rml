@@ -1,0 +1,23 @@
+<rml>
+<head>
+    <title>Corner Buff Strip</title>
+    <link type="text/rcss" href="base.rcss"/>
+    <link type="text/rcss" href="buff_strip.rcss"/>
+</head>
+<body data-class-compact-medium="hud_viewport_width &lt; 780" data-class-compact-narrow="hud_viewport_width &lt; 480" data-model="buff_strip" data-style-font-size="hud_unit_px + 'px'">
+    <div id="corner_effects">
+        <div class="effect-row beneficial">
+            <div class="effect" data-for="buff : beneficial" data-event-mouseup="buff_cancel(buff.slot)" data-event-mouseover="buff_hover(buff.slot)" data-event-mouseout="buff_leave" data-class-expiring="buff.expiring">
+                <div class="effect-frame"><div class="buff-icon-art" data-style-decorator="buff.decorator"></div></div>
+                <div class="effect-time">{{buff.remaining}}</div>
+            </div>
+        </div>
+        <div class="effect-row harmful">
+            <div class="effect" data-for="buff : harmful" data-event-mouseup="buff_cancel(buff.slot)" data-event-mouseover="buff_hover(buff.slot)" data-event-mouseout="buff_leave" data-class-expiring="buff.expiring">
+                <div class="effect-frame"><div class="buff-icon-art" data-style-decorator="buff.decorator"></div></div>
+                <div class="effect-time">{{buff.remaining}}</div>
+            </div>
+        </div>
+    </div>
+</body>
+</rml>

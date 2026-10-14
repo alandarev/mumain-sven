@@ -42,8 +42,37 @@ namespace
     // directly -- no data-model binding needed, RmlUi's own <progress> element already owns that
     // state.
     Rml::ElementProgress* s_pGaugeFill = nullptr;
-    UI::RmlBridge::ThemedView<> s_view{{{"Data/Interface/RmlUi/title_scene.rml"}},
-                                       {.beforeUnload = [] { s_pGaugeFill = nullptr; }}};
+    void ConfigureTitleProgress();
+
+    UI::RmlBridge::ThemedView<> s_view{
+        {{"Data/Interface/RmlUi/title_scene.rml"}},
+        {.afterBuild = ConfigureTitleProgress, .beforeUnload = [] { s_pGaugeFill = nullptr; }}};
+
+    void ConfigureTitleProgress()
+    {
+        auto* document = s_view.Document();
+        s_pGaugeFill = rmlui_dynamic_cast<Rml::ElementProgress*>(document->GetElementById("gauge_fill"));
+        if (!s_pGaugeFill || document->IsClassSet("viewport-progress"))
+        {
+            return;
+        }
+
+        constexpr float referenceWidth = 800.0f;
+        constexpr float referenceHeight = 600.0f;
+        constexpr int gaugeLeft = 72;
+        constexpr int gaugeTop = 540;
+        constexpr int gaugeWidth = 656;
+        constexpr int gaugeHeight = 15;
+
+        // The original gauge follows the independently scaled native background sprites.
+        CInput& input = CInput::Instance();
+        const float scaleX = static_cast<float>(input.GetScreenWidth()) / referenceWidth;
+        const float scaleY = static_cast<float>(input.GetScreenHeight()) / referenceHeight;
+        s_pGaugeFill->SetProperty("left", std::to_string(static_cast<int>(gaugeLeft * scaleX)) + "px");
+        s_pGaugeFill->SetProperty("top", std::to_string(static_cast<int>(gaugeTop * scaleY)) + "px");
+        s_pGaugeFill->SetProperty("width", std::to_string(static_cast<int>(gaugeWidth * scaleX)) + "px");
+        s_pGaugeFill->SetProperty("height", std::to_string(static_cast<int>(gaugeHeight * scaleY)) + "px");
+    }
 }
 
 void TitleSceneUI::CreateSceneUI()
@@ -108,25 +137,7 @@ void TitleSceneUI::CreateSceneUI()
     // matching LoadingScene.cpp's own guard around its structurally identical sprite->RmlUi port.
     if (s_view.Ensure())
     {
-        Rml::ElementDocument* document = s_view.Document();
-        document->Show();
-        s_pGaugeFill = rmlui_dynamic_cast<Rml::ElementProgress*>(document->GetElementById("gauge_fill"));
-
-        // Pushed as real px, not dp -- dp only matches this scene's still-native background
-        // sprites' own fScaleX/fScaleY (800x600-reference, independent per axis, unclamped)
-        // scaling at exactly the 640x480 reference size (RmlUi's dp unit is a different,
-        // uniform/clamped formula against a 640x480 reference -- confirmed live: the
-        // gauge only lined up at 640x480 before this, misplaced everywhere else). Recomputing
-        // the identical fScaleX/fScaleY math CGaugeBar::Create()/SetPosition() used keeps this
-        // pixel-exact with the sprites at any resolution, same reasoning login_main.rcss's own
-        // #panel comment gives for pushing its geometry from C++ instead of static dp.
-        if (s_pGaugeFill)
-        {
-            s_pGaugeFill->SetProperty("left", std::to_string(static_cast<int>(72 * fScaleX)) + "px");
-            s_pGaugeFill->SetProperty("top", std::to_string(static_cast<int>(540 * fScaleY)) + "px");
-            s_pGaugeFill->SetProperty("width", std::to_string(static_cast<int>(656 * fScaleX)) + "px");
-            s_pGaugeFill->SetProperty("height", std::to_string(static_cast<int>(15 * fScaleY)) + "px");
-        }
+        s_view.Document()->Show(Rml::ModalFlag::None, Rml::FocusFlag::None);
     }
 
     for (int i = 0; i < UIM_TS_MAX; ++i)

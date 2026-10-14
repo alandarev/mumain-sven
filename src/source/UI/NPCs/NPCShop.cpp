@@ -27,6 +27,7 @@
 
 using namespace SEASON3B;
 using namespace mu::ui::window;
+extern int TargetNpc;
 
 extern int BuyCost;
 
@@ -85,14 +86,16 @@ bool mu::ui::window::CNPCShop::Create(CManager* pNewUIMng)
 
 void mu::ui::window::CNPCShop::BindRmlModel(Rml::DataModelConstructor& c, NPCShopRmlModel& model)
 {
-    // The frame's corner close; a sale in flight keeps the shop open.
-    UI::RmlBridge::BindWindowClose(c, [this]
-        {
-            if (!m_bSellingItem)
-                g_pNewUISystem->Hide(mu::ui::window::INTERFACE_NPCSHOP);
-        });
+    // The frame's corner close; a transaction in flight keeps the shop open.
+    UI::RmlBridge::BindWindowClose(c,
+                                   [this]
+                                   {
+                                       if (!IsTransactionPending())
+                                           g_pNewUISystem->Hide(mu::ui::window::INTERFACE_NPCSHOP);
+                                   });
     UI::Items::RegisterItemGridCells(c);
     c.Bind("grid_cells", &model.gridCells);
+    BindCounterModel(c, model);
     c.Bind("text_px", &model.textPx);
 
     c.Bind("title", &model.title);
@@ -108,10 +111,7 @@ void mu::ui::window::CNPCShop::BindRmlModel(Rml::DataModelConstructor& c, NPCSho
     c.BindEventCallback("npc_shop_repair_click",
         [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) { ToggleState(); });
     c.BindEventCallback("npc_shop_repair_all_click",
-        [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&)
-        {
-            SocketClient->ToGameServer()->SendRepairItemRequest(0xFF, 0);
-        });
+                        [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) { RepairAll(); });
 }
 
 void mu::ui::window::CNPCShop::BuildRmlUi()
@@ -135,6 +135,12 @@ void mu::ui::window::CNPCShop::Release()
 
 bool mu::ui::window::CNPCShop::UpdateMouseEvent()
 {
+    if (m_RmlView.GetModel().quantityOpen)
+        return false;
+    const bool compact = UI::RmlBridge::ThemeUsesCompactNpcShop();
+    // A release may remain observable after a quick acknowledgement. Re-arm only on a new press.
+    if (compact && mu::ui::window::IsPress(VK_LBUTTON))
+        m_bIsNPCShopOpen = true;
     if (m_pNewInventoryCtrl)
     {
         if (false == m_pNewInventoryCtrl->UpdateMouseEvent())
@@ -153,6 +159,10 @@ bool mu::ui::window::CNPCShop::UpdateMouseEvent()
 
             if ((m_bIsNPCShopOpen == true) && (pItem) && (mu::ui::window::IsRelease(VK_LBUTTON)))
             {
+                if (compact)
+                    m_bIsNPCShopOpen = false;
+                if (ProcessCounterClick(pItem))
+                    return false;
                 int iIndex = (pItem->y * m_pNewInventoryCtrl->GetNumberOfColumn()) + pItem->x;
                 GambleSystem& _gambleSys = GambleSystem::Instance();
 
@@ -191,7 +201,7 @@ bool mu::ui::window::CNPCShop::UpdateMouseEvent()
             }
             if (mu::ui::window::IsRelease(VK_LBUTTON))
             {
-                m_bIsNPCShopOpen = true;
+                m_bIsNPCShopOpen = !compact;
                 return false;
             }
             if (mu::ui::window::IsPress(VK_LBUTTON))
@@ -222,9 +232,34 @@ bool mu::ui::window::CNPCShop::UpdateKeyEvent()
         return true;
     }
 
-    if (mu::ui::window::IsRepeat(VK_SHIFT) && mu::ui::window::IsPress('L'))
+    if (m_RmlView.GetModel().quantityOpen)
     {
-        SocketClient->ToGameServer()->SendRepairItemRequest(0xFF, 0);
+        if (mu::ui::window::IsPress(VK_ESCAPE))
+        {
+            m_RmlView.GetModel().quantityOpen = false;
+            m_RmlView.MarkDirty("quantity_open");
+        }
+        else if (mu::ui::window::IsPress(VK_RETURN))
+            ConfirmQuantity();
+        return false;
+    }
+    if (UI::RmlBridge::ThemeUsesCompactNpcShop() && mu::ui::window::IsPress(VK_ESCAPE))
+    {
+        if (m_Purchases.Active())
+        {
+            m_Purchases.Stop();
+            return false;
+        }
+        if (m_dwShopState == SHOP_STATE_REPAIR)
+        {
+            ToggleState();
+            return false;
+        }
+    }
+    if ((mu::ui::window::IsRepeat(VK_SHIFT) && mu::ui::window::IsPress('L')) ||
+        (UI::RmlBridge::ThemeUsesCompactNpcShop() && mu::ui::window::IsPress('A')))
+    {
+        RepairAll();
         return false;
     }
     if (mu::ui::window::IsPress('L'))
@@ -238,7 +273,7 @@ bool mu::ui::window::CNPCShop::UpdateKeyEvent()
 
     if (g_pNewUISystem->IsVisible(mu::ui::window::INTERFACE_NPCSHOP) == true)
     {
-        if (mu::ui::window::IsPress(VK_ESCAPE) == true && m_bSellingItem == false)
+        if (mu::ui::window::IsPress(VK_ESCAPE) == true && !IsTransactionPending())
         {
             g_pNewUISystem->Hide(mu::ui::window::INTERFACE_NPCSHOP);
             PlayBuffer(SOUND_CLICK01);
@@ -250,14 +285,18 @@ bool mu::ui::window::CNPCShop::UpdateKeyEvent()
 
 bool mu::ui::window::CNPCShop::Update()
 {
+    UpdatePurchase();
     if (m_bRepairShop)
     {
         RepairAllGold();
+        UpdateRepairFeedback();
     }
     if (m_pNewInventoryCtrl && false == m_pNewInventoryCtrl->Update())
     {
         return false;
     }
+    if (m_pNewInventoryCtrl && m_RmlView.GetModel().quantityOpen)
+        m_pNewInventoryCtrl->DeleteItemToolTip();
 
     SyncRmlModel();
     return true;
@@ -305,7 +344,8 @@ void mu::ui::window::CNPCShop::SyncRmlModel()
         syncText(field, boundName, StringUtils::WideToNarrow(text));
     };
 
-    syncWide(&NPCShopRmlModel::title, "title", I18N::Game::Merchant);
+    if (!UI::RmlBridge::ThemeUsesCompactNpcShop() || m_MerchantName.empty())
+        syncWide(&NPCShopRmlModel::title, "title", I18N::Game::Merchant);
 
     wchar_t taxRateBuf[256];
     mu_swprintf(taxRateBuf, I18N::Game::TaxRateDChangedInRealTime, m_iTaxRate);
@@ -322,6 +362,7 @@ void mu::ui::window::CNPCShop::SyncRmlModel()
 
     syncText(&NPCShopRmlModel::repairGoldTier, "repair_gold_tier",
              UI::RmlBridge::GoldTierKey(GameLogic::Items::ClassifyGoldAmount(AllRepairGold)));
+    SyncCounterModel();
 }
 
 float mu::ui::window::CNPCShop::GetLayerDepth()
@@ -351,83 +392,13 @@ bool mu::ui::window::CNPCShop::InsertItem(int iIndex, std::span<const BYTE> pbyI
 
 bool mu::ui::window::CNPCShop::InventoryProcess()
 {
-    CPickedItem* pPickedItem = CInventoryCtrl::GetPickedItem();
-
-    if (!m_pNewInventoryCtrl)	return false;
-    if (!pPickedItem)			return false;
-    ITEM* pItem = pPickedItem->GetItem();
-
-    if (GameLogic::Items::IsSellingBan(pItem))	m_pNewInventoryCtrl->SetSquareColorNormal(1.0f, 0.0f, 0.0f);
-    else	m_pNewInventoryCtrl->SetSquareColorNormal(0.1f, 0.4f, 0.8f);
-
-    if (mu::ui::window::IsRelease(VK_LBUTTON) == true && m_pNewInventoryCtrl->ContainsPointer() == true && m_bSellingItem == false)
+    if (!m_pNewInventoryCtrl || !CInventoryCtrl::GetPickedItem())
+        return false;
+    if (mu::ui::window::IsRelease(VK_LBUTTON) && m_pNewInventoryCtrl->ContainsPointer())
     {
-        if (CharacterMachine->Gold + ItemValue(pItem) > 2000000000)
-        {
-            g_pSystemLogBox->AddText(I18N::Game::ExceededMaximumAmountOfZenYouCanPossess, mu::ui::window::TYPE_SYSTEM_MESSAGE);
-
-            return true;
-        }
-
-        if (pItem && pItem->Jewel_Of_Harmony_Option != 0)
-        {
-            g_pSystemLogBox->AddText(I18N::Game::ReinforcedItemCanTBeSold, mu::ui::window::TYPE_ERROR_MESSAGE);
-
-            return true;
-        }
-        if (pItem && GameLogic::Items::IsSellingBan(pItem) == true)
-        {
-            g_pSystemLogBox->AddText(I18N::Game::TheseItemsCannotBeTraded, mu::ui::window::TYPE_ERROR_MESSAGE);
-            m_pNewInventoryCtrl->BackupPickedItem();
-
-            return true;
-        }
-        if (pItem && GameLogic::Items::IsHighValueItem(pItem) == true)
-        {
-            mu::ui::window::GenericDialogConfig cfg;
-            cfg.showCancel = true;
-            cfg.item3D = *pItem;
-            cfg.lines = {
-                { I18N::Game::AnExpensiveItem, true },
-                { I18N::Game::CheckTheItemPlease, true },
-                { I18N::Game::AreYouSureYouWantToSellIt, true },
-            };
-            cfg.onPrimary = []
-            {
-                CPickedItem* pPickedItem = mu::ui::window::CInventoryCtrl::GetPickedItem();
-                int iSourceIndex = pPickedItem ? pPickedItem->GetSourceLinealPos() : -1;
-                if (iSourceIndex >= MAX_EQUIPMENT_INDEX && iSourceIndex < MAX_MY_INVENTORY_EX_INDEX)
-                {
-                    SocketClient->ToGameServer()->SendSellItemToNpcRequest(iSourceIndex);
-                    g_pNPCShop->SetSellingItem(true);
-                }
-                else
-                {
-                    mu::ui::window::CInventoryCtrl::BackupPickedItem();
-                }
-            };
-            cfg.onCancel = []
-            {
-                mu::ui::window::CInventoryCtrl::BackupPickedItem();
-            };
-            mu::ui::window::g_pGenericConfirmDialog->Show(std::move(cfg));
-            pPickedItem->HidePickedItem();
-
-            return true;
-        }
-
-        if (pPickedItem->GetSourceStorageType() == STORAGE_TYPE::INVENTORY)
-        {
-            const int iSourceIndex = pPickedItem->GetSourceLinealPos();
-            if (iSourceIndex >= MAX_EQUIPMENT_INDEX && iSourceIndex < MAX_MY_INVENTORY_EX_INDEX)
-            {
-                SocketClient->ToGameServer()->SendSellItemToNpcRequest(iSourceIndex);
-                g_pNPCShop->SetSellingItem(true);
-                return true;
-            }
-        }
+        SellPickedItem();
+        return true;
     }
-
     return false;
 }
 
@@ -439,6 +410,7 @@ void mu::ui::window::CNPCShop::DeleteAllItems()
 
 void mu::ui::window::CNPCShop::OpenningProcess()
 {
+    ResetCounter();
     if (mu::ui::window::IsRepeat(VK_LBUTTON))
     {
         m_bIsNPCShopOpen = false;
@@ -451,6 +423,7 @@ void mu::ui::window::CNPCShop::OpenningProcess()
 
 void mu::ui::window::CNPCShop::ClosingProcess()
 {
+    ResetCounter();
     SocketClient->ToGameServer()->SendCloseNpcRequest();
 
     m_dwShopState = SHOP_STATE_BUYNSELL;
@@ -472,6 +445,10 @@ void mu::ui::window::CNPCShop::ClosingProcess()
 void mu::ui::window::CNPCShop::SetRepairShop(bool bRepair)
 {
     m_bRepairShop = bRepair;
+    // Ordinary NPC interaction calls this before clearing its conversation target.
+    if (CharactersClient && TargetNpc >= 0 && TargetNpc < MAX_CHARACTERS_CLIENT &&
+        CharactersClient[TargetNpc].Object.Live)
+        m_MerchantName = StringUtils::WideToNarrow(CharactersClient[TargetNpc].ID);
 }
 
 bool mu::ui::window::CNPCShop::IsRepairShop()
@@ -481,6 +458,8 @@ bool mu::ui::window::CNPCShop::IsRepairShop()
 
 void mu::ui::window::CNPCShop::ToggleState()
 {
+    if (!m_bRepairShop || IsTransactionPending() || CInventoryCtrl::GetPickedItem())
+        return;
     if (m_dwShopState == SHOP_STATE_BUYNSELL)
     {
         m_dwShopState = SHOP_STATE_REPAIR;

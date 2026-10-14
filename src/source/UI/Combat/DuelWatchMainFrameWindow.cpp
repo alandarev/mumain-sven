@@ -205,6 +205,8 @@ void CDuelWatchMainFrameWindow::BindRmlModel(Rml::DataModelConstructor& c, DuelW
 {
     c.Bind("watching", &model.watching);
     c.Bind("exit_hint", &model.exitHint);
+    c.Bind("hero_score", &model.heroScore);
+    c.Bind("enemy_score", &model.enemyScore);
     auto name = c.RegisterStruct<DuelWatchNameEntry>();
     name.RegisterMember("text", &DuelWatchNameEntry::text);
     name.RegisterMember("text_px", &DuelWatchNameEntry::textPx);
@@ -281,6 +283,25 @@ std::vector<DuelWatchGaugeEntry> CDuelWatchMainFrameWindow::StepGauges()
     return gauges;
 }
 
+void CDuelWatchMainFrameWindow::SyncScores()
+{
+    DuelWatchFrameRmlModel& model = m_RmlView.GetModel();
+    SyncField(m_RmlView.Binder(), &DuelWatchFrameRmlModel::heroScore, "hero_score", g_DuelMgr.GetScore(DUEL_HERO));
+    SyncField(m_RmlView.Binder(), &DuelWatchFrameRmlModel::enemyScore, "enemy_score", g_DuelMgr.GetScore(DUEL_ENEMY));
+    // A mark per point.
+    const auto syncMarks = [&](std::vector<int> DuelWatchFrameRmlModel::* marks, const char* name, int score)
+    {
+        const size_t count = static_cast<size_t>(std::max(0, score));
+        if ((model.*marks).size() != count)
+        {
+            (model.*marks).assign(count, 0);
+            m_RmlView.MarkDirty(name);
+        }
+    };
+    syncMarks(&DuelWatchFrameRmlModel::heroMarks, "hero_marks", g_DuelMgr.GetScore(DUEL_HERO));
+    syncMarks(&DuelWatchFrameRmlModel::enemyMarks, "enemy_marks", g_DuelMgr.GetScore(DUEL_ENEMY));
+}
+
 void CDuelWatchMainFrameWindow::SyncView()
 {
     BuildRmlUi();
@@ -314,18 +335,7 @@ void CDuelWatchMainFrameWindow::SyncView()
     SyncField(m_RmlView.Binder(), &DuelWatchFrameRmlModel::enemyName, "enemy_name", name(DUEL_ENEMY));
     DuelWatchFrameRmlModel& model = m_RmlView.GetModel();
 
-    // A mark per point.
-    const auto syncMarks = [&](std::vector<int> DuelWatchFrameRmlModel::*marks, const char* name, int score)
-    {
-        const size_t count = static_cast<size_t>(std::max(0, score));
-        if ((model.*marks).size() != count)
-        {
-            (model.*marks).assign(count, 0);
-            m_RmlView.MarkDirty(name);
-        }
-    };
-    syncMarks(&DuelWatchFrameRmlModel::heroMarks, "hero_marks", g_DuelMgr.GetScore(DUEL_HERO));
-    syncMarks(&DuelWatchFrameRmlModel::enemyMarks, "enemy_marks", g_DuelMgr.GetScore(DUEL_ENEMY));
+    SyncScores();
 
     std::vector<DuelWatchGaugeEntry> gauges = StepGauges();
     const bool sameGauges = model.gauges.size() == gauges.size() &&

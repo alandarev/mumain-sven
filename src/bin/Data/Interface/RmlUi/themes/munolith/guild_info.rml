@@ -1,0 +1,70 @@
+<rml><head><title>{{title.text}}</title>
+<link type="text/rcss" href="base.rcss"/>
+<link type="text/rcss" href="my_inventory_shared.rcss"/>
+<link type="text/rcss" href="social_shared.rcss"/>
+<link type="text/rcss" href="guild_info.rcss"/>
+</head><body>
+<div id="panel" data-model="guild_info">
+<div class="stone"></div><div class="shade"></div>
+<div class="trim top-left"></div><div class="trim top-mid"></div><div class="trim top-right"></div>
+<div class="trim side-left"></div><div class="trim side-right"></div>
+<div class="trim bottom-left"></div><div class="trim bottom-mid"></div><div class="trim bottom-right"></div>
+<span id="title" class="sharp-text counter-scaled" data-style-font-size="text_px + 'px'">{{title.text}}</span>
+<div id="btn_corner_close" data-event-click="guild_info_button(6)"></div>
+<div class="sharp-text counter-scaled guild-empty" data-if="no_guild" data-style-font-size="text_px + 'px'">
+  <span>{{hint_line1.text}}</span><span>{{hint_line2.text}}</span><span>{{hint_line3.text}}</span>
+</div>
+<div class="sharp-text counter-scaled guild-body" data-if="!no_guild" data-style-font-size="text_px + 'px'">
+  <div class="guild-summary">
+    <div id="guild_mark" class="social-mark"><div class="mark-cell" data-for="m : mark_cells" data-style-background-color="m"></div></div>
+    <div class="guild-name">{{guild_identity}}</div>
+    <div class="guild-fact">{{score.text}}</div><div class="guild-fact">{{member_count.text}}</div><div class="guild-fact">{{rival.text}}</div>
+  </div>
+  <div class="guild-main">
+    <div id="guild_tabs">
+      <div class="guild-tab" data-class-selected="tab == 0" data-event-click="guild_info_tab(0)"><span>{{tab_info.text}}</span></div>
+      <div class="guild-tab" data-class-selected="tab == 1" data-event-click="guild_info_tab(1)"><span>{{tab_members.text}}</span></div>
+      <div class="guild-tab" data-class-selected="tab == 2" data-event-click="guild_info_tab(2)"><span>{{tab_union.text}}</span></div>
+    </div>
+    <div class="guild-page" data-if="tab == 0">
+      <div class="guild-heading">{{notice_label.text}}</div>
+      <div id="gi_notice_list" class="social-scroll">
+        <div class="notice-row" data-for="r : notice_rows">{{r.text}}</div>
+      </div>
+      <div class="guild-actions">
+        <div id="btn_guild_out" class="social-btn" data-if="guild_out_button.shown" data-event-click="guild_info_button(0)"><span>{{guild_out_button.label}}</span></div>
+      </div>
+    </div>
+    <div class="guild-page" data-if="tab == 1">
+      <div class="list-head"><span>{{header_name.text}} / {{header_position.text}}</span><span>{{header_server.text}}</span></div>
+      <div id="gi_member_list" class="social-scroll">
+        <div class="member-row" data-for="r : member_rows" data-class-selected="r.selected" data-class-officer="r.officer" data-event-click="guild_info_select_member(it_index)">
+          <div class="row-top"><span class="member-name">{{r.name}}</span><span class="member-server">{{r.server == '' ? 'Offline' : r.server}}</span></div>
+          <div class="member-role">{{r.role == '' ? 'Member' : r.role}}</div>
+        </div>
+      </div>
+      <div class="guild-actions">
+        <div id="btn_get_position" class="social-btn" data-if="get_position_button.shown" data-event-click="guild_info_button(1)"><span>{{get_position_button.label}}</span></div>
+        <div id="btn_free_position" class="social-btn" data-if="free_position_button.shown" data-event-click="guild_info_button(2)"><span>{{free_position_button.label}}</span></div>
+        <div id="btn_get_out" class="social-btn" data-if="get_out_button.shown" data-event-click="guild_info_button(3)"><span>{{get_out_button.label}}</span></div>
+      </div>
+    </div>
+    <div class="guild-page" data-if="tab == 2">
+      <div data-if="union_shown">
+        <div class="list-head"><span>{{header_union_name.text}}</span><span>{{header_union_members.text}}</span></div>
+        <div id="gi_union_list" class="social-scroll">
+          <div class="alliance-row" data-for="r : union_rows" data-class-selected="r.selected" data-event-click="guild_info_select_union(it_index)">
+            <div class="social-mark"><div class="mark-cell" data-for="c : r.mark_cells" data-style-background-color="c"></div></div>
+            <span class="alliance-name">{{r.name}}</span><span>{{r.member_count}}</span>
+          </div>
+        </div>
+        <div class="guild-actions">
+          <div class="social-btn" data-if="union_create_button.shown" data-event-click="guild_info_button(4)"><span>{{union_create_button.label}}</span></div>
+          <div class="social-btn" data-if="union_out_button.shown" data-event-click="guild_info_button(5)"><span>{{union_out_button.label}}</span></div>
+        </div>
+      </div>
+      <div class="social-scroll alliance-help" data-if="!union_shown"><div class="alliance-note" data-for="l : alliance_lines">{{l.text}}</div></div>
+    </div>
+  </div>
+</div>
+</div></body></rml>

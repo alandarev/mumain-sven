@@ -7,8 +7,10 @@
 #include "Data/GameConfig/GameConfig.h"
 #include "Core/Platform/WinIni.h"
 #include "Render/RmlUi/RmlUiRuntime.h"
+#include "UI/Scaling/UITransform.h"
 
 #include <RmlUi/Core/Context.h>
+#include <optional>
 #include <RmlUi/Core/Core.h>
 #include <RmlUi/Core/ElementDocument.h>
 #include <RmlUi/Core/Factory.h>
@@ -73,6 +75,93 @@ namespace UI::RmlBridge
             return setting && std::strtol(setting->value.c_str(), nullptr, 10) != 0;
         }
 
+        // A theme.ini setting, inherited from the declared base themes ([Theme] Base).
+        std::optional<long> ThemeIntSetting(const std::string& themeName, const char* section, const char* key)
+        {
+            const ThemeInheritance theme(std::filesystem::path("Data/Interface/RmlUi/themes") / themeName);
+            const auto setting = theme.GetSetting(section, key);
+            if (!setting)
+                return std::nullopt;
+            return std::strtol(setting->value.c_str(), nullptr, 10);
+        }
+
+        bool ThemeCapability(const std::string& themeName, const char* key)
+        {
+            return ThemeIntSetting(themeName, "Capabilities", key).value_or(0) != 0;
+        }
+
+        bool& UsesCompactHudStorage()
+        {
+            static bool value = ThemeCapability(ActiveThemeNameStorage(), "CompactHud");
+            return value;
+        }
+
+        bool& UsesEmbeddedInventoryStorage()
+        {
+            static bool value = ThemeCapability(ActiveThemeNameStorage(), "EmbeddedInventory");
+            return value;
+        }
+
+        bool& UsesEmbeddedVaultStorage()
+        {
+            static bool value = ThemeCapability(ActiveThemeNameStorage(), "EmbeddedVault");
+            return value;
+        }
+
+        bool& UsesCompactNpcShopStorage()
+        {
+            static bool value = ThemeCapability(ActiveThemeNameStorage(), "CompactNpcShop");
+            return value;
+        }
+
+        bool& UsesCornerBuffStripStorage()
+        {
+            static bool value = ThemeCapability(ActiveThemeNameStorage(), "CornerBuffStrip");
+            return value;
+        }
+
+        std::pair<bool, int> ComputeInventoryOptions(const std::string& themeName)
+        {
+            constexpr int kLegacyMaxExtensions = 4;
+            const bool personalStore = ThemeIntSetting(themeName, "Inventory", "PersonalStore").value_or(1) != 0;
+            const long limit = ThemeIntSetting(themeName, "Inventory", "ExpansionLimit").value_or(kLegacyMaxExtensions);
+            return {personalStore, static_cast<int>(std::clamp<long>(limit, 0, kLegacyMaxExtensions))};
+        }
+
+        std::pair<bool, int>& InventoryOptionsStorage()
+        {
+            static auto options = ComputeInventoryOptions(ActiveThemeNameStorage());
+            return options;
+        }
+
+        int ComputeHudReferenceHeight(const std::string& themeName)
+        {
+            return std::max(0L, ThemeIntSetting(themeName, "Layout", "HudReferenceHeight").value_or(0));
+        }
+
+        int& HudReferenceHeightStorage()
+        {
+            static int value = ComputeHudReferenceHeight(ActiveThemeNameStorage());
+            return value;
+        }
+
+        std::pair<int, int> ComputeWindowReferenceSize(const std::string& themeName)
+        {
+            return {static_cast<int>(ThemeIntSetting(themeName, "Layout", "WindowReferenceWidth").value_or(0)),
+                    static_cast<int>(ThemeIntSetting(themeName, "Layout", "WindowReferenceHeight").value_or(0))};
+        }
+
+        std::pair<int, int>& WindowReferenceSizeStorage()
+        {
+            static auto value = []
+            {
+                const auto size = ComputeWindowReferenceSize(ActiveThemeNameStorage());
+                UI::Scaling::SetWindowDesignViewport(size.first, size.second);
+                return size;
+            }();
+            return value;
+        }
+
         bool& UsesNativeTextSizeStorage()
         {
             static bool usesNativeTextSize = ComputeUsesNativeTextSize(ActiveThemeNameStorage());
@@ -83,6 +172,7 @@ namespace UI::RmlBridge
 
     const std::string& GetActiveThemeName()
     {
+        WindowReferenceSizeStorage();
         return ActiveThemeNameStorage();
     }
 
@@ -109,10 +199,69 @@ namespace UI::RmlBridge
         return UsesNativeTextSizeStorage();
     }
 
+    bool ThemeUsesCompactHud()
+    {
+        return UsesCompactHudStorage();
+    }
+
+    bool ThemeUsesEmbeddedInventory()
+    {
+        return UsesEmbeddedInventoryStorage();
+    }
+
+    bool ThemeUsesEmbeddedVault()
+    {
+        return UsesEmbeddedVaultStorage();
+    }
+
+    bool ThemeUsesCompactNpcShop()
+    {
+        return UsesCompactNpcShopStorage();
+    }
+
+    bool ThemeShowsPersonalStore()
+    {
+        return InventoryOptionsStorage().first;
+    }
+
+    int ThemeInventoryExpansionLimit()
+    {
+        return InventoryOptionsStorage().second;
+    }
+
+    float ThemeHudUnitPixels(int windowHeight)
+    {
+        const float density = UI::Scaling::GetWindowContentScale();
+        const float userScale = GameConfig::GetInstance().GetUIScalePercent() * 0.01f;
+        return userScale * density *
+               UI::Scaling::ReferenceHeightScale(windowHeight, HudReferenceHeightStorage(), density);
+    }
+
+    float ThemeWindowUnitPixels(int width, int height, bool legacyUnits)
+    {
+        WindowReferenceSizeStorage();
+        return UI::Scaling::WindowUnitScale(width, height, legacyUnits);
+    }
+
+    bool ThemeUsesCornerBuffStrip()
+    {
+        return UsesCornerBuffStripStorage();
+    }
+
     void SetActiveThemeName(const std::string& themeName)
     {
         ActiveThemeNameStorage() = ToLower(themeName);
         UsesNativeTextSizeStorage() = ComputeUsesNativeTextSize(ActiveThemeNameStorage());
+        UsesCompactHudStorage() = ThemeCapability(ActiveThemeNameStorage(), "CompactHud");
+        UsesEmbeddedInventoryStorage() = ThemeCapability(ActiveThemeNameStorage(), "EmbeddedInventory");
+        UsesEmbeddedVaultStorage() = ThemeCapability(ActiveThemeNameStorage(), "EmbeddedVault");
+        UsesCompactNpcShopStorage() = ThemeCapability(ActiveThemeNameStorage(), "CompactNpcShop");
+        InventoryOptionsStorage() = ComputeInventoryOptions(ActiveThemeNameStorage());
+        HudReferenceHeightStorage() = ComputeHudReferenceHeight(ActiveThemeNameStorage());
+        WindowReferenceSizeStorage() = ComputeWindowReferenceSize(ActiveThemeNameStorage());
+        const auto [width, height] = WindowReferenceSizeStorage();
+        UI::Scaling::SetWindowDesignViewport(width, height);
+        UsesCornerBuffStripStorage() = ThemeCapability(ActiveThemeNameStorage(), "CornerBuffStrip");
 
         // Both themes deliberately reuse the same <template name="..."> for a shared concept
         // (e.g. "window_shell_bg") in their own themes/<theme>/ copy. Rml::TemplateCache caches a
@@ -449,6 +598,10 @@ namespace UI::RmlBridge
         }
 
         // Copy first -- see this function's own header comment (RmlTheme.h) for why.
+        // A theme may declare its own window reference size: re-apply the dp ratio first, so
+        // the rebuilt documents, native text and geometry agree immediately.
+        if (RmlUiRuntime::Instance().IsCreated())
+            RmlUiRuntime::Instance().RefreshScale();
         for (const ThemeReloadEntry& entry : ReloadOrder())
         {
             if (entry.callback)

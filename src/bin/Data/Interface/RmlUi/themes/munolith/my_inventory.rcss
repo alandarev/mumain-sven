@@ -1,0 +1,46 @@
+@spritesheet satchel-repair { src: "../../../newui_repair_00.tga"; repair-hammer: 0px 0px 36px 29px; }
+#panel { pointer-events: auto; }
+#title { position: absolute; left: 31px; right: 39px; top: 8px; height: 15px; cursor: move; }
+.native-text { display: block; transform-origin: left top; white-space: nowrap; pointer-events: none; }
+.title-text { width: 120px; text-align: center; transform-origin: center top; color: #e7c568; font-weight: normal; }
+.close { position: absolute; right: 1px; top: 1px; width: 16px; height: 16px; color: transparent; background-color: transparent; border-width: 0; cursor: pointer; pointer-events: auto; }
+.close:hover { border: 1px #e7c568; }
+.capacity { position: absolute; left: 15px; top: 30px; color: #aaa493; }
+.native-anchor { position: absolute; pointer-events: none; }
+.merchant-delivery { position: absolute; box-sizing: border-box; border: 1px #ead08b; background-color: #dcb44b18; pointer-events: none; }
+.money .zen.gained { color: #b7d88b; }
+#item_grid { left: 15px; top: 45px; }
+#item_grid_extension_1 { left: 15px; top: 205px; }
+#item_grid_extension_2 { left: 15px; top: 285px; }
+.footer { position: absolute; bottom: 7px; left: 15px; right: 15px; height: 22px; display: flex; align-items: center; gap: 5px; border-top: 1px #3b3c30; padding-top: 4px; }
+.money { position: relative; flex: 1 1 0; height: 18px; min-width: 0; }
+.money .amount { color: #dec575; top: 0; position: absolute; }
+.money .zen { position: absolute; top: 10px; color: #aaa493; }
+.repair { box-sizing: border-box; width: 23px; height: 19px; flex: 0 0 23px; decorator: image(repair-hammer); background-color: transparent; border: 1px #706a54; cursor: pointer; pointer-events: auto; }
+.repair.active { border: 2px #e7c568; background-color: #675122; }
+.repair:hover { border-color: #e7c568; }
+.hidden { display: none; }
+.expand { position: relative; box-sizing: border-box; width: 51px; height: 19px; flex: 0 0 51px; color: #e7d095; border: 1px #847244; background-color: #292c20; cursor: pointer; pointer-events: auto; }
+.expand:hover { background-color: #484332; border-color: #e7c568; }
+.expand .native-text { position: absolute; left: 3px; top: 4px; }
+.tooltip { display: none; position: absolute; left: 0; bottom: 28px; color: #e7d095; background-color: #10140ff5; border: 1px #948462; padding: 3px 5px; }
+.repair:hover ~ .tooltip { display: block; }
+.shop-entry { position: absolute; right: 15px; top: 29px; width: 45px; height: 13px; padding: 0 3px; font-size: 7px; box-sizing: border-box; color: #e7d095; border: 1px #847244; background-color: #292c20; pointer-events: auto; cursor: pointer; }
+.shop-entry.locked { color: #777c68; background-color: #22281e; }
+
+.shop-entry:hover, .shop-entry.active { background-color: #484332; border-color: #e7c568; }
+
+/* Drawn item targets share the original satchel pitch; CInventoryCtrl reads these boxes. */
+#item_grid, #item_grid_counts { left: 15px; top: 45px; width: 160px; height: 160px; }
+#item_grid_extension_1, #item_grid_extension_1_counts { left: 15px; top: 205px; width: 160px; height: 80px; }
+#item_grid_extension_2, #item_grid_extension_2_counts { left: 15px; top: 285px; width: 160px; height: 80px; }
+.item-view { left: -20px; top: -20px; width: calc(100% + 40px); height: calc(100% + 40px); }
+
+/* Delivery feedback is an authoritative cell range; theme still owns cell pitch and panel offset. */
+.merchant-delivery { left: calc(var(--delivery-column) * var(--item-cell)); top: calc(var(--delivery-row) * var(--item-cell)); width: calc(var(--delivery-width) * var(--item-cell)); height: calc(var(--delivery-height) * var(--item-cell)); }
+
+.option-labels { position: absolute; left: 15px; top: 21px; width: calc(160px * var(--root-scale)); text-align: center; transform-origin: left top; white-space: nowrap; }
+.option-label { display: inline; pointer-events: auto; cursor: default; color: #aaa493; }
+.option-label.active { color: #e7c568; }
+.option-label + .option-label { margin-left: 4px; }
+#option_tooltip_anchor { left: 95px; top: 35px; width: 0; height: 0; }

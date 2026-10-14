@@ -1,0 +1,11 @@
+body { width: 100%; height: 100%; margin: 0; pointer-events: none; }
+#login_footer {
+ position: absolute; left: 12px; right: 12px; bottom: 12px;
+ display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px;
+ padding: 8px 10px; box-sizing: border-box;
+ background-color: #0b1b12bb; border-top: 1px #79734a;
+ pointer-events: none;
+}
+.footer-text { display: block; font-family: "DejaVu Sans"; color: #b1b8a5; line-height: 1.2em; white-space: normal; pointer-events: none; }
+.footer-legal { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; pointer-events: none; }
+#footer_version { color: #c4b782; }

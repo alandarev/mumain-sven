@@ -786,6 +786,7 @@ void mu::ui::window::CCursedTempleSystem::BindRmlModel(Rml::DataModelConstructor
 void mu::ui::window::CCursedTempleSystem::BuildRmlUi()
 {
     m_RmlView.Ensure();
+    m_OverlayView.Ensure();
 }
 
 // The original RenderSkill(): the current skill's icon (grey until enough kill points), the kill
@@ -1038,6 +1039,7 @@ void mu::ui::window::CCursedTempleSystem::SyncView()
     {
         // Hidden while a zone was hovered ($preview off, leaving the map): its tooltip goes too.
         HideSkillHoverTooltip();
+        UI::RmlBridge::SyncDocumentVisibilityInFront(m_OverlayView.Document(), false);
         return;
     }
 
@@ -1065,6 +1067,25 @@ void mu::ui::window::CCursedTempleSystem::SyncView()
     CursedTempleSystemRmlModel& model = m_RmlView.GetModel();
     SyncField(m_RmlView.Binder(), &CursedTempleSystemRmlModel::sprites, "sprites", std::move(sprites));
     SyncField(m_RmlView.Binder(), &CursedTempleSystemRmlModel::tutorialLines, "tutorial_lines", std::move(lines));
+    SyncOverlay(model);
+}
+
+void mu::ui::window::CCursedTempleSystem::SyncOverlay(const CursedTempleSystemRmlModel& model)
+{
+    const bool visible = model.scoreShown || !model.tutorialLines.empty();
+    UI::RmlBridge::SyncDocumentVisibilityInFront(m_OverlayView.Document(), visible);
+    if (!visible)
+        return;
+
+    auto& binder = m_OverlayView.Binder();
+    SyncField(binder, &CursedTempleSystemRmlModel::scoreShown, "score_shown", model.scoreShown);
+    SyncField(binder, &CursedTempleSystemRmlModel::alliedTensSrc, "allied_tens_src", model.alliedTensSrc);
+    SyncField(binder, &CursedTempleSystemRmlModel::alliedOnesSrc, "allied_ones_src", model.alliedOnesSrc);
+    SyncField(binder, &CursedTempleSystemRmlModel::illusionTensSrc, "illusion_tens_src", model.illusionTensSrc);
+    SyncField(binder, &CursedTempleSystemRmlModel::illusionOnesSrc, "illusion_ones_src", model.illusionOnesSrc);
+    SyncField(binder, &CursedTempleSystemRmlModel::alliedTwoDigits, "allied_two_digits", model.alliedTwoDigits);
+    SyncField(binder, &CursedTempleSystemRmlModel::illusionTwoDigits, "illusion_two_digits", model.illusionTwoDigits);
+    SyncField(binder, &CursedTempleSystemRmlModel::tutorialLines, "tutorial_lines", model.tutorialLines);
 }
 
 bool mu::ui::window::CCursedTempleSystem::Render()

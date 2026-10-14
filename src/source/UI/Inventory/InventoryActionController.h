@@ -32,6 +32,7 @@ private:
     bool HandleRepairClick(CInventoryCtrl* targetControl) const;
 
     bool HandleRightClick(CInventoryCtrl* targetControl) const;
+    bool HandleFastTransfer(CInventoryCtrl* targetControl) const;
     bool HandleStorageAutoMove(CInventoryCtrl* targetControl) const;
     bool HandleMixAutoMove(CInventoryCtrl* targetControl) const;
     bool HandleSellToNPC(CInventoryCtrl* targetControl) const;

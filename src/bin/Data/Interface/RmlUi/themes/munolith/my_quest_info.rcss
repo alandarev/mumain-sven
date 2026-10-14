@@ -1,0 +1,41 @@
+/* Persistent selection beside details; all dimensions are shared window reference units. */
+#panel { width: 360px; }
+.tab-row { position: absolute; left: 15px; top: 38px; width: 330px; height: 25px; }
+.tab-btn { position: absolute; top: 0; text-align: center; color: #9fa79a; cursor: pointer; pointer-events: auto; white-space: nowrap; }
+.tab-btn-quest { left: 0; }
+.tab-btn-jobchange { left: 90px; }
+.tab-btn-castletemple { left: 180px; }
+.tab-btn:hover { color: #ecd3a0; }
+.tab-btn.active { color: #f5d18b; border-bottom: 1px #b69b54; }
+.quest-tab, .jobchange-tab, .castletemple-tab { position: absolute; left: 15px; top: 72px; width: 330px; height: 294px; }
+.quest-list { position: absolute; left: 0; top: 0; overflow: hidden auto; pointer-events: auto; }
+.quest-row { display: block; box-sizing: border-box; width: 100%; color: #bdc4b6; white-space: nowrap; cursor: pointer; pointer-events: auto; overflow: hidden; }
+.quest-row:hover { color: #f3db9d; }
+.quest-row.selected { color: #ffdd91; background-color: #b4a46522; }
+.quest-empty-msg { position: absolute; left: 0; top: 12px; color: #aeb6a4; white-space: normal; }
+.quest-empty-msg span { display: block; }
+.quest-divider { position: absolute; left: 153px; top: 0; width: 1px; height: 294px; background-color: #69745b55; pointer-events: none; }
+.quest-contents { position: absolute; left: 160px; top: 0; overflow: hidden auto; }
+.quest-content-row { display: block; box-sizing: border-box; width: 100%; color: #c6cbb9; white-space: normal; }
+.row-subject { color: #f6ce82; font-weight: bold; }
+.row-heading { color: #a8c398; font-weight: bold; }
+.row-summary { color: #c8c4b1; }
+.row-requirement, .row-reward { color: #dfbf67; }
+.row-requirement-unmet { color: #ff7760; }
+.row-random-reward { color: #ada1ee; }
+.clickable { cursor: pointer; pointer-events: auto; }
+.clickable:hover { background-color: #b4a46522; }
+.quest-popup-anchor { position: absolute; width: 0; height: 0; pointer-events: none; }
+#reward_popup_anchor { left: 270px; top: 300px; }
+.quest-btn { position: absolute; top: 369px; width: 74px; height: 22px; line-height: 22px; }
+.quest-btn-open { left: 186px; }
+.quest-btn-giveup { left: 267px; }
+#btn_quest_open:hover ~ .tooltip-open, #btn_quest_giveup:hover ~ .tooltip-giveup { display: block; }
+.jobchange-title { display: block; position: absolute; left: 160px; top: 0; color: #e2c991; font-weight: bold; }
+.jobchange-contents { position: absolute; left: 160px; top: 30px; }
+.jobchange-state { position: absolute; left: 0; top: 12px; color: #b2c798; }
+.jobchange-contents span, .jobchange-state span { display: block; white-space: normal; }
+.castle-block { position: absolute; left: 0; top: 12px; }
+.temple-block { position: absolute; left: 160px; top: 12px; }
+.castle-title, .temple-title { display: block; color: #e2c991; font-weight: bold; margin-bottom: 10px; }
+.castle-line, .temple-line { display: block; white-space: normal; color: #b6beaa; }

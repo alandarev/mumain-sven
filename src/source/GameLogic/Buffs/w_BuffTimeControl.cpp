@@ -6,6 +6,26 @@
 #include "w_BuffTimeControl.h"
 #include "Core/Time/FrameTimerScheduler.h"
 #include "I18N/All.h"
+#include <chrono>
+
+namespace
+{
+std::uint64_t EffectClockMilliseconds()
+{
+    return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch())
+        .count();
+}
+} // namespace
+
+void BuffTimeControl::RefreshEffectDuration(eBuffState bufftype, std::uint32_t seconds)
+{
+    m_EffectDurations[bufftype].Refresh(seconds, EffectClockMilliseconds());
+}
+
+void BuffTimeControl::RemoveEffectDuration(eBuffState bufftype)
+{
+    m_EffectDurations.erase(bufftype);
+}
 
 BuffTimeControlPtr BuffTimeControl::Make()
 {
@@ -137,6 +157,13 @@ bool BuffTimeControl::UnRegisterBuffTime(eBuffState bufftype)
 
 void BuffTimeControl::GetBuffStringTime(eBuffState bufftype, std::wstring& timeText)
 {
+    if (m_EffectDurations.contains(bufftype))
+    {
+        const auto remaining = GetRemainingMilliseconds(bufftype);
+        if (remaining > 0)
+            GetStringTime((remaining + 999ULL) / 1000, timeText, true);
+        return;
+    }
     for (BuffTimeInfoMap::iterator iter = m_BuffTimeList.begin(); iter != m_BuffTimeList.end(); ++iter)
     {
         BuffTimeInfo& bufftimeinfo = (*iter).second;
@@ -159,6 +186,19 @@ void BuffTimeControl::GetBuffStringTime(DWORD type, std::wstring& timeText, bool
         float fTime = bufftimeinfo.s_CurBuffTime * 0.001f;
         GetStringTime(fTime, timeText, issecond);
     }
+}
+
+DWORD BuffTimeControl::GetRemainingMilliseconds(eBuffState bufftype) const
+{
+    const auto duration = m_EffectDurations.find(bufftype);
+    if (duration != m_EffectDurations.end())
+        return duration->second.Remaining(EffectClockMilliseconds());
+    for (const auto& [type, info] : m_BuffTimeList)
+    {
+        if (info.s_BuffType == bufftype)
+            return info.s_CurBuffTime;
+    }
+    return 0;
 }
 
 const DWORD BuffTimeControl::GetBuffTime(DWORD type)
@@ -262,4 +302,3 @@ bool BuffTimeControl::CheckBuffTime(DWORD type)
     }
     return false;
 }
-

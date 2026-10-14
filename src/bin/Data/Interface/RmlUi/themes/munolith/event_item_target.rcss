@@ -1,0 +1,2 @@
+/* The common entry view draws its measured previews into this transparent image. */
+.entry-item { position: absolute; left: -20px; top: -20px; width: calc(100% + 40px); height: calc(100% + 40px); pointer-events: none; }

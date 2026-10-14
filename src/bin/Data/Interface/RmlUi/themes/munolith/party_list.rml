@@ -1,0 +1,11 @@
+<rml>
+<!-- bound-geometry: each card's health bar is a length from the member's health -->
+<head><title>Party HUD</title><link type="text/rcss" href="base.rcss"/><link type="text/rcss" href="party_list.rcss"/></head><body>
+<div id="panel" data-model="party_list">
+  <div class="card" data-for="card : cards" data-event-mouseover="party_hover(card.index)" data-event-mouseout="party_unhover" data-attr-id="'party_card_' + card.index" data-class-leader="card.leader" data-class-absent="card.absent" data-class-defense="card.defense_buff" data-class-selected="card.selected">
+    <div class="card-fill"></div><div class="card-select"></div>
+    <span class="sharp-text card-name counter-scaled" data-style-font-size="card.name_text_px + 'px'">{{card.name}}</span>
+    <div class="card-health-track"><div class="card-health" data-style-width="card.health_percent + '%'"></div></div>
+    <div class="card-leave" data-if="card.show_leave" data-event-click="party_leave(card.index)">×</div>
+  </div>
+</div></body></rml>

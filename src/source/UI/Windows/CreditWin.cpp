@@ -277,36 +277,36 @@ void CCreditWin::LoadText()
 
 void CCreditWin::SetTextIndex()
 {
-	if (0 == m_aCredit[m_nNowIndex].byClass)
-	{
-		::PlayBuffer(SOUND_CLICK01);
-		CloseWin();
-	}
+    if (0 == m_aCredit[m_nNowIndex].byClass)
+    {
+        ::PlayBuffer(SOUND_CLICK01);
+        CloseWin();
+    }
 
-	if (1 == m_aCredit[m_nNowIndex].byClass)
-	{
-		m_anTextIndex[CRW_INDEX_DEPARTMENT] = m_nNowIndex;
-		++m_nNowIndex;
-	}
-	if (2 == m_aCredit[m_nNowIndex].byClass)
-	{
-		m_anTextIndex[CRW_INDEX_TEAM] = m_nNowIndex;
-		++m_nNowIndex;
-	}
+    if (1 == m_aCredit[m_nNowIndex].byClass)
+    {
+        m_anTextIndex[CRW_INDEX_DEPARTMENT] = m_nNowIndex;
+        ++m_nNowIndex;
+    }
+    if (2 == m_aCredit[m_nNowIndex].byClass)
+    {
+        m_anTextIndex[CRW_INDEX_TEAM] = m_nNowIndex;
+        ++m_nNowIndex;
+    }
 
-	int iNameCnt = 0;
-	for (int i = 0; i < 4; ++i)
-	{
-		iNameCnt = i;
-		if (3 == m_aCredit[m_nNowIndex].byClass)
-		{
-			m_anTextIndex[CRW_INDEX_NAME0 + i] = m_nNowIndex;
-			++m_nNowIndex;
-		}
-		else
-			break;
-	}
-	m_nNameCount = iNameCnt;
+    int iNameCnt = 0;
+    for (int i = 0; i < 4; ++i)
+    {
+        if (3 == m_aCredit[m_nNowIndex].byClass)
+        {
+            m_anTextIndex[CRW_INDEX_NAME0 + i] = m_nNowIndex;
+            ++m_nNowIndex;
+            ++iNameCnt;
+        }
+        else
+            break;
+    }
+    m_nNameCount = iNameCnt;
 }
 
 void CCreditWin::AnimationText(int nClass, DurationMs deltaTime)

@@ -1,0 +1,23 @@
+#panel {
+ width: 300px; max-width: 86vw; max-height: 86vh;
+ box-sizing: border-box; padding: 22px;
+ font-family: "DejaVu Sans";
+ color: #d5ccb7;
+ background-color: #101b16;
+ border: 1px #79734a;
+ overflow: hidden auto;
+ pointer-events: auto;
+}
+.menu-heading { display: block; text-align: center; font-weight: bold; font-size: 1.2em; color: #dfcc99; margin-bottom: 18px; }
+.menu-actions { display: flex; flex-direction: column; gap: 8px; }
+.menu-action {
+ display: block; position: relative; width: 100%;
+ box-sizing: border-box; min-height: 40px; padding: 8px 10px;
+ decorator: none; font-family: "DejaVu Sans"; font-size: inherit;
+ line-height: 1.2em; white-space: normal; text-align: center;
+ color: #dfcc99; background-color: #17281b; border: 1px #6b6646;
+ pointer-events: auto;
+}
+.menu-action:hover { background-color: #293c24; border-color: #bfa561; }
+.menu-action.hidden { display: none; }
+#backdrop { background-color: #07100bb8; }

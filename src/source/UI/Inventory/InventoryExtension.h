@@ -78,6 +78,17 @@ namespace mu::ui::window
         // a slot belongs to is not derivable from the index alone, and
         // picking an item up needs the control it sits in.
         CInventoryCtrl* TryGetExtensionByInventoryIndex(int iIndex) const;
+        // A theme that embeds the first two owned extensions (ThemeUsesEmbeddedInventory()) draws
+        // them in the inventory's document; the inventory drives them through these.
+        static constexpr int EmbeddedExtensionCount = 2;
+        void SyncEmbeddedLayout(Rml::ElementDocument* inventoryDocument);
+        CInventoryCtrl* GetEmbeddedControl(int index) const;
+        CInventoryCtrl* FindEmbeddedControlAtPointer() const;
+        bool UpdateEmbeddedMouseEvent();
+        void UpdateEmbedded();
+        void RenderEmbedded();
+        void RenderEmbedded3D();
+        int GetEmbeddedFreeSlotCount() const;
 
     private:
         void Init();
@@ -85,5 +96,7 @@ namespace mu::ui::window
         // The pointer over the drawn panel.
         bool IsPointerOverPanel();
         bool InventoryProcess();
+        static int FirstWindowExtension();
+        static int OwnedExtensionCount();
     };
 }

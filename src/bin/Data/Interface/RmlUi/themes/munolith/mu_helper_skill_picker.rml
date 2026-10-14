@@ -1,0 +1,15 @@
+<!-- rml-contract-optional-callback: mhsp_pick: library selects validated skill_type through muhelper_choose rather than positional icon indices -->
+<rml><head><title>Skill library</title>
+<link type="text/rcss" href="base.rcss"/><link type="text/rcss" href="my_inventory_shared.rcss"/><link type="text/rcss" href="social_shared.rcss"/>
+<link type="text/rcss" href="../legacy/skill_icons.rcss"/><link type="text/rcss" href="../legacy/master_skill_icons.rcss"/><link type="text/rcss" href="mu_helper_skill_picker.rcss"/>
+</head><body><div id="panel" data-model="mu_helper_skill_picker">
+<div class="stone"></div><div class="shade"></div><div class="trim top-left"></div><div class="trim top-mid"></div><div class="trim top-right"></div><div class="trim side-left"></div><div class="trim side-right"></div><div class="trim bottom-left"></div><div class="trim bottom-mid"></div><div class="trim bottom-right"></div>
+<span id="title" class="sharp-text counter-scaled" data-style-font-size="text_px + 'px'">Skills</span>
+<div id="btn_corner_close" data-event-click="muhelper_picker_close"></div>
+<div id="skill_library">
+<div class="library-skill" data-for="e : entries" data-event-click="muhelper_choose(e.skill_type)">
+<div class="library-icon" data-style-decorator="e.decorator"></div>
+<span class="sharp-text counter-scaled library-name" data-style-font-size="text_px + 'px'">{{e.name}}</span>
+</div>
+<div class="sharp-text counter-scaled library-empty" data-if="entries.size == 0" data-style-font-size="text_px + 'px'">No eligible learned skills</div>
+</div></div></body></rml>

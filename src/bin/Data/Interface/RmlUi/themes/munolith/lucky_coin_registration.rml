@@ -1,0 +1,34 @@
+<rml>
+<head><link type="text/rcss" href="event_item_target.rcss"/><link type="text/rcss" href="scaled_content.rcss"/>
+<title>Reward counter</title>
+<link type="text/rcss" href="base.rcss"/>
+<link type="text/rcss" href="my_inventory_shared.rcss"/>
+<link type="text/rcss" href="castle_desks_common.rcss"/>
+<link type="text/rcss" href="reward_services.rcss"/>
+</head>
+<body data-model="lucky_coin_registration">
+<div id="panel" class="coin-registration" data-compact-scale="0.9" data-style---text-px="text_px"><div class="stone"></div><div class="shade"></div><div class="trim top-left"></div><div class="trim top-mid"></div><div class="trim top-right"></div><div class="trim side-left"></div><div class="trim side-right"></div><div class="trim bottom-left"></div><div class="trim bottom-mid"></div><div class="trim bottom-right"></div><img id="entry_item" class="entry-item"/>
+<div id="title">
+<span class="native-text scaled-width-250 readable-text counter-scaled scaled-reference">{{texts[0].text}}</span>
+</div>
+<button class="corner-close" data-event-click="window_close">×</button>
+<div id="coin_preview" class="native-anchor entry-item-box"/>
+<div class="registration-notes scroll-pane scaled-width-125 scaled-height-200 readable-text counter-scaled scaled-reference">
+<div class="reward-line">{{texts[1].text}}</div>
+<div class="reward-line">{{texts[2].text}}</div>
+<div class="reward-line">{{texts[3].text}}</div>
+<div class="reward-line">{{texts[4].text}}</div>
+</div>
+<div class="registered-count">
+<span class="native-text scaled-width-250 readable-text counter-scaled scaled-reference">{{texts[5].text}}</span>
+<span class="native-text scaled-width-250 readable-text counter-scaled scaled-reference">{{texts[6].text}}</span>
+</div>
+<button class="registration-action" data-class-locked="buttons[0].locked" data-attrif-disabled="buttons[0].locked" data-event-click="item_entry_press(0)">
+<span class="native-text scaled-width-250 readable-text counter-scaled scaled-reference">{{buttons[0].label}}</span>
+</button>
+<button class="desk-close" data-event-click="item_entry_press(1)">
+<span class="native-text scaled-width-250 readable-text counter-scaled scaled-reference">{{buttons[1].label}}</span>
+</button>
+</div>
+</body>
+</rml>

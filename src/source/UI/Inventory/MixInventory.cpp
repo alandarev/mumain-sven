@@ -33,6 +33,7 @@
 #include <algorithm>
 #include <array>
 #include "UI/RmlBridge/RmlSyncField.h"
+#include <RmlUi/Core/Element.h>
 #include <RmlUi/Core/ElementDocument.h>
 #include <RmlUi/Core/ElementUtilities.h>
 
@@ -348,14 +349,24 @@ bool CMixInventory::Render()
     return true;
 }
 
+// A theme marks its grid .themed-grid when its own cells frame the items.
+void CMixInventory::SyncNativeLayout()
+{
+    if (!m_pNewInventoryCtrl)
+        return;
+    Rml::ElementDocument* document = m_RmlView.Document();
+    Rml::Element* grid = document != nullptr ? document->GetElementById("item_grid") : nullptr;
+    m_pNewInventoryCtrl->SetPresentation(nullptr, grid != nullptr && grid->IsClassSet("themed-grid"));
+    m_pNewInventoryCtrl->FollowGridPx(document, "item_grid");
+}
+
 void CMixInventory::SyncRmlModel()
 {
     m_ItemTarget.Sync(m_RmlView.Document() ? m_RmlView.Document()->GetElementById("item_view") : nullptr, IsVisible());
     if (!m_RmlView.Document()) return;
     UI::RmlBridge::SyncDocumentVisibility(m_RmlView.Document(), IsVisible());
 
-    if (m_pNewInventoryCtrl)
-        m_pNewInventoryCtrl->FollowGridPx(m_RmlView.Document(), "item_grid");
+    SyncNativeLayout();
     if (m_pNewInventoryCtrl && m_RmlView.GetModel().gridCells != m_pNewInventoryCtrl->Cells())
     {
         m_RmlView.GetModel().gridCells = m_pNewInventoryCtrl->Cells();

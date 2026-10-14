@@ -56,6 +56,8 @@ namespace mu::ui::window
     private:
         struct MuHelperBarRmlModel
         {
+            int mapNumber = -1, positionX = -1, positionY = -1;
+            Rml::String mapName, coordinateText;
             Rml::String positionText;   // "MapName (x, y)"
             bool muHelperActive = false; // drives which of Start/Stop is shown
             Rml::String configHint;
@@ -72,7 +74,7 @@ namespace mu::ui::window
         bool m_bRmlToggleClicked = false;
 
         // The hovered button's hint (0 config, 1 start, 2 stop), in the shared tooltip.
-
+        void SyncLocation();
         void SyncRmlModel();
         void BuildRmlUi();
     };

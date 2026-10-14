@@ -1,0 +1,15 @@
+<rml>
+<head><title>Compact Forge Background</title><link type="text/rcss" href="my_inventory_shared.rcss"/><link type="text/rcss" href="mix_inventory.rcss"/></head>
+<body data-model="mix_inventory_bg"><div id="bg_root">
+    <div class="stone"></div><div class="shade"></div>
+    <div class="trim top-left"></div><div class="trim top-mid"></div><div class="trim top-right"></div>
+    <div class="trim side-left"></div><div class="trim side-right"></div>
+    <div class="trim bottom-left"></div><div class="trim bottom-mid"></div><div class="trim bottom-right"></div>
+    <div class="forge-grid">
+        <div class="grid-row"><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div></div>
+        <div class="grid-row"><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div></div>
+        <div class="grid-row"><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div></div>
+        <div class="grid-row"><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div></div>
+    </div>
+</div></body>
+</rml>

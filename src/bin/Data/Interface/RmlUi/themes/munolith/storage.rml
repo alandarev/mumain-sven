@@ -1,0 +1,21 @@
+<rml><head><title>Warehouse</title><link type="text/rcss" href="base.rcss"/><link type="text/rcss" href="../legacy/item_grid.rcss"/><link type="text/rcss" href="my_inventory_shared.rcss"/><link type="text/rcss" href="storage.rcss"/></head><body data-model="storage"><div id="panel" data-class-expanded="extra_visible">
+<div class="stone"></div><div class="shade"></div>
+<div class="trim top-left"></div><div class="trim top-mid"></div><div class="trim top-right"></div><div class="trim side-left"></div><div class="trim side-right"></div><div class="trim bottom-left"></div><div class="trim bottom-mid"></div><div class="trim bottom-right"></div>
+
+<div id="title"><span class="native-text counter-scaled" data-style-font-size="text_px + 'px'">{{title}}</span></div>
+<button id="vault_close" data-event-click="window_close">×</button>
+<div class="section-label base"><span class="native-text counter-scaled" data-style-font-size="text_px + 'px'">Base · 120</span></div>
+<div class="section-label extra" data-if="extra_visible"><span class="native-text counter-scaled" data-style-font-size="text_px + 'px'">{{extra_title}} · 120</span></div>
+<div id="item_grid" class="native-anchor item-grid themed-grid"><div class="item-grid-cells"><div data-for="c : grid_cells" data-attr-class="'item-cell ' + c.tint + ' ' + c.drop"><div class="item-cell-drop"></div></div></div></div>
+<div id="item_grid_extra" class="native-anchor item-grid themed-grid" data-if="extra_visible"><div class="item-grid-cells"><div data-for="c : grid_cells_extra" data-attr-class="'item-cell ' + c.tint + ' ' + c.drop"><div class="item-cell-drop"></div></div></div></div>
+<img id="item_view" class="item-view"/>
+<div id="item_grid_counts" class="item-grid-counts"><div class="item-count" data-for="c : grid_cells"><span class="item-count-text counter-scaled" data-if="c.count != ''" data-style-font-size="text_px + 'px'">{{c.count}}</span></div></div>
+<div id="item_grid_extra_counts" class="item-grid-counts" data-if="extra_visible"><div class="item-count" data-for="c : grid_cells_extra"><span class="item-count-text counter-scaled" data-if="c.count != ''" data-style-font-size="text_px + 'px'">{{c.count}}</span></div></div>
+<div class="vault-footer">
+<div class="money-line"><span class="money-label">Zen</span><span class="native-text counter-scaled" data-style-font-size="text_px + 'px'" id="zen_text">{{zen_text}}</span></div>
+<div class="fee-line"><span class="native-text counter-scaled" data-style-font-size="text_px + 'px'">{{fee_label}} · Est. {{fee_value}}</span></div>
+<div class="vault-actions"><button id="btn_insert" data-event-click="storage_insert_click"><span class="native-text counter-scaled" data-style-font-size="text_px + 'px'">{{insert_tooltip}}</span></button><button id="btn_take" data-event-click="storage_take_click"><span class="native-text counter-scaled" data-style-font-size="text_px + 'px'">{{take_tooltip}}</span></button><button id="btn_lock" data-class-locked="storage_locked" data-event-click="storage_lock_click"><span class="native-text counter-scaled" data-style-font-size="text_px + 'px'">PIN</span></button></div>
+</div>
+<button id="btn_expand" data-if="expand_visible" data-event-click="storage_expand_click" data-attr-title="expand_tooltip">{{expand_tooltip}}</button>
+<div class="transfer-hint"><span class="native-text counter-scaled" data-style-font-size="(text_px * 0.8) + 'px'">Shift-click / right-click: move item</span></div>
+</div></body></rml>

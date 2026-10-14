@@ -1,0 +1,41 @@
+#panel, #bg_root { width: 190px; height: 400px; }
+#panel { pointer-events: none; }
+.native-text { display: inline-block; transform-origin: left top; white-space: nowrap; }
+#title { position: absolute; top: 8px; left: 15px; right: 24px; height: 15px; text-align: center; color: #d7b864; }
+button { display: inline-block; height: 20px; box-sizing: border-box; font-family: "DejaVu Sans"; font-size: 8px; color: #ded1ac; background-color: #343422; border: 1px #6b6646; pointer-events: auto; padding: 2px 4px; }
+button:hover { background-color: #51482b; border-color: #c9a65c; }
+button:disabled, button.locked { background-color: #24271e; color: #a9a48e; pointer-events: none; }
+#btn_corner_close { position: absolute; right: 5px; top: 3px; width: 10px; height: 12px; padding: 0; border-width: 0; background-color: transparent; color: #d7b864; font-size: 9px; }
+.materials-label { position: absolute; left: 15px; top: 30px; font-size: 8px; color: #a9a48e; }
+.native-anchor, .forge-grid { position: absolute; left: 15px; top: 44px; width: 160px; height: 80px; pointer-events: none; }
+.grid-row { display: flex; width: 160px; height: 20px; }
+.cell { width: 20px; height: 20px; box-sizing: border-box; border: 1px #373d2d; background-color: #10170dee; }
+#forge_content { position: absolute; left: 15px; top: 135px; transform-origin: left top; overflow: hidden auto; pointer-events: auto; color: #d5ccb7; }
+.recipe-content, .mix-line, .mix-value, .recipe-name, .prediction, .mix-tax, .socket-prompt, #socket_list { display: block; }
+.recipe-name { color: #e6ad81; }
+.recipe-name.ready { color: #d7b864; }
+.prediction, .mix-tax { color: #a9a48e; }
+.mix-value { color: #d7b864; margin: 3px 0; }
+.mix-value.boosted { color: #b9d598; }
+.mix-kind.missing, .mix-kind.warning, .mix-kind.loss { color: #efad7a; }
+.mix-kind.partial { color: #d5ccb7; }
+.mix-kind.ready { color: #bcc9a3; }
+.mix-kind.dim { color: #a9a48e; }
+.socket-prompt { margin-top: 5px; color: #d7b864; }
+.mix-tax { margin-top: 5px; }
+#socket_list { margin: 3px 0; }
+.socket-row { display: block; width: 100%; height: auto; min-height: 18px; margin: 2px 0; padding: 2px 4px; font-size: 1em; text-align: left; color: #d5ccb7; background-color: #111810; border-color: #444c3d; }
+.socket-row.selected { border-color: #bb9955; color: #efd6a0; background-color: #383020; }
+.forge-actions { position: absolute; left: 15px; top: 363px; width: 160px; height: 20px; display: flex; gap: 6px; }
+#btn_exit { width: 62px; }
+#btn_mix { width: 92px; color: #efd6a0; border-color: #ad8d4e; }
+#forge_content scrollbarvertical { width: 5px; }
+#forge_content scrollbarvertical slidertrack { background-color: #10170d; }
+#forge_content scrollbarvertical sliderbar { background-color: #766b45; min-height: 15px; }
+
+#forge_content scrollbarvertical slidertrack, #forge_content scrollbarvertical sliderbar, #forge_content scrollbarvertical sliderarrowdec, #forge_content scrollbarvertical sliderarrowinc { decorator: none; }
+#forge_content scrollbarvertical sliderbar { height: auto; }
+#forge_content scrollbarvertical sliderarrowdec, #forge_content scrollbarvertical sliderarrowinc { height: 0; }
+
+#item_grid_counts { left: 15px; top: 44px; width: 160px; height: 80px; }
+#forge_content { width: calc(160px * var(--root-scale)); height: calc(219px * var(--root-scale)); line-height: calc(14px * var(--root-scale)); }

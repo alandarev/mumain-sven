@@ -1,0 +1,65 @@
+<rml>
+<head><link type="text/rcss" href="scaled_content.rcss"/>
+	<title>Quest Progress</title>
+	<link type="text/rcss" href="base.rcss"/>
+	<link type="text/rcss" href="my_inventory_shared.rcss"/>
+	<link type="text/rcss" href="quest_shared.rcss"/>
+	<link type="text/rcss" href="quest_flow.rcss"/>
+</head>
+<body>
+	<div id="panel" class="qp-etc" data-model="quest_progress_etc"
+
+	     data-style-font-size="(text_px / root_scale) + 'px'">
+		<div class="stone"></div>
+<div class="shade"></div>
+<div class="trim top-left"></div>
+<div class="trim top-mid"></div>
+<div class="trim top-right"></div>
+<div class="trim side-left"></div>
+<div class="trim side-right"></div>
+<div class="trim bottom-left"></div>
+<div class="trim bottom-mid"></div>
+<div class="trim bottom-right"></div>
+		<span class="sharp-text counter-scaled scaled-width-240 scaled-reference" id="title"
+		     data-style-font-size="text_px + 'px'">Quest</span>
+		<div class="sharp-text qp-subject counter-scaled scaled-width-240 scaled-reference"
+		     data-style-font-size="text_px + 'px'">{{subject}}</div>
+		<div class="sharp-text qp-npc-lines counter-scaled scaled-width-210 scaled-line-height-15 scaled-reference"
+		     data-style-font-size="text_px + 'px'">
+			<span class="qp-line" data-for="l : npc_lines">{{l.text}}</span>
+		</div>
+		<div id="btn_prev" class="qp-btn-l" data-class-locked="!prev_enabled"
+		     data-event-click="questprogressetc_prev_page">‹</div>
+		<div id="btn_next" class="qp-btn-r" data-class-locked="!next_enabled"
+		     data-event-click="questprogressetc_next_page">›</div>
+		<div class="qp-divider"></div>
+		<div class="sharp-text qp-answers counter-scaled scaled-width-210 scaled-line-height-15 scaled-reference" data-class-hidden="active_view != 1"
+		     data-style-font-size="text_px + 'px'">
+			<div class="qp-answer-row" data-for="a : answers"
+			     data-event-click="questprogressetc_select_answer(a.index)">{{a.text}}</div>
+		</div>
+		<div class="qp-reward" data-class-hidden="active_view != 2">
+			<div class="sharp-text qp-reward-list counter-scaled scaled-width-210 scaled-height-136 scaled-reference"
+		     data-style-font-size="text_px + 'px'">
+				<span class="qp-reward-row scaled-padding-1-4 scaled-reference" data-for="r : reward_rows"
+
+				      data-class-clickable="r.clickable"
+				      data-class-row-heading="r.style == 'heading'"
+				      data-class-row-requirement="r.style == 'requirement'"
+				      data-class-row-requirement-unmet="r.style == 'requirement-unmet'"
+				      data-class-row-reward="r.style == 'reward'"
+				      data-class-row-random-reward="r.style == 'random-reward'"
+				      data-event-click="questprogressetc_select_reward(r.index)">{{r.text}}</span>
+			</div>
+			<div id="reward_popup_anchor" class="qp-popup-anchor"></div>
+			<div id="btn_complete" class="sharp-text qp-btn-complete counter-scaled scaled-width-108 scaled-height-29 scaled-line-height-29 scaled-reference" data-class-disabled="!request_complete" data-style-font-size="text_px + 'px'"
+			     data-event-click="questprogressetc_complete">{{ok_label}}</div>
+		</div>
+		<div id="btn_corner_close" class="qp-btn-exit" data-event-click="questprogressetc_click_close">
+			×
+		</div>
+		<span class="sharp-text tooltip tooltip-exit counter-scaled scaled-width-110 scaled-padding-2-4 scaled-reference"
+		     data-style-font-size="text_px + 'px'"><span class="tooltip-text scaled-padding-0-3 scaled-reference">{{exit_tooltip}}</span></span>
+	</div>
+</body>
+</rml>

@@ -1,0 +1,35 @@
+/* Native travel geometry remains bound; the theme owns column lanes and material. */
+#panel { width: 350px; pointer-events: auto; }
+#title { position: absolute; left: 0; top: 5px; text-align: center; transform-origin: center top; color: #d7b864; font-weight: bold; }
+#head { position: absolute; left: 2px; top: 24px; transform-origin: left top; color: #b9aa78; }
+#list { position: absolute; left: 2px; top: 38px; transform-origin: left top; overflow: hidden scroll; clip: always; }
+.mc-row { display: block; position: relative; color: #82917e; pointer-events: auto; border-bottom: 1px #29382b; box-sizing: border-box; }
+.mc-row.can-move { color: #d2d9bf; }
+.mc-row.can-move:hover { background-color: #3e452c; color: #efe1b0; }
+.col { position: absolute; top: 0; white-space: nowrap; overflow: hidden; }
+.col-strife { left: 2%; width: 16%; color: #cbaa6f; }
+.col-map { left: 18%; width: 43%; }
+.col-level { left: 63%; width: 10%; text-align: right; }
+.col-zen { left: 75%; width: 22%; text-align: right; }
+.mc-row .col.unmet { color: #df9e84; }
+#close_bar { position: absolute; left: 10px; right: 10px; border: 1px #6b6646; box-sizing: border-box; background-color: #343422; pointer-events: auto; }
+#close_bar:hover { background-color: #51482b; }
+#close_label { display: block; position: absolute; left: 0; top: 1px; text-align: center; transform-origin: center top; color: #ded1ac; }
+.list-tail { display: block; }
+#panel.fill-placement { box-sizing: border-box; }
+.scroll-pane scrollbarvertical { width: 8px; }
+.scroll-pane scrollbarvertical slidertrack { decorator: none; background-color: #10170d; }
+.scroll-pane scrollbarvertical sliderbar { decorator: none; background-color: #766b45; min-height: 16px; height: auto; }
+.scroll-pane scrollbarvertical sliderarrowdec, .scroll-pane scrollbarvertical sliderarrowinc { decorator: none; height: 0; }
+
+#head .col-level { left: 41%; width: 32%; }
+
+#panel { height: 431px; }
+#title { width: calc(100% * var(--root-scale)); margin-left: calc(50% - 50% * var(--root-scale)); }
+#head { width: calc(100% * var(--root-scale) - 22px * var(--root-scale)); }
+#list_box { position: absolute; left: 2px; right: 3px; top: 38px; bottom: 30px; }
+#list { left: 0; top: 0; width: calc(100% * var(--root-scale)); height: calc(100% * var(--root-scale)); }
+.mc-row { width: calc(100% - 17px * var(--root-scale)); min-height: 17px; height: auto; padding-bottom: calc(2px * var(--root-scale)); }
+.mc-row .col { position: relative; display: inline-block; vertical-align: top; }
+#close_bar { top: auto; bottom: 7px; height: 18px; }
+#close_label { width: calc(100% * var(--root-scale)); margin-left: calc(50% - 50% * var(--root-scale)); }

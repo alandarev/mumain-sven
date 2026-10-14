@@ -1,0 +1,6 @@
+<rml><head><title>Merchant Counter Background</title><link type="text/rcss" href="my_inventory_shared.rcss"/><link type="text/rcss" href="npc_shop.rcss"/></head>
+<body data-model="npc_shop_bg"><div id="bg_root">
+<div class="stone"/><div class="shade"/><div class="trim top-left"/><div class="trim top-mid"/><div class="trim top-right"/><div class="trim side-left"/><div class="trim side-right"/><div class="trim bottom-left"/><div class="trim bottom-mid"/><div class="trim bottom-right"/>
+<div class="stock-grid"><div class="grid-row" data-for="row : rows"><div class="cell"/><div class="cell"/><div class="cell"/><div class="cell"/><div class="cell"/><div class="cell"/><div class="cell"/><div class="cell"/></div></div>
+<div class="readout"/><div class="services" data-if="repair_visible"/>
+</div></body></rml>

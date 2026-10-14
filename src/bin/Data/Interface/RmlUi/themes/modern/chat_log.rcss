@@ -25,6 +25,7 @@
    decorated. The same dark-panel gradient docked_panel_frame.rcss gives this theme's docked
    windows, so the chat log reads as part of that family rather than a flat black rectangle. */
 #chat_backdrop {
+	pointer-events: none;
 	display: none;
 	position: absolute;
 	left: 0;

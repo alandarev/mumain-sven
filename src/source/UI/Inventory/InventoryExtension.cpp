@@ -122,9 +122,26 @@ void CInventoryExtension::Release()
     m_RmlView.Release();
 }
 
+// A theme that embeds the first two extensions in the inventory (ThemeUsesEmbeddedInventory())
+// leaves this window the overflow pages only.
+int CInventoryExtension::FirstWindowExtension()
+{
+    return UI::RmlBridge::ThemeUsesEmbeddedInventory() ? EmbeddedExtensionCount : 0;
+}
+
+int CInventoryExtension::OwnedExtensionCount()
+{
+    return std::clamp<int>(CharacterAttribute->InventoryExtensions, 0, MAX_INVENTORY_EXT_COUNT);
+}
+
 bool CInventoryExtension::UpdateMouseEvent()
 {
-    for (int i = 0; i < CharacterAttribute->InventoryExtensions; i++)
+    // Modified transfer must run before the native control starts an ordinary pickup.
+    if (UI::RmlBridge::ThemeUsesEmbeddedInventory() && !CInventoryCtrl::GetPickedItem() && IsPress(VK_LBUTTON) &&
+        (IsRepeat(VK_SHIFT) || IsPress(VK_SHIFT)) && InventoryProcess())
+        return false;
+
+    for (int i = FirstWindowExtension(); i < OwnedExtensionCount(); i++)
     {
         if (const auto m_extension = m_extensions[i])
         {
@@ -174,9 +191,10 @@ bool CInventoryExtension::InventoryProcess()
         return false;
     }
 
-    for (auto* extension : m_extensions)
+    for (int i = FirstWindowExtension(); i < OwnedExtensionCount(); ++i)
     {
-        if (extension->ContainsPointer())
+        auto* extension = m_extensions[i];
+        if (extension != nullptr && extension->ContainsPointer())
         {
             return g_pMyInventory->HandleInventoryActions(extension);
         }
@@ -192,7 +210,7 @@ bool CInventoryExtension::UpdateKeyEvent()
 
 bool CInventoryExtension::Update()
 {
-    for (int i = 0; i < CharacterAttribute->InventoryExtensions; i++)
+    for (int i = FirstWindowExtension(); i < OwnedExtensionCount(); i++)
     {
         if (const auto& extension = m_extensions[i])
         {
@@ -209,7 +227,7 @@ bool CInventoryExtension::Update()
 
 bool CInventoryExtension::Render()
 {
-    for (int i = 0; i < CharacterAttribute->InventoryExtensions; i++)
+    for (int i = FirstWindowExtension(); i < OwnedExtensionCount(); i++)
     {
         if (const auto& m_extension = m_extensions[i])
         {
@@ -225,9 +243,10 @@ void CInventoryExtension::SyncRmlModel()
     if (!m_RmlView.Document()) return;
     UI::RmlBridge::SyncDocumentVisibility(m_RmlView.Document(), IsVisible());
 
-    if (m_extensions[0])
+    const bool embedded = UI::RmlBridge::ThemeUsesEmbeddedInventory();
+    if (m_extensions[0] && !embedded)
         m_extensions[0]->FollowGridPx(m_RmlView.Document(), "item_grid_1");
-    if (m_extensions[1])
+    if (m_extensions[1] && !embedded)
         m_extensions[1]->FollowGridPx(m_RmlView.Document(), "item_grid_2");
     if (m_extensions[2])
         m_extensions[2]->FollowGridPx(m_RmlView.Document(), "item_grid_3");
@@ -291,6 +310,8 @@ float CInventoryExtension::GetLayerDepth()
 CInventoryCtrl* CInventoryExtension::TryGetExtensionByInventoryIndex(int iIndex) const
 {
     const auto index = iIndex - MAX_MY_INVENTORY_INDEX;
+    if (index < 0)
+        return nullptr;
     const auto extensionIndex = index / MAX_INVENTORY_EXT_ONE;
     if (extensionIndex >= 0 && extensionIndex < MAX_INVENTORY_EXT_COUNT)
     {
@@ -356,7 +377,7 @@ int CInventoryExtension::FindEmptySlot(int cx, int cy, const CInventoryCtrl* exc
         return -1;
     }
 
-    for (int i = 0; i < CharacterAttribute->InventoryExtensions; ++i)
+    for (int i = 0; i < OwnedExtensionCount(); ++i)
     {
         auto* extension = m_extensions[i];
         if (extension && extension != excluded)
@@ -395,12 +416,101 @@ CInventoryCtrl* CInventoryExtension::GetOwnerOf(const CPickedItem* pPickedItem) 
 // Into #item_view (m_ItemTarget), in window pixels (the grids' FollowGridPx()): the items.
 void CInventoryExtension::RenderItems()
 {
-    if (m_extensions[0] && m_extensions[0]->IsVisible())
+    const bool embedded = UI::RmlBridge::ThemeUsesEmbeddedInventory();
+    if (m_extensions[0] && !embedded && m_extensions[0]->IsVisible())
         m_extensions[0]->Render3D();
-    if (m_extensions[1] && m_extensions[1]->IsVisible())
+    if (m_extensions[1] && !embedded && m_extensions[1]->IsVisible())
         m_extensions[1]->Render3D();
     if (m_extensions[2] && m_extensions[2]->IsVisible())
         m_extensions[2]->Render3D();
     if (m_extensions[3] && m_extensions[3]->IsVisible())
         m_extensions[3]->Render3D();
+}
+
+void CInventoryExtension::SyncEmbeddedLayout(Rml::ElementDocument* inventoryDocument)
+{
+    const bool embedded = UI::RmlBridge::ThemeUsesEmbeddedInventory();
+    static constexpr const char* GridIds[EmbeddedExtensionCount] = {"item_grid_extension_1", "item_grid_extension_2"};
+    for (int i = 0; i < EmbeddedExtensionCount; ++i)
+    {
+        auto* control = m_extensions[i];
+        if (!control)
+            continue;
+        control->SetPresentation(embedded ? g_pMyInventory : nullptr, embedded);
+        if (!embedded)
+        {
+            control->ShowInventory();
+            continue;
+        }
+        control->FollowGridPx(inventoryDocument, GridIds[i]);
+        if (i < CharacterAttribute->InventoryExtensions)
+            control->ShowInventory();
+        else
+            control->HideInventory();
+        control->SetRepairMode(g_pMyInventory->GetRepairMode() == REPAIR_MODE_ON);
+    }
+}
+
+CInventoryCtrl* CInventoryExtension::GetEmbeddedControl(int index) const
+{
+    if (!UI::RmlBridge::ThemeUsesEmbeddedInventory() || index < 0 || index >= EmbeddedExtensionCount)
+        return nullptr;
+    return m_extensions[index];
+}
+
+CInventoryCtrl* CInventoryExtension::FindEmbeddedControlAtPointer() const
+{
+    if (!UI::RmlBridge::ThemeUsesEmbeddedInventory())
+        return nullptr;
+    for (int i = 0; i < std::min(OwnedExtensionCount(), EmbeddedExtensionCount); ++i)
+        if (m_extensions[i] && m_extensions[i]->ContainsPointer())
+            return m_extensions[i];
+    return nullptr;
+}
+
+bool CInventoryExtension::UpdateEmbeddedMouseEvent()
+{
+    if (!UI::RmlBridge::ThemeUsesEmbeddedInventory())
+        return true;
+    for (int i = 0; i < std::min(OwnedExtensionCount(), EmbeddedExtensionCount); ++i)
+        if (m_extensions[i] && !m_extensions[i]->UpdateMouseEvent())
+            return false;
+    return true;
+}
+
+void CInventoryExtension::UpdateEmbedded()
+{
+    if (!UI::RmlBridge::ThemeUsesEmbeddedInventory())
+        return;
+    for (int i = 0; i < std::min(OwnedExtensionCount(), EmbeddedExtensionCount); ++i)
+        if (m_extensions[i])
+            m_extensions[i]->Update();
+}
+
+void CInventoryExtension::RenderEmbedded()
+{
+    if (!UI::RmlBridge::ThemeUsesEmbeddedInventory())
+        return;
+    for (int i = 0; i < std::min(OwnedExtensionCount(), EmbeddedExtensionCount); ++i)
+        if (m_extensions[i])
+            m_extensions[i]->Render();
+}
+
+// Into the inventory's #item_view, in window pixels.
+void CInventoryExtension::RenderEmbedded3D()
+{
+    if (!UI::RmlBridge::ThemeUsesEmbeddedInventory())
+        return;
+    for (int i = 0; i < std::min(OwnedExtensionCount(), EmbeddedExtensionCount); ++i)
+        if (m_extensions[i] && m_extensions[i]->IsVisible())
+            m_extensions[i]->Render3D();
+}
+
+int CInventoryExtension::GetEmbeddedFreeSlotCount() const
+{
+    int count = 0;
+    for (int i = 0; i < std::min(OwnedExtensionCount(), EmbeddedExtensionCount); ++i)
+        if (m_extensions[i])
+            count += m_extensions[i]->GetEmptySlotCount();
+    return count;
 }

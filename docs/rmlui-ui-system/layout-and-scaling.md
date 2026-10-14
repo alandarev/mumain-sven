@@ -16,6 +16,9 @@ Documents cover the context. The 640x480 reference used by shared transforms, `.
 `.hud-board` is a compatibility layout space, not a letterboxed context or a second window.
 In this guide, **window coordinates** mean the space used by the context and drawn-box helpers;
 source APIs often call these window pixels. Framebuffer pixels are a separate display metric.
+A theme may also declare a shared responsive window reference size (below); that is a scale
+profile, not a virtual canvas. Do not add independent reference-resolution calculators to
+individual windows.
 
 ## Global UI scale: `dp`, not a custom calculator
 
@@ -233,3 +236,50 @@ coverage.
 Headless checks validate prepared geometry, not live SDL input, actual framebuffer density,
 all game states or server actions. They do not cover every window. Keep the runtime scale sweep
 and display-hardware checks for behavior outside the automated scenarios.
+
+## Coordinate contract for hybrid panels
+
+Name the space before converting a position or size. A slot's placement (its `--root-scale`
+and position on `#panel`) and an RmlUi layout box are different quantities; a value measured
+from one cannot be reused in the other.
+
+| Quantity | Contract |
+|---|---|
+| RCSS panel/child layout inside a placed panel | Reference units; the slot's scale applies once, through `#panel.slot-placed`. |
+| Painted group bounds and title dragging | Window pixels; grouped drag uses unprojected pointer coordinates and the placed slot boxes. |
+| Shared tooltip panel and anchors | Measured window pixels; use the real viewport and try the opposite side before clamping. |
+| Native cursor clearance | Screen-overlay cursor size/hotspot, independent of the hovered panel's design-unit scale. |
+| Native grids | Drawn grid boxes in window pixels (`CInventoryCtrl::FollowGridPx()`); root padding can move chrome without moving cells only if the grid box moves with it. |
+
+Keep visual spacing on a grid's child container rather than introducing unaccounted top/left
+root padding. Check a far-edge item click after changing it. For equipped previews, measure
+the image target separately from its crop wrapper and label. A smaller `<img>` does not repair
+a silhouette already cut inside its texture.
+
+Do not clamp cursor-following tooltips to the old logical bottom of 420. The shared tooltip
+measures its actual panel and viewport; item callers additionally supply the cursor's top as
+the edge to flip at. Verify vertical tracking within a lower slot and flipping near screen
+edges, not only a hover near the top of a panel.
+
+## Shared responsive window profile
+
+Themes opt in through `[Layout] WindowReferenceWidth` and `WindowReferenceHeight`
+in theme.ini. Munolith uses 1024×768. `ResponsiveWindowScale` compares both viewport
+axes against that design size, fits linearly below it, and grows by square root
+above it. This avoids filling a larger screen while continuing to grow on 4K/8K;
+there is no fixed pixel-size ceiling. Density enters once and UIScalePercent is a
+final proportional multiplier. Ultrawide width alone does not enlarge everything.
+
+The profile drives panel, dock and floating workspace transforms, RmlUi's dp ratio,
+native companion controls and normal-window typography. Inherited 640×480 window
+units are converted by the design/reference height ratio. New panels authored at
+the declared design size use a workspace region with `data-scale="window"`.
+Native text grows with the same transform instead of stopping at the old font cap.
+Legacy/modern themes without these keys retain their original scale and font rules.
+
+HUD growth stays separate: `HudReferenceHeight` and `ThemeHudUnitPixels` retain
+their existing behavior. Use window regions for ordinary panels; use hud regions
+and explicit HUD units for screen-edge displays. Do not add per-panel resolution
+formulas or physical pixel caps. Safe-area fitting remains necessary at small
+resolutions and large user preferences. Theme reload refreshes all RmlUi contexts
+so text, native controls and geometry agree immediately.

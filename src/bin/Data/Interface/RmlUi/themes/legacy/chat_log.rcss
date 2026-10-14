@@ -30,6 +30,7 @@
    opacity fades a decorator exactly as it fades a colour (see themes/modern/chat_log.rcss, which
    does use a gradient). */
 #chat_backdrop {
+	pointer-events: none;
 	display: none;
 	position: absolute;
 	left: 0;

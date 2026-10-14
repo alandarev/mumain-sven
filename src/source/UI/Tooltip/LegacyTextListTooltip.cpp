@@ -69,12 +69,14 @@ const void* ItemInfoOwner()
     return &token;
 }
 
-void ShowLegacyTextList(int lineCount, float anchorX, float anchorY, Placement placement, const void* owner)
+void ShowLegacyTextList(int lineCount, float anchorX, float anchorY, Placement placement, const void* owner,
+                        std::optional<float> flipAnchorY)
 {
     UI::RmlBridge::Tooltip::Config config;
     config.lines = BuildLines(lineCount);
     config.anchorX = anchorX;
     config.anchorY = anchorY;
+    config.flipAnchorY = flipAnchorY.value_or(anchorY);
     config.centerHorizontally = true;
     config.anchor = placement == Placement::Above ? UI::RmlBridge::Tooltip::AnchorPoint::AboveLeft
                                                    : UI::RmlBridge::Tooltip::AnchorPoint::BelowLeft;

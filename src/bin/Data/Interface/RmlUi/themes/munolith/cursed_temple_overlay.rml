@@ -1,0 +1,33 @@
+<rml>
+<head>
+    <title>Temple score and tutorial</title>
+    <link type="text/rcss" href="base.rcss"/>
+    <link type="text/rcss" href="../legacy/cursed_temple_system.rcss"/>
+    <link type="text/rcss" href="cursed_temple_system.rcss"/>
+</head>
+<body data-model="cursed_temple_overlay">
+    <div id="screen" class="screen hud-board">
+		<!-- The score effect: each team's points in big digits between their banners. A team past
+		     nine points shows a tens digit and its ones digit moves out of the centre. -->
+		<div class="score" data-if="score_shown">
+            <div id="score_back"></div>
+			<img id="score_allied_tens" data-if="allied_two_digits" data-attr-src="allied_tens_src"/>
+			<img id="score_allied_ones" data-class-wide="allied_two_digits" data-attr-src="allied_ones_src"/>
+			<div id="score_colon"></div>
+			<img id="score_illusion_tens" data-if="illusion_two_digits" data-attr-src="illusion_tens_src"/>
+			<img id="score_illusion_ones" data-class-wide="illusion_two_digits" data-attr-src="illusion_ones_src"/>
+			<div id="score_allied_badge"></div>
+			<div id="score_vs"></div>
+			<div id="score_illusion_badge"></div>
+			<div id="score_left_banner"></div>
+			<div id="score_right_banner"></div>
+		</div>
+
+		<div class="tutorial counter-scaled hud-width-340" data-if="tutorial_lines.size > 0">
+			<span class="tutorial-line" data-for="l : tutorial_lines" data-class-title="l.title"
+			      data-style-font-size="l.text_px + 'px'"
+			      >{{l.text}}</span>
+		</div>
+    </div>
+</body>
+</rml>

@@ -7,6 +7,7 @@
 #include "Render/Text/CUIRenderTextSDLTtf.h"
 #include "UI/RmlBridge/RmlDocumentVisibility.h"
 #include "UI/RmlBridge/RmlNativeTextSize.h"
+#include "UI/RmlBridge/RmlStackingOrder.h"
 #include "UI/RmlBridge/RmlSyncField.h"
 
 #include <RmlUi/Core/ElementDocument.h>
@@ -81,7 +82,11 @@ void mu::ui::window::ItemHelpView::Sync(bool visible, std::vector<ItemHelpLineEn
     if (!m_View.Document())
         return;
 
-    // Layer depth 6.5 / 6.6: over the HUD and the panels.
+    // A reference-card theme keeps its passive table above the compact HUD and its logs; other
+    // themes keep the original layer depth 6.5 / 6.6, over the HUD and the panels.
+    if (m_View.Document()->IsClassSet("reference-foreground"))
+        m_View.Document()->SetProperty(Rml::PropertyId::ZIndex,
+                                       Rml::Property(UI::RmlBridge::ForegroundPanelLayerDepth, Rml::Unit::NUMBER));
     UI::RmlBridge::SyncDocumentVisibilityInFront(m_View.Document(), visible);
     if (!visible)
         return;

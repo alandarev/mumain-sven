@@ -1,0 +1,37 @@
+/* NPC dialogue and both progress owners share one readable, compact composition. */
+#panel { width: 240px; }
+.qp-subject { position: absolute; left: 0; top: 34px; text-align: center; color: #e1c58c; }
+.qp-npc-name { position: absolute; left: 15px; top: 60px; color: #a8c398; }
+.qp-npc-lines { position: absolute; left: 15px; top: 80px; }
+#panel.qp-etc .qp-npc-lines { top: 65px; }
+.qp-line, .nd-line { display: block; color: #c7c6b3; white-space: normal; }
+.qp-btn-l, .qp-btn-r, .nd-btn-l, .nd-btn-r { position: absolute; width: 23px; height: 20px; line-height: 20px; }
+.qp-btn-l, .nd-btn-l { left: 171px; }
+.qp-btn-r, .nd-btn-r { left: 199px; }
+.qp-btn-l, .qp-btn-r { top: 185px; }
+.qp-divider, .nd-divider { position: absolute; left: 15px; top: 215px; width: 210px; height: 1px; background-color: #77866855; pointer-events: none; }
+.qp-player-name { position: absolute; left: 15px; top: 226px; color: #a8c398; }
+.qp-answers { position: absolute; left: 15px; top: 248px; }
+#panel.qp-etc .qp-answers { top: 231px; }
+.qp-player-words { display: block; color: #a9b39e; white-space: normal; }
+.qp-answer-row, .nd-answer-row { display: block; box-sizing: border-box; color: #e0d0aa; white-space: pre-line; cursor: pointer; pointer-events: auto; margin-bottom: 4px; }
+.qp-answer-row:hover, .nd-answer-row:hover { color: #ffe0a2; background-color: #b4a46522; }
+.qp-reward { position: absolute; left: 0; top: 0; width: 240px; height: 400px; pointer-events: none; }
+.qp-reward-list { position: absolute; left: 15px; top: 225px; overflow: hidden auto; pointer-events: auto; }
+.qp-reward-row { display: block; box-sizing: border-box; width: 100%; white-space: normal; color: #c7c6b3; }
+.qp-reward-row.row-heading { color: #a8c398; font-weight: bold; }
+.qp-reward-row.row-requirement, .qp-reward-row.row-reward { color: #dfbf67; }
+.qp-reward-row.row-requirement-unmet { color: #ff7760; }
+.qp-reward-row.row-random-reward { color: #ada1ee; }
+.qp-reward-row.clickable { cursor: pointer; pointer-events: auto; }
+.qp-reward-row.clickable:hover { background-color: #b4a46522; }
+.qp-popup-anchor { position: absolute; width: 0; height: 0; pointer-events: none; }
+#reward_popup_anchor { left: 120px; top: 350px; }
+.qp-btn-complete { position: absolute; left: 66px; top: 366px; }
+.nd-contribute { position: absolute; left: 36px; top: 37px; text-align: center; color: #c2ad77; }
+.nd-npc-lines { position: absolute; left: 15px; top: 65px; }
+.nd-btn-npc { top: 185px; }
+.nd-answers { position: absolute; left: 15px; top: 230px; overflow: hidden auto; pointer-events: auto; }
+.nd-answer-row { margin-bottom: 0; }
+.nd-btn-ans { top: 364px; }
+.nd-btn-l.locked, .nd-btn-r.locked { display: none; }

@@ -1,0 +1,23 @@
+<rml>
+<head>
+    <title>Help</title>
+    <link type="text/rcss" href="base.rcss"/>
+    <link type="text/rcss" href="correspondence_common.rcss"/>
+    <link type="text/rcss" href="help_window.rcss"/>
+</head>
+<!-- Native semantic key/chat lines and F1/Escape behavior; the theme owns the reference layout. -->
+<body data-model="help_window" data-style-font-size="text_px + 'px'">
+    <div id="help_panel" data-style-max-height="available_height + 'px'">
+        <div class="window-shell-sprite-back"></div>
+        <div class="window-shell-sprite-top"></div>
+        <div class="window-shell-sprite-middle"></div>
+        <div class="window-shell-sprite-bottom"></div>
+        <div id="help_scroll" tabindex="0">
+            <div class="help-line" data-for="line : lines"
+                 data-class-heading="line.heading" data-class-half-spacer="line.half_spacer"
+                 data-style-font-size="(line.heading ? bold_text_px : text_px) + 'px'">{{line.text}}</div>
+        </div>
+        <div id="help_footer">F1 &#8594; &nbsp; Esc &#215;</div>
+    </div>
+</body>
+</rml>

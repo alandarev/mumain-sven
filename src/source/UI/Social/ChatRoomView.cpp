@@ -82,6 +82,8 @@ void ChatRoomView::OnUnload()
     m_View.Document()->RemoveEventListener(Rml::EventId::Handledrag, this);
     m_Placed = false;
     m_Settled = false;
+    m_InviteExpanded = false;
+    m_InviteAddedWidth = 0.f;
 }
 
 void ChatRoomView::Unload()
@@ -105,6 +107,7 @@ bool ChatRoomView::Sync(bool shown)
     const bool wasVisible = m_View.Document()->IsVisible();
     SyncWorkspace();
     SyncGeometry();
+    SyncInviteGeometry();
     if (!m_Placed && m_Width > 0 && m_Height > 0)
     {
         m_Placed = true;
@@ -281,8 +284,6 @@ const wchar_t* ChatRoomView::SelectedInvite()
 void ChatRoomView::ToggleInvite()
 {
     auto& m = m_View.GetModel();
-    // Measured before the column is hidden, so closing gives back exactly what opening took.
-    const float column = m.showInvite ? InviteColumnWidth() : 0.f;
     m.showInvite = !m.showInvite;
     m.inviteButtonLabel = Text(m.showInvite ? I18N::Game::CloseInvitation : I18N::Game::Invite);
     m_View.MarkDirty("show_invite");
@@ -293,19 +294,31 @@ void ChatRoomView::ToggleInvite()
     m_Maximized = false;
     m.maximized = false;
     m_View.MarkDirty("maximized");
+}
 
-    // Native widened the window to make room rather than squeezing the log, then pulled it back
-    // on-screen if that pushed its right edge off.
-    if (!m_View.Document())
+void ChatRoomView::SyncInviteGeometry()
+{
+    if (!m_Placed || !m_View.Document())
         return;
-    m_View.Document()->UpdateDocument();
-    const float opened = m.showInvite ? InviteColumnWidth() : column;
-    if (opened <= 0)
+    const bool shown = m_View.GetModel().showInvite;
+    if (shown == m_InviteExpanded)
         return;
+    auto* pane = m_View.Document()->GetElementById("invite_pane");
+    // UpdateDocument lays out the current DOM, but does not apply dirty data views.
+    // Wait until the context has applied the visibility toggle before measuring.
+    if (!pane || pane->IsClassSet("hidden") == shown)
+        return;
+    const float column = shown ? InviteColumnWidth() : m_InviteAddedWidth;
+    if (shown && column <= 0.f)
+        return;
+    const float before = m_Width;
     m_CustomSize = true;
-    RestoreLayout(m_Left, m_Top, m_Width + (m.showInvite ? opened : -opened), m_Height, true);
+    RestoreLayout(m_Left, m_Top, before + (shown ? column : -column), m_Height, true);
     m_View.Document()->UpdateDocument();
     SyncGeometry();
+    // A viewport cap may prevent part of the expansion. Undo only what was added.
+    m_InviteAddedWidth = shown ? std::max(0.f, m_Width - before) : 0.f;
+    m_InviteExpanded = shown;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -421,6 +434,11 @@ void ChatRoomView::SyncGeometry()
         return;
     m_Left = panel->GetAbsoluteLeft() / scale;
     m_Top = panel->GetAbsoluteTop() / scale;
+    const float left = m_Left;
+    const float top = m_Top;
+    ClampToWorkspace();
+    if (m_Left != left || m_Top != top)
+        PublishPosition();
     m_Owner.SetPosition(static_cast<int>(m_Left), static_cast<int>(m_Top));
     m_Owner.SetSize(static_cast<int>(m_Width), static_cast<int>(m_Height));
     m_Owner.SetBackPosition(m_Maximized, static_cast<int>(m_RestoreRect[1]),
@@ -438,7 +456,14 @@ void ChatRoomView::SyncWorkspace()
     m_WorkspaceHeight = height;
     m_Viewport = viewport;
     m_DpRatio = scale;
-    if (m_CustomPosition)
+    m_View.Document()->UpdateDocument();
+    if (m_Placed && scale > 0.f)
+    {
+        const auto size = Panel()->GetBox().GetSize(Rml::BoxArea::Border);
+        m_Width = size.x / scale;
+        m_Height = size.y / scale;
+    }
+    if (m_CustomPosition || m_Placed)
         ApplyLayout();
     m_View.Document()->UpdateDocument();
 }
@@ -460,10 +485,11 @@ void ChatRoomView::ClampToWorkspace()
         return;
     const float maxLeft = WindowWidth / scale - m_Width;
     const float maxTop = m_WorkspaceHeight / scale - m_Height;
-    if (maxLeft > 0)
-        m_Left = std::clamp(m_Left, 0.f, maxLeft);
-    if (maxTop > 0)
-        m_Top = std::clamp(m_Top, 0.f, maxTop);
+    // A window up to a pixel larger than the workspace still pins to its top-left.
+    if (maxLeft >= -1.f / scale)
+        m_Left = std::clamp(m_Left, 0.f, std::max(0.f, maxLeft));
+    if (maxTop >= -1.f / scale)
+        m_Top = std::clamp(m_Top, 0.f, std::max(0.f, maxTop));
 }
 
 void ChatRoomView::ApplyLayout()

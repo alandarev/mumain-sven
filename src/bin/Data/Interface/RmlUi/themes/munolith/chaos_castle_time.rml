@@ -1,0 +1,27 @@
+<rml>
+<head>
+	<title>Chaos Castle time (CChaosCastleTime)</title>
+	<link type="text/rcss" href="base.rcss"/>
+	<link type="text/rcss" href="event_timer.rcss"/>
+</head>
+<body data-model="chaos_castle_time">
+	<div class="screen">
+		<div id="panel">
+			<div id="back"></div>
+<span class="event-name counter-scaled hud-width-176" data-style-font-size="(text_px < 11 ? 11 : text_px) + 'px'">Chaos Castle</span>
+			<span class="timer-text counter-scaled hud-width-176" id="kills" data-if="kills_text != ''" data-class-plain="kills_state == 'plain'" data-class-standby="kills_state == 'standby'" data-class-normal="kills_state == 'normal'" data-class-closing="kills_state == 'closing'" data-class-imminent="kills_state == 'imminent'" data-class-expiring="kills_state == 'expiring'"
+			      data-style-left="'7px'" data-style-font-size="(text_px < 11 ? 11 : text_px) + 'px'"
+
+			     >{{kills_text}}</span>
+			<span class="timer-text counter-scaled hud-width-176" id="time_left" data-if="time_left_text != ''" data-class-plain="time_left_state == 'plain'" data-class-standby="time_left_state == 'standby'" data-class-normal="time_left_state == 'normal'" data-class-closing="time_left_state == 'closing'" data-class-imminent="time_left_state == 'imminent'" data-class-expiring="time_left_state == 'expiring'"
+			      data-style-left="'7px'" data-style-font-size="(text_px < 11 ? 11 : text_px) + 'px'"
+
+			     >{{time_left_text}}</span>
+			<span class="timer-text counter-scaled hud-width-176" id="time" data-class-plain="time_state == 'plain'" data-class-standby="time_state == 'standby'" data-class-normal="time_state == 'normal'" data-class-closing="time_state == 'closing'" data-class-imminent="time_state == 'imminent'" data-class-expiring="time_state == 'expiring'"
+			      data-style-left="'7px'" data-style-font-size="(big_text_px < 18 ? 18 : big_text_px) + 'px'"
+
+			     >{{time_text}}</span>
+		</div>
+	</div>
+</body>
+</rml>

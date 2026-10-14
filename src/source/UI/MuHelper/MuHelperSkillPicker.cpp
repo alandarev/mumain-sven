@@ -11,8 +11,13 @@
 #include "UI/RmlBridge/RmlElementBox.h"
 #include "UI/RmlBridge/RmlPointer.h"
 #include "UI/RmlBridge/RmlSyncField.h"
+#include "UI/RmlBridge/RmlNativeTextSize.h"
 #include "UI/RmlBridge/RmlTheme.h"
 #include "UI/Social/SocialWindowBase.h"
+#include "Core/Utilities/StringUtils.h"
+
+#include <algorithm>
+#include <iterator>
 
 #include <RmlUi/Core/ElementDocument.h>
 
@@ -70,6 +75,7 @@ bool CMuHelperSkillPicker::UpdateKeyEvent()
 
 bool CMuHelperSkillPicker::Update()
 {
+    ApplyPendingChoice();
     SyncRmlModel();
     return true;
 }
@@ -126,6 +132,26 @@ void CMuHelperSkillPicker::PrepareSkillsToRender()
     m_bEntriesDirty = true;
 }
 
+Rml::ElementDocument* CMuHelperSkillPicker::GetPlacedDocument() const
+{
+    Rml::ElementDocument* document = m_RmlView.Document();
+    return document != nullptr && document->GetElementById("skill_library") != nullptr ? document : nullptr;
+}
+
+void CMuHelperSkillPicker::ApplyPendingChoice()
+{
+    const int skill = m_PendingSkill;
+    m_PendingSkill = -1;
+    if (!IsVisible() || skill < 0 ||
+        std::find(m_aiSkillsToRender.begin(), m_aiSkillsToRender.end(), skill) == m_aiSkillsToRender.end())
+        return;
+    const auto& learned = CharacterAttribute->Skill;
+    if (std::find(std::begin(learned), std::end(learned), skill) == std::end(learned))
+        return;
+    g_pMuHelperConfig->AssignSkill(skill);
+    Show(false);
+}
+
 void CMuHelperSkillPicker::Pick(int index)
 {
     if (!IsVisible() || index < 0 || index >= static_cast<int>(m_aiSkillsToRender.size()))
@@ -140,9 +166,12 @@ void CMuHelperSkillPicker::BindRmlModel(Rml::DataModelConstructor& c, MuHelperSk
     c.Bind("origin_y", &model.originY);
     c.Bind("scale", &model.scale);
     c.Bind("attack", &model.attack);
+    c.Bind("text_px", &model.textPx);
 
     auto entry = c.RegisterStruct<MuHelperSkillPickerEntry>();
     entry.RegisterMember("decorator", &MuHelperSkillPickerEntry::decorator);
+    entry.RegisterMember("skill_type", &MuHelperSkillPickerEntry::skillType);
+    entry.RegisterMember("name", &MuHelperSkillPickerEntry::name);
     c.RegisterArray<std::vector<MuHelperSkillPickerEntry>>();
     c.Bind("entries", &model.entries);
     c.BindEventCallback("mhsp_pick", [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& args)
@@ -150,6 +179,14 @@ void CMuHelperSkillPicker::BindRmlModel(Rml::DataModelConstructor& c, MuHelperSk
                             if (args.size() == 1)
                                 Pick(args[0].Get<int>(-1));
                         });
+    c.BindEventCallback("muhelper_choose",
+                        [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& args)
+                        {
+                            if (args.size() == 1)
+                                m_PendingSkill = args[0].Get<int>(-1);
+                        });
+    c.BindEventCallback("muhelper_picker_close",
+                        [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) { Show(false); });
 }
 
 void CMuHelperSkillPicker::BuildRmlUi()
@@ -168,6 +205,8 @@ void CMuHelperSkillPicker::SyncRmlModel()
         return;
 
     SyncOrigin();
+    const float textPx = UI::RmlBridge::NativeTextPx(UI::Scaling::FontRole::Normal);
+    SyncField(m_RmlView.Binder(), &MuHelperSkillPickerRmlModel::textPx, "text_px", textPx);
 
     if (!m_bEntriesDirty)
         return;
@@ -179,7 +218,8 @@ void CMuHelperSkillPicker::SyncRmlModel()
     model.entries.clear();
     model.entries.reserve(m_aiSkillsToRender.size());
     for (const int skillType : m_aiSkillsToRender)
-        model.entries.push_back({UI::MuHelper::SkillIconDecorator(skillType)});
+        model.entries.push_back({UI::MuHelper::SkillIconDecorator(skillType), skillType,
+                                 StringUtils::WideToNarrow(SkillAttribute[skillType].Name)});
     m_RmlView.MarkDirty("entries");
 }
 

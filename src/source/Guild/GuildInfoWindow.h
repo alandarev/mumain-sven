@@ -64,9 +64,13 @@ namespace mu::ui::window
 
         void BindRmlModel(Rml::DataModelConstructor& c, GuildInfoRmlModel& model);
         void OnRmlReloaded();
+        void BindRmlActions(Rml::DataModelConstructor& c);
+        void SelectTab(int tab);
+        void RemoveMemberRank();
         UI::RmlBridge::ThemedView<GuildInfoRmlModel> m_RmlView{"guild_info",
             [this](Rml::DataModelConstructor& c, GuildInfoRmlModel& model) { BindRmlModel(c, model); },
             {{"Data/Interface/RmlUi/guild_info.rml"}}, {.afterReload = [this] { OnRmlReloaded(); }}};
+        int m_PendingTab = -1;
         int m_PendingButton = -1; // a BUTTON_EVENT, or BUTTON_EXIT
 
         // Announcement lines in reading order; RmlUi owns scrolling.
@@ -148,7 +152,6 @@ namespace mu::ui::window
             BYTE  byTargetUserIndexH, BYTE byTargetUserIndexL);
 
     private:
-        void SelectTab(int tab);
         bool Check_Btn(int button);
 
         int GetGuildMemberIndex(const wchar_t* szName);

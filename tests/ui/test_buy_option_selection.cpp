@@ -1,6 +1,7 @@
 #include "doctest.h"
 
 #include <cwchar>
+#include <iterator>
 #include <ostream>
 
 #include "Core/Platform/SecureCrt.h"
@@ -13,9 +14,9 @@ namespace
 {
 BuyOption Option(int priceSeq, const wchar_t* name)
 {
-    BuyOption option;
+    BuyOption option{};
     option.m_iPriceSeq = priceSeq;
-    wcsncpy_s(option.m_szItemName, name, _TRUNCATE);
+    std::wcsncpy(option.m_szItemName, name, std::size(option.m_szItemName) - 1);
     return option;
 }
 } // namespace

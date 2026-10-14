@@ -172,6 +172,7 @@ namespace mu::ui::window
         // conversion enters anywhere (that conversion is the bug class RmlPanelGeometry.h warns
         // about).
         void UpdatePointedLine();
+        bool HandleHistoryWheel();
         // Pushes m_iCurrentRenderEndLine into RmlUi's scroll offset (native's own fPosRate math),
         // and, when no request is pending, reads it back the other way so the logical cursor
         // tracks wherever the user dragged or scrolled to.

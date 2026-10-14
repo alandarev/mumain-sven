@@ -1,0 +1,7 @@
+#bg_root { pointer-events: none; }
+.grid { position: absolute; left: 15px; top: 45px; width: 160px; display: flex; flex-direction: column; }
+.grid-row { position: relative; width: 160px; height: 20px; display: flex; }
+.cell { box-sizing: border-box; width: 20px; height: 20px; flex: 0 0 20px; border-right: 1px #343930; border-bottom: 1px #343930; background-color: #10150cf5; }
+.cell:first-child { border-left: 1px #343930; }
+.grid-row:first-child .cell { border-top: 1px #343930; }
+.grid-row.partition .cell { border-top: 1px #888069; }

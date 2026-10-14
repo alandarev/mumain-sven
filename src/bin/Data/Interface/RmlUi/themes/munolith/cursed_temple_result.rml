@@ -1,0 +1,44 @@
+<rml>
+<head>
+ <title>Illusion Temple Result</title>
+ <link type="text/rcss" href="base.rcss"/>
+ <link type="text/rcss" href="my_inventory_shared.rcss"/>
+ <link type="text/rcss" href="../legacy/cursed_temple_result.rcss"/>
+ <link type="text/rcss" href="cursed_temple_result.rcss"/>
+</head>
+<body>
+ <div id="panel" data-model="cursed_temple_result" data-style---text-px="text_px">
+  <div class="stone"/><div class="shade"/>
+  <div class="trim top-left"/><div class="trim top-mid"/><div class="trim top-right"/>
+  <div class="trim side-left"/><div class="trim side-right"/>
+  <div class="trim bottom-left"/><div class="trim bottom-mid"/><div class="trim bottom-right"/>
+  <div id="title">Illusion Temple · {{hero_list_label.text}}</div>
+  <div class="result-banner success" data-if="banner == 1" data-style-opacity="banner_alpha"/>
+  <div class="result-banner failure" data-if="banner == 2" data-style-opacity="banner_alpha"/>
+  <div class="table-header result-grid"><div class="cell-team">Camp</div><div class="cell-name">Character</div><div class="cell-class-name">Class</div><div class="cell-added-exp">EXP</div><div class="cell-point">Pts</div></div>
+  <div class="roster">
+   <div class="team-block allied">
+    <div class="player-row result-grid" data-for="r : allied_rows" data-class-hero="r.hero">
+     <div class="cell-team">{{r.team}}</div>
+     <div class="cell-name">{{r.name}}</div>
+     <div class="cell-class-name">{{r.class_name}}</div>
+     <div class="cell-added-exp">{{r.added_exp}}</div>
+     <div class="cell-point">{{r.point}}</div>
+    </div>
+   </div>
+   <div class="team-block illusion">
+    <div class="player-row result-grid" data-for="r : illusion_rows" data-class-hero="r.hero">
+     <div class="cell-team">{{r.team}}</div>
+     <div class="cell-name">{{r.name}}</div>
+     <div class="cell-class-name">{{r.class_name}}</div>
+     <div class="cell-added-exp">{{r.added_exp}}</div>
+     <div class="cell-point">{{r.point}}</div>
+    </div>
+   </div>
+  </div>
+  <div class="reward-hint">{{reward_hint.text}}</div>
+  <div id="btn_corner_close" data-event-click="result_close"/>
+  <div class="close-button" id="btn_close" data-event-click="result_close">{{close_text}}</div>
+ </div>
+</body>
+</rml>

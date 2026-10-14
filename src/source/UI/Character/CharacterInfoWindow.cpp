@@ -2,6 +2,7 @@
 #include "stdafx.h"
 #include "UI/Chat/Chat.h"
 #include "UI/Character/CharacterInfoWindow.h"
+#include "UI/Character/Armory/ArmoryController.h"
 #include "UI/Core/WindowSystem.h"
 #include "UI/Core/WindowGeometry.h"
 #include "Character/CharacterManager.h"
@@ -88,6 +89,7 @@ namespace
 }
 
 mu::ui::window::CCharacterInfoWindow::CCharacterInfoWindow()
+    : m_Armory(std::make_unique<UI::Character::ArmoryController>())
 {
     m_pNewUIMng = NULL;
 }
@@ -119,6 +121,7 @@ bool mu::ui::window::CCharacterInfoWindow::Create(CManager* pNewUIMng)
 
 void mu::ui::window::CCharacterInfoWindow::BindRmlModel(Rml::DataModelConstructor& c, CharacterInfoRmlModel& model)
 {
+    m_Armory->Bind(c);
     model.textPx = UI::Scaling::NativeTextPixelSize(UI::Scaling::FontRole::Normal, static_cast<int>(WindowWidth),
                                                     static_cast<int>(WindowHeight));
     c.Bind("text_px", &model.textPx);
@@ -208,6 +211,7 @@ void mu::ui::window::CCharacterInfoWindow::Release()
 {
     UnloadImages();
 
+    m_Armory->Release();
     m_RmlView.Release();
 
     if (m_pNewUIMng)
@@ -220,7 +224,16 @@ void mu::ui::window::CCharacterInfoWindow::Release()
 
 void mu::ui::window::CCharacterInfoWindow::Show(bool bShow)
 {
+    if (!bShow && UI::RmlBridge::ThemeUsesEmbeddedInventory())
+    {
+        auto* picked = CInventoryCtrl::GetPickedItem();
+        if (picked && !picked->GetOwnerInventory() && picked->GetItem() &&
+            picked->GetItem()->ex_src_type == ITEM_EX_SRC_EQUIPMENT)
+            CInventoryCtrl::BackupPickedItem();
+    }
     mu::ui::window::CObject::Show(bShow);
+    if (!bShow)
+        m_Armory->Suspend();
     if (m_RmlView.Document())
     {
         if (bShow) m_RmlView.Document()->Show();
@@ -240,6 +253,13 @@ bool mu::ui::window::CCharacterInfoWindow::UpdateKeyEvent()
     {
         if (mu::ui::window::IsPress(VK_ESCAPE) == true)
         {
+            if (UI::RmlBridge::ThemeUsesEmbeddedInventory() && CInventoryCtrl::GetPickedItem())
+            {
+                CInventoryCtrl::BackupPickedItem();
+                return false;
+            }
+            if (m_Armory->CancelEditor())
+                return false;
             g_pNewUISystem->Hide(mu::ui::window::INTERFACE_CHARACTER);
             PlayBuffer(SOUND_CLICK01);
 
@@ -258,7 +278,7 @@ bool mu::ui::window::CCharacterInfoWindow::Update()
 
 bool mu::ui::window::CCharacterInfoWindow::Render()
 {
-    // RmlUi's #panel owns all chrome/text/button rendering now; nothing left to draw natively.
+    m_Armory->RenderTooltip();
     return true;
 }
 
@@ -401,6 +421,9 @@ void mu::ui::window::CCharacterInfoWindow::SyncRmlModel()
     SyncField(m_RmlView.Binder(), &CharacterInfoRmlModel::canLevelUp, "can_level_up", CharacterAttribute->LevelUpPoint > 0);
     SyncField(m_RmlView.Binder(), &CharacterInfoRmlModel::showCharisma, "show_charisma",
               gCharacterManager.GetBaseClass(Hero->Class) == CLASS_DARK_LORD);
+
+    if (m_Armory->Sync(m_RmlView.Document(), IsVisible()))
+        return;
 
     BuildSubjectTexts();
     BuildTableTexts();

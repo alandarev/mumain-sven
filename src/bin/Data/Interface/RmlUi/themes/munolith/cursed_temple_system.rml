@@ -1,0 +1,93 @@
+<rml>
+<!-- bound-geometry: the mini map's markers sit at their projected points, each with its own sprite size; the buttons are the theme's -->
+
+<head>
+	<title>Illusion Temple HUD (CCursedTempleSystem)</title>
+	<link type="text/rcss" href="base.rcss"/>
+	<link type="text/rcss" href="../legacy/cursed_temple_system.rcss"/>
+	<link type="text/rcss" href="cursed_temple_system.rcss"/>
+</head>
+<body data-model="cursed_temple_system">
+	<!-- The Illusion Temple HUD (CCursedTempleSystem): the time, the mini map with its markers and
+	     transparency button, the skill panel, the score effect and the tutorial step. A
+	     LayoutMode::Hud window drawn at fixed 640x480 reference positions, so .screen is that screen
+	     stretched W/640 x H/480 like the original. The frames, the score banners and every row's
+	     place are the theme's; C++ lists only what it has to place itself -- the projected mini-map
+	     markers, the digit runs and the native buttons -- in the original's drawing order, under the
+	     frames. Text does not stretch: it takes the native size and cancels the stretch. In the
+	     background context, behind its other documents (the original drew it under nearly every
+	     panel). Takes no pointer events: the buttons' input stays native. -->
+	<div id="screen" class="screen hud-board">
+		<!-- The panel chrome, hidden together when every window the original checked is open. -->
+		<div class="panels" data-if="panels_shown">
+			<div id="tactical_card"></div>
+            <span class="temple-label temple-title counter-scaled">Illusion Temple</span>
+            <span class="temple-label skill-label counter-scaled">Skill</span>
+            <span class="temple-label cost-label counter-scaled">Cost</span>
+            <span class="temple-label points-label counter-scaled">Points</span>
+            <span class="temple-label time-label counter-scaled">Time left</span>
+            <div id="game_time_frame"></div>
+			<div id="game_time_dot"></div>
+			<div id="skill_frame"></div>
+			<div id="mini_map"></div>
+			<div id="mini_map_frame"></div>
+			<img id="skill_icon" data-attr-src="skill_icon_src" data-attr-rect="skill_icon_rect"/>
+		</div>
+
+
+			<div id="mini_map_markers">
+				<img class="sprite" data-for="s : sprites" data-attr-src="s.src" data-attr-rect="s.rect"
+				     data-style-left="s.left + 'px'" data-style-top="s.top + 'px'"
+				     data-style-width="s.width + 'px'" data-style-height="s.height + 'px'"
+				     data-style-opacity="s.opacity"/>
+			</div>
+			<!-- The panels' area, which holds the pointer; the skill panel's hover zones (the skill,
+			     the kill points it needs, the ones the hero has); the buttons. -->
+			<div id="ct_hud_area"></div>
+			<div id="ct_hint_skill" class="ct-hint"></div>
+			<div id="ct_hint_kills_needed" class="ct-hint"></div>
+			<div id="ct_hint_kills" class="ct-hint"></div>
+			<div id="ct_btn_alpha" class="ct-btn" data-style-opacity="alpha" data-event-click="ct_alpha_click"></div>
+			<div id="ct_btn_skill_up" class="ct-btn" data-style-opacity="alpha" data-event-click="ct_skill_up_click"></div>
+			<div id="ct_btn_skill_down" class="ct-btn" data-style-opacity="alpha" data-event-click="ct_skill_down_click"></div>
+			<!-- The digit runs; the theme centres each from its digit count and each digit's index.
+			     The original drew the time twice over itself. -->
+			<div class="ct-run ct-time-minutes" data-style---n="minute_digits.size">
+				<img class="ct-digit" src="../../../newui_number1.tga" data-for="cell, i : minute_digits"
+				     data-attr-rect="cell" data-class-blank="cell == ''" data-style---i="i"/>
+			</div>
+			<div class="ct-run ct-time-seconds" data-style---n="second_digits.size">
+				<img class="ct-digit" src="../../../newui_number1.tga" data-for="cell, i : second_digits"
+				     data-attr-rect="cell" data-class-blank="cell == ''" data-style---i="i"/>
+			</div>
+			<div class="ct-run ct-time-minutes" data-style---n="minute_digits.size">
+				<img class="ct-digit" src="../../../newui_number1.tga" data-for="cell, i : minute_digits"
+				     data-attr-rect="cell" data-class-blank="cell == ''" data-style---i="i"/>
+			</div>
+			<div class="ct-run ct-time-seconds" data-style---n="second_digits.size">
+				<img class="ct-digit" src="../../../newui_number1.tga" data-for="cell, i : second_digits"
+				     data-attr-rect="cell" data-class-blank="cell == ''" data-style---i="i"/>
+			</div>
+			<div class="ct-run" id="ct_alpha" data-style---n="alpha_digits.size">
+				<img class="ct-digit" src="../../../FontTest.tga" data-for="cell, i : alpha_digits"
+				     data-attr-rect="cell" data-class-blank="cell == ''" data-style---i="i"/>
+			</div>
+			<div class="ct-run" id="ct_allied" data-style---n="allied_digits.size">
+				<img class="ct-digit" src="../../../FontTest.tga" data-for="cell, i : allied_digits"
+				     data-attr-rect="cell" data-class-blank="cell == ''" data-style---i="i"/>
+			</div>
+			<div class="ct-run" id="ct_illusion" data-style---n="illusion_digits.size">
+				<img class="ct-digit" src="../../../FontTest.tga" data-for="cell, i : illusion_digits"
+				     data-attr-rect="cell" data-class-blank="cell == ''" data-style---i="i"/>
+			</div>
+			<div class="ct-run" id="ct_kills_needed" data-style---n="kills_needed_digits.size">
+				<img class="ct-digit" src="../../../newui_number1.tga" data-for="cell, i : kills_needed_digits"
+				     data-attr-rect="cell" data-class-blank="cell == ''" data-style---i="i"/>
+			</div>
+			<div class="ct-run" id="ct_kills" data-style---n="kills_digits.size">
+				<img class="ct-digit" src="../../../newui_number1.tga" data-for="cell, i : kills_digits"
+				     data-attr-rect="cell" data-class-blank="cell == ''" data-style---i="i"/>
+			</div>
+	</div>
+</body>
+</rml>

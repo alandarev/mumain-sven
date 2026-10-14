@@ -148,6 +148,10 @@ namespace mu::ui::window
 
         CItemMng* m_pNewItemMng;
         CObject* m_pOwner;
+        // The window that draws the grid, when it is not its storage owner (an embedded extension).
+        CObject* m_pPresentationOwner = nullptr;
+        bool m_ThemedGrid = false;
+        int m_VisibleRows = 0;
 
         type_vec_item	m_vecItem;
         UI::Items::GridGeometry m_Geometry;
@@ -255,6 +259,11 @@ namespace mu::ui::window
         const UI::Items::ItemGridCells& Cells() const { return m_Cells; }
 
         const UI::Items::GridGeometry& Geometry() const { return m_Geometry; }
+        // Presentation ownership can differ from storage ownership for embedded controls; a themed
+        // grid's own document frames its cells.
+        void SetPresentation(CObject* owner, bool themedGrid);
+        // Trims empty presentation rows without changing storage capacity or wire indices.
+        void SetVisibleRowCount(int rows);
         // Each frame, in window pixels: the grid where the theme draws `gridId` in `doc`, transforms
         // included, its pitch that of its .item-cell. The grid's geometry, hit tests and tooltips and
         // the item picked from it are in window pixels, so its window draws its items
@@ -279,6 +288,7 @@ namespace mu::ui::window
         EVENT_STATE GetEventState();
 
         CObject* GetOwner() const;
+        CObject* GetPresentationOwner() const;
         bool IsVisible() const;
         void ShowInventory();
         void HideInventory();

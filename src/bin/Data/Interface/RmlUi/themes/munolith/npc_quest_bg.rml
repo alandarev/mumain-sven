@@ -1,0 +1,6 @@
+<rml><head><link type="text/rcss" href="base.rcss"/><title>NPC quest background</title>
+<link type="text/rcss" href="my_inventory_shared.rcss"/><link type="text/rcss" href="npc_quest.rcss"/>
+</head><body><div id="panel" data-model="npc_quest_bg">
+<div class="stone"/><div class="shade"/><div class="trim top-left"/><div class="trim top-mid"/><div class="trim top-right"/><div class="trim side-left"/><div class="trim side-right"/><div class="trim bottom-left"/><div class="trim bottom-mid"/><div class="trim bottom-right"/>
+<div class="quest-heading-rule"/><div class="quest-requirements-back"/>
+</div></body></rml>

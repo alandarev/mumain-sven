@@ -1,0 +1,14 @@
+#panel { font-family: "DejaVu Sans"; decorator: none; background-color: #101910; border: 1dp #545139; box-sizing: border-box; }
+.cib-btn, .cib-btn.on { box-sizing: border-box; decorator: none; border: 1dp #545139; background-color: #172018; color: #aaa48e; text-align: center; }
+.cib-btn.on { color: #edcf80; background-color: #343d29; border-color: #a99a62; }
+.cib-btn:hover { background-color: #35452a; border-color: #b8a563; }
+.control-label { display: block; line-height: 24dp; font-size: inherit; pointer-events: none; }
+.field-label { position: absolute; top: 26dp; height: 6dp; font-size: 5dp; color: #aaa48e; pointer-events: none; }
+.whisper-label { left: 5dp; }.message-label { left: 72dp; }
+.cib-whisper-field, .cib-chat-field { box-sizing: border-box; padding: 0 2dp; border: 1dp #545139; background-color: #0b150d; color: #ded1ac; font-size: inherit; }
+#whisper_block { background-color: #48271777; }
+#tooltip { font-family: "DejaVu Sans"; background-color: #101910; color: #edcf80; border: 1dp #545139; }
+
+/* Placeholders fit the original fields without a separate, undersized label row. */
+.cib-whisper-field:placeholder-shown, .cib-chat-field:placeholder-shown { color: #8b927e; }
+#tooltip { left: 0; right: 0; top: auto; bottom: 100%; transform: none; white-space: normal; box-sizing: border-box; }

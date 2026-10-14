@@ -78,6 +78,7 @@ struct GuildInfoRmlModel
     // The header every tab shares.
     GuildLine title;
     GuildLine guildName;
+    Rml::String guildIdentity;
     GuildLine tabInfo;
     GuildLine tabMembers;
     GuildLine tabUnion;

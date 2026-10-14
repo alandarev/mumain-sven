@@ -652,6 +652,7 @@ void mu::ui::window::ShowChaosMixMenuDialog()
     GenericMenuConfig cfg;
     // Native CChaosMixMenuMsgBox: lines 15 apart, each recipe's lines above its button.
     cfg.kind = "chaos-mix";
+    cfg.crafting = true;
     cfg.title = I18N::Game::SelectMethodOfCombination;
     cfg.highlightTitle = true;
     // No shared summary lines -- native interleaves each recipe's own blurb directly above its
@@ -1422,6 +1423,7 @@ void mu::ui::window::ShowTrainerMenuDialog()
 {
     GenericMenuConfig cfg;
     cfg.kind = "npc-menu";
+    cfg.crafting = true;
     cfg.title = I18N::Game::Trainer;
     cfg.lines.push_back({ I18N::Game::Hi, false });
 
@@ -1560,6 +1562,7 @@ void mu::ui::window::ShowSeedMasterMenuDialog()
 {
     GenericMenuConfig cfg;
     cfg.kind = "npc-menu";
+    cfg.crafting = true;
     cfg.title = I18N::Game::SeedMaster;
     cfg.lines.push_back({ I18N::Game::ExtractTheSeedOrTheSeedSphere, false });
     cfg.lines.push_back({ I18N::Game::YouMayAssemblyThemTogether, false });
@@ -1597,6 +1600,7 @@ void mu::ui::window::ShowSeedInvestigatorMenuDialog()
 {
     GenericMenuConfig cfg;
     cfg.kind = "npc-menu";
+    cfg.crafting = true;
     cfg.title = I18N::Game::SeedResearcher;
     cfg.lines.push_back({ I18N::Game::EitherApplyTheSeedSphere, false });
     cfg.lines.push_back({ I18N::Game::OrDestroyTheSeedSphereAccordingly, false });

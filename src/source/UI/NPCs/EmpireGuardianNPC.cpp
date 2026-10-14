@@ -4,13 +4,13 @@
 #include "UI/Core/WindowCommon.h"
 #include "UI/Core/WindowGeometry.h"
 #include "UI/NPCs/EmpireGuardianNPC.h"
+#include "UI/Events/EntryDescription.h"
 #include "I18N/All.h"
 #include "UI/RmlBridge/RmlTheme.h"
 
 #include "Audio/DSPlaySound.h"
 #include "UI/Social/SocialWindowBase.h"
 #include "Render/Text/CUIRenderText.h"
-#include "Render/Text/TextWrap.h"
 
 using namespace SEASON3B;
 using namespace mu::ui::window;
@@ -111,17 +111,14 @@ void CEmpireGuardianNPC::SyncView()
     if (IsVisible())
     {
         // The original's RenderFrame()/Render(): the title and the texts in (220, 220, 220),
-        // Gaion's Order bold yellow, the warning bold red. Both cut texts share one buffer, the
-        // second over the first, as the original's did.
+        // Gaion's Order bold yellow, the warning bold red. Wrap each paragraph with a fresh
+        // buffer so the shorter party requirement cannot keep characters from the fortress text.
         const float centreX = static_cast<float>(NPC_WINDOW_WIDTH) / 2;
-        wchar_t szTextOut[2][300] = {};
         std::vector<EventItemEntryView::Text> texts;
         texts.push_back({I18N::Game::JerintTheAssistant, 110.f, true});
         texts.push_back({I18N::Game::WithoutGaionSOrder, 190.f});
         g_pRenderText->SetFont(g_hFont);
-        CutStr(I18N::Game::YouCannotEnterTheFortressOfEmpireGuardians, szTextOut[0], 150, 2, 300);
-        texts.push_back({szTextOut[0], 190.f});
-        texts.push_back({szTextOut[1], 190.f});
+        UI::Events::AppendWrappedDescription(texts, I18N::Game::YouCannotEnterTheFortressOfEmpireGuardians, 150, 190.f);
         texts.push_back({I18N::Game::WillYouShowMeTheOrder, 190.f});
         texts.push_back({I18N::Game::GaionSOrder, 110.f, true});
         texts.push_back({I18N::Game::Warning2223, 110.f, true});
@@ -129,9 +126,7 @@ void CEmpireGuardianNPC::SyncView()
         texts.push_back({I18N::Game::BeAccessedIfYouHaveA, 200.f});
         texts.push_back({I18N::Game::CompleteSecromicon2837, 200.f});
         g_pRenderText->SetFont(g_hFont);
-        CutStr(I18N::Game::YouCanOnlyEnterAsAMemberOfAParty, szTextOut[0], 155, 2, 300);
-        texts.push_back({szTextOut[0], 200.f});
-        texts.push_back({szTextOut[1], 200.f});
+        UI::Events::AppendWrappedDescription(texts, I18N::Game::YouCanOnlyEnterAsAMemberOfAParty, 155, 200.f);
         m_View.SetTexts(std::move(texts));
 
         m_View.SetButtons({{I18N::Game::Enter, false}, {I18N::Game::Close388, false}});

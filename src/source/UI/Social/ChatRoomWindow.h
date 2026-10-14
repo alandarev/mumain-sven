@@ -10,7 +10,7 @@ class CUIChatWindow : public CUIBaseWindow
 {
     static void HandlePacketS(int32_t handle, const BYTE* ReceiveBuffer, int32_t Size);
     inline static std::map<int32_t, DWORD> ConnectionHandleToWindowUuid = {};
-    Connection* _connection;
+    Connection* _connection = nullptr;
 
 public:
     CUIChatWindow();

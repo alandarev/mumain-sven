@@ -1,0 +1,27 @@
+#panel { position: absolute; top: 50%; left: 50%; margin: 0; transform: translate(-50%, -50%); width: 230dp; min-height: 117dp; font-family: "DejaVu Sans"; color: #c6cbb4; pointer-events: auto; }
+#panel.portrait { top: 50%; }
+.gcd-header-rail { display: none; }
+.gcd-header-title { top: 8dp; left: 15dp; right: 15dp; color: #d7b864; font-weight: normal; }
+.gcd-header-title.warning { color: #efa15e; }.gcd-header-title.error { color: #ff796a; }
+.gcd-text-col { max-height: 52vh; }
+.gcd-line { line-height: 1.4em; min-height: 1.4em; }
+.gcd-portrait2d-text { color: #d7b864; }
+.btn.gcd-btn-primary, .btn.gcd-btn-secondary, .btn.gcd-btn-cancel, .btn.gcd-keypad-btn, .btn.gcd-keypad-delete { box-sizing: border-box; color: #ded1ac; background-color: #172018; border: 1dp #6b6646; decorator: none; }
+.btn.gcd-btn-primary:hover, .btn.gcd-btn-secondary:hover, .btn.gcd-btn-cancel:hover, .btn.gcd-keypad-btn:hover, .btn.gcd-keypad-delete:hover { background-color: #35452a; border-color: #b8a563; decorator: none; }
+.btn.gcd-btn-primary.stock-ok, .btn.gcd-btn-cancel.stock-cancel { color: #ded1ac; decorator: none; }
+.btn.gcd-btn-primary.stock-ok:hover, .btn.gcd-btn-cancel.stock-cancel:hover, .btn.gcd-btn-primary.stock-ok:active, .btn.gcd-btn-cancel.stock-cancel:active { decorator: none; }
+.gcd-keypad-display { color: #d7b864; }
+.gcd-input-field { color: #ded1ac; background-color: #101910; border-color: #545139; }
+.gcd-progress-track { background-color: #283429; border-color: #545139; }.gcd-progress-fill { background-color: #9aa567; }
+
+/* Stock action padding is too large for the native 18dp keypad cells. */
+.btn.gcd-keypad-btn, .btn.gcd-keypad-delete { padding: 0; line-height: 16dp; text-align: center; }
+.gcd-input-row, .gcd-line, .gcd-portrait2d-text { flex-shrink: 0; }
+.gcd-text-col.scroll-pane { overflow: hidden auto; }
+.gcd-text-col.scroll-pane scrollbarvertical { width: 8dp; }
+.gcd-text-col.scroll-pane scrollbarvertical slidertrack { decorator: none; background-color: #101910; border: 1dp #545139; }
+.gcd-text-col.scroll-pane scrollbarvertical sliderbar { decorator: none; background-color: #6b6646; min-height: 14dp; }
+.gcd-text-col.scroll-pane scrollbarvertical sliderarrowdec, .gcd-text-col.scroll-pane scrollbarvertical sliderarrowinc { height: 0; decorator: none; }
+
+/* Drop viewport centering when the native draggable pins the drawn top-left. */
+#panel.dragged { transform: none; margin: 0; }

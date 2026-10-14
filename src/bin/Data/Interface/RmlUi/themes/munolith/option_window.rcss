@@ -1,0 +1,258 @@
+/* Munolith settings desk; native callbacks own values and input behavior. */
+#panel {
+	width: 230dp;
+	height: 276dp;
+	font-family: "token(font-body)";
+	font-size: 1rem;
+	color: token(text-input);
+}
+
+#content {
+	left: 10dp;
+	right: 10dp;
+}
+
+@spritesheet option-tab-back-sheet   { src: "../../../Quest_tab01.tga"; option-tab-back:   0px 0px 166px 22px; option-tab-back-inner:   6px 4px 154px 14px; }
+@spritesheet option-tab-active-sheet { src: "../../../Quest_tab02.tga"; option-tab-active: 0px 0px 48px 22px;  option-tab-active-inner: 4px 4px 40px 14px; }
+.option-tab-row {
+	display: flex;
+	width: 100%;
+	height: 22dp;
+	margin-bottom: 8dp;
+	decorator: ninepatch(option-tab-back, option-tab-back-inner);
+}
+
+.option-tab-btn {
+	flex: 1 1 auto;
+	padding: 0 2dp;
+	height: 22dp;
+	line-height: 22dp;
+	text-align: center;
+	font-size: 1rem;
+	white-space: nowrap;
+	overflow: hidden;
+	cursor: pointer;
+	pointer-events: auto;
+	color: token(text-muted);
+}
+.option-tab-btn:hover {
+	color: token(text-input);
+}
+.option-tab-btn.active-tab {
+	color: token(text-primary);
+	decorator: ninepatch(option-tab-active, option-tab-active-inner);
+}
+
+.option-tab-panel {
+	display: flex;
+	flex-direction: column;
+	width: 100%;
+}
+.option-tab-panel.hidden {
+	display: none;
+}
+
+.option-row {
+	position: relative;
+	width: 100%;
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	margin-bottom: 6dp;
+}
+.option-checkbox-row {
+	height: 18dp;
+	cursor: pointer;
+	pointer-events: auto;
+}
+
+.checkbox-box {
+	flex-shrink: 0;
+}
+
+.checkbox-tick {
+	display: none;
+}
+
+.option-row-label {
+	width: 116dp;
+	flex-shrink: 0;
+	white-space: nowrap;
+	color: token(text-input);
+}
+
+.option-select-row,
+.option-gauge-row {
+	height: 20dp;
+}
+
+.option-gauge {
+	position: relative;
+	width: 124dp;
+	height: 16dp;
+	margin-left: auto;
+}
+.option-gauge.effect-gauge {
+	width: 70dp;
+	height: 15dp;
+}
+.option-gauge .level-gauge-fill {
+	left: 0;
+	top: 0;
+	bottom: 0;
+}
+.option-gauge-hit {
+	left: -8dp;
+	right: 0;
+}
+
+.option-dropdown {
+	position: relative;
+	flex-grow: 1;
+	height: 18dp;
+}
+
+.option-dropdown-value {
+	display: block;
+	box-sizing: border-box;
+	width: 100%;
+	height: 100%;
+	padding: 0 4dp;
+	line-height: 18dp;
+	white-space: nowrap;
+	overflow: hidden;
+	cursor: pointer;
+	pointer-events: auto;
+	background-color: token(surface-control);
+	border-width: 1dp;
+	border-color: token(border-control);
+	color: token(text-input);
+}
+
+.option-dropdown-list {
+	display: block;
+	position: absolute;
+	left: 0;
+	top: 100%;
+	box-sizing: border-box;
+	width: 100%;
+	max-height: 90dp;
+	overflow-y: auto;
+	z-index: 1;
+	background-color: token(surface-control);
+	border-width: 1dp;
+	border-color: token(border-control);
+	pointer-events: auto;
+}
+.option-dropdown-list.hidden {
+	display: none;
+}
+
+.option-dropdown-list scrollbarvertical {
+	width: 6dp;
+	margin: 0;
+}
+.option-dropdown-list scrollbarvertical slidertrack {
+	background-color: token(surface-recessed);
+}
+.option-dropdown-list scrollbarvertical sliderbar {
+	background-color: token(control-thumb);
+}
+.option-dropdown-list scrollbarvertical sliderbar:hover,
+.option-dropdown-list scrollbarvertical sliderbar:active {
+	background-color: token(control-thumb-hover);
+}
+.option-dropdown-list scrollbarvertical sliderarrowdec,
+.option-dropdown-list scrollbarvertical sliderarrowinc {
+	width: 0;
+	height: 0;
+}
+.option-dropdown-option {
+	display: block;
+	width: 100%;
+	padding: 2dp 4dp;
+	white-space: nowrap;
+	cursor: pointer;
+	pointer-events: auto;
+	color: token(text-input);
+}
+.option-dropdown-option:hover {
+	color: token(text-primary);
+	background-color: token(border-control);
+}
+.option-dropdown-option.selected {
+	color: token(text-primary);
+	background-color: #8f6922;
+}
+
+.option-row-tipped {
+	pointer-events: auto;
+}
+.option-row-tip {
+	display: none;
+	position: absolute;
+	left: 0;
+	top: 100%;
+	width: 190dp;
+	z-index: 2;
+	padding: 2dp 4dp;
+	background-color: token(surface-tooltip);
+	border-width: 1dp;
+	border-color: token(border-control);
+	border-radius: token(radius-sm)dp;
+	color: token(text-primary);
+	font-size: 1rem;
+	pointer-events: none;
+}
+.option-row-tipped:hover .option-row-tip {
+	display: block;
+}
+.option-row-tipped .option-dropdown-list {
+	top: auto;
+	bottom: 100%;
+}
+
+.option-close-btn {
+	left: 50%;
+	bottom: 0;
+	transform: translateX(-50%);
+}
+
+.window-shell-header-rail,
+.window-shell-header-title { display: none; }
+
+#panel { width: 420dp; height: 330dp; max-width: 96%; max-height: 95%; font-family: "DejaVu Sans"; color: #c8ceba; }
+#content, #content.has-title { position: absolute; left: 12dp; right: 12dp; top: 40dp; bottom: 28dp; padding: 0; display: block; pointer-events: auto; }
+.window-shell-header-rail, .window-shell-header-title { display: block; }
+.option-tab-row { display: flex; height: 26dp; margin: 0; decorator: none; }
+.option-tab-btn { flex: 1 1 auto; padding: 0 4dp; height: 24dp; line-height: 24dp; decorator: none; background-color: #172523; border: 1dp #64694e; color: #d4c699; }
+.option-tab-btn:hover { color: #f0dbac; background-color: #263731; }
+.option-tab-btn.active-tab { decorator: none; color: #ffe3a3; background-color: #343122; border-color: #ac9359; }
+.option-tab-panel { position: absolute; left: 0; right: 0; top: 36dp; bottom: 38dp; width: auto; display: block; overflow: hidden auto; padding-right: 2dp; }
+.option-tab-panel.hidden { display: none; }
+.option-row { min-height: 24dp; margin-bottom: 6dp; border-bottom: 1dp #303f32; }
+.option-row-label { width: 55%; white-space: normal; color: #c8ceba; }
+.checkbox-box { margin-left: auto; margin-right: 4dp; image-color: #dfc990; }
+.option-gauge { decorator: none; background-color: #0b1712; border: 1dp #626f51; }
+.option-gauge .level-gauge-fill { decorator: none; background-color: #b29a61; }
+.option-dropdown { height: 22dp; }
+.option-dropdown-value { line-height: 22dp; background-color: #0b1712; color: #e4d3af; border-color: #626f51; }
+.option-dropdown-list { max-height: 90dp; background-color: #101d16; border-color: #8b8058; z-index: 5; }
+.option-dropdown-option { padding: 4dp 5dp; box-sizing: border-box; color: #c8ceba; }
+.option-dropdown-option:hover { background-color: #263731; color: #e4d3af; }
+.option-dropdown-option.selected { background-color: #4c4831; color: #ffe3a3; }
+.option-close-btn { position: absolute; }
+.option-row-tip { width: 260dp; max-width: 95%; background-color: #15221a; border-color: #8b8058; color: #e4d3af; }
+.option-tab-panel scrollbarvertical, .option-dropdown-list scrollbarvertical { width: 8dp; }
+.option-tab-panel scrollbarvertical slidertrack, .option-dropdown-list scrollbarvertical slidertrack { decorator: none; background-color: #0a1412; }
+.option-tab-panel scrollbarvertical sliderbar, .option-dropdown-list scrollbarvertical sliderbar { decorator: none; background-color: #756c4f; border: 1dp #b2a278; }
+.option-tab-panel scrollbarvertical sliderarrowdec, .option-tab-panel scrollbarvertical sliderarrowinc { decorator: none; width: 0; height: 0; }
+
+#content, #content.has-title { top: 32dp; bottom: 26dp; }
+.option-tab-panel { top: 30dp; bottom: 32dp; }
+.option-row { height: 22dp; min-height: 22dp; margin-bottom: 4dp; }
+.option-row:last-child { margin-bottom: 0; }
+.option-dropdown-list { max-height: 80dp; }
+
+/* A separate control-column overlay prevents clipping by the row scroller. */
+.option-dropdown-list { left: auto; right: 2dp; top: 30dp; bottom: 32dp; width: 45%; max-height: none; height: auto; }

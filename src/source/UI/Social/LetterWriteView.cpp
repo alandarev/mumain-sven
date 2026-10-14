@@ -319,6 +319,11 @@ void LetterWriteView::SyncGeometry()
         return;
     m_Left = panel->GetAbsoluteLeft() / scale;
     m_Top = panel->GetAbsoluteTop() / scale;
+    const float left = m_Left;
+    const float top = m_Top;
+    ClampToWorkspace();
+    if (m_Left != left || m_Top != top)
+        PublishPosition();
     m_Owner.SetPosition(static_cast<int>(m_Left), static_cast<int>(m_Top));
     m_Owner.SetSize(static_cast<int>(m_Width), static_cast<int>(m_Height));
 }
@@ -334,7 +339,14 @@ void LetterWriteView::SyncWorkspace()
     m_WorkspaceHeight = height;
     m_Viewport = viewport;
     m_DpRatio = scale;
-    if (m_CustomPosition)
+    m_View.Document()->UpdateDocument();
+    if (m_Placed && scale > 0.f)
+    {
+        const auto size = Panel()->GetBox().GetSize(Rml::BoxArea::Border);
+        m_Width = size.x / scale;
+        m_Height = size.y / scale;
+    }
+    if (m_CustomPosition || m_Placed)
         ApplyLayout();
     m_View.Document()->UpdateDocument();
 }
@@ -356,10 +368,11 @@ void LetterWriteView::ClampToWorkspace()
         return;
     const float maxLeft = WindowWidth / scale - m_Width;
     const float maxTop = m_WorkspaceHeight / scale - m_Height;
-    if (maxLeft > 0)
-        m_Left = std::clamp(m_Left, 0.f, maxLeft);
-    if (maxTop > 0)
-        m_Top = std::clamp(m_Top, 0.f, maxTop);
+    // A window up to a pixel larger than the workspace still pins to its top-left.
+    if (maxLeft >= -1.f / scale)
+        m_Left = std::clamp(m_Left, 0.f, std::max(0.f, maxLeft));
+    if (maxTop >= -1.f / scale)
+        m_Top = std::clamp(m_Top, 0.f, std::max(0.f, maxTop));
 }
 
 void LetterWriteView::ApplyLayout()

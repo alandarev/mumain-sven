@@ -205,6 +205,8 @@ namespace mu::ui::window
         void RenderGuildMark();
         void RenderWarningArrow();
 
+        void SyncNativeLayout();
+
         void ProcessMyInvenCtrl();
         bool ProcessBtns();
 

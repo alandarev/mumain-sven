@@ -1,0 +1,15 @@
+<rml>
+<head>
+    <title>Server messages</title>
+    <link type="text/rcss" href="base.rcss"/>
+    <link type="text/rcss" href="server_msg.rcss"/>
+</head>
+<body data-model="server_msg">
+    <div id="panel">
+        <div class="notice-title">Server messages</div>
+        <div class="server-lines">
+            <div class="server-line" data-for="line : lines" data-style-font-size="(text_px &lt; 12 ? 12 : text_px) + 'px'">{{line}}</div>
+        </div>
+    </div>
+</body>
+</rml>

@@ -182,6 +182,7 @@ namespace mu::ui::window
                     m_pObj = _container.GetInstance();
                     m_InstState = INSTANCE_REFERENCE;
                 }
+                return *this;
             }
         };
         template <class T>
@@ -299,6 +300,15 @@ namespace mu::ui::window
         void PopAllMessageBoxes();
 
         bool IsEmpty();
+        // Read-only stack identity; manager visibility is independent of these children.
+        const std::vector<CMessageBoxBase*>& GetMessageBoxes() const
+        {
+            return m_vecMsgBoxes;
+        }
+        bool HasPendingEvents() const
+        {
+            return !m_queueEvents.empty();
+        }
 
         void SendEvent(CMessageBoxBase* pOwner, DWORD dwEvent);
         void SendEvent(CMessageBoxBase* pOwner, DWORD dwEvent, const leaf::xstreambuf& xParam);

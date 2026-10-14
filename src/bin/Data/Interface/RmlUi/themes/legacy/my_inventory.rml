@@ -1,3 +1,4 @@
+<!-- rml-contract-optional-callback: my_inventory_overflow_click: extensions open in their own window; only an embedding theme offers an overflow button -->
 <rml>
 <head>
 	<title>My Inventory</title>

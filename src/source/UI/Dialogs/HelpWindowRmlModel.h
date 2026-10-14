@@ -18,6 +18,7 @@ struct HelpLineEntry
 // renderer's, in reference px.
 struct HelpWindowRmlModel
 {
+    float availableHeight = 0.f; // physical height above the rendered HUD
     float textPx = 0.f;
     float boldTextPx = 0.f;
     float lineHeight = 0.f;

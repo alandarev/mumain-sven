@@ -1,0 +1,11 @@
+/* A bounded reference overlay; native Help supplies every line and key action. */
+#help_panel { position: absolute; left: 2%; top: 5%; width: 380dp; height: 430dp; max-width: 96%; max-height: 90%; box-sizing: border-box; font-family: "DejaVu Sans"; color: #c8ceba; pointer-events: auto; }
+#help_scroll { position: absolute; left: 12dp; right: 12dp; top: 24dp; bottom: 30dp; overflow: hidden auto; pointer-events: auto; }
+.help-line { display: block; min-height: 17dp; margin-bottom: 3dp; line-height: 1.3; white-space: normal; text-align: left; }
+.help-line.heading { color: #ead29e; font-weight: bold; border-bottom: 1dp #626f51; padding-bottom: 4dp; margin-bottom: 8dp; }
+.help-line.half-spacer { min-height: 0; height: 8dp; margin: 0; }
+#help_footer { position: absolute; left: 12dp; right: 12dp; bottom: 8dp; height: 18dp; line-height: 18dp; text-align: right; color: #b5aa89; pointer-events: none; }
+#help_scroll scrollbarvertical { width: 8dp; }
+#help_scroll scrollbarvertical slidertrack { decorator: none; background-color: #0a1412; }
+#help_scroll scrollbarvertical sliderbar { decorator: none; background-color: #756c4f; border: 1dp #b2a278; }
+#help_scroll scrollbarvertical sliderarrowdec, #help_scroll scrollbarvertical sliderarrowinc { decorator: none; height: 0; }

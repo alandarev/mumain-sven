@@ -894,6 +894,30 @@ std::string Pickup(const Request& request, std::unique_ptr<Act>& act)
     return {};
 }
 
+std::string Talk(const Request& request, std::unique_ptr<Act>&)
+{
+    int key = -1;
+    if (const auto error = TargetError(request, ResolveTarget(request, key), "talk", true); !error.empty())
+        return error;
+    if (Hero == nullptr || Hero->Dead != 0)
+        return EncodeError(request.EncodedId(), ErrorCode::NotAllowed, "a living character must be in the world");
+    const auto npc = DescribeGameObject(key);
+    if (!npc.known || npc.kind != "npc")
+        return EncodeError(request.EncodedId(), ErrorCode::NotAllowed, "the target must be a visible NPC");
+    if (std::max(std::abs(Hero->PositionX - npc.x), std::abs(Hero->PositionY - npc.y)) > 3)
+        return EncodeError(request.EncodedId(), ErrorCode::NotAllowed, "walk within three tiles of the NPC first");
+    if (!SocketClient || !SocketClient->IsConnected())
+        return EncodeError(request.EncodedId(), ErrorCode::NotConnected, "the client is not connected");
+    // Use the same merchant identity and repair capability as mouse interaction.
+    if (auto* character = FindCharacterByKey(key); character && CharactersClient)
+    {
+        TargetNpc = static_cast<int>(character - CharactersClient);
+        g_pNPCShop->SetMerchant(static_cast<int>(character - CharactersClient));
+    }
+    SocketClient->ToGameServer()->SendTalkToNpcRequest(static_cast<uint16_t>(key));
+    return EncodeResult(request.EncodedId(), json{{"target", key}, {"sent", true}}.dump());
+}
+
 std::string UseItem(const Request& request, std::unique_ptr<Act>&)
 {
     int slot = 0;

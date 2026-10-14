@@ -2,6 +2,7 @@
 #include "Core/Utilities/FrameProfiler.h"
 #include "UI/RmlBridge/RmlWorkspaceParticipant.h"
 #include "UI/Placement/WindowPlacement.h"
+#include "UI/RmlBridge/RmlPanelGeometry.h"
 
 #include <RmlUi/Core/Context.h>
 #include <RmlUi/Core/ElementDocument.h>
@@ -52,12 +53,14 @@ void RegisterWorkspaceDocument(std::string_view name, std::function<Rml::Element
             element->RemoveProperty(Rml::PropertyId::Left);
             element->RemoveProperty(Rml::PropertyId::Top);
             element->RemoveProperty(Rml::PropertyId::Transform);
+            ApplyLayoutScale(element, 0.f, false);
             return;
         }
         element->SetProperty(Rml::PropertyId::Left, Rml::Property(box->left, Rml::Unit::PX));
         element->SetProperty(Rml::PropertyId::Top, Rml::Property(box->top, Rml::Unit::PX));
         const float ratio = box->scale / element->GetContext()->GetDensityIndependentPixelRatio();
         element->SetProperty("transform", "scale(" + std::to_string(ratio) + ")");
+        ApplyLayoutScale(element, ratio, false);
         {
             FRAME_PROFILE(UILayout);
             element->GetOwnerDocument()->UpdateDocument();

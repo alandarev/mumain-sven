@@ -17,6 +17,7 @@ struct PartyListCardEntry
     bool defenseBuff = false;
     bool selected = false; // the card under the pointer, the skill target
     bool showLeave = false;
+    float healthPercent = 0.f;
     float healthLength = 0.f; // reference px of the health bar's texture shown
     int index = 0;            // position in Party[]
 };

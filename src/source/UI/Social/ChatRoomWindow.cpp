@@ -104,7 +104,7 @@ void CUIChatWindow::RefreshRoomTitle()
     {
         if (pal.name == Hero->ID)
             continue;
-        std::wstring suffix = named > 0 ? L", " : L"";
+        std::wstring suffix = named > 0 ? L", " : L" ";
         suffix += pal.name;
         if (++named >= 3)
             suffix += L"...";

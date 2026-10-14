@@ -1,0 +1,28 @@
+/* Native geometry follows this anchor inside the reference screen. */
+#siege_hud { left: auto; bottom: auto; position: absolute; right: 4px; top: 142px; width: 154px; height: 0; pointer-events: none; }
+#frame_art { decorator: none; background-color: #071711ef; border: 1px #9c8855; box-sizing: border-box; }
+
+#time_frame { display: none; }
+#time { top: -49px; color: #e6d3a7; background-color: transparent; z-index: 2; }
+#skill_frame { decorator: none; background-color: #071711ef; border: 1px #535b47; box-sizing: border-box; }
+.team, .order-button, #alpha_button { decorator: none; background-color: #15281b; border: 1px #657049; box-sizing: border-box; }
+.team.over, .order-button.over, #alpha_button.over { decorator: none; background-color: #354432; border-color: #c6b577; }
+.team.down, .order-button.down, #alpha_button.down { decorator: none; background-color: #576344; border-color: #e6d3a7; }
+.text, .text.bold { color: #e6d3a7; }
+.dot { background-color: #bdc5b3; }
+#hero { background-color: #efc953; }
+
+.skill-label { top: 44px; font-size: 10px; color: #c7c8ad; }
+.skill-cost { left: 78px; }
+.skill-kills { left: 97px; }
+
+#zoom_back { position: absolute; left: 134px; top: 7px; width: 13px; height: 12px; background-color: #15281b; border: 1px #657049; box-sizing: border-box; }
+#zoom_hint { left: 134px; top: 7px; text-align: center; }
+
+.team:hover, .order-button:hover, #alpha_button:hover { background-color: #354432; border-color: #c6b577; }
+.team:active, .team.selected, .order-button:active, #alpha_button:active { background-color: #576344; border-color: #e6d3a7; }
+
+.hud-width-13 { width: calc(13px * var(--root-scale)); }
+.hud-width-134 { width: calc(134px * var(--root-scale)); }
+.hud-width-38 { width: calc(38px * var(--root-scale)); }
+.hud-line-height-23 { line-height: calc(23px * var(--root-scale)); }

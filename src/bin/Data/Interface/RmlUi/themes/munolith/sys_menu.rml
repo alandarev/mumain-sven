@@ -1,0 +1,14 @@
+<rml>
+<head><title>System Menu</title><link type="text/rcss" href="base.rcss"/><link type="text/rcss" href="sys_menu.rcss"/></head>
+<body class="scene-window-scale">
+<div id="backdrop"/>
+<div id="panel" class="center-both native-text" data-model="sys_menu">
+ <div class="menu-heading">{{system_menu_label}}</div>
+ <div class="menu-actions">
+  <button id="btn_exit_game" class="menu-action" data-event-click="sysmenu_exit_game_click">{{exit_game_label}}</button>
+  <button id="btn_select_server" class="menu-action" data-class-hidden="select_server_hidden" data-event-click="sysmenu_select_server_click">{{select_server_label}}</button>
+  <button id="btn_option" class="menu-action" data-event-click="sysmenu_option_click">{{option_label}}</button>
+  <button id="btn_close" class="menu-action" data-event-click="sysmenu_close_click">{{close_label}}</button>
+ </div>
+</div>
+</body></rml>

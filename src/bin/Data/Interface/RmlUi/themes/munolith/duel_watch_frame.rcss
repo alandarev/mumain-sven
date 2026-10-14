@@ -1,0 +1,20 @@
+.screen { position: absolute; left: 0; top: 0; width: 640px; height: 480px; transform-origin: left top; pointer-events: none; }
+.spectator-back { position: absolute; left: 0; top: 0px; width: 640px; height: 51px; background-color: #10190fee; border-top: 1px #77734a; }
+.fighter-track { position: absolute; background-color: #263222; border-bottom: 1px #72754d; }
+.hero-hp { left: 60px; top: 11px; width: 236px; height: 7px; }
+.enemy-hp { left: 344px; top: 11px; width: 236px; height: 7px; }
+.hero-sd { left: 142px; top: 21px; width: 154px; height: 4px; }
+.enemy-sd { left: 344px; top: 21px; width: 154px; height: 4px; }
+.gauge { position: absolute; pointer-events: none; }
+.gauge.mirrored { transform: scale(-1, 1); transform-origin: center center; }
+.fighter-name, .score-value { display: block; position: absolute; transform-origin: left top; font-family: "DejaVu Sans"; white-space: nowrap; text-align: center; color: #d7b864; }
+#name_hero { left: 60px; top: 32px; }
+#name_enemy { left: 344px; top: 32px; }
+.score-value { left: 296px; top: 6px; color: #e6dab0; }
+#exit { position: absolute; left: 604px; top: 22px; width: 36px; height: 29px; box-sizing: border-box; background-color: #343422; border: 1px #6b6646; color: #d7b864; text-align: center; font-family: "DejaVu Sans"; font-size: 14px; pointer-events: auto; }
+#exit:hover { background-color: #51482b; border-color: #c9a65c; }
+
+.hud-width-236 { width: calc(236px * var(--root-scale)); }
+.hud-width-48 { width: calc(48px * var(--root-scale)); }
+
+#panel { position: absolute; width: 640px; height: 51px; }

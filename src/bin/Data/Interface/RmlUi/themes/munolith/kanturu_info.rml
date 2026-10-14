@@ -1,0 +1,23 @@
+<rml>
+<head>
+    <title>Kanturu battle</title>
+    <link type="text/rcss" href="base.rcss"/>
+    <link type="text/rcss" href="kanturu_info.rcss"/>
+</head>
+<body data-model="kanturu_info">
+    <div id="panel">
+        <div class="heading">KANTURU BATTLE</div>
+        <div id="users" class="info-text" data-style-font-size="(bold_text_px &lt; 14 ? 14 : (bold_text_px > 20 ? 20 : bold_text_px)) + 'px'">{{users_text}}</div>
+        <div id="monsters" class="info-text" data-style-font-size="(bold_text_px &lt; 14 ? 14 : (bold_text_px > 20 ? 20 : bold_text_px)) + 'px'">{{monsters_text}}</div>
+        <div class="timer-row">
+            <div class="timer-label">Time left</div>
+            <div class="clock-well">
+                <div id="clock">
+                    <span id="colon" data-if="colon_visible">:</span>
+                    <div id="minutes" class="clock-digits"><img class="digit" src="../../../newui_number1.tga" data-for="cell : minute_digits" data-attr-rect="cell" data-class-blank="cell == ''"/></div><div id="seconds" class="clock-digits"><img class="digit" src="../../../newui_number1.tga" data-for="cell : second_digits" data-attr-rect="cell" data-class-blank="cell == ''"/></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</rml>

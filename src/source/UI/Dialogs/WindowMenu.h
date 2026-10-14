@@ -28,6 +28,9 @@ public:
         MENU_MINIMAP,
         MENU_GENS,
         MENU_MAX_INDEX,
+        MENU_QUEST = 100,
+        MENU_MASTER_SKILLS,
+        MENU_PERSONAL_STORE,
     };
 
 public:

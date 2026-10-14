@@ -1,0 +1,25 @@
+<rml>
+<!-- bound-geometry: each member's health bar is a fraction -->
+<head><link type="text/rcss" href="scaled_content.rcss"/><title>{{window_title}}</title>
+<link type="text/rcss" href="base.rcss"/>
+<link type="text/rcss" href="my_inventory_shared.rcss"/>
+<link type="text/rcss" href="social_shared.rcss"/>
+<link type="text/rcss" href="party_info.rcss"/>
+</head><body>
+<div id="panel" data-model="party_info">
+<div class="stone"></div><div class="shade"></div>
+<div class="trim top-left"></div><div class="trim top-mid"></div><div class="trim top-right"></div>
+<div class="trim side-left"></div><div class="trim side-right"></div>
+<div class="trim bottom-left"></div><div class="trim bottom-mid"></div><div class="trim bottom-right"></div>
+<span id="title" class="sharp-text scaled-width-400 counter-scaled scaled-reference" data-style-font-size="text_px + 'px'">{{window_title}}</span>
+<div id="btn_corner_close" data-event-click="window_close"></div>
+<div class="sharp-text party-empty scaled-width-370 counter-scaled scaled-reference" data-class-hidden="has_party" data-style-font-size="text_px + 'px'"><span data-for="line : empty_state_lines">{{line.text}}</span></div>
+<div class="sharp-text party-list scaled-width-370 counter-scaled scaled-reference" data-class-hidden="!has_party" data-style-font-size="text_px + 'px'">
+  <div class="party-row scaled-height-46 scaled-margin-bottom-5 scaled-padding-5-8 scaled-gap-12 scaled-reference" data-for="m : members" data-class-leader="m.is_leader">
+    <div class="party-identity scaled-width-100 scaled-reference"><span class="party-name">{{m.name}}</span><span class="party-leader" data-if="m.is_leader">Leader</span></div>
+    <div class="party-vitals"><div class="party-hp-text">{{m.hp_text}}</div><div class="party-hp-bar scaled-height-4 scaled-reference"><div class="party-hp-fill" data-style-width="m.hp_percent + '%'"></div></div><div class="party-location">{{m.map_text}} {{m.coord_text}}</div></div>
+    <div class="party-kick-btn scaled-width-18 scaled-height-18 scaled-reference" data-class-hidden="!m.show_kick" data-event-click="party_kick_member(m.index)"><span>×</span></div>
+  </div>
+</div>
+<div id="btn_exit" class="social-btn" data-event-click="window_close"><span class="sharp-text scaled-width-74 scaled-line-height-22 counter-scaled scaled-reference" data-style-font-size="text_px + 'px'">Close</span></div>
+</div></body></rml>

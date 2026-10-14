@@ -365,12 +365,12 @@ void mu::ui::window::CMiniMap::SyncScreen()
 
 void mu::ui::window::CMiniMap::SyncClips()
 {
-    // The original drew the bottom HUD strip over the map, so the map paints only outside it:
-    // above the strip, and beside it down to the screen's bottom edge.
+    // Native HUD art needs a reserved strip. The compact HUD is a foreground RmlUi
+    // document, so the map can paint behind its transparent gaps across the full viewport.
     const float width = static_cast<float>(WindowWidth);
     const float height = static_cast<float>(WindowHeight);
     UI::Placement::PlacementParticipant::Box strip;
-    const bool hasStrip = UI::Placement::SlotBox("main_hud", strip);
+    const bool hasStrip = !UI::RmlBridge::ThemeUsesCompactHud() && UI::Placement::SlotBox("main_hud", strip);
     const float bandTop = hasStrip ? std::clamp(strip.top, 0.f, height) : height;
     const float bandBottom = hasStrip ? std::clamp(strip.top + strip.height, bandTop, height) : height;
     const float bandLeft = std::clamp(strip.left, 0.f, width);

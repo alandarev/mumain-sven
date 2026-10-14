@@ -1,0 +1,26 @@
+#panel, #bg_root { width: 440px; height: 400px; }
+#panel { pointer-events: auto; }
+#bg_root { pointer-events: none; }
+#title { left: 15px; right: 15px; top: 8px; height: 24px; overflow: visible; }
+.archer-notes, .number-notes { position: absolute; left: 15px; transform-origin: left top; overflow: hidden auto; pointer-events: auto; }
+.archer-notes { top: 45px; }
+.number-notes { top: 138px; }
+.archer-line { display: block; white-space: normal; color: #c6cbb4; line-height: 1.3em; margin-bottom: 6px; }
+#serial_field { position: absolute; left: 15px; top: 232px; box-sizing: border-box; transform-origin: left top; font-family: "DejaVu Sans"; color: #e2dcc3; background-color: #142016; border: 1px #79734a; padding: 2px 4px; pointer-events: auto; }
+#serial_field:focus { border-color: #bfa561; }
+.archer-register { position: absolute; left: 15px; top: 308px; width: 410px; height: 44px; padding: 2px; }
+.collected-label, .registered-label, .collected-count, .registered-count { position: absolute; left: 15px; width: 410px; color: #d7b864; }
+.collected-label { top: 110px; }
+.registered-label { top: 212px; }
+.collected-count { top: 170px; }
+.registered-count { top: 272px; }
+.collected-label .native-text, .registered-label .native-text { line-height: 1.0em; }
+.desk-close { bottom: 10px; height: 36px; }
+.desk-close .native-text { line-height: 1.0em; }
+#rena_collected, #rena_registered { position: absolute; left: 110px; width: 32px; height: 32px; pointer-events: none; }
+#rena_collected { top: 170px; }
+#rena_registered { top: 272px; }
+.collected-count, .registered-count { left: 170px; width: 245px; }
+.collected-count .native-text, .registered-count .native-text { text-align: left; }
+.archer-register .native-text, .desk-close .native-text { text-align: center; }
+.corner-close { right: 5px; }

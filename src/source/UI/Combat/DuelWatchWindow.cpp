@@ -155,17 +155,7 @@ void CDuelWatchWindow::BindRmlModel(Rml::DataModelConstructor& c, DuelWatchRmlMo
     c.Bind("watch_text", &model.watchText);
     c.Bind("label_line_px", &model.labelLinePx);
 
-    auto room = c.RegisterStruct<DuelWatchRoomEntry>();
-    room.RegisterMember("index", &DuelWatchRoomEntry::index);
-    room.RegisterMember("heading", &DuelWatchRoomEntry::heading);
-    room.RegisterMember("running", &DuelWatchRoomEntry::running);
-    room.RegisterMember("player1", &DuelWatchRoomEntry::player1);
-    room.RegisterMember("player2", &DuelWatchRoomEntry::player2);
-    room.RegisterMember("player1_px", &DuelWatchRoomEntry::player1Px);
-    room.RegisterMember("player2_px", &DuelWatchRoomEntry::player2Px);
-    room.RegisterMember("joinable", &DuelWatchRoomEntry::joinable);
-    c.RegisterArray<std::vector<DuelWatchRoomEntry>>();
-    c.Bind("rooms", &model.rooms);
+    BindRoomRows(c, model);
 
     c.BindEventCallback("duelwatch_join",
                         [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& arguments)
@@ -189,6 +179,21 @@ void CDuelWatchWindow::BindRmlModel(Rml::DataModelConstructor& c, DuelWatchRmlMo
         entry.heading = StringUtils::WideToNarrow(heading);
         model.rooms.push_back(std::move(entry));
     }
+}
+
+void CDuelWatchWindow::BindRoomRows(Rml::DataModelConstructor& c, DuelWatchRmlModel& model)
+{
+    auto room = c.RegisterStruct<DuelWatchRoomEntry>();
+    room.RegisterMember("index", &DuelWatchRoomEntry::index);
+    room.RegisterMember("heading", &DuelWatchRoomEntry::heading);
+    room.RegisterMember("running", &DuelWatchRoomEntry::running);
+    room.RegisterMember("player1", &DuelWatchRoomEntry::player1);
+    room.RegisterMember("player2", &DuelWatchRoomEntry::player2);
+    room.RegisterMember("player1_px", &DuelWatchRoomEntry::player1Px);
+    room.RegisterMember("player2_px", &DuelWatchRoomEntry::player2Px);
+    room.RegisterMember("joinable", &DuelWatchRoomEntry::joinable);
+    c.RegisterArray<std::vector<DuelWatchRoomEntry>>();
+    c.Bind("rooms", &model.rooms);
 }
 
 void CDuelWatchWindow::BuildRmlUi()

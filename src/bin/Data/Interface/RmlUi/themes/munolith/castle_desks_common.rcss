@@ -1,0 +1,84 @@
+#panel { pointer-events: auto; }
+#panel.management-desk { width: 480px; height: 380px; }
+#panel.siege-desk { width: 380px; height: 380px; }
+#title { position: absolute; left: 15px; right: 15px; top: 8px; height: 19px; color: #d7b864; text-align: center; overflow: hidden; }
+.native-text { display: block; transform-origin: left top; white-space: normal; pointer-events: none; }
+button { box-sizing: border-box; font-family: "DejaVu Sans"; font-size: 8px; color: #ded1ac; background-color: #343422; border: 1px #6b6646; padding: 3px 5px; pointer-events: auto; }
+button:hover { background-color: #51482b; border-color: #c9a65c; }
+button.locked { color: #82917e; background-color: #172018; border-color: #384436; pointer-events: none; }
+.corner-close { position: absolute; right: 5px; top: 3px; width: 10px; height: 12px; padding: 0; border-width: 0; background-color: transparent; color: #d7b864; }
+.tabs { position: absolute; left: 15px; right: 15px; top: 35px; height: 25px; display: flex; gap: 5px; }
+.tabs button { flex: 1 1 0; height: 25px; padding: 3px; }
+.tabs button.selected { border-color: #b8a563; background-color: #40522c; color: #eff0c4; }
+.desk-close { position: absolute; left: 15px; right: 15px; bottom: 14px; height: 24px; padding: 2px 4px; }
+.map-title { position: absolute; left: 15px; top: 75px; width: 200px; height: 18px; color: #d7b864; }
+.castle-map { position: absolute; left: 15px; top: 94px; width: 200px; height: 206px; border: 1px #545139; }
+.castle-map-art { position: absolute; left: 0; top: 0; width: 200px; height: 206px; decorator: image(cw-map); }
+.castle-map-item { position: absolute; width: 30px; height: 30px; pointer-events: auto; }
+.castle-icon { position: absolute; width: 30px; height: 30px; decorator: image(cw-gate-off); }
+.castle-map-item.current .castle-icon { decorator: image(cw-gate-on); }
+.castle-map-item.statue .castle-icon { decorator: image(cw-statue-off); }
+.castle-map-item.statue.current .castle-icon { decorator: image(cw-statue-on); }
+.castle-map-item.item-0 { left: 84px; top: 44px; }
+.castle-map-item.item-1 { left: 61px; top: 104px; }
+.castle-map-item.item-2 { left: 106px; top: 104px; }
+.castle-map-item.item-3 { left: 41px; top: 169px; }
+.castle-map-item.item-4 { left: 84px; top: 169px; }
+.castle-map-item.item-5 { left: 126px; top: 169px; }
+.defense-page.statue .item-0 { left: 84px; top: 25px; }
+.defense-page.statue .item-1 { left: 84px; top: 81px; }
+.defense-page.statue .item-2 { left: 61px; top: 138px; }
+.defense-page.statue .item-3 { left: 106px; top: 138px; }
+.bars { position: absolute; left: 3px; top: -10px; pointer-events: none; }
+.hp-track, .hp-fill, .defense-fill, .recover-fill { position: absolute; left: 0; height: 3px; }
+.hp-track { top: 0; background-color: #542b29; }
+.hp-fill { top: 0; background-color: #b56445; }
+.defense-fill { top: 4px; background-color: #749398; }
+.recover-fill { top: 8px; background-color: #8ca86b; }
+.map-actions { position: absolute; left: 15px; top: 310px; width: 200px; height: 24px; display: flex; gap: 6px; }
+.map-actions button { flex: 1 1 0; }
+.defense-details { position: absolute; left: 235px; top: 80px; transform-origin: left top; overflow: hidden auto; }
+.detail-line { display: block; white-space: normal; line-height: 1.4em; margin-bottom: 8px; color: #c6cbb4; }
+.current-stat { color: #d7b864; }
+.section-title { display: block; color: #d7b864; border-bottom: 1px #545139; padding-bottom: 4px; margin-top: 10px; margin-bottom: 8px; }
+.upgrade-row { display: block; white-space: normal; margin-bottom: 10px; }
+.upgrade-row button { display: block; min-height: 24px; width: 90%; margin-top: 4px; }
+.tax-content { position: absolute; left: 15px; top: 75px; transform-origin: left top; overflow: hidden auto; }
+.rate-row { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
+.rate-row > div { flex: 1 1 0; min-width: 0; white-space: normal; }
+.rate-row button { width: 25px; height: 24px; padding: 1px; }
+.money-row { display: flex; gap: 12px; border-top: 1px #545139; border-bottom: 1px #545139; padding: 8px 0; margin-bottom: 10px; color: #d7b864; }
+.tax-rules > div { display: block; white-space: normal; line-height: 1.4em; }
+.tax-actions { position: absolute; left: 15px; right: 15px; top: 310px; height: 24px; display: flex; gap: 6px; }
+.tax-actions button { flex: 1 1 0; }
+.owner-summary { position: absolute; left: 15px; top: 37px; width: 350px; height: 44px; color: #bbc1af; }
+.owner-summary .native-text { margin-bottom: 7px; }
+.siege-desk .tabs { top: 88px; }
+.guard-content { position: absolute; left: 15px; top: 125px; transform-origin: left top; overflow: hidden auto; }
+.guild-table { position: absolute; left: 15px; top: 125px; width: 350px; }
+.table-head { display: flex; height: 25px; color: #b9aa78; border-bottom: 1px #545139; }
+.guild-rows { position: absolute; left: 0; top: 27px; transform-origin: left top; overflow: hidden auto; }
+.guild-row { display: flex; width: 97%; color: #c6cbb4; border-bottom: 1px #29382b; padding: 4px 0; box-sizing: border-box; pointer-events: auto; }
+.guild-row.selected, .guild-row.defending { background-color: #34462c; color: #e0e3bc; }
+.guild-row > div { white-space: normal; line-height: 1.3em; }
+.col-name { width: 26%; }
+.col-marks { width: 22%; }
+.col-state { width: 34%; }
+.col-order { width: 18%; }
+.kind-2 .col-name { width: 32%; }
+.col-side { width: 36%; }
+.col-involvement { width: 32%; }
+.guild-score { position: absolute; left: 15px; top: 319px; width: 350px; display: flex; gap: 7px; color: #d7b864; }
+.guard-actions { position: absolute; left: 15px; right: 15px; top: 311px; height: 24px; display: flex; gap: 6px; }
+.guard-actions button { flex: 1 1 0; }
+.scroll-pane scrollbarvertical { width: 6px; }
+.scroll-pane scrollbarvertical slidertrack { decorator: none; background-color: #10170d; }
+.scroll-pane scrollbarvertical sliderbar { decorator: none; background-color: #766b45; min-height: 16px; height: auto; }
+.scroll-pane scrollbarvertical sliderarrowdec, .scroll-pane scrollbarvertical sliderarrowinc { decorator: none; height: 0; }
+
+.management-desk .tabs { height: 38px; }
+.management-desk .tabs button { height: 38px; }
+.map-actions, .tax-actions { transform-origin: left top; }
+.map-actions button, .tax-actions button { height: 100%; padding: 1px 3px; line-height: 1.1em; }
+
+.guard-actions .native-text { min-height: max(34px, calc(26px * var(--root-scale))); }

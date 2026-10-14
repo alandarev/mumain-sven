@@ -1,0 +1,39 @@
+#panel, #bg_root { width: 190px; height: auto; padding: 0 0 15px; }
+#panel { pointer-events: none; }
+#title { position: absolute; top: 8px; left: 31px; right: 39px; height: 15px; text-align: center; color: #d7b864; overflow: hidden; white-space: nowrap; }
+.native-text { display: inline-block; transform-origin: left top; }
+#counter_close { position: absolute; right: 5px; top: 3px; width: 10px; height: 12px; padding: 0; border-width: 0; background-color: transparent; color: #d7b864; font-size: 9px; pointer-events: auto; }
+.stock-grid { position: relative; width: 160px; margin: 34px 15px 0; }
+.grid-row { height: 20px; width: 160px; display: flex; }
+.cell { width: 20px; height: 20px; box-sizing: border-box; border: 1px #373d2d; background-color: #10170dee; }
+#stock_highlight { position: absolute; box-sizing: border-box; border: 1px #bba060; background-color: #baa25a12; }
+#stock_highlight.pending { border-color: #f0cc77; background-color: #f0cc7730; }
+.readout { height: 54px; width: 160px; margin: 0 15px; padding-top: 5px; box-sizing: border-box; }
+.context-name, .context-price { height: 15px; overflow: hidden; white-space: nowrap; }
+.context-price { color: #d7b864; }
+.context-hint { color: #aaa48e; font-size: 7px; line-height: 11px; white-space: normal; }
+.services { height: 25px; width: 160px; margin: 0 15px; box-sizing: border-box; border-top: 1px #545139; padding-top: 4px; display: flex; justify-content: space-between; }
+button { display: inline-block; height: 17px; box-sizing: border-box; font-family: "DejaVu Sans"; font-size: 8px; color: #ded1ac; background-color: #343422; border: 1px #6b6646; pointer-events: auto; padding: 2px 5px; }
+button:hover, button.active { background-color: #51482b; border-color: #c9a65c; }
+.services button { width: 78px; }
+.services .native-text { white-space: nowrap; }
+.stop-buy { position: absolute; right: 15px; bottom: 15px; }
+.quantity-shade { position: absolute; top: 28px; bottom: 8px; left: 7px; right: 7px; background-color: #000000ac; pointer-events: auto; }
+#quantity_picker { position: absolute; top: 34px; left: 10px; width: 152px; padding: 8px; background-color: #141812fa; border: 1px #b09556; pointer-events: auto; font-size: 9px; }
+.quantity-title { color: #e0c887; line-height: 13px; margin-bottom: 7px; }
+.quantity-label { color: #a9a48e; font-size: 8px; height: 11px; line-height: 11px; margin-bottom: 3px; }
+.quantity-controls { display: flex; justify-content: center; height: 23px; gap: 4px; }
+.quantity-controls button { width: 24px; height: 21px; font-size: 12px; }
+input { width: 52px; height: 21px; box-sizing: border-box; text-align: center; color: #eee5c9; background-color: #080d08; border: 1px #6b6646; font-family: "DejaVu Sans"; font-size: 11px; }
+.quantity-total { margin-top: 4px; line-height: 13px; color: #c9b575; }
+.quantity-actions { display: flex; justify-content: space-between; margin-top: 8px; }
+.quantity-actions button { width: 72px; }
+
+input.invalid { border-color: #a46a49; }
+button:disabled { color: #77705f; background-color: #22251d; border-color: #464937; }
+
+.quantity-actions .native-text { white-space: nowrap; }
+
+#item_grid_counts { left: 0; top: 0; width: 100%; height: 100%; }
+#stock_highlight { left: calc(var(--stock-column) * var(--item-cell)); top: calc(var(--stock-row) * var(--item-cell)); width: calc(var(--stock-width) * var(--item-cell)); height: calc(var(--stock-height) * var(--item-cell)); }
+.quantity-title .native-text, .quantity-total .native-text { width: calc(152px * var(--root-scale)); }

@@ -17,6 +17,11 @@
 
 #include <coreclr_delegates.h>
 
+namespace UI::Character
+{
+struct ArmoryRequest;
+}
+
 /// <summary>
 /// Extension methods to start writing messages of this namespace on a <see cref="Connection"/>.
 /// </summary>
@@ -50,6 +55,7 @@ struct AreaSkillHitTarget
 class PacketFunctions_ClientToServer_Custom : public PacketFunctions_Base
 {
 public:
+    bool SendArmoryRequest(const UI::Character::ArmoryRequest& request);
     /// <summary>
     /// Sends a LoginLongPassword to this connection.
     /// </summary>

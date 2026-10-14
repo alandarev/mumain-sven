@@ -1,0 +1,17 @@
+#panel { width: 420rem; height: auto; padding: 40rem 15rem 20rem; box-sizing: border-box; font-family: "DejaVu Sans"; font-size: 12rem; color: #c6cbb4; }
+#columns { position: relative; width: 390rem; height: auto; display: flex; gap: 12rem; }
+#group_col, #server_col { display: flex; flex-direction: column; justify-content: flex-start; gap: 6rem; height: auto; max-height: 230rem; overflow: hidden auto; }
+#group_col { width: 140rem; }
+#server_col { flex: 1 1 0; min-width: 0; }
+#server_col.hidden { display: none; }
+.group-btn { flex: 0 0 auto; min-height: 32rem; padding: 7rem 5rem; text-align: center; }
+.group-btn.checked { color: #eff0c4; border-color: #b8a563; background-color: #40522c; }
+.server-row { flex: 0 0 auto; min-height: 38rem; padding: 4rem 7rem 12rem; text-align: center; position: relative; }
+.server-row.gray { color: #b5b8a9; }
+.server-row.orange { color: #efa15e; }
+.server-gauge-slot { position: absolute; left: 7rem; right: 7rem; bottom: 5rem; height: 4rem; background-color: #283429; pointer-events: none; }
+.server-gauge-fill { height: 4rem; background-color: #a0af6b; }
+.server-gauge-fill.tier-low { background-color: #748f53; }
+.server-gauge-fill.tier-high { background-color: #c87654; }
+#pvp_notice { position: relative; width: 390rem; margin-top: 10rem; color: #efa15e; line-height: 1.3em; font-size: 11rem; }
+#desc_panel { position: relative; width: 390rem; max-height: 50rem; margin-top: 10rem; overflow: hidden auto; line-height: 1.3em; white-space: normal; font-size: 11rem; }

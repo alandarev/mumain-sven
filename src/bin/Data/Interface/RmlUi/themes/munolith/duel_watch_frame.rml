@@ -1,0 +1,26 @@
+<rml>
+<!-- bound-geometry: the health and shield gauges are lengths from the fighters' rates, and the left fighter's bars are right-aligned so their left moves with the rate too (the plan's gauge carve- out) -->
+
+<head>
+<title>Spectator score</title>
+<link type="text/rcss" href="base.rcss"/>
+<link type="text/rcss" href="duel_watch_frame.rcss"/>
+</head>
+<body data-model="duel_watch_frame">
+<div class="screen"><div id="panel">
+<div class="spectator-back"/>
+<div class="fighter-track hero-hp"/>
+<div class="fighter-track enemy-hp"/>
+<div class="fighter-track hero-sd"/>
+<div class="fighter-track enemy-sd"/>
+<div data-if="watching">
+<img class="gauge" data-for="g : gauges" data-attr-src="g.src" data-attr-rect="g.rect" data-class-mirrored="g.mirrored" data-style-left="g.left + 'px'" data-style-top="g.top + 'px'" data-style-width="g.width + 'px'" data-style-height="g.height + 'px'"/>
+<span class="fighter-name counter-scaled hud-width-236" id="name_hero" data-style-font-size="(hero_name.text_px < 14 ? 14 : hero_name.text_px) + 'px'">{{hero_name.text}}</span>
+<span class="fighter-name counter-scaled hud-width-236" id="name_enemy" data-style-font-size="(enemy_name.text_px < 14 ? 14 : enemy_name.text_px) + 'px'">{{enemy_name.text}}</span>
+<span class="score-value counter-scaled hud-width-48" data-style-font-size="(hero_name.text_px < 16 ? 16 : hero_name.text_px) + 'px'">{{hero_score}} : {{enemy_score}}</span>
+</div>
+<button id="exit" data-event-click="duel_watch_exit">×</button>
+</div>
+</div>
+</body>
+</rml>

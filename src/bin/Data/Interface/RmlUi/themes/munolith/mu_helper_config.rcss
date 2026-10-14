@@ -1,0 +1,101 @@
+#panel { width: 400px; }
+.mhc-tab { position: absolute; left: 0; top: 0; }
+.mh-check { position: absolute; width: 15px; height: 15px; }
+#tab_0,#tab_0_label { left: 14px; top: 43px; width: 120px; height: 22px; }
+#tab_1,#tab_1_label { left: 138px; top: 43px; width: 120px; height: 22px; }
+#tab_2,#tab_2_label { left: 262px; top: 43px; width: 120px; height: 22px; }
+#box_h_range { left: 14px; top: 76px; width: 173px; height: 68px; }
+#box_h_recovery { left: 198px; top: 76px; width: 188px; height: 68px; }
+#box_h_movement { left: 14px; top: 153px; width: 372px; height: 46px; }
+#box_h_skills { left: 14px; top: 208px; width: 226px; height: 144px; }
+#box_h_buffs { left: 248px; top: 208px; width: 138px; height: 144px; }
+#box_o_range { left: 14px; top: 76px; width: 173px; height: 54px; }
+#box_o_repair { left: 198px; top: 76px; width: 188px; height: 54px; }
+#box_o_mode { left: 14px; top: 140px; width: 372px; height: 30px; }
+#box_o_items { left: 14px; top: 178px; width: 372px; height: 178px; }
+#box_x_accept { left: 14px; top: 76px; width: 372px; height: 72px; }
+#box_x_defend { left: 14px; top: 158px; width: 372px; height: 150px; }
+#h_range_label { left: 24px; top: 83px; }
+#h_range_digit { left: 24px; top: 105px; }
+#btn_hunt_minus { left: 67px; top: 107px; }
+#btn_hunt_add { left: 96px; top: 107px; }
+#cb_potion { left: 210px; top: 84px; }
+#cb_auto_heal { left: 210px; top: 109px; }
+#cb_drain_life { left: 210px; top: 109px; }
+#btn_potion_setting,#btn_potion_setting_label { left: 330px; top: 92px; }
+#cb_long_distance { left: 24px; top: 158px; }
+#cb_orig_position { left: 24px; top: 179px; }
+#distance_label { left: 219px; top: 180px; }
+#distance_time { left: 313px; top: 178px; }
+#distance_unit { left: 352px; top: 180px; }
+#basic_skill_label { left: 24px; top: 215px; }
+#activation1_label { left: 72px; top: 215px; }
+#slot_0 { left: 24px; top: 237px; }
+#slot_1 { left: 72px; top: 237px; }
+#cb_skill2_delay { left: 114px; top: 233px; }
+#skill2_delay { left: 185px; top: 233px; }
+#skill2_unit { left: 221px; top: 235px; }
+#cb_skill2_condition { left: 114px; top: 257px; }
+#btn_skill2_setting,#btn_skill2_setting_label { left: 185px; top: 272px; }
+#activation2_label { left: 24px; top: 285px; }
+#slot_2 { left: 24px; top: 305px; }
+#cb_skill3_delay { left: 72px; top: 300px; }
+#skill3_delay { left: 145px; top: 300px; }
+#skill3_unit { left: 182px; top: 301px; }
+#cb_skill3_condition { left: 72px; top: 323px; }
+#btn_skill3_setting,#btn_skill3_setting_label { left: 185px; top: 319px; }
+#cb_combo { left: 24px; top: 282px; }
+#cb_fallback { left: 24px; top: 327px; }
+#cb_party { left: 258px; top: 218px; }
+#btn_party_setting,#btn_party_setting_label { left: 333px; top: 240px; }
+#cb_use_pet { left: 258px; top: 218px; }
+#rb_raven_auto { left: 258px; top: 241px; }
+#rb_raven_cease { left: 325px; top: 241px; }
+#rb_raven_together { left: 258px; top: 263px; }
+#cb_buff_duration { left: 258px; top: 291px; }
+#slot_3 { left: 258px; top: 314px; }
+#slot_4 { left: 298px; top: 314px; }
+#slot_5 { left: 338px; top: 314px; }
+#o_range_label { left: 24px; top: 83px; }
+#o_range_digit { left: 24px; top: 102px; }
+#btn_pick_minus { left: 67px; top: 102px; }
+#btn_pick_add { left: 96px; top: 102px; }
+#cb_repair { left: 210px; top: 89px; }
+#cb_pick_all { left: 24px; top: 147px; }
+#cb_pick_selected { left: 210px; top: 147px; }
+#cb_pick_jewel { left: 24px; top: 182px; }
+#cb_pick_zen { left: 24px; top: 204px; }
+#cb_pick_ancient { left: 140px; top: 182px; }
+#cb_pick_excellent { left: 250px; top: 182px; }
+#cb_pick_extra { left: 140px; top: 204px; }
+#item_name { left: 24px; top: 235px; }
+#btn_add_item,#btn_add_item_label { left: 337px; top: 232px; }
+#extra_list { left: 24px; top: 269px; }
+#btn_delete_item,#btn_delete_item_label { left: 337px; top: 329px; }
+#cb_auto_friend { left: 24px; top: 90px; }
+#cb_auto_guild { left: 24px; top: 119px; }
+#cb_auto_defend { left: 24px; top: 175px; }
+#extension_used { left: 24px; top: 310px; }
+#extension_none { left: 24px; top: 330px; }
+#btn_save,#btn_save_label { left: 330px; top: 365px; }
+#btn_init,#btn_init_label { left: 269px; top: 365px; }
+#h_range_rule, #o_range_rule, #box_o_list, #box_extension { display: none; }
+#extra_list { overflow: hidden auto; }
+#btn_delete_item, #btn_delete_item_label { left: 337px; top: 333px; }
+
+/* Loot categories and custom names get independent columns. */
+#box_o_items { width: 173px; height: 170px; }
+#cb_pick_selected { left: 24px; top: 181px; }
+#cb_pick_jewel { left: 24px; top: 203px; } #cb_pick_zen { left: 24px; top: 225px; }
+#cb_pick_ancient { left: 24px; top: 247px; } #cb_pick_excellent { left: 24px; top: 269px; }
+#cb_pick_extra { left: 24px; top: 291px; }
+#item_name { left: 24px; top: 324px; }
+#btn_add_item, #btn_add_item_label { left: 144px; top: 316px; }
+#extra_list { left: 210px; top: 179px; background-color: #0c1713; border: 1px #4e5b44; }
+#extension_used { top: 341px; } #extension_none { top: 353px; }
+
+#cb_combo { left: 258px; top: 263px; }
+#cb_fallback { left: 55px; top: 369px; }
+#extra_list { position: absolute; pointer-events: auto; }
+
+#title { width: calc(100% * var(--root-scale)); }

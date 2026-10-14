@@ -1,0 +1,31 @@
+#panel { width: 260px; height: 480px; pointer-events: auto; }
+#title { display: block; position: absolute; left: 16px; right: 16px; top: 12px; width: auto; text-align: left; font-weight: bold; color: #e6d3a7; }
+.tabs { display: flex; position: absolute; left: 16px; right: 16px; top: 42px; height: 28px; gap: 6px; }
+.pet-button { display: block; flex: 1; height: 26px; line-height: 26px; border: 1px #746d52; color: #c7c7ad; background-color: #11211d; text-align: center; white-space: nowrap; cursor: pointer; pointer-events: auto; }
+.pet-button:hover, .pet-button.active { color: #ffe0a2; border-color: #b99d57; background-color: #263731; }
+.pet-content { position: absolute; left: 16px; right: 16px; top: 82px; bottom: 45px; overflow: hidden auto; }
+.empty-state { display: block; padding: 16px 8px; color: #acae96; background-color: #071711e0; border: 1px #535b47; text-align: center; white-space: normal; }
+.stats { padding: 8px; background-color: #071711e0; border: 1px #535b47; }
+.level { font-weight: bold; color: #dfc38b; margin-bottom: 8px; }
+.life { color: #c2d1aa; margin-bottom: 4px; }
+.life-track { height: 7px; background-color: #392d26; margin-bottom: 8px; }
+.life-fill { display: block; height: 100%; background-color: #81955b; }
+.stat { display: block; white-space: normal; line-height: 1.3em; padding-top: 4px; }
+.commands { margin-top: 12px; }
+.commands-title { color: #dfc38b; font-weight: bold; margin-bottom: 6px; }
+.command-row { display: flex; align-items: center; min-height: 32px; padding: 3px 5px; border-bottom: 1px #56604755; gap: 10px; pointer-events: none; }
+.command-icon { width: 19px; height: 27px; flex-shrink: 0; pointer-events: none; }
+.command-icon.basic { decorator: image(petinfo-skillicon-0); }
+.command-icon.random { decorator: image(petinfo-skillicon-1); }
+.command-icon.owner { decorator: image(petinfo-skillicon-2); }
+.command-icon.target { decorator: image(petinfo-skillicon-3); }
+.command-label { display: block; flex: 1; white-space: normal; line-height: 1.25em; pointer-events: none; }
+#btn_exit { position: absolute; right: 16px; bottom: 14px; width: 70px; height: 23px; line-height: 23px; decorator: none; }
+#frame_corner_close { position: absolute; right: 1px; top: 1px; width: 16px; height: 16px; pointer-events: auto; cursor: pointer; }
+#frame_corner_close:hover { border: 1px #e7c568; }
+scrollbarvertical { width: 7px; }
+scrollbarvertical slidertrack { background-color: #071711; }
+scrollbarvertical sliderbar { background-color: #756c4f; border: 1px #b2a278; }
+scrollbarvertical sliderarrowdec, scrollbarvertical sliderarrowinc { height: 0; }
+
+#panel, #content_root { font-size: max(12px, calc(max(8px, calc(var(--text-px) * 1px)) / var(--root-scale))); }

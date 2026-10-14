@@ -27,6 +27,7 @@
 #include "UI/RmlBridge/RmlNativeTextSize.h"
 #include "UI/RmlBridge/RmlWindowClose.h"
 #include "Core/Utilities/StringUtils.h"
+#include <RmlUi/Core/Element.h>
 #include <RmlUi/Core/ElementDocument.h>
 
 using namespace SEASON3B;
@@ -216,7 +217,8 @@ bool CLuckyItemWnd::Create(CManager* pNewUIMng)
 
 void CLuckyItemWnd::BindRmlModel(Rml::DataModelConstructor& c, LuckyItemRmlModel& model)
 {
-    UI::RmlBridge::BindWindowClose(c, mu::ui::window::INTERFACE_LUCKYITEMWND);
+    // Closed on the next Update(), outside the document's event dispatch.
+    UI::RmlBridge::BindWindowClose(c, [this] { m_PendingClose = true; });
     UI::Items::RegisterItemGridCells(c);
     c.Bind("grid_cells", &model.gridCells);
     c.Bind("text_px", &model.textPx);
@@ -260,6 +262,7 @@ void CLuckyItemWnd::Release()
 
 void CLuckyItemWnd::OpeningProcess(void)
 {
+    m_PendingClose = false;
     for (int i = 0; i < LUCKYITEMMAXLINE; i++)
     {
         m_sText[i].s_nTextIndex = -1;
@@ -525,6 +528,11 @@ bool CLuckyItemWnd::UpdateKeyEvent(void)
 
 bool CLuckyItemWnd::Update(void)
 {
+    const bool close = m_PendingClose;
+    m_PendingClose = false;
+    if (IsVisible() && close)
+        g_pNewUISystem->Hide(mu::ui::window::INTERFACE_LUCKYITEMWND);
+
     if (m_pNewInventoryCtrl && false == m_pNewInventoryCtrl->Update())
         return false;
 
@@ -539,14 +547,24 @@ bool CLuckyItemWnd::Render(void)
     return true;
 }
 
+// A theme marks its grid .themed-grid when its own cells frame the items.
+void CLuckyItemWnd::SyncNativeLayout()
+{
+    if (!m_pNewInventoryCtrl)
+        return;
+    Rml::ElementDocument* document = m_RmlView.Document();
+    Rml::Element* grid = document != nullptr ? document->GetElementById("item_grid") : nullptr;
+    m_pNewInventoryCtrl->SetPresentation(nullptr, grid != nullptr && grid->IsClassSet("themed-grid"));
+    m_pNewInventoryCtrl->FollowGridPx(document, "item_grid");
+}
+
 void CLuckyItemWnd::SyncRmlModel()
 {
     m_ItemTarget.Sync(m_RmlView.Document() ? m_RmlView.Document()->GetElementById("item_view") : nullptr, IsVisible());
     if (!m_RmlView.Document()) return;
     UI::RmlBridge::SyncDocumentVisibility(m_RmlView.Document(), IsVisible());
 
-    if (m_pNewInventoryCtrl)
-        m_pNewInventoryCtrl->FollowGridPx(m_RmlView.Document(), "item_grid");
+    SyncNativeLayout();
     if (m_pNewInventoryCtrl && m_RmlView.GetModel().gridCells != m_pNewInventoryCtrl->Cells())
     {
         m_RmlView.GetModel().gridCells = m_pNewInventoryCtrl->Cells();

@@ -260,29 +260,7 @@ bool mu::ui::window::CGuildInfoWindow::Check_Btn(int button)
         }
         else if (button == BUTTON_FREE_POSITION)
         {
-            if (const MemberEntry* pText = SelectedMember())
-            {
-                if (pText->guildStatus == G_SUB_MASTER || pText->guildStatus == G_BATTLE_MASTER)
-                {
-                    {
-                        AppointStatus = (GUILD_STATUS)pText->guildStatus;
-                        DeleteIndex = GetGuildMemberIndex(pText->name.c_str());
-                        wchar_t strText[256];
-                        mu_swprintf(strText, I18N::Game::CharacterS, pText->name.c_str());
-                        mu::ui::window::GenericDialogConfig cfg;
-                        cfg.showCancel = true;
-                        cfg.lines = {
-                            { strText, false },
-                            { I18N::Game::WouldYouLikeToCancelTheRanking, false },
-                        };
-                        cfg.onPrimary = []
-                        {
-                            SocketClient->ToGameServer()->SendGuildRoleAssignRequest(G_PERSON, MU_C16(GuildList[DeleteIndex].Name), 0x03);
-                        };
-                        mu::ui::window::g_pGenericConfirmDialog->Show(std::move(cfg));
-                    }
-                }
-            }
+            RemoveMemberRank();
         }
     }
     else if (m_nCurrentTab == static_cast<int>(GuildConstants::GuildTab::UNION))
@@ -331,24 +309,30 @@ bool mu::ui::window::CGuildInfoWindow::Check_Btn(int button)
     return true;
 }
 
-void mu::ui::window::CGuildInfoWindow::SelectTab(int tab)
+void mu::ui::window::CGuildInfoWindow::RemoveMemberRank()
 {
-    m_nCurrentTab = tab;
-    switch (m_nCurrentTab)
+    if (Hero->GuildStatus != G_MASTER)
+        return;
+    const MemberEntry* member = SelectedMember();
+    if (!member || (member->guildStatus != G_SUB_MASTER && member->guildStatus != G_BATTLE_MASTER))
+        return;
+    const int index = GetGuildMemberIndex(member->name.c_str());
+    if (index < 0)
+        return;
+    AppointStatus = static_cast<GUILD_STATUS>(member->guildStatus);
+    DeleteIndex = index;
+    wchar_t text[256] = {};
+    mu_swprintf(text, I18N::Game::CharacterS, member->name.c_str());
+    GenericDialogConfig cfg;
+    cfg.showCancel = true;
+    cfg.lines = {{text, false}, {I18N::Game::WouldYouLikeToCancelTheRanking, false}};
+    cfg.onPrimary = []
     {
-    case static_cast<int>(GuildConstants::GuildTab::INFO):
-        break;
-    case static_cast<int>(GuildConstants::GuildTab::MEMBERS):
-        SocketClient->ToGameServer()->SendGuildListRequest();
-        break;
-    case static_cast<int>(GuildConstants::GuildTab::UNION):
-        if (m_bRequestUnionList == false && GuildMark[Hero->GuildMarkIndex].UnionName[0] != 0)
-        {
-            SocketClient->ToGameServer()->SendRequestAllianceList();
-            m_bRequestUnionList = true;
-        }
-        break;
-    }
+        if (Hero->GuildStatus == G_MASTER && DeleteIndex >= 0 && DeleteIndex < g_nGuildMemberCount)
+            SocketClient->ToGameServer()->SendGuildRoleAssignRequest(G_PERSON, MU_C16(GuildList[DeleteIndex].Name),
+                                                                     0x03);
+    };
+    g_pGenericConfirmDialog->Show(std::move(cfg));
 }
 
 bool mu::ui::window::CGuildInfoWindow::UpdateKeyEvent()
@@ -367,10 +351,17 @@ bool mu::ui::window::CGuildInfoWindow::UpdateKeyEvent()
 }
 bool mu::ui::window::CGuildInfoWindow::Update()
 {
+    const int tab = m_PendingTab;
+    m_PendingTab = -1;
+    if (IsVisible() && tab >= 0)
+    {
+        SelectTab(tab);
+        PlayBuffer(SOUND_CLICK01);
+    }
     // A button RmlUi reported (the original's CButton handling in Check_Btn()).
     const int button = m_PendingButton;
     m_PendingButton = -1;
-    if (IsVisible() && button >= 0)
+    if (IsVisible() && button >= 0 && button <= BUTTON_EXIT)
     {
         PlayBuffer(SOUND_CLICK01);
         Check_Btn(button);
@@ -405,6 +396,7 @@ void mu::ui::window::CGuildInfoWindow::BindRmlModel(Rml::DataModelConstructor& c
     c.Bind("hint_line3", &model.hintLine3);
     c.Bind("title", &model.title);
     c.Bind("guild_name", &model.guildName);
+    c.Bind("guild_identity", &model.guildIdentity);
     c.Bind("tab_info", &model.tabInfo);
     c.Bind("tab_members", &model.tabMembers);
     c.Bind("tab_union", &model.tabUnion);
@@ -452,6 +444,11 @@ void mu::ui::window::CGuildInfoWindow::BindRmlModel(Rml::DataModelConstructor& c
     c.Bind("union_out_button", &model.unionOutButton);
     c.Bind("exit_tooltip", &model.exitTooltip);
     c.Bind("label_line_px", &model.labelLinePx);
+    BindRmlActions(c);
+}
+
+void mu::ui::window::CGuildInfoWindow::BindRmlActions(Rml::DataModelConstructor& c)
+{
     c.BindEventCallback("guild_info_button",
                         [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& arguments)
                         {
@@ -466,8 +463,7 @@ void mu::ui::window::CGuildInfoWindow::BindRmlModel(Rml::DataModelConstructor& c
                             const int tab = arguments[0].Get<int>(-1);
                             if (tab < 0 || tab >= 3)
                                 return;
-                            SelectTab(tab);
-                            PlayBuffer(SOUND_CLICK01);
+                            m_PendingTab = tab;
                         });
     c.BindEventCallback("guild_info_select_union",
                         [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& arguments)
@@ -481,6 +477,21 @@ void mu::ui::window::CGuildInfoWindow::BindRmlModel(Rml::DataModelConstructor& c
                             if (arguments.size() == 1)
                                 SelectMember(arguments[0].Get<int>(-1));
                         });
+}
+
+void mu::ui::window::CGuildInfoWindow::SelectTab(int tab)
+{
+    if (tab < 0 || tab > static_cast<int>(GuildConstants::GuildTab::UNION) || Hero->GuildStatus == G_NONE)
+        return;
+    m_nCurrentTab = tab;
+    if (tab == static_cast<int>(GuildConstants::GuildTab::MEMBERS))
+        SocketClient->ToGameServer()->SendGuildListRequest();
+    if (tab == static_cast<int>(GuildConstants::GuildTab::UNION) && !m_bRequestUnionList &&
+        GuildMark[Hero->GuildMarkIndex].UnionName[0] != 0)
+    {
+        SocketClient->ToGameServer()->SendRequestAllianceList();
+        m_bRequestUnionList = true;
+    }
 }
 
 void mu::ui::window::CGuildInfoWindow::OnRmlReloaded()
@@ -539,6 +550,7 @@ void mu::ui::window::CGuildInfoWindow::SyncContent()
     if (noGuild)
     {
         // The original's RenderNoneGuild().
+        title = line(I18N::Game::Guild, false, 190.f);
         hintTitle = line(I18N::Game::Guild, true, 190.f);
         hintLine1 = line(I18N::Game::TypeGuildInFrontOf, false, 0.f);
         hintLine2 = line(I18N::Game::TheGuildMasterYouWantToJoin, false, 0.f);
@@ -555,7 +567,6 @@ void mu::ui::window::CGuildInfoWindow::SyncContent()
         tabMembers = line(I18N::Game::Members, false, tabWidth);
         tabUnion = line(I18N::Game::Alliance, false, tabWidth);
 
-        if (m_nCurrentTab == static_cast<int>(GuildConstants::GuildTab::INFO))
         {
             markCells = MarkCells(GuildMark[Hero->GuildMarkIndex].Mark);
             guildOutButton = {StringUtils::WideToNarrow(Hero->GuildStatus == G_MASTER ? I18N::Game::Disband
@@ -591,7 +602,7 @@ void mu::ui::window::CGuildInfoWindow::SyncContent()
                         m_RivalGuildName[0] ? m_RivalGuildName : I18N::Game::None);
             rival = line(Text, false, 0.f);
         }
-        else if (m_nCurrentTab == static_cast<int>(GuildConstants::GuildTab::MEMBERS))
+        if (m_nCurrentTab == static_cast<int>(GuildConstants::GuildTab::MEMBERS))
         {
             headerName = line(I18N::Game::Name, false, 40.f);
             headerPosition = line(I18N::Game::Position, false, 40.f);
@@ -612,8 +623,11 @@ void mu::ui::window::CGuildInfoWindow::SyncContent()
                 headerUnionName = line(I18N::Game::NAME, false, 40.f);
                 headerUnionMembers = line(I18N::Game::Members, false, 40.f);
 
-                unionCreateButton = {StringUtils::WideToNarrow(I18N::Game::DisbandAlliance), true};
-                unionOutButton = {StringUtils::WideToNarrow(I18N::Game::DisbandGuildAlliance), true};
+                // Only the guild master may act on the alliance.
+                unionCreateButton = {StringUtils::WideToNarrow(I18N::Game::DisbandAlliance),
+                                     Hero->GuildStatus == G_MASTER};
+                unionOutButton = {StringUtils::WideToNarrow(I18N::Game::DisbandGuildAlliance),
+                                  Hero->GuildStatus == G_MASTER};
             }
             else
             {
@@ -648,6 +662,8 @@ void mu::ui::window::CGuildInfoWindow::SyncContent()
     SyncField(m_RmlView.Binder(), &GuildInfoRmlModel::hintLine3, "hint_line3", std::move(hintLine3));
     SyncField(m_RmlView.Binder(), &GuildInfoRmlModel::title, "title", std::move(title));
     SyncField(m_RmlView.Binder(), &GuildInfoRmlModel::guildName, "guild_name", std::move(guildName));
+    SyncField(m_RmlView.Binder(), &GuildInfoRmlModel::guildIdentity, "guild_identity",
+              noGuild ? Rml::String() : StringUtils::WideToNarrow(GuildMark[Hero->GuildMarkIndex].GuildName));
     SyncField(m_RmlView.Binder(), &GuildInfoRmlModel::tabInfo, "tab_info", std::move(tabInfo));
     SyncField(m_RmlView.Binder(), &GuildInfoRmlModel::tabMembers, "tab_members", std::move(tabMembers));
     SyncField(m_RmlView.Binder(), &GuildInfoRmlModel::tabUnion, "tab_union", std::move(tabUnion));

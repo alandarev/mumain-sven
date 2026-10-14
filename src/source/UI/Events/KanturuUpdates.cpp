@@ -26,8 +26,8 @@ void SetBattleInfoVisible(bool visible)
         UI::Windows::Hide(mu::ui::window::INTERFACE_KANTURU_INFO);
 }
 
-void SetBattleTime(std::uint8_t timeLimit)
+void SetBattleTime(int timeLimitMilliseconds)
 {
-    g_pKanturuInfoWindow->SetTime(timeLimit);
+    g_pKanturuInfoWindow->SetTime(timeLimitMilliseconds);
 }
 }

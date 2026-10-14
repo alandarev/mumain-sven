@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "App/Control/ControlModalFixture.h"
 #include "App/Control/ControlDispatcher.h"
 
 #include "App/Control/ControlCommands.h"
@@ -42,11 +43,15 @@ const std::vector<CommandEntry>& CommandTable()
         {"click-ui", SceneRequirement::Any, &Commands::ClickUi},
         {"hover-ui", SceneRequirement::Any, &Commands::HoverUi},
         {"drag-ui", SceneRequirement::Any, &Commands::DragUi},
-        {"ui", SceneRequirement::World, &Commands::Ui},
         {"slot-pixel", SceneRequirement::World, &Commands::SlotPixel},
+        {"wheel", SceneRequirement::Any, &Commands::Wheel},
+        {"drag", SceneRequirement::Any, &Commands::Drag},
         {"login", SceneRequirement::PreGame, &Commands::Login},
         {"select-char", SceneRequirement::PreGame, &Commands::SelectCharacter},
         {"logout", SceneRequirement::World, &Commands::Logout},
+        {"select-slot", SceneRequirement::PreGame, &Commands::SelectSlot},
+        {"server-list", SceneRequirement::PreGame, &Commands::ServerList},
+        {"select-server", SceneRequirement::PreGame, &Commands::SelectServer},
         {"quit", SceneRequirement::Any, &Commands::Quit},
         {"move", SceneRequirement::World, &Commands::Move},
         {"warp", SceneRequirement::World, &Commands::Warp},
@@ -54,6 +59,7 @@ const std::vector<CommandEntry>& CommandTable()
         {"attack", SceneRequirement::World, &Commands::Attack},
         {"skill", SceneRequirement::World, &Commands::Skill},
         {"pickup", SceneRequirement::World, &Commands::Pickup},
+        {"talk", SceneRequirement::World, &Commands::Talk},
         {"use", SceneRequirement::World, &Commands::UseItem},
         {"equip", SceneRequirement::World, &Commands::EquipItem},
         {"say", SceneRequirement::World, &Commands::Say},
@@ -61,6 +67,12 @@ const std::vector<CommandEntry>& CommandTable()
         {"party", SceneRequirement::World, &Commands::Party},
         {"trade", SceneRequirement::World, &Commands::Trade},
         {"halt", SceneRequirement::Any, &Commands::Halt},
+        {"inject", SceneRequirement::Any, &Commands::Inject},
+        {"net", SceneRequirement::Any, &Commands::Net},
+        {"ui", SceneRequirement::Any, &Commands::Ui},
+        {"window", SceneRequirement::Any, &Commands::Window},
+        {"hover", SceneRequirement::Any, &Commands::Hover},
+        {"render", SceneRequirement::World, &Commands::Render},
     };
 
     // The parser keeps its own list of command names — it is free of the
@@ -209,6 +221,12 @@ void Dispatcher::Handle(const Request& request, std::size_t connection)
     if (request.Command() == HaltCommand)
     {
         InterruptAct("halted");
+    }
+
+    if ((m_act || !m_watchers.empty()) && IsModalFixtureMutation(request))
+    {
+        Queue(connection, EncodeError(request.EncodedId(), ErrorCode::NotAllowed, "control action pending"));
+        return;
     }
 
     std::unique_ptr<Act> act;

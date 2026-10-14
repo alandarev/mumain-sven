@@ -9,10 +9,13 @@
 #include "Render/RmlUi/RmlUiRuntime.h"
 #include "UI/RmlBridge/RmlDocumentVisibility.h"
 #include "UI/RmlBridge/RmlPointer.h"
+#include "UI/RmlBridge/RmlElementBox.h"
 #include "UI/RmlBridge/RmlNativeTextSize.h"
 #include "UI/RmlBridge/RmlTheme.h"
 
 #include <RmlUi/Core/ElementDocument.h>
+
+#include <cmath>
 
 using namespace SEASON3B;
 using namespace mu::ui::window;
@@ -267,4 +270,30 @@ void mu::ui::window::CQuickCommandWindow::SetID(const wchar_t* strID)
 void mu::ui::window::CQuickCommandWindow::SetSelectedCharacterIndex(int iIndex)
 {
     m_iSelectedCharacterIndex = iIndex;
+}
+int mu::ui::window::CQuickCommandWindow::SelectedCommandIndex() const
+{
+    auto* document = m_RmlView.Document();
+    auto* rows = document != nullptr && document->IsVisible() ? document->GetElementById("rows") : nullptr;
+    if (rows != nullptr)
+    {
+        for (int index = 0; index < rows->GetNumChildren(); ++index)
+        {
+            if (rows->GetChild(index)->IsPseudoClassSet("hover"))
+                return index;
+        }
+    }
+    return -1;
+}
+
+POINT mu::ui::window::CQuickCommandWindow::Position() const
+{
+    auto* document = m_RmlView.Document();
+    auto* panel = document != nullptr ? document->GetElementById("panel") : nullptr;
+    if (panel == nullptr)
+        return {0, 0};
+    Rml::Vector2f offset;
+    if (!UI::RmlBridge::DrawnTopLeft(*panel, offset))
+        return {0, 0};
+    return {static_cast<LONG>(std::floor(offset.x)), static_cast<LONG>(std::floor(offset.y))};
 }

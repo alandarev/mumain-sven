@@ -1,0 +1,37 @@
+/* Floating correspondence family: shared MU chrome and native text metrics. */
+@spritesheet desk-back { src: "../../../newui_msgbox_back.jpg"; desk-back: 0px 0px 222px 250px; desk-back-inner: 8px 8px 206px 234px; }
+@spritesheet desk-top { src: "../../../newui_msgbox_top.tga"; desk-top: 0px 0px 230px 67px; desk-top-inner: 12px 12px 206px 43px; }
+@spritesheet desk-middle { src: "../../../newui_msgbox_middle.tga"; desk-middle: 0px 0px 230px 15px; desk-middle-inner: 12px 4px 206px 7px; }
+@spritesheet desk-bottom { src: "../../../newui_msgbox_bottom.tga"; desk-bottom: 0px 0px 230px 50px; desk-bottom-inner: 12px 12px 206px 26px; }
+#panel { color: #c8ceba; font-family: "DejaVu Sans"; }
+.window-shell-sprite-back { decorator: ninepatch(desk-back, desk-back-inner); image-color: #788779; }
+.window-shell-sprite-top { height: 36dp; decorator: ninepatch(desk-top, desk-top-inner); }
+.window-shell-sprite-middle { top: 36dp; bottom: 26dp; decorator: ninepatch(desk-middle, desk-middle-inner); }
+.window-shell-sprite-bottom { height: 26dp; decorator: ninepatch(desk-bottom, desk-bottom-inner); }
+.window-shell-header-rail { height: 28dp; decorator: none; }
+.window-shell-title { color: #ead29e; }
+button { color: #c8ceba; }
+.btn { decorator: none; height: 22dp; line-height: 22dp; background-color: #172523; border: 1dp #6d6b4e; color: #d8c899; }
+.btn:hover { decorator: none; background-color: #263731; border-color: #b39b5f; }
+.btn.selected { background-color: #343122; border-color: #ac9359; }
+.scroll-pane { background-color: #0b1712ed; }
+.row:hover, .pal:hover { background-color: #233226; }
+.row.selected, .pal.selected { background-color: #4c4831; color: #e2cda2; }
+.scroll-pane scrollbarvertical { width: 8dp; }
+.scroll-pane scrollbarvertical slidertrack { decorator: none; background-color: #0a1412; }
+.scroll-pane scrollbarvertical sliderbar { decorator: none; background-color: #756c4f; border: 1dp #b2a278; }
+.scroll-pane scrollbarvertical sliderarrowdec, .scroll-pane scrollbarvertical sliderarrowinc { decorator: none; height: 0; }
+.text-field { background-color: #0b1712; color: #e4d3af; border: 1dp #626f51; }
+#window_controls button { width: 12dp; height: 12dp; }
+#window_controls button:hover { image-color: #ffdfa1; }
+#panel { box-sizing: border-box; }
+/* Declare the floating chrome geometry locally: template styles are shared with
+   dialog consumers, while these documents use their own content well. */
+.window-shell-sprite-back { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; }
+.window-shell-sprite-top { position: absolute; left: 0; right: 0; top: 0; pointer-events: none; }
+.window-shell-sprite-middle { position: absolute; left: 0; right: 0; pointer-events: none; }
+.window-shell-sprite-bottom { position: absolute; left: 0; right: 0; bottom: 0; pointer-events: none; }
+.window-shell-header-rail { position: absolute; left: 0; right: 0; top: 0; pointer-events: auto; }
+.window-shell-header-title { position: absolute; left: 12dp; right: 55dp; top: 8dp; height: 18dp; line-height: 18dp; color: #ead29e; text-align: center; font-weight: bold; pointer-events: none; }
+.window-shell-header-title.hidden, .window-shell-header-rail.hidden { display: none; }
+.window-shell-content { position: absolute; }

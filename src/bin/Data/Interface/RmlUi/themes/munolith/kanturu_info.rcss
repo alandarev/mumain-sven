@@ -1,0 +1,31 @@
+body { width: 100%; height: 100%; margin: 0; pointer-events: none; }
+#panel {
+    position: absolute;
+    right: 24px;
+    top: 240px;
+    width: 260px;
+    max-width: 84vw;
+    padding: 16px 20px;
+    box-sizing: border-box;
+    font-family: "DejaVu Sans";
+    background-color: #101b16;
+    border: 1px #79734a;
+    pointer-events: none;
+}
+.heading { display: block; font-size: 12px; letter-spacing: 1px; color: #c2b485; margin-bottom: 12px; }
+.info-text { display: block; color: #ded5bb; font-weight: bold; white-space: normal; }
+#monsters { margin-top: 6px; }
+.timer-row { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; padding-top: 12px; border-top: 1px #514c32; }
+.timer-label { display: block; font-size: 12px; color: #b6bca8; }
+.clock-well { position: relative; width: 139px; height: 21px; }
+#clock { position: absolute; left: 0; top: 0; width: 99px; height: 15px; transform: scale(1.4); transform-origin: left top; }
+.digit { position: absolute; top: 0; width: 8.4px; height: 11.2px; image-color: #e6d19a; }
+#colon { position: absolute; left: 48px; top: 2px; font-size: 12px; color: #e6d19a; font-weight: bold; }
+
+@media (max-height: 700px) { #panel { top: 210px; } }
+
+.clock-digits { position: absolute; display: flex; top: 0; height: 11.2px; }
+#minutes { right: 51px; justify-content: flex-end; }
+#seconds { left: 56px; }
+.clock-digits .digit { position: relative; flex: 0 0 8.4px; }
+.digit.blank { visibility: hidden; }

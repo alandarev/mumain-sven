@@ -1,0 +1,22 @@
+#panel { position: absolute; width: 329rem; height: 245rem; font-family: "DejaVu Sans"; color: #c6cbb4; pointer-events: auto; }
+.frame-accent, .login-content, .header-glow, .separator { display: none; }
+.label { position: absolute; font-size: 12rem; }
+.label-account { left: 20rem; top: 51rem; }
+.label-password { left: 20rem; top: 87rem; }
+.input-frame { position: absolute; left: 110rem; width: 199rem; height: 28rem; box-sizing: border-box; background-color: #101910; border: 1rem #545139; pointer-events: none; }
+.input-account { top: 43rem; }
+.input-password { top: 79rem; }
+.login-field { position: absolute; left: 117rem; width: 184rem; height: 20rem; padding: 0; font-family: "DejaVu Sans"; font-size: 12rem; color: #ded1ac; background-color: transparent; border-width: 0; box-shadow: none; decorator: none; pointer-events: auto; }
+.login-field-account { top: 47rem; }
+.login-field-password { top: 83rem; }
+.checkbox-row { position: absolute; left: 110rem; height: 19rem; pointer-events: auto; cursor: pointer; }
+.checkbox-remember-me { top: 119rem; }
+.checkbox-save-password { top: 144rem; }
+.checkbox-box { position: absolute; left: 0; top: 0; width: 16rem; height: 16rem; box-sizing: border-box; background-color: #101910; border: 1rem #6b6646; }
+.checkbox-box.checked { background-color: #9aa567; }
+.checkbox-tick { display: none; }
+.checkbox-label { position: absolute; left: 22rem; top: 1rem; white-space: nowrap; font-size: 11rem; }
+.btn { position: absolute; bottom: 40rem; width: 135rem; height: 30rem; line-height: 30rem; text-align: center; font-size: 12rem; }
+.btn-ok { left: 20rem; }
+.btn-cancel { right: 20rem; }
+.trust-warning { position: absolute; left: 20rem; right: 20rem; top: 215rem; height: 20rem; color: #d7b864; font-size: 10rem; line-height: 1.2em; white-space: normal; overflow: hidden auto; }

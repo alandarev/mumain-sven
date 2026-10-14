@@ -1,0 +1,49 @@
+/* Native reference geometry keeps buttons and projected map markers aligned. */
+#tactical_card { position: absolute; left: 384px; top: 169px; width: 256px; height: 141px; background-color: #071711f5; border: 1px #9c8855; box-sizing: border-box; pointer-events: none; }
+.temple-label { position: absolute; display: block; transform-origin: left top; white-space: nowrap; color: #c7c8ad; font-size: 12px; pointer-events: none; }
+.temple-title { left: 516px; top: 174px; color: #e6d3a7; font-weight: bold; font-size: 14px; }
+.skill-label { left: 539px; top: 189px; }
+.cost-label { left: 589px; top: 189px; }
+.points-label { left: 613px; top: 189px; }
+.time-label { left: 516px; top: 274px; }
+#skill_frame { decorator: none; background-color: transparent; }
+#mini_map_frame { display: none; }
+#mini_map { left: 384px; top: 179px; }
+
+
+#game_time_dot { top: 288.5px; }
+
+#game_time_frame { decorator: none; background-color: transparent; }
+#score_back { position: absolute; left: 12px; top: 155px; width: 340px; height: 90px; border: 1px #9c8855; background-color: #071711; box-sizing: border-box; pointer-events: none; }
+#score_left_banner, #score_right_banner { display: none; }
+.tutorial { position: absolute; left: 12px; top: 240px; height: auto; padding: 10px 12px; box-sizing: border-box; transform-origin: left top; background-color: #071711; border: 1px #535b47; pointer-events: none; }
+.tutorial .tutorial-line { position: static; left: auto; top: auto; display: block; white-space: normal; margin-top: 5px; line-height: 1.25; color: #d1d3bd; }
+.tutorial .tutorial-line.title { color: #e6d3a7; font-weight: bold; margin-top: 0; }
+
+/* Compact native score artwork leaves the tactical map and notices clear. */
+#score_allied_tens, #score_allied_ones, #score_illusion_tens, #score_illusion_ones { top: 175px; width: 30px; height: 44px; }
+#score_allied_tens, #score_allied_ones { left: 65px; }
+#score_allied_ones.wide { left: 95px; }
+#score_illusion_tens, #score_illusion_ones { left: 184px; }
+#score_illusion_ones.wide { left: 214px; }
+#score_colon { left: 145px; top: 183px; width: 20px; height: 30px; }
+#score_vs { left: 134px; top: 158px; width: 40px; height: 20px; }
+#score_allied_badge { left: 28px; top: 182px; width: 24px; height: 22px; }
+#score_illusion_badge { left: 256px; top: 182px; width: 24px; height: 22px; }
+@media (max-height: 800px) {
+ .score { position: absolute; left: 0; top: 0; width: 640px; height: 480px; transform: translateY(-25px); }
+ .tutorial { top: 220px; }
+}
+
+/* The two transient cards share a width and meet, keeping background notice fragments covered. */
+.score img, .score #score_colon, .score #score_vs,
+.score #score_allied_badge, .score #score_illusion_badge { transform: translateX(28px); }
+@media (max-width: 1100px) {
+ .cost-label, .points-label { font-size: 11px; }
+}
+
+#mini_map_markers { left: 336px; top: 215px; }
+#ct_hud_area { left: 384px; top: 169px; width: 256px; height: 141px; }
+.ct-time-minutes, .ct-time-seconds { top: 285.5px; }
+
+.hud-width-340 { width: calc(340px * var(--root-scale)); }

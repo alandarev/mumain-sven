@@ -1,0 +1,5 @@
+/* Keep the native image canvas/aspect. Its power-of-two texture has transparent
+   padding; the frame follows the visible artwork without clipping either image. */
+#banner { width: 116dp; height: 66dp; background-color: #071711d9; border: 1px #9c8855; }
+#name { width: 166dp; height: 90dp; }
+#strife { width: 166dp; height: 28dp; background-color: transparent; }

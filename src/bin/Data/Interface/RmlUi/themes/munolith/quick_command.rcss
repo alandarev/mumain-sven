@@ -1,0 +1,11 @@
+/* Document owns the five-action menu and its pointer footprint. */
+#back { decorator: none; background-color: #071711; border: 1px #9c8855; box-sizing: border-box; }
+#frame_up, #frame_down, .frame-middle, .line { display: none; }
+#name { color: #e6d3a7; }
+/* Keep the compact row rhythm inside the document-owned action targets. */
+#rows { top: 38px; }
+.quick-row { height: 20px; }
+.quick-row:hover { background-color: #30412c; }
+.quick-label { top: 6px; color: #ced4be; }
+.quick-row:hover .quick-label { color: #f0d591; }
+.arrow { top: 5px; }

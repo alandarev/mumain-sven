@@ -1,5 +1,8 @@
 #include "stdafx.h"
 #include "App/Control/ControlTaps.h"
+#include "Network/Server/EffectPackets.h"
+#include "Network/Server/NpcTransactions.h"
+#include "Network/Server/ArmoryPackets.h"
 #include "Core/Utilities/Log/MuLogger.h"
 #include "UI/Chat/Chat.h"
 #include "UI/Chat/ChatMessages.h"
@@ -6496,48 +6499,6 @@ BOOL ReceiveTalk(const BYTE* ReceiveBuffer, BOOL bEncrypted)
     return (TRUE);
 }
 
-void ReceiveBuyExtended(const std::span<const BYTE> ReceiveBuffer)
-{
-    auto Data = safe_cast<PHEADER_DEFAULT_ITEM_EXTENDED_HEAD>(ReceiveBuffer);
-    if (Data == nullptr)
-    {
-        assert(false);
-        return;
-    }
-
-    constexpr BYTE BUY_FAILED = 0xFE;
-    constexpr BYTE BUY_FAILED_SILENT = 0xFF;
-
-    auto Offset = sizeof(PHEADER_DEFAULT_ITEM_EXTENDED_HEAD);
-    auto itemData = ReceiveBuffer.subspan(Offset);
-    if (!itemData.empty())
-    {
-        int length = CalcItemLength(itemData);
-        itemData = itemData.subspan(0, length);
-    }
-
-    if (Data->Index == BUY_FAILED)
-    {
-        UI::Windows::HideAll();
-        UI::Chat::PostChat(Hero->ID, I18N::Game::CannotBeTraded, mu::ui::window::TYPE_ERROR_MESSAGE);
-    }
-    else if (Data->Index == BUY_FAILED_SILENT)
-    {
-        // do nothing, error message is sent separately.
-    }
-    else
-    {
-        if (IsPlayerInventorySlot(Data->Index))
-            UI::Inventory::InsertItem(Data->Index, itemData);
-
-        PlayBuffer(SOUND_GET_ITEM01);
-    }
-
-    BuyCost = 0;
-
-    g_ConsoleDebug->Write(MCD_RECEIVE, L"0x32 [ReceiveBuy(%d)]", Data->Index);
-}
-
 void ReceiveTradeYourInventoryExtended(std::span<const BYTE> ReceiveBuffer)
 {
     auto Data = safe_cast<PHEADER_DEFAULT_ITEM_EXTENDED>(ReceiveBuffer);
@@ -6696,56 +6657,6 @@ void ReceiveMixExtended(std::span<const BYTE> ReceiveBuffer)
     }
 
     g_ConsoleDebug->Write(MCD_RECEIVE, L"0x86 [ReceiveMix(%d)]", Data->Index);
-}
-
-void ReceiveSell(const BYTE* ReceiveBuffer)
-{
-    auto Data = (LPPRECEIVE_GOLD)ReceiveBuffer;
-    if (Data->Flag != 0)
-    {
-        if (Data->Flag == 0xff)
-        {
-            UI::Inventory::RestorePickedItem();
-
-            UI::Chat::PostChat(Hero->ID, I18N::Game::CannotBeSold, mu::ui::window::TYPE_ERROR_MESSAGE);
-        }
-        else if (Data->Flag == 0xfe)
-        {
-            UI::Windows::HideAll();
-
-            UI::Chat::PostChat(Hero->ID, I18N::Game::CannotBeSold, mu::ui::window::TYPE_ERROR_MESSAGE);
-        }
-        else
-        {
-            UI::Inventory::DiscardPickedItem();
-
-            CharacterMachine->Gold = Data->Gold;
-
-            PlayBuffer(SOUND_GET_ITEM01);
-
-            UI::Shop::NpcSaleFinished();
-        }
-    }
-    else
-    {
-        UI::Inventory::RestorePickedItem();
-    }
-
-    UI::Shop::NpcSaleFinished();
-}
-
-void ReceiveRepair(const BYTE* ReceiveBuffer)
-{
-    auto Data = (LPPRECEIVE_REPAIR_GOLD)ReceiveBuffer;
-
-    if (Data->Gold != 0)
-    {
-        CharacterMachine->Gold = Data->Gold;
-        CharacterMachine->CalculateAll();
-        PlayBuffer(SOUND_REPAIR);
-    }
-
-    g_ConsoleDebug->Write(MCD_RECEIVE, L"0x34 [ReceiveRepair(%d)]", Data->Gold);
 }
 
 void ReceiveLevelUp(const BYTE* ReceiveBuffer, int Size)
@@ -10103,29 +10014,7 @@ void ReceiveEventChip(const BYTE* ReceiveBuffer)
         g_shEventChipCount = Data->m_unChipCount;
 }
 
-void ReceiveBuffState(const BYTE* ReceiveBuffer)
-{
-    auto Data = (LPPMSG_ITEMEFFECTCANCEL)ReceiveBuffer;
 
-    auto bufftype = static_cast<eBuffState>(Data->byBuffType);
-
-    if (bufftype == eBuffNone || bufftype >= eBuff_Count)
-        return;
-
-    if (Data->byEffectOption == 0)
-    {
-        RegisterBuff(bufftype, (&Hero->Object), Data->wEffectTime);
-
-        if (bufftype == eBuff_HelpNpc)
-        {
-            UI::Chat::PostSystem(I18N::Game::DamageAndDefenseIncreasedWithABlessing, mu::ui::window::TYPE_SYSTEM_MESSAGE);
-        }
-    }
-    else
-    {
-        UnRegisterBuff(bufftype, (&Hero->Object));
-    }
-}
 
 void ReceiveMutoNumber(const BYTE* ReceiveBuffer)
 {
@@ -13232,6 +13121,9 @@ static void ProcessPacket(const BYTE* ReceiveBuffer, int32_t Size)
     }
     switch (HeadCode)
     {
+    case 0x7B:
+        Network::Server::Armory::Receive(received_span);
+        break;
     case 0xF1:
     {
         auto Data = (LPPHEADER_DEFAULT_SUBCODE)ReceiveBuffer;
@@ -14480,7 +14372,7 @@ static void ProcessPacket(const BYTE* ReceiveBuffer, int32_t Size)
         ReceiveChatRoomInviteResult(ReceiveBuffer);
         break;
     case 0x2D:
-        ReceiveBuffState(ReceiveBuffer);
+        Network::Server::ReceiveEffectDuration(ReceiveBuffer);
         break;
     case 0xD1:
     {
@@ -14765,6 +14657,11 @@ void ProcessPacketCallback(const PacketInfo* Packet)
 
 static void HandleIncomingPacket(int32_t Handle, const BYTE* ReceiveBuffer, int32_t Size)
 {
+    if (App::Control::Net::DropIncoming(ReceiveBuffer, Size))
+    {
+        return;
+    }
+
     auto Packet = std::make_unique<PacketInfo>();
     Packet->ReceiveBuffer = std::make_unique<BYTE[]>(Size);
     std::copy(ReceiveBuffer, ReceiveBuffer + Size, Packet->ReceiveBuffer.get());
@@ -15680,6 +15577,8 @@ void UnRegisterBuff(eBuffState buff, OBJECT* o)
 
     if (CheckExceptionBuff(buff, o, true))
     {
+        if (o == &Hero->Object)
+            TheBuffTimeControl().RemoveEffectDuration(buff);
         g_CharacterUnRegisterBuff(o, buff);
 
         if (buffclasstype != eBuffClass_Count)

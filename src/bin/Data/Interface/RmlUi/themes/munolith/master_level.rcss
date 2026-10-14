@@ -1,0 +1,60 @@
+@spritesheet master-arrow-1-sheet { src: "../../../new_Master_arrow01.tga"; master-arrow-1: 0px 0px 28px 7px; }
+@spritesheet master-arrow-2-sheet { src: "../../../new_Master_arrow02.tga"; master-arrow-2: 0px 0px 28px 7px; }
+@spritesheet master-arrow-3-sheet { src: "../../../new_Master_arrow03.tga"; master-arrow-3: 0px 0px 7px 12px; }
+@spritesheet master-arrow-4-sheet { src: "../../../new_Master_arrow04.tga"; master-arrow-4: 0px 0px 7px 48px; }
+@spritesheet master-arrow-5-sheet { src: "../../../new_Master_arrow05.tga"; master-arrow-5: 0px 0px 42px 31px; }
+@spritesheet master-arrow-6-sheet { src: "../../../new_Master_arrow06.tga"; master-arrow-6: 0px 0px 42px 31px; }
+@spritesheet master-arrow-7-sheet { src: "../../../new_Master_arrow07.tga"; master-arrow-7: 0px 0px 40px 28px; }
+@spritesheet master-arrow-8-sheet { src: "../../../new_Master_arrow08.tga"; master-arrow-8: 0px 0px 40px 28px; }
+
+#panel { width: 640px; height: 330px; pointer-events: auto; font-size: 11px; }
+#title { position: absolute; left: 30px; right: 30px; top: 10px; height: 24px; text-align: center; font-size: 14px; font-weight: bold; color: #e6d3a7; }
+.branch { position: absolute; top: 70px; width: 198px; height: 246px; background-color: #0b1718b8; border: 1px #5b675366; pointer-events: none; }
+.branch-0 { left: 10px; } .branch-1 { left: 220px; } .branch-2 { left: 430px; }
+.node { position: absolute; width: 48px; height: 41px; }
+.node-box { position: absolute; left: 6px; top: 3px; width: 22px; height: 30px; background-color: #26392d; border: 1px #acb890; }
+.node.locked .node-box { border-color: #3a4947; background-color: #0c1518; }
+.node.learned .node-box { border-color: #b79a58; }
+.node-icon { position: absolute; left: 8px; top: 5px; width: 20px; height: 28px; cursor: pointer; pointer-events: auto; }
+.node-icon:hover { box-shadow: 0 0 0 1px #f5d18b; }
+.node-level { display: block; position: absolute; left: -1px; top: 35px; width: 45px; height: 11px; font-size: 9px; text-align: center; color: #c5d9b2; pointer-events: none; }
+.node.locked .node-level { color: #7b8c87; }
+.node.learned .node-level { color: #e7c779; }
+.text { display: block; position: absolute; white-space: nowrap; pointer-events: none; }
+.head-text { top: 44px; height: 18px; color: #c4ccbd; }
+#class_name { left: 20px; width: 175px; color: #d8c49c; }
+#master_level { left: 210px; width: 125px; }
+#level_point { left: 345px; width: 145px; color: #e7c779; }
+#experience { left: 500px; width: 115px; text-align: right; }
+#experience_area { position: absolute; left: 490px; top: 40px; width: 130px; height: 24px; pointer-events: auto; }
+.column-text { top: 74px; width: 192px; height: 18px; text-align: center; color: #d8c49c; font-weight: bold; }
+#column_0 { left: 14px; } #column_1 { left: 224px; } #column_2 { left: 434px; }
+#close { position: absolute; right: 1px; top: 1px; width: 16px; height: 16px; line-height: 16px; text-align: center; color: transparent; cursor: pointer; pointer-events: auto; }
+#close:hover { border: 1px #e7c568; }
+.node-arrow { position: absolute; pointer-events: none; opacity: 0.8; }
+.arrow-1 { left: 30px; top: 14px; width: 28px; height: 7px; decorator: image(master-arrow-1); }
+.arrow-2 { left: 30px; top: 14px; width: 28px; height: 7px; decorator: image(master-arrow-2); }
+.arrow-3 { left: 14.5px; top: 35px; width: 7px; height: 12px; decorator: image(master-arrow-3); }
+.arrow-4 { left: 14.5px; top: 35px; width: 7px; height: 52px; decorator: image(master-arrow-4); }
+.arrow-5 { left: 0; top: 0; width: 42px; height: 31px; decorator: image(master-arrow-5); }
+.arrow-6 { left: 0; top: 0; width: 42px; height: 31px; decorator: image(master-arrow-6); }
+.arrow-7 { left: 16.5px; top: 36px; width: 40px; height: 28px; decorator: image(master-arrow-7); }
+.arrow-8 { left: 0; top: 0; width: 40px; height: 28px; decorator: image(master-arrow-8); }
+
+.node.column-0 { left: 11px; }
+.node.column-1 { left: 221px; }
+.node.column-2 { left: 431px; }
+.node.slot-0 { margin-left: 0px; }
+.node.slot-1 { margin-left: 49px; }
+.node.slot-2 { margin-left: 98px; }
+.node.slot-3 { margin-left: 147px; }
+.node.rank-1 { top: 94px; }
+.node.rank-2 { top: 135px; }
+.node.rank-3 { top: 176px; }
+.node.rank-4 { top: 217px; }
+.node.rank-5 { top: 258px; }
+.node.rank-6 { top: 299px; }
+.node.rank-7 { top: 340px; }
+.node.rank-8 { top: 381px; }
+.node.rank-9 { top: 422px; }
+.node.rank-10 { top: 463px; }

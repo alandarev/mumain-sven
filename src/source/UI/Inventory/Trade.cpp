@@ -24,6 +24,7 @@
 #include "UI/RmlBridge/RmlSyncField.h"
 #include "UI/Scaling/UITransform.h"
 #include "Core/Utilities/StringUtils.h"
+#include <RmlUi/Core/Element.h>
 #include <RmlUi/Core/ElementDocument.h>
 
 using namespace SEASON3B;
@@ -393,10 +394,7 @@ void CTrade::SyncRmlModel()
     if (!m_RmlView.Document()) return;
     UI::RmlBridge::SyncDocumentVisibility(m_RmlView.Document(), IsVisible());
 
-    if (m_pYourInvenCtrl)
-        m_pYourInvenCtrl->FollowGridPx(m_RmlView.Document(), "partner_grid");
-    if (m_pMyInvenCtrl)
-        m_pMyInvenCtrl->FollowGridPx(m_RmlView.Document(), "item_grid");
+    SyncNativeLayout();
     if (m_pYourInvenCtrl && m_RmlView.GetModel().partnerCells != m_pYourInvenCtrl->Cells())
     {
         m_RmlView.GetModel().partnerCells = m_pYourInvenCtrl->Cells();
@@ -545,11 +543,32 @@ void CTrade::ProcessClosing()
         InitYourInvenBackUp();
 }
 
+// A theme marks its grids .themed-grid when its own cells frame the items.
+void CTrade::SyncNativeLayout()
+{
+    Rml::ElementDocument* document = m_RmlView.Document();
+    Rml::Element* grid = document != nullptr ? document->GetElementById("item_grid") : nullptr;
+    const bool themedGrid = grid != nullptr && grid->IsClassSet("themed-grid");
+    if (m_pYourInvenCtrl)
+    {
+        m_pYourInvenCtrl->SetPresentation(nullptr, themedGrid);
+        m_pYourInvenCtrl->FollowGridPx(document, "partner_grid");
+    }
+    if (m_pMyInvenCtrl)
+    {
+        m_pMyInvenCtrl->SetPresentation(nullptr, themedGrid);
+        m_pMyInvenCtrl->FollowGridPx(document, "item_grid");
+    }
+}
+
 void CTrade::ProcessMyInvenCtrl()
 {
     // A held item is put down when the button is released, like in every other
     // item window: the inventory above this window takes the press.
     if (m_pMyInvenCtrl == nullptr || !mu::ui::window::IsRelease(VK_LBUTTON))
+        return;
+    // A hidden pickup already has a request pending and cannot be sent again.
+    if (CPickedItem* picked = CInventoryCtrl::GetPickedItem(); picked != nullptr && !picked->IsVisible())
         return;
 
     const auto move = UI::Items::Placement::FindHeldItemMove(m_pMyInvenCtrl, STORAGE_TYPE::TRADE);

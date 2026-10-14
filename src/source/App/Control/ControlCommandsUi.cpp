@@ -235,7 +235,7 @@ std::string EquipmentPixel(const Request& request, int slot)
 
 namespace App::Control::Commands
 {
-std::string Ui(const Request& request, std::unique_ptr<Act>&)
+std::string UiOverview(const Request& request)
 {
     json windows = json::array();
     for (const NamedWindow& window : Windows)

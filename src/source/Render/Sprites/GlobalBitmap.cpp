@@ -149,9 +149,14 @@ bool UploadTextureSDLGpu(BITMAP_t* bitmap, const std::uint8_t* pixelData, int wi
                          SDL_GPUSamplerAddressMode wrapMode)
 {
     SDL_GPUDevice* device = static_cast<SDL_GPUDevice*>(mu::GetRenderer().GetDevice());
+    const auto fail = [](const char* stage)
+    {
+        mu::log::Get("render")->error("Texture upload {}: {}", stage, SDL_GetError());
+        return false;
+    };
     if (!device || !bitmap || !pixelData || width <= 0 || height <= 0)
     {
-        return false;
+        return fail("invalid input/device");
     }
 
     SDL_GPUTextureCreateInfo texInfo{};
@@ -166,7 +171,7 @@ bool UploadTextureSDLGpu(BITMAP_t* bitmap, const std::uint8_t* pixelData, int wi
     SDL_GPUTexture* gpuTexture = SDL_CreateGPUTexture(device, &texInfo);
     if (!gpuTexture)
     {
-        return false;
+        return fail("create texture");
     }
 
     constexpr Uint32 bytesPerPixel = 4u;
@@ -179,7 +184,7 @@ bool UploadTextureSDLGpu(BITMAP_t* bitmap, const std::uint8_t* pixelData, int wi
     if (!transfer)
     {
         SDL_ReleaseGPUTexture(device, gpuTexture);
-        return false;
+        return fail("create transfer buffer");
     }
 
     void* mapped = SDL_MapGPUTransferBuffer(device, transfer, false);
@@ -187,7 +192,7 @@ bool UploadTextureSDLGpu(BITMAP_t* bitmap, const std::uint8_t* pixelData, int wi
     {
         SDL_ReleaseGPUTransferBuffer(device, transfer);
         SDL_ReleaseGPUTexture(device, gpuTexture);
-        return false;
+        return fail("map transfer buffer");
     }
     std::memcpy(mapped, pixelData, dataSize);
     SDL_UnmapGPUTransferBuffer(device, transfer);
@@ -197,7 +202,7 @@ bool UploadTextureSDLGpu(BITMAP_t* bitmap, const std::uint8_t* pixelData, int wi
     {
         SDL_ReleaseGPUTransferBuffer(device, transfer);
         SDL_ReleaseGPUTexture(device, gpuTexture);
-        return false;
+        return fail("acquire command buffer");
     }
 
     SDL_GPUCopyPass* copyPass = SDL_BeginGPUCopyPass(commandBuffer);
@@ -206,7 +211,7 @@ bool UploadTextureSDLGpu(BITMAP_t* bitmap, const std::uint8_t* pixelData, int wi
         SDL_SubmitGPUCommandBuffer(commandBuffer);
         SDL_ReleaseGPUTransferBuffer(device, transfer);
         SDL_ReleaseGPUTexture(device, gpuTexture);
-        return false;
+        return fail("begin copy pass");
     }
 
     SDL_GPUTextureTransferInfo src{};
@@ -238,7 +243,7 @@ bool UploadTextureSDLGpu(BITMAP_t* bitmap, const std::uint8_t* pixelData, int wi
     if (!sampler)
     {
         SDL_ReleaseGPUTexture(device, gpuTexture);
-        return false;
+        return fail("create sampler");
     }
 
     bitmap->sdlTexture = gpuTexture;
@@ -913,6 +918,9 @@ bool CGlobalBitmap::OpenJpegTurbo(GLuint uiBitmapIndex, const std::wstring& file
     if (!UploadTextureSDLGpu(pNewBitmap.get(), rgbaData.data(), textureWidth, textureHeight, MapGLFilterToSDL(uiFilter),
                              MapGLWrapToSDL(uiWrapMode)))
     {
+        mu::log::Get("render")->error("Texture upload failed: {} ({}) {}x{}, SDL: {}",
+                                      mu_wchar_to_utf8(filename.c_str()), uiBitmapIndex, pNewBitmap->Width,
+                                      pNewBitmap->Height, SDL_GetError());
         g_ErrorReport.Write(L"SDL texture upload failed %ls (%d)\r\n", filename.c_str(), uiBitmapIndex);
         return false;
     }
@@ -970,6 +978,9 @@ bool CGlobalBitmap::OpenTga(GLuint uiBitmapIndex, const std::wstring& filename, 
     if (!UploadTextureSDLGpu(pNewBitmap.get(), pNewBitmap->Buffer, Width, Height, MapGLFilterToSDL(uiFilter),
                              MapGLWrapToSDL(uiWrapMode)))
     {
+        mu::log::Get("render")->error("Texture upload failed: {} ({}) {}x{}, SDL: {}",
+                                      mu_wchar_to_utf8(filename.c_str()), uiBitmapIndex, pNewBitmap->Width,
+                                      pNewBitmap->Height, SDL_GetError());
         g_ErrorReport.Write(L"SDL texture upload failed %ls (%d)\r\n", filename.c_str(), uiBitmapIndex);
         return false;
     }

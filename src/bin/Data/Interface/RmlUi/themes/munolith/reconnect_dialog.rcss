@@ -1,0 +1,12 @@
+body { width: 100%; height: 100%; margin: 0; pointer-events: none; font-family: "DejaVu Sans"; }
+#dim { position: absolute; left: 0; top: 0; width: 100%; height: 100%; background-color: #07100b; pointer-events: none; }
+#panel { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 420px; max-width: 86vw; padding: 24px 26px; box-sizing: border-box; background-color: #101b16; border: 1px #79734a; pointer-events: none; }
+#rc_title, #rc_step, #rc_countdown { display: block; white-space: normal; line-height: 1.4em; }
+#rc_title { color: #e6d19a; font-weight: bold; }
+#rc_step { color: #ced4be; margin-top: 12px; }
+#rc_countdown { color: #aeb89f; margin-top: 6px; }
+#progress_back { display: block; margin-top: 22px; width: 100%; height: 6px; background-color: #263126; border: 1px #514c32; }
+#progress_bar { display: block; height: 100%; background-color: #bfa561; }
+.actions { display: flex; justify-content: flex-end; margin-top: 22px; }
+#cancel { display: block; min-width: 88px; min-height: 32px; padding: 6px 14px; box-sizing: border-box; color: #ded5bb; background-color: #16231c; border: 1px #807449; decorator: none; font-family: "DejaVu Sans"; font-size: 14px; line-height: 18px; text-align: center; pointer-events: auto; cursor: pointer; }
+#cancel:hover { color: #fff1c8; background-color: #2d3828; border-color: #c2a568; }

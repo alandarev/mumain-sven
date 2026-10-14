@@ -1,0 +1,48 @@
+/* The frame remains behind the native three-dimensional condition items. */
+#panel, #content_root { width: 190px; height: 429px; pointer-events: none; }
+#content_root { background-color: transparent; }
+#title { top: 10px; color: #e6d3a7; font-weight: bold; }
+.nq-quest-title { top: 32px; color: #c3bead; }
+.quest-heading-rule { position: absolute; left: 12px; right: 12px; top: 51px; height: 1px; background-color: #756b4f; }
+.quest-requirements-back { position: absolute; left: 10px; right: 10px; top: 238px; height: 106px; border: 1px #3e4b3d; background-color: #081711b8; }
+.sharp-text { transform-origin: left top; }
+.nq-dialogue { left: 12px; width: 166px; text-align: left; }
+#dialogue_message { top: 57px; }
+#dialogue_answers { top: 245px; }
+.has-conditions #dialogue_answers { top: 185px; }
+.nq-dialogue.scroll-pane { overflow: hidden auto; pointer-events: auto; }
+.nq-message-line { white-space: normal; color: #d5ccb7; }
+.nq-answer-row { white-space: normal; color: #e3c985; margin-bottom: 4px; border-bottom: 1px #3d493d; }
+.nq-answer-row:hover { color: #ffe2a4; background-color: #254036; }
+.nq-conditions { left: 48px; top: 244px; width: 132px; }
+.nq-condition-row { white-space: normal; overflow: hidden; font-weight: bold; }
+.nq-divider { decorator: none; height: 1px; background-color: #685f43; top: 347px; left: 12px; width: 166px; }
+#btn_complete { left: 31px; width: 128px; decorator: none; border: 1px #8d8051; background-color: #1b2d22; color: #e3cd92; }
+#btn_complete:hover { decorator: none; background-color: #2c4030; border-color: #c2a76a; }
+#btn_complete.disabled { pointer-events: none; filter: none; background-color: #101a16; border-color: #3d4738; color: #797865; }
+.nq-cost { decorator: none; background-color: #10241a; border: 1px #6b6446; }
+#btn_exit { position: absolute; left: auto; right: 1px; top: 1px; width: 16px; height: 16px; decorator: none; color: transparent; cursor: pointer; pointer-events: auto; }
+#btn_exit:hover { border: 1px #d8bb6b; }
+.btn-exit-label, .tooltip-exit { display: none; }
+.nq-dialogue.scroll-pane scrollbarvertical { width: 8px; }
+.nq-dialogue.scroll-pane scrollbarvertical slidertrack { background-color: #0b1812; border: none; }
+.nq-dialogue.scroll-pane scrollbarvertical sliderbar { background-color: #776d4a; border: 1px #b19c61; }
+.nq-dialogue.scroll-pane scrollbarvertical sliderarrowdec, .nq-dialogue.scroll-pane scrollbarvertical sliderarrowinc { display: none; }
+
+.nq-quest-title { white-space: normal; line-height: 1.2em; }
+@media (max-width: 1100px) {
+ #dialogue_message { top: 67px; }
+ .nq-conditions { top: 221px; }
+ .quest-requirements-back { top: 216px; height: 168px; }
+ #btn_complete { top: 395px; }
+}
+
+.nq-item { position: absolute; left: -20px; top: -20px; width: calc(100% + 40px); height: calc(100% + 40px); pointer-events: none; }
+
+#panel, #content_root { font-size: max(12px, calc(max(8px, calc(var(--text-px) * 1px)) / var(--root-scale))); }
+
+.nq-condition-row { height: max(calc(32px * var(--root-scale)), calc(max(8px, calc(var(--text-px) * 1px)) * 4.2)); }
+#dialogue_message { height: calc(174px * var(--root-scale)); }
+.has-conditions #dialogue_message { height: calc(112px * var(--root-scale)); }
+#dialogue_answers { height: calc(85px * var(--root-scale)); }
+.has-conditions #dialogue_answers { height: calc(32px * var(--root-scale)); }

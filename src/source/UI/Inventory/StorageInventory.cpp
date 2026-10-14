@@ -57,13 +57,7 @@ namespace
             }
             SocketClient->ToGameServer()->SendUnlockVault((WORD)_wtoi(strText.c_str()));
         };
-        cfg.onCancel = []
-        {
-            if (g_pPickedItem)
-                g_pPickedItem->ShowPickedItem();
-            if (g_pNewUISystem->IsVisible(mu::ui::window::INTERFACE_STORAGE))
-                g_pStorageInventory->SetItemAutoMove(false);
-        };
+        cfg.onCancel = [] { g_pStorageInventory->CancelPendingWithdrawal(); };
         g_pGenericConfirmDialog->Show(std::move(cfg));
     }
 
@@ -196,6 +190,7 @@ bool CStorageInventory::Create(CManager* pNewUIMng)
     }
 
     m_bLock = false;
+    m_bCorrectPassword = false;
     SetItemAutoMove(false);
     InitBackupItemInfo();
 
@@ -221,6 +216,9 @@ void CStorageInventory::BindRmlModel(Rml::DataModelConstructor& c, StorageRmlMod
     c.Bind("fee_label", &model.feeLabel);
     c.Bind("fee_value", &model.feeValue);
 
+    c.Bind("extra_visible", &model.extraVisible);
+    c.Bind("extra_title", &model.extraTitle);
+    c.Bind("grid_cells_extra", &model.gridCellsExtra);
     c.Bind("expand_visible", &model.expandVisible);
     c.Bind("expand_tooltip", &model.expandTooltip);
 
@@ -230,6 +228,50 @@ void CStorageInventory::BindRmlModel(Rml::DataModelConstructor& c, StorageRmlMod
     c.Bind("take_tooltip", &model.takeTooltip);
     c.Bind("lock_tooltip", &model.lockTooltip);
 
+    BindDepositAction(c);
+    BindWithdrawAction(c);
+
+    c.BindEventCallback("storage_lock_click",
+                        [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&)
+                        {
+                            if (m_bLock)
+                            {
+                                mu::ui::window::GenericDialogConfig cfg;
+                                cfg.showCancel = true;
+                                cfg.lines = {
+                                    {I18N::Game::WarehouseLockUnlock, false},
+                                    {I18N::Game::EnterYourWEBZENCOMPassword697, false},
+                                };
+                                cfg.input = mu::ui::window::GenericDialogConfig::InputField{};
+                                cfg.input->mode = mu::ui::window::GenericDialogConfig::InputField::Mode::Text;
+                                cfg.input->maxLength = g_iLengthAuthorityCode;
+                                cfg.input->masked = true;
+                                cfg.onPrimary = []
+                                {
+                                    const std::wstring strText =
+                                        mu::ui::window::g_pGenericConfirmDialog->GetInputText();
+                                    if (strText.empty())
+                                    {
+                                        mu::ui::window::g_pGenericConfirmDialog->KeepOpen();
+                                        return;
+                                    }
+                                    SocketClient->ToGameServer()->SendRemoveVaultPin(MU_C16(strText.c_str()));
+                                };
+                                mu::ui::window::g_pGenericConfirmDialog->Show(std::move(cfg));
+                            }
+                            else
+                                ShowStorageLockPinDialog();
+                        });
+    c.BindEventCallback("storage_expand_click",
+                        [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&)
+                        {
+                            if (CharacterAttribute->IsVaultExtended > 0)
+                                g_pNewUISystem->Toggle(INTERFACE_STORAGE_EXT);
+                        });
+}
+
+void CStorageInventory::BindDepositAction(Rml::DataModelConstructor& c)
+{
     c.BindEventCallback("storage_insert_click",
         [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&)
         {
@@ -261,6 +303,10 @@ void CStorageInventory::BindRmlModel(Rml::DataModelConstructor& c, StorageRmlMod
             };
             mu::ui::window::g_pGenericConfirmDialog->Show(std::move(cfg));
         });
+}
+
+void CStorageInventory::BindWithdrawAction(Rml::DataModelConstructor& c)
+{
     c.BindEventCallback("storage_take_click",
         [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&)
         {
@@ -307,42 +353,6 @@ void CStorageInventory::BindRmlModel(Rml::DataModelConstructor& c, StorageRmlMod
             };
             mu::ui::window::g_pGenericConfirmDialog->Show(std::move(cfg));
         });
-    c.BindEventCallback("storage_lock_click",
-        [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&)
-        {
-            if (m_bLock)
-            {
-                mu::ui::window::GenericDialogConfig cfg;
-                cfg.showCancel = true;
-                cfg.lines = {
-                    { I18N::Game::WarehouseLockUnlock, false },
-                    { I18N::Game::EnterYourWEBZENCOMPassword697, false },
-                };
-                cfg.input = mu::ui::window::GenericDialogConfig::InputField{};
-                cfg.input->mode = mu::ui::window::GenericDialogConfig::InputField::Mode::Text;
-                cfg.input->maxLength = g_iLengthAuthorityCode;
-                cfg.input->masked = true;
-                cfg.onPrimary = []
-                {
-                    const std::wstring strText = mu::ui::window::g_pGenericConfirmDialog->GetInputText();
-                    if (strText.empty())
-                    {
-                        mu::ui::window::g_pGenericConfirmDialog->KeepOpen();
-                        return;
-                    }
-                    SocketClient->ToGameServer()->SendRemoveVaultPin(MU_C16(strText.c_str()));
-                };
-                mu::ui::window::g_pGenericConfirmDialog->Show(std::move(cfg));
-            }
-            else
-                ShowStorageLockPinDialog();
-        });
-    c.BindEventCallback("storage_expand_click",
-        [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&)
-        {
-            if (CharacterAttribute->IsVaultExtended > 0)
-                g_pNewUISystem->Toggle(INTERFACE_STORAGE_EXT);
-        });
 }
 
 void CStorageInventory::BuildRmlUi()
@@ -377,6 +387,8 @@ bool CStorageInventory::UpdateMouseEvent()
     if (m_pNewInventoryCtrl && false == m_pNewInventoryCtrl->UpdateMouseEvent())
         return false;
 
+    if (UI::RmlBridge::ThemeUsesEmbeddedVault() && !g_pStorageInventoryExt->UpdateEmbeddedMouseEvent())
+        return false;
     ProcessInventoryCtrl();
 
     if (IsPointerOverPanel())
@@ -412,7 +424,7 @@ bool CStorageInventory::UpdateKeyEvent()
         return false;
     }
 
-    if (CharacterAttribute->IsVaultExtended > 0 && IsPress('H'))
+    if (!UI::RmlBridge::ThemeUsesEmbeddedVault() && CharacterAttribute->IsVaultExtended > 0 && IsPress('H'))
     {
         g_pNewUISystem->Toggle(INTERFACE_STORAGE_EXT);
         PlayBuffer(SOUND_CLICK01);
@@ -423,10 +435,12 @@ bool CStorageInventory::UpdateKeyEvent()
 
 bool CStorageInventory::Update()
 {
+    SyncRmlModel();
     if (m_pNewInventoryCtrl && !m_pNewInventoryCtrl->Update())
         return false;
 
-    SyncRmlModel();
+    if (UI::RmlBridge::ThemeUsesEmbeddedVault())
+        g_pStorageInventoryExt->UpdateEmbedded();
     return true;
 }
 
@@ -436,25 +450,52 @@ bool CStorageInventory::Render()
 
     if (m_pNewInventoryCtrl)
         m_pNewInventoryCtrl->Render();
+    if (UI::RmlBridge::ThemeUsesEmbeddedVault())
+        g_pStorageInventoryExt->RenderEmbedded();
 
     DisableAlphaBlend();
 
     return true;
 }
 
-void CStorageInventory::SyncRmlModel()
+void CStorageInventory::SyncNativeLayout()
 {
-    m_ItemTarget.Sync(m_RmlView.Document() ? m_RmlView.Document()->GetElementById("item_view") : nullptr, IsVisible());
-    if (!m_RmlView.Document()) return;
-    UI::RmlBridge::SyncDocumentVisibility(m_RmlView.Document(), IsVisible());
-
+    const bool embedded = UI::RmlBridge::ThemeUsesEmbeddedVault();
     if (m_pNewInventoryCtrl)
+    {
+        m_pNewInventoryCtrl->SetPresentation(nullptr, embedded);
         m_pNewInventoryCtrl->FollowGridPx(m_RmlView.Document(), "item_grid");
+    }
+    if (g_pStorageInventoryExt)
+        g_pStorageInventoryExt->SyncEmbeddedLayout(m_RmlView.Document());
     if (m_pNewInventoryCtrl && m_RmlView.GetModel().gridCells != m_pNewInventoryCtrl->Cells())
     {
         m_RmlView.GetModel().gridCells = m_pNewInventoryCtrl->Cells();
         m_RmlView.MarkDirty("grid_cells");
     }
+    const auto* extra = g_pStorageInventoryExt != nullptr ? g_pStorageInventoryExt->GetEmbeddedControl() : nullptr;
+    if (extra != nullptr && m_RmlView.GetModel().gridCellsExtra != extra->Cells())
+    {
+        m_RmlView.GetModel().gridCellsExtra = extra->Cells();
+        m_RmlView.MarkDirty("grid_cells_extra");
+    }
+}
+
+void CStorageInventory::SyncRmlModel()
+{
+    m_ItemTarget.Sync(m_RmlView.Document() ? m_RmlView.Document()->GetElementById("item_view") : nullptr, IsVisible());
+    const bool extraVisible = UI::RmlBridge::ThemeUsesEmbeddedVault() && CharacterAttribute->IsVaultExtended > 0;
+    if (m_RmlView.GetModel().extraVisible != extraVisible)
+    {
+        m_RmlView.GetModel().extraVisible = extraVisible;
+        m_RmlView.MarkDirty("extra_visible");
+    }
+    SyncNativeLayout();
+
+    if (!m_RmlView.Document())
+        return;
+    UI::RmlBridge::SyncDocumentVisibility(m_RmlView.Document(), IsVisible());
+
     UI::RmlBridge::SyncNativeTextSize(m_RmlView.Binder());
 
     auto syncBool = [this](bool StorageRmlModel::* field, const char* boundName, bool value)
@@ -473,7 +514,8 @@ void CStorageInventory::SyncRmlModel()
     // "Storage (open/close)" title text, red when locked.
     wchar_t titleBuf[128];
     mu_swprintf(titleBuf, L"%ls (%ls)", I18N::Game::Storage, I18N::Game::Lookup(m_bLock ? 241 : 240));
-    syncWide(&StorageRmlModel::title, "title", titleBuf);
+    syncWide(&StorageRmlModel::title, "title",
+             UI::RmlBridge::ThemeUsesEmbeddedVault() ? I18N::Game::Storage : titleBuf);
     syncBool(&StorageRmlModel::titleLocked, "title_locked", m_bLock);
 
     const int nZen = CharacterMachine->StorageGold;
@@ -500,7 +542,9 @@ void CStorageInventory::SyncRmlModel()
     ConvertGold(nFee, feeBuf);
     syncWide(&StorageRmlModel::feeValue, "fee_value", feeBuf);
 
-    syncBool(&StorageRmlModel::expandVisible, "expand_visible", CharacterAttribute->IsVaultExtended > 0);
+    syncWide(&StorageRmlModel::extraTitle, "extra_title", I18N::Game::ExpandedVault);
+    syncBool(&StorageRmlModel::expandVisible, "expand_visible",
+             !UI::RmlBridge::ThemeUsesEmbeddedVault() && CharacterAttribute->IsVaultExtended > 0);
     syncWide(&StorageRmlModel::expandTooltip, "expand_tooltip", I18N::Game::OpeningAnExpandedVaultH);
 
     syncBool(&StorageRmlModel::storageLocked, "storage_locked", m_bLock);
@@ -531,6 +575,7 @@ bool CStorageInventory::ProcessClosing()
         return false;
 
     CInventoryCtrl::BackupPickedItem();
+    CancelPendingWithdrawal();
     DeleteAllItems();
     SocketClient->ToGameServer()->SendVaultClosed();
     return true;
@@ -591,7 +636,8 @@ void CStorageInventory::ProcessInventoryCtrl()
             }
         }
     }
-    else if (IsPress(VK_RBUTTON))
+    else if (IsPress(VK_RBUTTON) ||
+             (UI::RmlBridge::ThemeUsesEmbeddedVault() && IsRelease(VK_LBUTTON) && IsRepeat(VK_SHIFT)))
     {
         ProcessStorageItemAutoMove();
     }
@@ -603,7 +649,7 @@ void CStorageInventory::ProcessStorageItemAutoMove()
         if (g_pPickedItem->GetItem())
             return;
 
-    if (IsItemAutoMove())
+    if (IsItemAutoMove() || g_pStorageInventoryExt->IsItemAutoMove())
         return;
 
     ITEM* pItemObj = m_pNewInventoryCtrl->FindItemAtPointer();
@@ -612,11 +658,8 @@ void CStorageInventory::ProcessStorageItemAutoMove()
         int nDstIndex = g_pMyInventory->FindEmptySlotIncludingExtensions(pItemObj);
         if (-1 != nDstIndex)
         {
-            SetItemAutoMove(true);
-
-            int nSrcIndex
-                = pItemObj->y * m_pNewInventoryCtrl->GetNumberOfColumn()
-                + pItemObj->x;
+            const int nSrcIndex = m_pNewInventoryCtrl->GetIndexByItem(pItemObj);
+            SetItemAutoMove(true, nSrcIndex);
             SendRequestItemToMyInven(pItemObj, nSrcIndex, nDstIndex);
 
             PlayBuffer(SOUND_GET_ITEM01);
@@ -631,7 +674,7 @@ bool CStorageInventory::ProcessMyInvenItemAutoMove(CInventoryCtrl* sourceCtrl)
         return false;
     }
 
-    if (IsItemAutoMove())
+    if (IsItemAutoMove() || g_pStorageInventoryExt->IsItemAutoMove())
     {
         return false;
     }
@@ -680,7 +723,8 @@ void CStorageInventory::SendRequestItemToMyInven(ITEM* pItemObj, int nStorageInd
     else
     {
         SetBackupInvenIndex(nInvenIndex);
-        if (!IsItemAutoMove())
+        m_nBackupStorageIndex = nStorageIndex;
+        if (g_pPickedItem)
             g_pPickedItem->HidePickedItem();
 
         ShowVaultPinVerifyDialog();
@@ -699,8 +743,7 @@ void CStorageInventory::SendRequestItemToStorage(ITEM* pItemObj, int nInvenIndex
         g_pSystemLogBox->AddText(I18N::Game::TheseItemsCannotBeStoredInTheInventory, TYPE_ERROR_MESSAGE);
         CInventoryCtrl::BackupPickedItem();
 
-        if (IsItemAutoMove())
-            SetItemAutoMove(false);
+        CancelPendingWithdrawal();
     }
     else
     {
@@ -732,11 +775,12 @@ void CStorageInventory::InitBackupItemInfo()
     m_bTakeZen = false;
     m_nBackupTakeZen = 0;
     m_nBackupInvenIndex = -1;
-    m_nBackupSourceInvenIndex = -1;
+    m_nBackupStorageIndex = -1;
 }
 
 void CStorageInventory::SetBackupTakeZen(int nZen)
 {
+    InitBackupItemInfo();
     m_bTakeZen = true;
     m_nBackupTakeZen = nZen;
 }
@@ -778,7 +822,7 @@ void CStorageInventory::ProcessToReceiveStorageStatus(UI::Storage::VaultStatus s
     case VaultStatus::WrongPassword:
         CreateOkMessageBox(I18N::Game::IncorrectPassword);
         CInventoryCtrl::BackupPickedItem();
-        ProcessStorageItemAutoMoveFailure();
+        CancelPendingWithdrawal();
         break;
 
     case VaultStatus::AlreadyLocked:
@@ -787,42 +831,13 @@ void CStorageInventory::ProcessToReceiveStorageStatus(UI::Storage::VaultStatus s
 
     case VaultStatus::PasswordAccepted:
         if (IsStorageLocked() && !IsCorrectPassword())
-        {
-            if (m_bTakeZen)
-            {
-                SocketClient->ToGameServer()->SendVaultMoveMoneyRequest(VaultMoneyMoveDirection::VaultToInventory, GetBackupTakeZen());
-                InitBackupItemInfo();
-            }
-            else
-            {
-                ITEM* pItemObj;
-                int nStorageIndex;
-
-                if (IsItemAutoMove())
-                {
-                    pItemObj = m_pNewInventoryCtrl->FindItem(m_nBackupStorageCell);
-                    nStorageIndex
-                        = pItemObj->y * m_pNewInventoryCtrl->GetNumberOfColumn()
-                        + pItemObj->x;
-                }
-                else
-                {
-                    nStorageIndex = g_pPickedItem->GetSourceLinealPos();
-                    pItemObj = g_pPickedItem->GetItem();
-                }
-
-                SendRequestEquipmentItem(
-                    STORAGE_TYPE::VAULT, nStorageIndex,
-                    pItemObj, STORAGE_TYPE::INVENTORY, GetBackupInvenIndex());
-
-                InitBackupItemInfo();
-            }
-        }
+            ResumeProtectedWithdrawal();
         LockStorage(true);
         SetCorrectPassword(true);
         break;
 
     case VaultStatus::PasswordRejected:
+        CancelPendingWithdrawal();
         CreateOkMessageBox(I18N::Game::ThePasswordYouHaveEnteredIsIncorrect);
         break;
     }
@@ -866,7 +881,7 @@ void CStorageInventory::ProcessStorageItemAutoMoveSuccess()
 
     if (IsItemAutoMove())
     {
-        ITEM* pItemObj = m_pNewInventoryCtrl->FindItem(m_nBackupStorageCell);
+        ITEM* pItemObj = m_pNewInventoryCtrl->FindItem(m_nBackupSourceInvenIndex);
         m_pNewInventoryCtrl->RemoveItem(pItemObj);
 
         SetItemAutoMove(false);
@@ -882,6 +897,48 @@ void CStorageInventory::ProcessStorageItemAutoMoveFailure()
     SetItemAutoMove(false);
 }
 
+void CStorageInventory::CancelPendingWithdrawal()
+{
+    InitBackupItemInfo();
+    SetItemAutoMove(false);
+    if (g_pStorageInventoryExt)
+        g_pStorageInventoryExt->SetItemAutoMove(false);
+    if (g_pPickedItem)
+        g_pPickedItem->ShowPickedItem();
+}
+
+void CStorageInventory::ResumeProtectedWithdrawal()
+{
+    if (!IsVisible())
+    {
+        CancelPendingWithdrawal();
+        return;
+    }
+    if (m_bTakeZen)
+    {
+        SocketClient->ToGameServer()->SendVaultMoveMoneyRequest(VaultMoneyMoveDirection::VaultToInventory,
+                                                                GetBackupTakeZen());
+        InitBackupItemInfo();
+        return;
+    }
+    if (m_nBackupStorageIndex < 0 || GetBackupInvenIndex() < 0)
+        return;
+    auto* source =
+        m_nBackupStorageIndex < MAX_SHOP_INVENTORY ? GetInventoryCtrl() : g_pStorageInventoryExt->GetInventoryCtrl();
+    ITEM* item = source ? source->FindItem(m_nBackupStorageIndex) : nullptr;
+    if (g_pPickedItem && g_pPickedItem->GetSourceStorageType() == STORAGE_TYPE::VAULT &&
+        g_pPickedItem->GetSourceLinealPos() == m_nBackupStorageIndex)
+        item = g_pPickedItem->GetItem();
+    if (!item)
+    {
+        CancelPendingWithdrawal();
+        return;
+    }
+    SendRequestEquipmentItem(STORAGE_TYPE::VAULT, m_nBackupStorageIndex, item, STORAGE_TYPE::INVENTORY,
+                             GetBackupInvenIndex());
+    InitBackupItemInfo();
+}
+
 int CStorageInventory::GetPointedItemIndex()
 {
     return m_pNewInventoryCtrl->GetPointedSquareIndex();
@@ -892,4 +949,7 @@ void CStorageInventory::RenderItems()
 {
     if (m_pNewInventoryCtrl && m_pNewInventoryCtrl->IsVisible())
         m_pNewInventoryCtrl->Render3D();
+    // A theme that embeds the extra vault draws its items here too.
+    if (UI::RmlBridge::ThemeUsesEmbeddedVault() && g_pStorageInventoryExt != nullptr)
+        g_pStorageInventoryExt->RenderEmbedded3D();
 }

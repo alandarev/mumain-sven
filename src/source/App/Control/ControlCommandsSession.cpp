@@ -8,12 +8,16 @@
 #include "Engine/Object/ZzzOpenData.h"
 #include "MUHelper/MuHelper.h"
 #include "Network/Server/WSclient.h"
+#include "Character/CharSelMainWin.h"
 #include "Scenes/CharacterScene.h"
+#include "Scenes/SceneCommon.h"
 #include "Scenes/SceneCore.h"
 #include "UI/Core/WindowSystem.h"
 #include "UI/Windows/LoginWin.h"
 #include "UI/Windows/MsgWin.h"
 #include "UI/Windows/ServerSelWin.h"
+#include "UI/Windows/SysMenuWin.h"
+#include "Character/CharMakeWin.h"
 
 #include "json.hpp"
 
@@ -47,6 +51,8 @@ constexpr std::chrono::milliseconds LoginDeadline{60000};
 // Entering the world loads a map from disk.
 constexpr std::chrono::milliseconds SelectCharacterDeadline{60000};
 constexpr std::chrono::milliseconds LogoutDeadline{30000};
+// Back to the server list: a logout and the connect server's list again.
+constexpr std::chrono::milliseconds ServerListDeadline{30000};
 
 // Longest credential the client's own fields accept, in wide characters.
 // A caller is told when it exceeds them rather than having its account
@@ -154,6 +160,8 @@ constexpr std::chrono::milliseconds SelectServerRetryWindow{5000};
 constexpr std::chrono::milliseconds JoinRetryWindow{8000};
 
 // login: server list -> server -> credentials -> character list.
+// select-server runs the same act up to the login form and stops there: no
+// credentials, and it never leaves a session.
 class LoginAct : public Act
 {
 public:
@@ -162,9 +170,16 @@ public:
     {
     }
 
+    static std::unique_ptr<LoginAct> UpToLoginForm(std::wstring serverGroup)
+    {
+        auto act = std::make_unique<LoginAct>(std::string{}, std::string{}, std::move(serverGroup));
+        act->m_stopAtLoginForm = true;
+        return act;
+    }
+
     [[nodiscard]] std::string_view Name() const override
     {
-        return "login";
+        return m_stopAtLoginForm ? "select-server" : "login";
     }
     [[nodiscard]] bool ChangesScene() const override
     {
@@ -226,7 +241,7 @@ private:
 
     Status Fail(std::string& response, ErrorCode code, const std::string& message)
     {
-        App::Control::Events::RecordError("login", App::Control::ErrorCodeName(code), message);
+        App::Control::Events::RecordError(std::string(Name()), App::Control::ErrorCodeName(code), message);
         response = App::Control::EncodeError(EncodedId(), code, message, ProgressObject());
         return Status::Finished;
     }
@@ -263,6 +278,10 @@ private:
         // A session of another account is still open on this client.
         if (CurrentProtocolState >= RECEIVE_CHARACTERS_LIST)
         {
+            if (m_stopAtLoginForm)
+            {
+                return Fail(response, ErrorCode::WrongScene, "a session is open: select-server never leaves one");
+            }
             m_stage = Stage::LeavingSession;
             return Status::Running;
         }
@@ -359,6 +378,11 @@ private:
             return Status::Running;
         }
 
+        if (m_stopAtLoginForm)
+        {
+            return AnswerLoginForm(response);
+        }
+
         g_LoginWin.SubmitCredentials(Core::Text::FromUtf8(m_account).c_str(),
                                      Core::Text::FromUtf8(m_password).c_str());
         m_stage = Stage::SubmittingCredentials;
@@ -385,6 +409,15 @@ private:
         return Answer(response);
     }
 
+    Status AnswerLoginForm(std::string& response)
+    {
+        json result;
+        result["scene"] = App::Control::Commands::CurrentSceneName();
+        result["login_form"] = g_LoginWin.IsVisible();
+        response = App::Control::EncodeResult(EncodedId(), result.dump());
+        return Status::Finished;
+    }
+
     Status Answer(std::string& response)
     {
         json result;
@@ -403,6 +436,7 @@ private:
     int m_serverIndex = 0;
     Stage m_stage = Stage::SelectingServer;
     bool m_leaving = false;
+    bool m_stopAtLoginForm = false;
     std::chrono::steady_clock::time_point m_selectingSince{};
     std::chrono::steady_clock::time_point m_joiningSince{};
 };
@@ -538,6 +572,72 @@ public:
 private:
     bool m_sent = false;
 };
+
+// server-list: the character list's system menu "Server Select", through the
+// menu's own click handler (a logout back to server selection), then wait
+// until the connect server's list is shown on the login scene.
+class ServerListAct : public Act
+{
+public:
+    [[nodiscard]] std::string_view Name() const override
+    {
+        return "server-list";
+    }
+    [[nodiscard]] bool ChangesScene() const override
+    {
+        return true;
+    }
+    [[nodiscard]] std::optional<std::chrono::milliseconds> Deadline() const override
+    {
+        return ServerListDeadline;
+    }
+
+    [[nodiscard]] std::string ProgressObject() const override
+    {
+        json progress;
+        progress["scene"] = App::Control::Commands::CurrentSceneName();
+        return progress.dump();
+    }
+
+    [[nodiscard]] Status Tick(std::string& response) override
+    {
+        if (!m_sent)
+        {
+            g_SysMenuWin.RmlClickSelectServer();
+            if (!LogOut)
+            {
+                response =
+                    App::Control::EncodeError(EncodedId(), ErrorCode::NotAllowed,
+                                              "the system menu's Server Select is not enabled here", ProgressObject());
+                return Status::Finished;
+            }
+            m_sent = true;
+            return Status::Running;
+        }
+
+        if (SceneFlag != LOG_IN_SCENE || CurrentProtocolState >= RECEIVE_JOIN_SERVER_SUCCESS ||
+            SocketClient == nullptr || g_ServerListManager->GetServerGroupSize() < 1 || !g_ServerSelWin.IsVisible())
+        {
+            return Status::Running;
+        }
+
+        json result;
+        result["scene"] = App::Control::Commands::CurrentSceneName();
+        result["server_groups"] = g_ServerListManager->GetServerGroupSize();
+        response = App::Control::EncodeResult(EncodedId(), result.dump());
+        return Status::Finished;
+    }
+
+private:
+    bool m_sent = false;
+};
+
+// Whether a scene window would keep the character list's own click from
+// reaching the scene (the click path returns early over any of them).
+bool CharacterSceneCovered()
+{
+    return g_MsgWin.IsVisible() || g_CharMakeWin.IsVisible() || g_SysMenuWin.IsVisible();
+}
 } // namespace
 
 // Whether the game server connection is up; the client's own exit path
@@ -641,6 +741,70 @@ std::string Logout(const Request& request, std::unique_ptr<Act>& act)
 {
     (void)request;
     act = std::make_unique<LogoutAct>();
+    return {};
+}
+
+std::string SelectSlot(const Request& request, std::unique_ptr<Act>&)
+{
+    if (SceneFlag != CHARACTER_SCENE || CurrentProtocolState != RECEIVE_CHARACTERS_LIST)
+    {
+        return EncodeError(request.EncodedId(), ErrorCode::WrongScene, "`select-slot` works on the character list");
+    }
+
+    int slot = 0;
+    if (!request.GetInt("slot", slot) || slot < 1 || slot > MAX_CHARACTERS_PER_ACCOUNT ||
+        Scenes::CharacterNameInSlot(slot - 1)[0] == L'\0')
+    {
+        json details;
+        details["characters"] = CharacterList();
+        return EncodeError(request.EncodedId(), ErrorCode::BadRequest, "`slot` is a slot holding a character, from 1",
+                           details.dump());
+    }
+
+    if (CharacterSceneCovered())
+    {
+        return EncodeError(request.EncodedId(), ErrorCode::NotAllowed, "a dialog or menu covers the character list");
+    }
+
+    // Exactly what a single click on a character does (CharacterScene.cpp):
+    // it becomes the selected hero and the main window enables Connect and
+    // Delete. Nothing is sent and the world is not entered.
+    SelectedHero = slot - 1;
+    g_CharSelMainWin.UpdateDisplay();
+
+    json result;
+    result["slot"] = slot;
+    result["name"] = Core::Text::ToUtf8(Scenes::CharacterNameInSlot(slot - 1));
+    return EncodeResult(request.EncodedId(), result.dump());
+}
+
+std::string ServerList(const Request& request, std::unique_ptr<Act>& act)
+{
+    if (SceneFlag != CHARACTER_SCENE || CurrentProtocolState != RECEIVE_CHARACTERS_LIST)
+    {
+        return EncodeError(request.EncodedId(), ErrorCode::WrongScene, "`server-list` works on the character list");
+    }
+    if (CharacterSceneCovered())
+    {
+        return EncodeError(request.EncodedId(), ErrorCode::NotAllowed, "a dialog or menu covers the character list");
+    }
+    act = std::make_unique<ServerListAct>();
+    return {};
+}
+
+std::string SelectServer(const Request& request, std::unique_ptr<Act>& act)
+{
+    if (SceneFlag != LOG_IN_SCENE || CurrentProtocolState >= RECEIVE_JOIN_SERVER_SUCCESS)
+    {
+        return EncodeError(request.EncodedId(), ErrorCode::WrongScene, "`select-server` works on the server list");
+    }
+    std::string serverGroup;
+    if (request.Has("server") && !request.GetString("server", serverGroup))
+    {
+        return EncodeError(request.EncodedId(), ErrorCode::BadRequest,
+                           "`server` is the name of a server group; omit it for the first one");
+    }
+    act = LoginAct::UpToLoginForm(Core::Text::FromUtf8(serverGroup));
     return {};
 }
 

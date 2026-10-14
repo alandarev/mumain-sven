@@ -1,0 +1,22 @@
+#panel { font-family: "DejaVu Sans"; }
+#backdrop { pointer-events: none; background-color: #101910; border: 1dp #545139; box-sizing: border-box; }
+#resize_handle { drag: drag; top: 0; height: 5dp; decorator: none; background-color: #343d29; border-top: 1dp #a99a62; border-bottom: 1dp #545139; box-sizing: border-box; }
+#lines { align-items: stretch; }
+.chat-line { height: auto; min-height: 1.4em; margin-bottom: 0; white-space: normal; flex-shrink: 0; }
+.chat-line--chat { color: #c6cbb4; background-color: #0c160bcc; }
+.chat-line--system { color: #a6bbd0; background-color: #0c160bcc; }
+.chat-line--error { color: #ff907b; background-color: #23160fcc; }
+.chat-line--whisper { color: #edcf80; background-color: #302814cc; }
+.chat-line--party { color: #a5d8bf; background-color: #173024cc; }
+.chat-line--guild { color: #c8afd9; background-color: #2b2033cc; }
+.chat-line--union { color: #bdd1ad; background-color: #24301ccc; }
+.chat-line--pointed { color: #fff1b7; background-color: #4b4329; }
+#panel.framed #lines scrollbarvertical { width: 8dp; }
+#lines scrollbarvertical slidertrack { decorator: none; background-color: #101910; border: 1dp #545139; }
+#lines scrollbarvertical sliderbar { decorator: none; background-color: #6b6646; min-height: 14dp; }
+#lines scrollbarvertical sliderarrowdec, #lines scrollbarvertical sliderarrowinc { height: 0; decorator: none; }
+
+.chat-line--gens { color: #bdcf9e; background-color: #24301ccc; }
+.chat-line--gm { color: #edcf80; background-color: #302814cc; }
+#panel.framed .chat-line--chat { background-color: #0c160baa; }
+#panel.framed .chat-line--pointed { color: #fff1b7; background-color: #4b4329; }

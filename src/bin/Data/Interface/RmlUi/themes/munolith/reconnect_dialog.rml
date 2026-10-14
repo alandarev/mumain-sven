@@ -1,0 +1,19 @@
+<rml>
+<!-- bound-geometry: the progress bar's fill is the reconnect's own progress fraction -->
+
+<head>
+    <title>Reconnect</title>
+    <link type="text/rcss" href="base.rcss"/>
+    <link type="text/rcss" href="reconnect_dialog.rcss"/>
+</head>
+<body data-model="reconnect_dialog">
+    <div id="dim" data-style-opacity="dim_alpha"/>
+    <div id="panel">
+        <div id="rc_title" data-style-font-size="(bold_text_px &lt; 20 ? 20 : (bold_text_px > 26 ? 26 : bold_text_px)) + 'px'">{{title_text}}</div>
+        <div id="rc_step" data-style-font-size="(text_px &lt; 14 ? 14 : (text_px > 20 ? 20 : text_px)) + 'px'">{{step_text}}</div>
+        <div id="rc_countdown" data-if="countdown_text != ''" data-style-font-size="(text_px &lt; 14 ? 14 : (text_px > 20 ? 20 : text_px)) + 'px'">{{countdown_text}}</div>
+        <div id="progress_back"><div id="progress_bar" data-style-width="(progress_width / 150 * 100) + '%'"/></div>
+        <div class="actions"><div id="cancel" data-event-mousedown="reconnect_cancel">Cancel</div></div>
+    </div>
+</body>
+</rml>

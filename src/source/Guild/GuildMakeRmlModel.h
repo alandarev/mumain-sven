@@ -13,6 +13,7 @@ struct GuildMakeCellEntry
 {
     Rml::String color; // "#rrggbbaa"
     bool empty = false;
+    Rml::String markColor; // actual guild texture palette; legacy color keeps its compatibility swizzle
 
     bool operator==(const GuildMakeCellEntry&) const = default;
 };

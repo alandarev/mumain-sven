@@ -1,0 +1,56 @@
+<rml>
+<!-- bound-geometry: the pets' health bars are fractions -->
+
+<head>
+ <title>Pet Info</title>
+ <link type="text/rcss" href="base.rcss"/>
+ <link type="text/rcss" href="my_inventory_shared.rcss"/>
+ <link type="text/rcss" href="../legacy/pet_info.rcss"/>
+ <link type="text/rcss" href="pet_info.rcss"/>
+</head>
+<body>
+ <div id="panel" data-model="pet_info" data-style---text-px="text_px">
+  <div class="stone"/><div class="shade"/>
+  <div class="trim top-left"/><div class="trim top-mid"/><div class="trim top-right"/>
+  <div class="trim side-left"/><div class="trim side-right"/>
+  <div class="trim bottom-left"/><div class="trim bottom-mid"/><div class="trim bottom-right"/>
+  <div id="title">{{window_title}}</div>
+  <div class="tabs">
+   <div class="pet-button" id="tab_horse" data-class-active="active_tab == 0" data-event-click="petinfo_select_tab(0)">{{tab_darkhorse_label}}</div>
+   <div class="pet-button" id="tab_raven" data-class-active="active_tab == 1" data-event-click="petinfo_select_tab(1)">{{tab_darkspirit_label}}</div>
+  </div>
+  <div class="pet-content" data-if="active_tab == 0">
+   <div class="empty-state" data-if="!dh_has_pet">{{dh_no_pet_text}}</div>
+   <div class="stats" data-if="dh_has_pet">
+    <div class="level">{{dh_level_text}}</div>
+    <div class="life">{{dh_life_text}}</div>
+    <div class="life-track"><div class="life-fill" data-style-width="dh_hp_percent + '%'"/></div>
+    <div class="stat">{{dh_exp_text}}</div>
+    <div class="stat">{{dh_dmg_text}}</div>
+    <div class="stat">{{dh_atkspeed_text}}</div>
+   </div>
+  </div>
+  <div class="pet-content" data-if="active_tab == 1">
+   <div class="empty-state" data-if="!ds_has_pet">{{ds_no_pet_text}}</div>
+   <div class="stats" data-if="ds_has_pet">
+    <div class="level">{{ds_level_text}}</div>
+    <div class="life">{{ds_life_text}}</div>
+    <div class="life-track"><div class="life-fill" data-style-width="ds_hp_percent + '%'"/></div>
+    <div class="stat">{{ds_exp_text}}</div>
+    <div class="stat">{{ds_dmg_text}}</div>
+    <div class="stat">{{ds_atkspeed_text}}</div>
+    <div class="stat">{{ds_charisma_text}}</div>
+   </div>
+   <div class="commands" data-if="ds_has_pet">
+    <div class="commands-title">{{commands_label}}</div>
+    <div class="command-row"><div class="command-icon basic"/><div class="command-label">{{skill_basicaction_label}}</div></div>
+    <div class="command-row"><div class="command-icon random"/><div class="command-label">{{skill_randomattack_label}}</div></div>
+    <div class="command-row"><div class="command-icon owner"/><div class="command-label">{{skill_attackwithowner_label}}</div></div>
+    <div class="command-row"><div class="command-icon target"/><div class="command-label">{{skill_attacktarget_label}}</div></div>
+   </div>
+  </div>
+  <div class="pet-button" id="btn_exit" data-event-click="window_close">{{exit_tooltip}}</div>
+  <div id="frame_corner_close" data-event-click="window_close"/>
+ </div>
+</body>
+</rml>

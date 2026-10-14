@@ -179,7 +179,8 @@ float CMuHelperDetailWindow::GetLayerDepth()
 
 float CMuHelperDetailWindow::GetKeyEventOrder()
 {
-    return 3.4f;
+    constexpr float CompanionPriorityOffset = 1.f;
+    return GetLayerDepth() + CompanionPriorityOffset;
 }
 
 void CMuHelperDetailWindow::Toggle(int iPage)

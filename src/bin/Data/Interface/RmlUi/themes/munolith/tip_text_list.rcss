@@ -1,0 +1,24 @@
+/* Munolith palette, retaining native table geometry, fonts and semantic text colors.
+   Shared table rules for the RenderTipTextList() tables (CItemExplanationWindow, CSetItemExplanation):
+   the boxes in their bound colours (the black frame, the black fill at 0.8, the dark text boxes)
+   and the lines in their bound colours, left / centred / right in their boxes. Reference px. */
+
+#panel { position: absolute; transform-origin: left top; width: 640px; height: 480px; font-family: "token(font-body)"; pointer-events: none; }
+.tip-box { position: absolute; }
+.sharp-text { display: block; position: absolute; white-space: nowrap; text-align: left; pointer-events: none; }
+.tip-line.centred { text-align: center; }
+.tip-line.right { text-align: right; }
+.tip-line.bold { font-weight: bold; }
+
+/* RenderTipTextList()'s own chrome: a 1 px black border, a translucent black fill, and a line's
+   own backdrop. Their boxes follow the measured text; their colours are the theme's. */
+.tip-box.border { background-color: #9c8855; }
+.tip-box.fill { background-color: #071711; }
+.tip-box.line-backdrop { background-color: #142219; }
+
+/* Center the measured native table, including its one-pixel border on every side. */
+#table_stage { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); pointer-events: none; }
+
+#table_stage { width: calc(var(--cap-width) * 1px); height: calc(var(--cap-height) * 1px); }
+
+#table_stage { width: calc(var(--cap-width) * 1px); height: calc(var(--cap-height) * 1px); }

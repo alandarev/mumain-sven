@@ -28,6 +28,8 @@ public:
     ~PhotoViewerControl() override;
 
     void Attach(Rml::ElementDocument* document, CUIPhotoViewer& viewer);
+    // Opt-in orbit gestures for a model studio; mail retains its existing controls.
+    void AttachOrbit(Rml::ElementDocument* document, CUIPhotoViewer& viewer, const char* slotId, const char* imageId);
     void Detach();
 
     // Once a frame while the window is shown and settled: sizes the viewer's render target to
@@ -39,11 +41,18 @@ public:
     void ProcessEvent(Rml::Event& event) override;
 
 private:
+    void AttachTo(Rml::ElementDocument* document, CUIPhotoViewer& viewer, const char* slotId, const char* imageId,
+                  bool orbit);
+    void ProcessOrbitEvent(Rml::Event& event);
+    void OrbitDrag(Rml::Event& event);
     void SyncHelp();
 
     Rml::ElementDocument* m_Document = nullptr;
     CUIPhotoViewer* m_Viewer = nullptr;
     bool m_Turning = false;
     float m_LastX = 0;
+    float m_LastY = 0;
+    bool m_Orbit = false;
+    Rml::String m_SlotId, m_ImageId;
 };
 } // namespace UI::Social

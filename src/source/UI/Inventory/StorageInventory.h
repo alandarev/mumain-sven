@@ -41,6 +41,8 @@ namespace mu::ui::window
         int						m_nBackupInvenIndex;
         int						m_nBackupSourceInvenIndex;
 
+        int m_nBackupStorageIndex = -1;
+
         // Window frame/title/money/buttons are RmlUi; the inventory grid stays native since its
         // icons are live 3D model renders (same reasoning as CMyInventory/CStorageInventoryExt).
         struct StorageRmlModel
@@ -55,6 +57,10 @@ namespace mu::ui::window
             Rml::String feeLabel;
             Rml::String feeValue;
 
+            // A theme that embeds the extra vault (ThemeUsesEmbeddedVault()) draws it in this window.
+            bool extraVisible = false;
+            Rml::String extraTitle;
+            UI::Items::ItemGridCells gridCellsExtra;
             bool expandVisible = false;
             Rml::String expandTooltip;
 
@@ -75,8 +81,12 @@ namespace mu::ui::window
         void RenderItems();
         UI::Items::ItemCameraTarget m_ItemTarget{[this](const Rml::Vector2f&, const Rml::Vector2f&) { RenderItems(); }};
 
+        void BindDepositAction(Rml::DataModelConstructor& c);
+        void BindWithdrawAction(Rml::DataModelConstructor& c);
         void BuildRmlUi();
         void SyncRmlModel();
+        void SyncNativeLayout();
+        void ResumeProtectedWithdrawal();
 
     public:
         CStorageInventory();
@@ -107,6 +117,7 @@ namespace mu::ui::window
         bool IsItemAutoMove() { return m_bItemAutoMove; }
 
         void SetBackupTakeZen(int nZen);
+        void CancelPendingWithdrawal();
 
         bool ProcessMyInvenItemAutoMove(CInventoryCtrl* sourceCtrl = nullptr);
 

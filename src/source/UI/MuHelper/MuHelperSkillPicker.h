@@ -20,6 +20,9 @@ namespace mu::ui::window
     struct MuHelperSkillPickerEntry
     {
         Rml::String decorator;  // "image(skill-icon-skill2-lit-3-8)" -- see UI::MuHelper::SkillIconDecorator()
+        // For a theme's skill library (#skill_library): the skill and its name.
+        int skillType = 0;
+        Rml::String name;
     };
 
     struct MuHelperSkillPickerRmlModel
@@ -29,6 +32,7 @@ namespace mu::ui::window
         // Whether an attack slot opened the flyout (else a buff slot): the theme fans the entries
         // out from that slot's row.
         bool attack = false;
+        float textPx = 0.f; // the native text size, physical px, for a skill library's names
         std::vector<MuHelperSkillPickerEntry> entries;
     };
 
@@ -53,6 +57,8 @@ namespace mu::ui::window
         bool UpdateKeyEvent() override;
         bool Update() override;
         bool Render() override;
+        // A theme that lists the skills as a library (#skill_library) docks it in a workspace slot.
+        Rml::ElementDocument* GetPlacedDocument() const override;
         float GetLayerDepth() override;
 
 
@@ -62,6 +68,9 @@ namespace mu::ui::window
     private:
         void PrepareSkillsToRender();
         void Pick(int index);
+        // A skill library picks by skill type; applied on the next Update(), outside the event.
+        void ApplyPendingChoice();
+        int m_PendingSkill = -1;
 
         static bool IsAttackSkill(int iSkillType);
         static bool IsBuffSkill(int iSkillType);

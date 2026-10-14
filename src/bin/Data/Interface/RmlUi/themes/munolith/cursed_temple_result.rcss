@@ -1,0 +1,28 @@
+#panel { width: 560px; height: 480px; font-family: "DejaVu Sans"; pointer-events: auto; }
+#title { position: absolute; left: 18px; right: 18px; top: 14px; font-weight: bold; color: #e6d3a7; }
+.result-banner { top: 36px; width: 351px; height: 115px; }
+.result-grid { display: flex; align-items: center; gap: 4px; }
+.table-header { position: absolute; left: 16px; right: 16px; top: 155px; height: 25px; padding: 0 6px; border-bottom: 1px #9c8855; color: #e1c28a; font-weight: bold; }
+.roster { position: absolute; left: 16px; right: 16px; top: 185px; bottom: 74px; overflow: hidden auto; pointer-events: auto; background-color: #071711ee; border: 1px #535b47; }
+.player-row { position: relative; min-height: 30px; padding: 5px 6px; border-bottom: 1px #56604755; }
+.result-grid div { position: static; white-space: normal; line-height: 1.25em; flex-shrink: 0; }
+.cell-team { width: 85px; }
+.cell-name { width: 130px; word-break: break-all; }
+.cell-class-name { width: 115px; }
+.cell-added-exp { width: 103px; word-break: break-all; }
+.cell-point { width: 48px; text-align: right; }
+.allied { color: #85caff; }
+.illusion { color: #e7c674; }
+.hero { background-color: #76653655; border-left: 2px #d6b66b; }
+.reward-hint { position: absolute; left: 18px; right: 103px; bottom: 22px; color: #b9baa1; white-space: normal; line-height: 1.25em; }
+.close-button { position: absolute; right: 16px; bottom: 19px; width: 72px; height: 26px; line-height: 26px; text-align: center; color: #dac99d; border: 1px #746d52; background-color: #172523; cursor: pointer; pointer-events: auto; }
+.close-button:hover { color: #ffe0a2; border-color: #b99d57; background-color: #263731; }
+scrollbarvertical { width: 7px; }
+scrollbarvertical slidertrack { background-color: #071711; }
+scrollbarvertical sliderbar { background-color: #756c4f; border: 1px #b2a278; }
+scrollbarvertical sliderarrowdec, scrollbarvertical sliderarrowinc { height: 0; }
+
+#btn_corner_close { position: absolute; right: 1px; top: 1px; width: 16px; height: 16px; cursor: pointer; pointer-events: auto; }
+#btn_corner_close:hover { border: 1px #e7c568; }
+
+#panel, #content_root { font-size: max(12px, calc(max(8px, calc(var(--text-px) * 1px)) / var(--root-scale))); }

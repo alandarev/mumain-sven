@@ -1,0 +1,62 @@
+/* Original animated artwork and native credit content, with viewport-owned chrome. */
+#panel { background-color: #07120d; }
+#credit_card {
+ position: absolute;
+ left: 50%; top: 5vh;
+ transform: translateX(-50%);
+ width: 680px; max-width: 86vw;
+ box-sizing: border-box;
+ padding: 20px 24px;
+ background-color: #0b1b12ee;
+ border: 1px #79734a;
+ pointer-events: none;
+ text-align: center;
+}
+.credit-heading {
+ display: block;
+ font-family: "DejaVu Sans";
+ font-size: 24px;
+ font-weight: bold;
+ color: #dfcc99;
+ margin-bottom: 14px;
+}
+.credit-label {
+ position: relative; left: auto; top: auto;
+ display: block;
+ width: 100%;
+ font-family: "DejaVu Sans";
+ font-size: 18px;
+ line-height: 1.3em;
+ white-space: normal;
+ color: #e2dcc3;
+}
+.credit-department { font-weight: bold; margin-bottom: 7px; }
+.credit-team { font-weight: normal; color: #b8bea9; margin-bottom: 14px; }
+.credit-names {
+ position: relative; left: auto; top: auto;
+ width: 100%;
+ display: flex;
+ flex-wrap: wrap;
+ justify-content: center;
+}
+.credit-name {
+ display: block;
+ font-family: "DejaVu Sans";
+ font-size: 17px;
+ line-height: 1.4em;
+ font-weight: normal;
+ color: #dfcc99;
+ white-space: normal;
+ margin: 3px 12px;
+}
+.btn-close {
+ right: 24px; bottom: 24px;
+ width: 108px; height: 40px;
+ line-height: 40px;
+ background-color: #17281b;
+ border: 1px #79734a;
+ border-radius: 0;
+ color: #dfcc99;
+}
+.btn-close:hover { background-color: #293c24; border-color: #bfa561; }
+.btn-close-label { font-family: "DejaVu Sans"; font-size: 16px; }

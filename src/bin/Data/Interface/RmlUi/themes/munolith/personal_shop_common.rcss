@@ -1,0 +1,32 @@
+#panel, #bg_root { width: 190px; height: 300px; }
+#panel { pointer-events: none; }
+#title { position: absolute; left: 15px; right: 24px; top: 8px; height: 15px; text-align: center; color: #d7b864; overflow: hidden; white-space: nowrap; }
+.native-text { display: inline-block; transform-origin: left top; white-space: nowrap; }
+button { display: inline-block; box-sizing: border-box; font-family: "DejaVu Sans"; font-size: 8px; color: #ded1ac; background-color: #343422; border: 1px #6b6646; pointer-events: auto; padding: 3px 4px; }
+button:hover { background-color: #51482b; border-color: #c9a65c; }
+button.locked { color: #777c68; background-color: #22281e; border-color: #424936; }
+.corner-close { position: absolute; right: 5px; top: 3px; width: 10px; height: 12px; padding: 0; border-width: 0; background-color: transparent; color: #d7b864; font-size: 9px; }
+.shop-name { position: absolute; left: 15px; top: 34px; width: 160px; height: 26px; box-sizing: border-box; padding: 5px 6px; font-family: "DejaVu Sans"; font-size: 10px; color: #e4d8b3; background-color: #0c140fee; border: 1px #686347; pointer-events: auto; }
+.shop-name:focus { border-color: #c9a65c; }
+.shop-nameplate { overflow: hidden; pointer-events: none; }
+#item_grid { position: absolute; left: 15px; top: 70px; width: 160px; height: 80px; pointer-events: none; }
+.shop-status { position: absolute; left: 15px; top: 155px; width: 160px; height: 12px; color: #a8c593; font-size: 8px; text-align: right; }
+.notice { position: absolute; left: 15px; top: 170px; width: 160px; height: 87px; box-sizing: border-box; border-top: 1px #545139; padding-top: 5px; overflow: hidden auto; pointer-events: auto; font-size: 8px; line-height: 11px; color: #b9b59f; }
+.notice div { display: block; }
+.notice-heading { color: #ddba70; margin-bottom: 3px; }
+.notice-ending { margin-top: 5px; color: #c7bc91; }
+.actions { position: absolute; left: 15px; top: 270px; width: 160px; height: 20px; display: flex; gap: 4px; }
+.actions button { height: 20px; flex: 1 1 0; }
+.actions .primary { color: #efd6a0; border-color: #ad8d4e; }
+.hidden { display: none; }
+.notice scrollbarvertical { width: 5px; }
+.notice scrollbarvertical slidertrack { background-color: #10170d; }
+.notice scrollbarvertical sliderbar { background-color: #766b45; min-height: 15px; }
+.notice scrollbarvertical slidertrack, .notice scrollbarvertical sliderbar, .notice scrollbarvertical sliderarrowdec, .notice scrollbarvertical sliderarrowinc { decorator: none; }
+.notice scrollbarvertical sliderbar { height: auto; }
+.notice scrollbarvertical sliderarrowdec, .notice scrollbarvertical sliderarrowinc { height: 0; }
+
+.actions #btn_close { font-size: 7px; white-space: nowrap; }
+.notice { font-effect: none; }
+
+#item_grid_counts { left: 15px; top: 70px; width: 160px; height: 80px; }

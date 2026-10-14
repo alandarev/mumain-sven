@@ -1,0 +1,17 @@
+/* Shared Munolith quest chrome; native callbacks and data remain with each owner. */
+#panel { height: 400px; pointer-events: auto; }
+#title { display: block; position: absolute; left: 0; top: 10px; text-align: center; font-weight: bold; color: #e6d3a7; height: 23px; pointer-events: auto; }
+#btn_corner_close { display: block; position: absolute; right: 1px; top: 1px; width: 16px; height: 16px; line-height: 16px; text-align: center; color: transparent; cursor: pointer; pointer-events: auto; }
+#btn_corner_close:hover { border: 1px #e7c568; }
+.sharp-text { transform-origin: left top; }
+.hidden { display: none; }
+#panel .hidden { display: none; }
+.tooltip { display: none; position: absolute; bottom: 30px; left: 15px; color: #eee0bf; background-color: #07100fed; border: 1px #766a45; pointer-events: none; white-space: normal; }
+.tooltip-exit { display: none; }
+.quest-btn, .qp-btn-complete, .nd-btn-l, .nd-btn-r, .qp-btn-l, .qp-btn-r { display: block; text-align: center; color: #dac99d; border: 1px #746d52; background-color: #172523; cursor: pointer; pointer-events: auto; }
+.quest-btn:hover, .qp-btn-complete:hover, .nd-btn-l:hover, .nd-btn-r:hover, .qp-btn-l:hover, .qp-btn-r:hover { color: #ffe0a2; border-color: #b99d57; background-color: #263731; }
+.quest-btn.locked, .qp-btn-complete.disabled, .nd-btn-l.locked, .nd-btn-r.locked, .qp-btn-l.locked, .qp-btn-r.locked { color: #716e61; border-color: #3d443c; background-color: #101a18; }
+scrollbarvertical { width: 8px; }
+scrollbarvertical slidertrack { background-color: #0a1412; }
+scrollbarvertical sliderbar { background-color: #756c4f; border: 1px #b2a278; }
+scrollbarvertical sliderarrowdec, scrollbarvertical sliderarrowinc { height: 0; }

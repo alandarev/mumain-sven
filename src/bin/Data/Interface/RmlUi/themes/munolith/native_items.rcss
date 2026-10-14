@@ -1,0 +1,4 @@
+/* Shared native companions for compact commerce documents. Geometry remains theme-owned. */
+.item-view { left: -20px; top: -20px; width: calc(100% + 40px); height: calc(100% + 40px); }
+.item-cell { box-sizing: border-box; border: 1px #373d2d; }
+.item-grid-cells { background-color: #10170dee; }

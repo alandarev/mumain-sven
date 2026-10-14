@@ -1,0 +1,11 @@
+/* Native content, line metrics and semantic colors come from the shared tooltip.
+   Keep the panel's generated line children intact for native width measurement. */
+#tooltip_panel {
+	background-color: rgba(7, 23, 17, 245);
+	border-color: #9c8855;
+	padding-top: 4px;
+	padding-bottom: 4px;
+}
+#tooltip_panel.tt-button-hint {
+	background-color: rgba(7, 23, 17, 238);
+}

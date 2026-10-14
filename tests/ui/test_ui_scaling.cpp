@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <utility>
+#include <limits>
 
 #include "Character/CharSelMainWin.h"
 #include "Core/Input/Input.h"
@@ -25,6 +26,20 @@
 
 using UI::Scaling::FontRole;
 using mu::ui::window::CCommandWindow;
+
+TEST_CASE("theme viewport growth preserves reference size and does not double content density [ui][scaling]")
+{
+    using UI::Scaling::ReferenceHeightScale;
+    CHECK(ReferenceHeightScale(768, 768, 1.f) == 1.f);
+    CHECK(ReferenceHeightScale(600, 768, 1.f) == 1.f);
+    CHECK(ReferenceHeightScale(1080, 768, 1.f) == doctest::Approx(1.40625f));
+    CHECK(ReferenceHeightScale(1440, 768, 1.f) == doctest::Approx(1.875f));
+    CHECK(ReferenceHeightScale(2160, 768, 1.f) == doctest::Approx(2.8125f));
+    CHECK(ReferenceHeightScale(2160, 768, 2.f) == doctest::Approx(1.40625f));
+    CHECK(ReferenceHeightScale(1080, 0, 1.f) == 1.f);
+    CHECK(ReferenceHeightScale(1080, 768, 0.f) == 1.f);
+    CHECK(ReferenceHeightScale(1080, 768, std::numeric_limits<float>::infinity()) == 1.f);
+}
 
 namespace
 {
@@ -767,3 +782,19 @@ TEST_CASE("every transform sizes native text by the one typography scale [ui][sc
     }
 }
 
+
+TEST_CASE("responsive windows grow beyond 1080p without a fixed size cap [ui][scaling]")
+{
+    using UI::Scaling::ResponsiveWindowScale;
+    CHECK(ResponsiveWindowScale(1024, 768, 1024, 768, 1.f) == 1.f);
+    CHECK(ResponsiveWindowScale(1920, 1080, 1024, 768, 1.f) == doctest::Approx(1.185854f));
+    CHECK(ResponsiveWindowScale(3840, 2160, 1024, 768, 1.f) == doctest::Approx(1.677051f));
+    CHECK(ResponsiveWindowScale(7680, 4320, 1024, 768, 1.f) > 2.f);
+    CHECK(ResponsiveWindowScale(800, 600, 1024, 768, 1.f) == doctest::Approx(.78125f));
+    CHECK(ResponsiveWindowScale(3840, 2160, 1024, 768, 2.f) == doctest::Approx(2.371708f));
+    CHECK(ResponsiveWindowScale(3440, 1440, 1024, 768, 1.f) == ResponsiveWindowScale(2560, 1440, 1024, 768, 1.f));
+    CHECK(ResponsiveWindowScale(0, 1080, 1024, 768, 1.f) == 1.f);
+    CHECK(ResponsiveWindowScale(1920, 1080, 0, 768, 1.f) == 1.f);
+    CHECK(ResponsiveWindowScale(1920, 1080, 1024, 768, 0.f) == 1.f);
+    CHECK(ResponsiveWindowScale(1920, 1080, 1024, 768, std::numeric_limits<float>::infinity()) == 1.f);
+}

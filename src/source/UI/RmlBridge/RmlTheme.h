@@ -33,6 +33,12 @@ namespace UI::RmlBridge
     // modder-supplied folder name -- not a closed set). Reflects the live cache SetActiveThemeName()
     // writes to, not necessarily GameConfig's current value.
     const std::string& GetActiveThemeName();
+    // Shared HUD unit: user scale and content density, plus opt-in theme viewport growth.
+    float ThemeHudUnitPixels(int windowHeight);
+    // Zero means the theme retains legacy scaling. legacyUnits adapts the shared curve to
+    // existing 640x480 window units; new window regions use the theme's own design units.
+    float ThemeWindowUnitPixels(int width, int height, bool legacyUnits = false);
+    bool ThemeUsesCornerBuffStrip();
 
     // Validates a saved selection; falls back to legacy, or returns empty if neither is usable.
     std::string ResolveStartupThemeName(const std::string& savedName);
@@ -70,6 +76,22 @@ namespace UI::RmlBridge
     // Whether the active theme sizes opted-in documents' text like the original client's
     // (NativeTextSize=1) -- see RmlNativeText.h.
     bool ThemeUsesNativeTextSize();
+
+    // Stable mixed action bar and animated resources, declared by CompactHud=1.
+    bool ThemeUsesCompactHud();
+
+    // Compact merchant counter with acknowledged purchase batches.
+    bool ThemeUsesCompactNpcShop();
+
+    // Carried-item-only inventory with owned extensions embedded in its frame.
+    bool ThemeUsesEmbeddedInventory();
+
+    // Complete purchased extra vault embedded beside the base grid.
+    bool ThemeUsesEmbeddedVault();
+
+    // Presentation options only; the server still owns store access and capacity grants.
+    bool ThemeShowsPersonalStore();
+    int ThemeInventoryExpansionLimit();
 
     // Builds the virtual source URL a themed document should be loaded against, e.g.
     // "Data/Interface/RmlUi/themes/modern/login.rml" -- this path need not exist on disk (the RML

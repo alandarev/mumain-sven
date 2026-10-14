@@ -257,6 +257,10 @@ content appropriately; `Config::refreshEachFrame` lets it disappear when refresh
 The shared tooltip measures and clamps to the viewport. `flipAnchorY` allows growth from the
 opposite edge when needed. It is safe to call `Show()` repeatedly; unchanged content reuses its
 measurements. Exact options and palette belong in the header; depths belong in `RmlStackingOrder.cpp`.
+Cursor-following item tooltips pass the cursor's top as `flipAnchorY`
+(`UI::Tooltip::ShowLegacyTextList()`), so a box with no room below flips above the cursor rather
+than across it. Callers must not pre-clamp to legacy logical bounds such as Y=420; that stops
+tracking in lower window slots.
 
 Skill tooltip content remains domain-specific in `UI/HUD/Skills/SkillTooltip.h`; it builds lines
 for this presentation mechanism. Item help and the help window remain separate persistent views.

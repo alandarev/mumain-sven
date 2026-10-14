@@ -19,6 +19,7 @@ constexpr float kMaximumHudScale = 2.0f;
 // ponytail: 2.25x dock ceiling; adjust only from rebuilt native screenshots.
 constexpr float kMaximumDockScale = 2.25f;
 constexpr float kMaximumTypographyScale = 2.25f;
+constexpr float kDesignWindowScale = 1.6f; // Existing 640x480 units at the approved 1024x768 size.
 constexpr int kNormalFontPointSize = 11;
 constexpr int kMaximumNormalFontPointSize = 16;
 constexpr int kBigFontPointSize = 22;
@@ -27,6 +28,8 @@ constexpr int kFixedFontPointSize = 13;
 constexpr int kMaximumFixedFontPointSize = 18;
 // ponytail: one gameplay window; move scale into a window context if multi-window rendering is added.
 float g_windowContentScale = 1.0f;
+int g_windowReferenceWidth = 0;
+int g_windowReferenceHeight = 0;
 
 // GameConfig::GetUIScalePercent() is an in-memory singleton read (no disk I/O per call, unlike
 // the SDL queries GetWindowContentScale() caches), so this reads it directly rather than adding a
@@ -71,6 +74,9 @@ float WithUIScalePercent(int windowWidth, int windowHeight, float fitScale)
 
 float CappedUniformScale(int windowWidth, int windowHeight, float maximumScale)
 {
+    const float responsive = UI::Scaling::WindowUnitScale(windowWidth, windowHeight, true);
+    if (responsive > 0.f)
+        return responsive;
     return WithUIScalePercent(windowWidth, windowHeight,
                               UI::Scaling::ViewportFitScale(windowWidth, windowHeight, maximumScale));
 }
@@ -82,6 +88,41 @@ UI::Scaling::Transform DockTransform(int windowWidth, int windowHeight)
                           - UI::Scaling::DockLogicalBottom * scale;
     return {scale, scale, 0.0f, offsetY, UI::Scaling::TypographyScale(windowWidth, windowHeight)};
 }
+}
+
+float UI::Scaling::ReferenceHeightScale(int pixelHeight, int referenceHeight, float contentScale)
+{
+    if (pixelHeight <= 0 || referenceHeight <= 0 || !std::isfinite(contentScale) || contentScale <= 0.f)
+        return 1.f;
+    return std::max(1.f, static_cast<float>(pixelHeight) / (referenceHeight * contentScale));
+}
+
+float UI::Scaling::ResponsiveWindowScale(int width, int height, int referenceWidth, int referenceHeight,
+                                         float contentScale)
+{
+    if (width <= 0 || height <= 0 || referenceWidth <= 0 || referenceHeight <= 0 || !std::isfinite(contentScale) ||
+        contentScale <= 0.f)
+        return 1.f;
+    const float ratio =
+        std::min(static_cast<float>(width) / referenceWidth, static_cast<float>(height) / referenceHeight) /
+        contentScale;
+    return contentScale * (ratio <= 1.f ? ratio : std::sqrt(ratio));
+}
+
+void UI::Scaling::SetWindowDesignViewport(int width, int height)
+{
+    g_windowReferenceWidth = width > 0 && height > 0 ? width : 0;
+    g_windowReferenceHeight = width > 0 && height > 0 ? height : 0;
+}
+
+float UI::Scaling::WindowUnitScale(int width, int height, bool legacyUnits)
+{
+    if (g_windowReferenceWidth <= 0 || g_windowReferenceHeight <= 0)
+        return 0.f;
+    const float unit =
+        ResponsiveWindowScale(width, height, g_windowReferenceWidth, g_windowReferenceHeight, GetWindowContentScale()) *
+        UIScalePercentMultiplier();
+    return legacyUnits ? unit * g_windowReferenceHeight / kReferenceHeight : unit;
 }
 
 UI::Scaling::Transform UI::Scaling::ScreenOverlayTransform(int windowWidth, int windowHeight)
@@ -247,6 +288,12 @@ int UI::Scaling::FontPointSize(FontRole role, const Transform& transform)
 {
     const FontPointRange range = GetFontPointRange(role);
     const float typographyScale = transform.typographyScale / GetWindowContentScale();
+    if (g_windowReferenceWidth > 0)
+    {
+        const float designGrowth = (kDesignWindowScale - 1.f) / (kMaximumTypographyScale - 1.f);
+        const float designPoints = std::lround(range.minimum + (range.maximum - range.minimum) * designGrowth);
+        return std::max(static_cast<int>(std::lround(designPoints * typographyScale / kDesignWindowScale)), 1);
+    }
     const float growth =
         std::clamp((typographyScale - 1.0f) / (kMaximumTypographyScale - 1.0f), 0.0f, 1.0f);
     const float pointSize = static_cast<float>(range.minimum) +

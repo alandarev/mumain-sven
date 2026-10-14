@@ -4,10 +4,12 @@
 #include "UI/RmlBridge/RmlElementBox.h"
 #include "UI/RmlBridge/RmlPanelGeometry.h"
 #include "UI/RmlBridge/RmlPointer.h"
+#include "UI/Placement/WindowGroupState.h"
 
 #include <RmlUi/Core.h>
 
 #include <string>
+#include <limits>
 
 namespace
 {
@@ -222,4 +224,108 @@ TEST_CASE("a point is within an element's drawn box, transforms included, pointe
     fixture.Refresh();
     CHECK_FALSE(UI::RmlBridge::IsPointWithin(panel, {1310.f, 50.f}));
     CHECK_FALSE(UI::RmlBridge::IsPointWithin(nullptr, {0.f, 0.f}));
+}
+
+TEST_CASE("theme compact breakpoint follows effective placement without changing drag ownership [ui][placement]")
+{
+    Fixture f;
+    auto* doc = f.Load();
+    auto* panel = doc->GetElementById("panel");
+    panel->SetAttribute("data-compact-scale", "0.9");
+    UI::RmlBridge::SlotPlacement placement;
+    for (float scale : {0.8f, 0.9f, 1.2f, 0.75f})
+    {
+        placement.Set(20.f, 30.f, scale);
+        placement.Apply(doc, "panel");
+        f.Refresh();
+        CHECK(panel->IsClassSet("compact-scale") == (scale < 0.9f));
+        CHECK(panel->GetAttribute<float>("data-layout-scale", 0.f) == doctest::Approx(scale));
+        CHECK(panel->GetLocalProperty("--root-scale")->ToString() == std::to_string(scale));
+    }
+    panel->SetClass("dragged", true);
+    panel->SetProperty("left", "123px");
+    placement.Sync(doc, "panel");
+    CHECK(panel->IsClassSet("dragged"));
+    CHECK(panel->GetLocalProperty("left")->Get<float>() == doctest::Approx(123.f));
+    CHECK(panel->IsClassSet("compact-scale"));
+    panel->RemoveAttribute("data-compact-scale");
+    placement.Sync(doc, "panel");
+    CHECK_FALSE(panel->IsClassSet("compact-scale"));
+    CHECK_FALSE(panel->HasAttribute("data-layout-scale"));
+    for (const char* invalid : {"", "0", "-1", "NaN", "inf", "0.9px", "invalid"})
+    {
+        panel->SetAttribute("data-compact-scale", invalid);
+        placement.Sync(doc, "panel");
+        CHECK_FALSE(panel->IsClassSet("compact-scale"));
+        CHECK_FALSE(panel->HasAttribute("data-layout-scale"));
+    }
+    panel->SetAttribute("data-compact-scale", "0.9");
+    placement.Set(0.f, 0.f, 0.f);
+    placement.Apply(doc, "panel");
+    CHECK_FALSE(panel->IsClassSet("compact-scale"));
+    CHECK_FALSE(panel->HasAttribute("data-layout-scale"));
+    CHECK(panel->GetLocalProperty("--root-scale") == nullptr);
+
+    // The same helper supports explicit/non-workspace roots, with no second scale model.
+    UI::RmlBridge::ApplyLayoutScale(panel, 0.8f);
+    CHECK(panel->IsClassSet("compact-scale"));
+    UI::RmlBridge::ApplyLayoutScale(panel, std::numeric_limits<float>::infinity());
+    CHECK_FALSE(panel->HasAttribute("data-layout-scale"));
+    CHECK_FALSE(panel->IsClassSet("compact-scale"));
+    doc->Close();
+    doc = f.Load();
+    panel = doc->GetElementById("panel");
+    placement.Set(20.f, 30.f, 0.8f);
+    placement.Sync(doc, "panel");
+    CHECK_FALSE(panel->HasAttribute("data-layout-scale"));
+    panel->SetAttribute("data-compact-scale", "0.9");
+    placement.Sync(doc, "panel");
+    CHECK(panel->IsClassSet("compact-scale"));
+}
+
+TEST_CASE("transform-owned roots opt in without changing legacy CSS or retaining responsive state [ui][placement]")
+{
+    Fixture f;
+    auto* doc = f.Load();
+    auto* panel = doc->GetElementById("panel");
+    REQUIRE(panel->GetLocalProperty("--root-scale") == nullptr);
+    UI::RmlBridge::ApplyLayoutScale(panel, 0.75f, false);
+    CHECK(panel->GetLocalProperty("--root-scale") == nullptr);
+    CHECK_FALSE(panel->HasAttribute("data-layout-scale"));
+    panel->SetAttribute("data-compact-scale", "0.9");
+    UI::RmlBridge::ApplyLayoutScale(panel, 0.75f, false);
+    CHECK(panel->IsClassSet("compact-scale"));
+    CHECK(panel->GetLocalProperty("--root-scale")->ToString() == std::to_string(0.75f));
+    panel->RemoveAttribute("data-compact-scale");
+    UI::RmlBridge::ApplyLayoutScale(panel, 0.75f, false);
+    CHECK_FALSE(panel->IsClassSet("compact-scale"));
+    CHECK_FALSE(panel->HasAttribute("data-layout-scale"));
+    CHECK(panel->GetLocalProperty("--root-scale") == nullptr);
+    // An author-owned scale on a non-opted-in root is never overwritten or cleared.
+    panel->SetProperty("--root-scale", "1.25");
+    UI::RmlBridge::ApplyLayoutScale(panel, 0.f, false);
+    CHECK(panel->GetLocalProperty("--root-scale")->ToString() == "1.25");
+}
+
+TEST_CASE("compact state receives the solver post-fit scale, not preferred window scale [ui][placement]")
+{
+    Fixture f;
+    auto* doc = f.Load();
+    auto* panel = doc->GetElementById("panel");
+    panel->SetAttribute("data-compact-scale", "0.9");
+    const UI::Placement::WindowGroupState::Bounds requested{0.f, 0.f, 2000.f, 500.f};
+    for (float availableWidth : {1000.f, 2400.f, 1000.f})
+    {
+        const UI::Placement::WindowGroupState::Bounds available{0.f, 0.f, availableWidth, 1000.f};
+        const float preferred = 1.2f;
+        const float effective = preferred * UI::Placement::WindowGroupState::FitFactor(available, requested, 0.f);
+        UI::RmlBridge::SlotPlacement{10.f, 20.f, effective}.Apply(doc, "panel");
+        f.Refresh();
+        CHECK(panel->IsClassSet("compact-scale") == (effective < 0.9f));
+        CHECK(panel->GetAttribute<float>("data-layout-scale", 0.f) == doctest::Approx(effective));
+        Rml::Vector2f offset, size;
+        Drawn(doc, "panel", offset, size);
+        CHECK(size.x == doctest::Approx(190.f * effective));
+        CHECK(size.y == doctest::Approx(429.f * effective));
+    }
 }

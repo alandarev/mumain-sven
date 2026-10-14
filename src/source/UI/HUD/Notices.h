@@ -13,6 +13,12 @@ namespace UI::Notices
     // Per-frame timing: expires the oldest notice over time.
     void Move();
 
+    // Hold announcements while the compact HUD's assignment/key dialog owns input.
+    void SetHudDialogOpen(bool open);
+
+    // Hold announcements while the character Armory is being read or edited.
+    void SetArmoryOpen(bool open);
+
     // Draw the active notices.
     void Render();
 }

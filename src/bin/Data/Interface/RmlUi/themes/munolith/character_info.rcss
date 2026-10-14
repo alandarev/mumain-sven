@@ -1,0 +1,112 @@
+/* Munolith Armory. The outer logical panel is placement geometry; the face uses physical rem
+   units and counters the outer paint scale, keeping both glyphs and 3D targets sharp. */
+@spritesheet armory-top { src: "../../../newui_item_back04.tga"; arm-top-left: 0px 0px 48px 42px; arm-top-mid: 64px 0px 62px 42px; arm-top-right: 130px 0px 60px 42px; }
+@spritesheet armory-bottom { src: "../../../newui_item_back03.tga"; arm-bottom-left: 0px 0px 36px 45px; arm-bottom-mid: 64px 0px 62px 45px; arm-bottom-right: 154px 0px 36px 45px; }
+@spritesheet armory-left { src: "../../../newui_item_back02-L.tga"; arm-side-left: 0px 0px 12px 320px; }
+@spritesheet armory-right { src: "../../../newui_item_back02-R.tga"; arm-side-right: 9px 0px 12px 320px; }
+@spritesheet armory-stone { src: "../../../newui_msgbox_back.jpg"; arm-stone: 0px 0px 190px 429px; }
+div { display: block; }
+body { margin: 0; width: 100%; height: 100%; font-family: "DejaVu Sans"; color: #ede1c9; font-effect: outline(1px #07090b), shadow(1px 1px #000000); pointer-events: none; }
+#panel { position: absolute; width: 890px; height: 620px; transform-origin: left top; pointer-events: auto; }
+.armory-face { position: relative; width: 890rem; height: 620rem; font-size: 12rem; transform-origin: left top; }
+button { color: #e8d8b8; background-color: #21211bf0; border: 1px #706a54; padding: 4rem 7rem; font-size: 12rem; cursor: pointer; }
+button:hover { color: #ffe3a8; border-color: #d9ba77; background-color: #39372af0; }
+button:disabled { color: #797971; border-color: #414039; background-color: #141714; }
+.hidden { display: none; }
+.stone { position: absolute; left: 8rem; right: 8rem; top: 8rem; bottom: 10rem; decorator: image(arm-stone); background-color: #090b09; pointer-events: none; }
+.stone-shade { position: absolute; left: 8rem; right: 8rem; top: 8rem; bottom: 10rem; background-color: #080b08d9; pointer-events: none; }
+.trim { position: absolute; pointer-events: none; }
+.top-left { top: 0; left: 0; width: 48rem; height: 42rem; decorator: image(arm-top-left); }
+.top-mid { top: 0; left: 48rem; right: 60rem; height: 42rem; decorator: image(arm-top-mid); }
+.top-right { top: 0; right: 0; width: 60rem; height: 42rem; decorator: image(arm-top-right); }
+.side-left { left: 0; top: 40rem; bottom: 40rem; width: 12rem; decorator: image(arm-side-left); }
+.side-right { right: 0; top: 40rem; bottom: 40rem; width: 12rem; decorator: image(arm-side-right); }
+.bottom-left { left: 0; bottom: 0; width: 36rem; height: 45rem; decorator: image(arm-bottom-left); }
+.bottom-mid { left: 36rem; right: 36rem; bottom: 0; height: 45rem; decorator: image(arm-bottom-mid); }
+.bottom-right { right: 0; bottom: 0; width: 36rem; height: 45rem; decorator: image(arm-bottom-right); }
+.title { position: absolute; top: 11rem; left: 48rem; right: 60rem; text-align: center; font-size: 18rem; line-height: 24rem; color: #efce86; white-space: nowrap; }
+.close { position: absolute; right: 0; top: 1rem; width: 25rem; height: 25rem; padding: 0; border-width: 0; color: transparent; background-color: transparent; }
+.close:hover, .close:focus { color: transparent; border: 1rem #e4bf78; background-color: transparent; }
+.armory-body { position: absolute; left: 23rem; right: 23rem; top: 49rem; bottom: 35rem; display: flex; gap: 24rem; }
+.armory-left { width: 365rem; flex: 0 0 365rem; overflow-y: auto; clip: always; }
+.armory-right { flex: 1 1 0; min-width: 0; overflow-y: auto; clip: always; padding-right: 8rem; }
+.model-well { position: relative; width: 100%; height: 328rem; }
+.model-back { position: absolute; top: 0; bottom: 78rem; left: 55rem; right: 55rem; background-color: #000000; border: 1px #3a3e31; }
+#armory_model_controls { position: absolute; top: 0; left: 51rem; width: 263rem; height: 250rem; pointer-events: auto; drag: drag; cursor: move; }
+#armory_preview { position: absolute; top: 0; left: 0; width: 263rem; height: 250rem; pointer-events: none; visibility: hidden; }
+.gear-column { position: absolute; top: 4rem; width: 50rem; display: flex; flex-direction: column; gap: 8rem; }
+.gear-left { left: 2rem; } .gear-right { right: 2rem; }
+.gear-slot { position: relative; box-sizing: border-box; width: 50rem; height: 51rem; background-color: #0b0e0af2; border: 1px #78796a; }
+.gear-slot:hover, .gear-slot.contributes { border-color: #e4bf78; background-color: #322817f2; }
+/* Close crop: the larger image box sets the native render-target framing.
+   Clip model pixels separately so slot borders and labels stay unobstructed. */
+.gear-image { position: absolute; left: 2rem; top: 2rem; width: 46rem; height: 35rem; overflow: hidden; clip: always; pointer-events: none; }
+.gear-slot img { position: absolute; left: -12.65rem; top: -10.45rem; width: 71.3rem; height: 58.9rem; pointer-events: none; visibility: hidden; }
+#armory_slot_7 img { left: -13.8rem; top: -11.4rem; width: 73.6rem; height: 60.8rem; }
+#armory_slot_8 img { left: -4.14rem; top: -3.42rem; width: 54.28rem; height: 44.84rem; }
+#armory_slot_9 img, #armory_slot_10 img, #armory_slot_11 img { left: -1.15rem; top: -0.95rem; width: 48.3rem; height: 39.9rem; }
+.gear-slot span { position: absolute; left: 0; right: 0; bottom: 2rem; font-size: 10rem; color: #aeae99; text-align: center; pointer-events: none; }
+.hands { position: absolute; top: 254rem; left: 109rem; display: flex; gap: 10rem; }
+.hand { width: 68rem; height: 61rem; }
+.hand .gear-image { width: 62rem; height: 45rem; }
+.hand img { left: -41.85rem; top: -32.4rem; width: 145.7rem; height: 112.8rem; }
+.section-head { background-color: #33352bf0; border: 1px #686553; color: #e4d4ae; padding: 4rem 8rem; margin-bottom: 5rem; font-size: 12rem; }
+.attributes { margin-top: 7rem; }
+.attribute-row { position: relative; display: flex; flex-wrap: wrap; align-items: center; min-height: 25rem; }
+.attribute-label { flex: 1 1 0; font-size: 12rem; }
+.attribute-total { font-size: 13rem; margin-left: auto; }
+.attribute-total.proposed { color: #b5d59a; }
+.attribute-note { display: block; width: 100%; font-size: 10rem; color: #a9c991; margin-bottom: 3rem; }
+.attribute-controls { display: flex; align-items: center; gap: 5rem; margin-left: 8rem; }
+.attribute-controls button { width: 25rem; height: 25rem; padding: 0; font-size: 14rem; }
+.attribute-controls input { width: 45rem; height: 25rem; box-sizing: border-box; text-align: center; color: #ebdfc2; font-size: 13rem; background-color: #080c09; border: 1px #777866; }
+.points-caption { text-align: right; color: #aaa894; font-size: 10rem; margin-bottom: 2rem; }
+.editing .attribute-row { margin-bottom: 3rem; }
+.free-points { display: flex; justify-content: space-between; align-items: center; width: 100%; box-sizing: border-box; margin-top: 5rem; height: 34rem; padding: 5rem 9rem; font-size: 13rem; color: #f1d391; border-color: #a68a53; decorator: vertical-gradient(#443b25 #211d13); }
+.allocation-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 5rem; gap: 7rem; font-size: 12rem; color: #e4c88d; }
+.over-budget { color: #ffb49a; }
+.apply { color: #f7daa0; border-color: #a68a53; background-color: #3d3320; }
+.skill-card { padding: 9rem 11rem; background-color: #0b0e0bec; border: 1px #75644b; border-left-width: 2rem; }
+.eyebrow { font-size: 10rem; color: #a9a58e; }
+.skill-heading { display: flex; justify-content: space-between; align-items: center; gap: 10rem; margin: 5rem 0; }
+.skill-name { font-size: 15rem; color: #eee0bd; }
+.skill-output { font-size: 16rem; color: #efd092; white-space: nowrap; }
+.skill-output.inspectable { color: #ffe0a0; border-bottom: 1rem #a88b53; padding-bottom: 2rem; cursor: help; }
+.skill-output.inspectable:hover { color: #fff1c8; border-color: #f2d08a; background-color: #4a3b2340; }
+.muted, .skill-costs { color: #b4ad99; font-size: 11rem; margin-top: 3rem; }
+.restriction { color: #f2aa8a; font-size: 11rem; margin-top: 4rem; }
+.resources { margin: 12rem 0; }
+.resource-row { display: flex; gap: 12rem; }
+.resource-row > div { flex: 1 1 0; display: flex; flex-direction: column; gap: 2rem; font-size: 11rem; }
+.resource-value { display: flex; flex-direction: column; align-items: flex-start; gap: 2rem; padding: 0; border-width: 0; background-color: transparent; text-align: left; font-size: 11rem; }
+.resource-row strong { font-size: 13rem; font-weight: normal; }
+.target { font-size: 11rem; color: #b4ad99; margin-bottom: 4rem; }
+.ratings-toggle { padding: 2rem 0; background-color: transparent; border-width: 0; font-size: 11rem; color: #c5aa70; margin-bottom: 7rem; }
+.categories { display: flex; flex-wrap: wrap; gap: 12rem 17rem; align-items: flex-start; }
+.category { width: 207rem; flex: 1 1 200rem; }
+.stat-line { display: flex; justify-content: space-between; gap: 7rem; width: 100%; padding: 3rem 0; background-color: transparent; border-width: 0; text-align: left; font-size: 11rem; }
+.stat-line > span:first-child { flex: 1 1 0; }
+.stat-line > span:last-child { flex-shrink: 0; color: #ddd3b5; }
+.highlighted .stat-line { color: #efc986; }
+.highlighted .stat-line > span:last-child { color: #efc986; }
+.stat-detail { font-size: 10rem; white-space: pre-wrap; color: #b3b69e; line-height: 14rem; margin-bottom: 5rem; }
+.status { position: absolute; left: 28rem; right: 28rem; bottom: 14rem; font-size: 11rem; color: #c6b590; }
+.status button { margin-left: 8rem; padding: 1rem 4rem; font-size: 10rem; }
+.armory-left scrollbarvertical, .armory-right scrollbarvertical { width: 7rem; }
+.armory-left scrollbarvertical slidertrack, .armory-right scrollbarvertical slidertrack { background-color: #0a0d09; }
+.armory-left scrollbarvertical sliderbar, .armory-right scrollbarvertical sliderbar { width: 7rem; min-height: 22rem; background-color: #74705a; }
+.armory-left scrollbarvertical sliderarrowdec, .armory-right scrollbarvertical sliderarrowdec, .armory-left scrollbarvertical sliderarrowinc, .armory-right scrollbarvertical sliderarrowinc { height: 0; }
+
+.attribute-row.highlighted { color: #efc986; }
+
+.gear-slot:focus { border-color: #e4bf78; }
+.resource-value.highlighted, .resource-value.highlighted strong { color: #efc986; }
+
+.apply:disabled { color: #797971; border-color: #414039; background-color: #141714; }
+
+button.disabled, .apply.disabled { color: #797971; border-color: #414039; background-color: #141714; cursor: default; }
+
+.status { display: flex; align-items: center; gap: 8rem; }
+.status > span { flex: 1 1 0; min-width: 0; }
+.character-links { display: flex; flex: 0 0 auto; gap: 4rem; }
+.character-links button { margin-left: 0; font-size: 10rem; }

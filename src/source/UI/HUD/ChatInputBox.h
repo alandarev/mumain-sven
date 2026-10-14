@@ -39,10 +39,13 @@ namespace mu::ui::window
 
         // The buttons' hints, in the button row's order.
         std::array<Rml::String, 10> buttonHints;
+        float textPx = 0.0f; // Native text-size fact for compact themed controls.
     };
 
     class CChatInputBox : public CObject
     {
+        friend class UiLifecycleFixture; // Test-owned objects without renderer startup.
+
     public:
         // It's also the size of the graphics IMAGE_INPUTBOX_BACK.
         enum
@@ -107,6 +110,9 @@ namespace mu::ui::window
         // happen after SyncDocumentVisibility()'s own Show(), which defaults to FocusFlag::Auto and
         // would blur the field again.
         bool m_bFocusPending = false;
+        // The history key a focused field already handled, until it is released.
+        int m_iHeldHistoryKey = 0;
+        bool HandleHistoryShortcut(int key);
 
     public:
         CChatInputBox();
@@ -120,6 +126,8 @@ namespace mu::ui::window
 
 
         bool HaveFocus();
+        // Read-only observation of our own fields, never another window's text input.
+        bool OwnsFocusedInput() const;
 
         void AddChatHistory(const type_string& strText);
         void RemoveChatHistory(int index);

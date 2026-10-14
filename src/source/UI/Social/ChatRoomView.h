@@ -70,6 +70,7 @@ private:
     void ActionRequested(const Action& action);
 
     void ToggleInvite();
+    void SyncInviteGeometry();
     void SyncPalVisibility();
     void PublishTitle();
     void SyncDraggedPosition();
@@ -101,6 +102,8 @@ private:
     bool m_CustomPosition = false;
     bool m_ScrollToEnd = false;
     bool m_FocusField = false;
+    bool m_InviteExpanded = false;
+    float m_InviteAddedWidth = 0.f;
     float m_Left = 0, m_Top = 0, m_Width = 0, m_Height = 0;
     std::array<float, 4> m_RestoreRect{};
 };

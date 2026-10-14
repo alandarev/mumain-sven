@@ -1,0 +1,24 @@
+body { pointer-events: none; }
+.screen { position: absolute; left: 0; top: 0; width: 640px; height: 480px; transform-origin: left top; pointer-events: none; }
+#panel { position: absolute; width: 190px; height: 81px; margin-left: -66px; font-family: "DejaVu Sans"; pointer-events: none; }
+#back { position: absolute; left: 0; top: 0; width: 190px; height: 81px; box-sizing: border-box; background-color: #10190fee; border: 1px #77734a; }
+.event-name, .timer-text { display: block; position: absolute; transform-origin: left top; text-align: center; line-height: 1.15em; pointer-events: none; }
+.event-name { left: 7px; top: 5px; color: #d7b864; white-space: nowrap; }
+#kills { top: 23px; white-space: nowrap; }
+#time_left { top: 38px; white-space: normal; }
+#time { top: 60px; font-weight: bold; white-space: nowrap; }
+.timer-text.plain { color: #c6cbb4; }
+.timer-text.standby { color: #a8c778; }
+.timer-text.normal { color: #ded1ac; }
+.timer-text.closing { color: #efa15e; }
+.timer-text.imminent { color: #ff796a; }
+.timer-text.expiring { color: #ff5b5b; }
+
+.imperial-card #panel { width: 220px; margin-left: -96px; }
+.imperial-card #back { width: 220px; }
+
+.hud-width-176 { width: calc(176px * var(--root-scale)); }
+
+.hud-width-176 { width: calc(176px * var(--root-scale)); }
+
+.hud-width-206 { width: calc(206px * var(--root-scale)); }

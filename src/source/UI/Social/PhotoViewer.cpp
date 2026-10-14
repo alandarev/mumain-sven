@@ -30,6 +30,15 @@ extern int gix, giy;
 extern void MoveCharacter(CHARACTER* c, OBJECT* o);
 extern void MoveCharacterVisual(CHARACTER* c, OBJECT* o);
 
+namespace
+{
+constexpr float PhotoPivotHeight = 75.f;
+constexpr float MinimumOrbitPitch = -30.f;
+constexpr float MaximumOrbitPitch = 45.f;
+constexpr float MinimumOrbitZoom = 0.55f;
+constexpr float MaximumOrbitZoom = 1.45f;
+} // namespace
+
 // Matrix helpers below are copied verbatim from ZzzOpenglUtil.cpp (validated against a CPU closed
 // form) -- a sign/order error here reproduces this panel's "mirrored/upside-down character" bug.
 // This is the one item-preview panel with a real (non-identity) camera and no BeginBitmap/EndBitmap
@@ -100,14 +109,7 @@ void CUIPhotoViewer::RenderPhotoCharacter(float aspect)
     EnableDepthTest();
     EnableDepthMask();
 
-    mu::GetRenderer().Rotate(-90.0f, 1.f, 0.f, 0.f);
-    mu::GetRenderer().Rotate(-90.0f, 0.f, 0.f, 1.f);
-    mu::GetRenderer().Translate(-10000.0f, 0.0f, -75.f);
-
-    if (c->Helper.Type == MODEL_DARK_HORSE_ITEM)
-        mu::GetRenderer().Translate(-o->Position[0], -o->Position[1], -o->Position[2] - 50.0f);
-    else
-        mu::GetRenderer().Translate(-o->Position[0], -o->Position[1], -o->Position[2]);
+    ApplyViewTransform();
 
     Vector(0.0f, 0.0f, m_fCurrentAngle, o->Angle);
 
@@ -150,6 +152,26 @@ void CUIPhotoViewer::RenderPhotoCharacter(float aspect)
     mu::GetRenderer().PopMatrix();
     mu::GetRenderer().SetMatrixMode(GL_PROJECTION);
     mu::GetRenderer().PopMatrix();
+}
+
+void CUIPhotoViewer::ApplyViewTransform()
+{
+    const auto* o = &m_PhotoChar.Object;
+    mu::GetRenderer().Rotate(-90.0f, 1.f, 0.f, 0.f);
+    mu::GetRenderer().Rotate(-90.0f, 0.f, 0.f, 1.f);
+    mu::GetRenderer().Translate(-10000.0f, 0.0f, -PhotoPivotHeight);
+    if (m_fCurrentPitch != 0.f)
+    {
+        // Orbit the preview's camera aim point, including equipment and mounts.
+        mu::GetRenderer().Translate(0.f, 0.f, PhotoPivotHeight);
+        mu::GetRenderer().Rotate(-m_fCurrentPitch, 0.f, 1.f, 0.f);
+        mu::GetRenderer().Translate(0.f, 0.f, -PhotoPivotHeight);
+    }
+
+    if (m_PhotoChar.Helper.Type == MODEL_DARK_HORSE_ITEM)
+        mu::GetRenderer().Translate(-o->Position[0], -o->Position[1], -o->Position[2] - 50.0f);
+    else
+        mu::GetRenderer().Translate(-o->Position[0], -o->Position[1], -o->Position[2]);
 }
 
 int CUIPhotoViewer::SetPhotoPose(int iCurrentAni, int iMoveDir)
@@ -734,11 +756,24 @@ void CUIPhotoViewer::TurnBy(float degrees)
     m_fCurrentAngle += degrees;
 }
 
+void CUIPhotoViewer::TiltBy(float degrees)
+{
+    m_bHelpEnable = FALSE;
+    m_fCurrentPitch = std::clamp(m_fCurrentPitch + degrees, MinimumOrbitPitch, MaximumOrbitPitch);
+}
+
+void CUIPhotoViewer::ZoomBy(float amount)
+{
+    m_bHelpEnable = FALSE;
+    m_fCurrentZoom = std::clamp(m_fCurrentZoom + amount, MinimumOrbitZoom, MaximumOrbitZoom);
+}
+
 void CUIPhotoViewer::ResetView()
 {
     m_bHelpEnable = FALSE;
     m_fCurrentAngle = m_fSettingAngle;
     m_fCurrentZoom = m_fSettingZoom;
+    m_fCurrentPitch = 0.f;
 }
 
 void CUIPhotoViewer::ToggleHelp()

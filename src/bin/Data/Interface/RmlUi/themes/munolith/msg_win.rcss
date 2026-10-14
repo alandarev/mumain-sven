@@ -1,0 +1,9 @@
+#panel { width: 352dp; height: 113dp; font-family: "DejaVu Sans"; color: #c6cbb4; decorator: none; }
+#msg_line1, #msg_line2 { color: #c6cbb4; }
+#input_frame { background-color: #101910; border: 1dp #545139; decorator: none; }
+.msgwin-input-field { color: #ded1ac; }
+.btn { color: #ded1ac; background-color: #172018; border: 1dp #6b6646; decorator: none; }
+.btn:hover, .btn:active, .btn-ok:hover, .btn-cancel:hover, .btn-ok:active, .btn-cancel:active { background-color: #35452a; border-color: #b8a563; decorator: none; }
+
+/* IDs in the shared native stylesheet outrank a generic .btn rule. */
+#btn_ok, #btn_cancel, #btn_ok:hover, #btn_cancel:hover, #btn_ok:active, #btn_cancel:active { decorator: none; }

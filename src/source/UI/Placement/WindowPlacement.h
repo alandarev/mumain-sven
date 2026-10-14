@@ -16,6 +16,11 @@ namespace UI::Scaling
 struct Transform;
 }
 
+namespace Rml
+{
+class ElementDocument;
+}
+
 // Places windows where the active theme's workspace.rml puts their slots. Each theme lays out
 // regions and slots in RML/RCSS; this lays the workspace out, reads back each open window's slot
 // and places the window's document there.
@@ -25,8 +30,12 @@ void RegisterParticipant(std::string_view name, PlacementParticipant participant
 void UnregisterParticipant(std::string_view name);
 // Marks placement stale; the next Update() re-places once (a theme reload, a measured size change).
 void Invalidate();
+// A theme-declared group's title moves every linked pane. False without a group declaration,
+// so a window can retain its ordinary drag behavior in other themes.
+bool MakeGroupDraggable(std::string_view name, Rml::ElementDocument* document);
 // Last resolved slot rectangle in screen pixels; false for a closed or absent slot.
 bool SlotBox(std::string_view name, PlacementParticipant::Box& box);
+bool SlotBox(std::uint32_t windowId, PlacementParticipant::Box& box);
 
 using GetWindow = std::function<mu::ui::window::CObject*()>;
 
@@ -63,4 +72,4 @@ float UncoveredWorldRight();
 float UncoveredWorldLeftIn(const UI::Scaling::Transform& transform);
 float UncoveredWorldRightIn(const UI::Scaling::Transform& transform);
 void Release();
-}
+} // namespace UI::Placement

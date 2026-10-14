@@ -99,6 +99,14 @@ namespace App::Control::Frames
 void RecordWorldCamera();
 } // namespace App::Control::Frames
 
+namespace App::Control::Net
+{
+// Called on the network thread for every received packet before it is
+// queued: true while `net mute` is in effect, in which case the packet is
+// counted and dropped. Lets a script freeze the client's world state.
+[[nodiscard]] bool DropIncoming(const unsigned char* buffer, int size);
+} // namespace App::Control::Net
+
 #else
 
 #include <cstdint>
@@ -134,5 +142,13 @@ namespace App::Control::Frames
 {
 inline void RecordWorldCamera() {}
 } // namespace App::Control::Frames
+
+namespace App::Control::Net
+{
+inline bool DropIncoming(const unsigned char*, int)
+{
+    return false;
+}
+} // namespace App::Control::Net
 
 #endif // MU_ENABLE_CONTROL_SOCKET

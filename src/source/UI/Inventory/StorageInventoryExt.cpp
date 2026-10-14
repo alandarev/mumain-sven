@@ -111,6 +111,73 @@ bool CStorageInventoryExt::IsPointerOverPanel()
     return UI::RmlBridge::IsPointerWithin(document != nullptr ? document->GetElementById("panel") : nullptr);
 }
 
+void CStorageInventoryExt::Show(bool visible)
+{
+    CObject::Show(visible && !UI::RmlBridge::ThemeUsesEmbeddedVault());
+}
+
+bool CStorageInventoryExt::IsAvailable() const
+{
+    if (UI::RmlBridge::ThemeUsesEmbeddedVault())
+        return CharacterAttribute->IsVaultExtended > 0 && g_pStorageInventory->IsVisible();
+    return IsVisible();
+}
+
+void CStorageInventoryExt::SyncEmbeddedLayout(Rml::ElementDocument* document)
+{
+    if (!m_pNewInventoryCtrl)
+        return;
+    const bool embedded = UI::RmlBridge::ThemeUsesEmbeddedVault();
+    m_pNewInventoryCtrl->SetPresentation(embedded ? g_pStorageInventory : nullptr, embedded);
+    if (!embedded)
+    {
+        m_pNewInventoryCtrl->ShowInventory();
+        return;
+    }
+    Show(false);
+    if (CharacterAttribute->IsVaultExtended > 0)
+    {
+        m_pNewInventoryCtrl->FollowGridPx(document, "item_grid_extra");
+        m_pNewInventoryCtrl->ShowInventory();
+    }
+    else
+        m_pNewInventoryCtrl->HideInventory();
+}
+
+bool CStorageInventoryExt::UpdateEmbeddedMouseEvent()
+{
+    if (!IsAvailable())
+        return true;
+    if (!m_pNewInventoryCtrl->UpdateMouseEvent())
+        return false;
+    ProcessInventoryCtrl();
+    return true;
+}
+
+void CStorageInventoryExt::UpdateEmbedded()
+{
+    if (IsAvailable() && m_pNewInventoryCtrl)
+        m_pNewInventoryCtrl->Update();
+}
+
+void CStorageInventoryExt::RenderEmbedded()
+{
+    if (IsAvailable() && m_pNewInventoryCtrl)
+        m_pNewInventoryCtrl->Render();
+}
+
+// Into the vault's #item_view, in window pixels.
+void CStorageInventoryExt::RenderEmbedded3D()
+{
+    if (IsAvailable() && m_pNewInventoryCtrl && m_pNewInventoryCtrl->IsVisible())
+        m_pNewInventoryCtrl->Render3D();
+}
+
+const CInventoryCtrl* CStorageInventoryExt::GetEmbeddedControl() const
+{
+    return UI::RmlBridge::ThemeUsesEmbeddedVault() ? m_pNewInventoryCtrl : nullptr;
+}
+
 bool CStorageInventoryExt::UpdateMouseEvent()
 {
     if (m_pNewInventoryCtrl && false == m_pNewInventoryCtrl->UpdateMouseEvent())
@@ -153,6 +220,11 @@ bool CStorageInventoryExt::UpdateKeyEvent()
 
 bool CStorageInventoryExt::Update()
 {
+    if (UI::RmlBridge::ThemeUsesEmbeddedVault())
+    {
+        SyncRmlModel();
+        return true;
+    }
     if (m_pNewInventoryCtrl && false == m_pNewInventoryCtrl->Update())
         return false;
 
@@ -176,7 +248,15 @@ bool CStorageInventoryExt::Render()
 
 void CStorageInventoryExt::SyncRmlModel()
 {
+    if (UI::RmlBridge::ThemeUsesEmbeddedVault())
+    {
+        // The vault's own document draws the extra grid; this window stays hidden.
+        m_ItemTarget.Sync(nullptr, false);
+        UI::RmlBridge::SyncDocumentVisibility(m_RmlView.Document(), false);
+        return;
+    }
     m_ItemTarget.Sync(m_RmlView.Document() ? m_RmlView.Document()->GetElementById("item_view") : nullptr, IsVisible());
+
     if (!m_RmlView.Document()) return;
     UI::RmlBridge::SyncDocumentVisibility(m_RmlView.Document(), IsVisible());
 
@@ -274,7 +354,8 @@ void CStorageInventoryExt::ProcessInventoryCtrl()
             }
         }
     }
-    else if (IsPress(VK_RBUTTON))
+    else if (IsPress(VK_RBUTTON) ||
+             (UI::RmlBridge::ThemeUsesEmbeddedVault() && IsRelease(VK_LBUTTON) && IsRepeat(VK_SHIFT)))
     {
         ProcessStorageItemAutoMove();
     }
@@ -286,7 +367,7 @@ void CStorageInventoryExt::ProcessStorageItemAutoMove()
         if (g_pPickedItem->GetItem())
             return;
 
-    if (IsItemAutoMove())
+    if (IsItemAutoMove() || g_pStorageInventory->IsItemAutoMove())
         return;
 
     if (const auto pItemObj = m_pNewInventoryCtrl->FindItemAtPointer())
@@ -294,9 +375,8 @@ void CStorageInventoryExt::ProcessStorageItemAutoMove()
         const int nDstIndex = g_pMyInventory->FindEmptySlotIncludingExtensions(pItemObj);
         if (-1 != nDstIndex)
         {
-            SetItemAutoMove(true);
-
             const int nSrcIndex = m_pNewInventoryCtrl->GetIndexByItem(pItemObj);
+            SetItemAutoMove(true, nSrcIndex);
             g_pStorageInventory->SendRequestItemToMyInven(pItemObj, nSrcIndex, nDstIndex);
 
             PlayBuffer(SOUND_GET_ITEM01);
@@ -311,7 +391,7 @@ bool CStorageInventoryExt::ProcessMyInvenItemAutoMove(CInventoryCtrl* sourceCtrl
         return false;
     }
 
-    if (IsItemAutoMove())
+    if (IsItemAutoMove() || g_pStorageInventory->IsItemAutoMove())
     {
         return false;
     }
@@ -411,12 +491,12 @@ void CStorageInventoryExt::ProcessToReceiveStorageItems(int nIndex, std::span<co
 
 void CStorageInventoryExt::ProcessStorageItemAutoMoveSuccess()
 {
-    if (!IsVisible())
+    if (!IsAvailable())
         return;
 
     if (IsItemAutoMove())
     {
-        ITEM* pItemObj = m_pNewInventoryCtrl->FindItem(m_nBackupStorageCell);
+        ITEM* pItemObj = m_pNewInventoryCtrl->FindItem(m_nBackupSourceInvenIndex);
         m_pNewInventoryCtrl->RemoveItem(pItemObj);
 
         SetItemAutoMove(false);
@@ -425,7 +505,7 @@ void CStorageInventoryExt::ProcessStorageItemAutoMoveSuccess()
 
 void CStorageInventoryExt::ProcessStorageItemAutoMoveFailure()
 {
-    if (!IsVisible())
+    if (!IsAvailable())
         return;
 
     SetItemAutoMove(false);

@@ -1,6 +1,8 @@
 // The control socket's command implementations, one file per family:
 // Session (login/select-char/logout/quit), World (movement, combat, chat,
-// party) and Query (state/nearby/scene/screenshot/hotkey/click-ui).
+// party), Query (state/nearby/scene/screenshot and the synthetic input:
+// hotkey/click-ui/type/wheel/drag) and DebugUi
+// (inject/net/ui/window/hover/render: reproducible UI states for screenshots).
 //
 // Every handler answers with an encoded response line, or takes over the
 // dispatcher's single act slot for a command that needs several frames.
@@ -35,15 +37,21 @@ std::string ClickUi(const Request& request, std::unique_ptr<Act>& act);
 std::string HoverUi(const Request& request, std::unique_ptr<Act>& act);
 std::string DragUi(const Request& request, std::unique_ptr<Act>& act);
 std::string Type(const Request& request, std::unique_ptr<Act>& act);
+std::string Wheel(const Request& request, std::unique_ptr<Act>& act);
+std::string Drag(const Request& request, std::unique_ptr<Act>& act);
 
-// Ui family: where the open item windows are.
-std::string Ui(const Request& request, std::unique_ptr<Act>& act);
+// Ui family: where the open item windows are. `ui` without an `action` answers with
+// UiOverview(): the open windows' names and their named elements in window pixels.
+std::string UiOverview(const Request& request);
 std::string SlotPixel(const Request& request, std::unique_ptr<Act>& act);
 
 // Session family.
 std::string Login(const Request& request, std::unique_ptr<Act>& act);
 std::string SelectCharacter(const Request& request, std::unique_ptr<Act>& act);
 std::string Logout(const Request& request, std::unique_ptr<Act>& act);
+std::string SelectSlot(const Request& request, std::unique_ptr<Act>& act);
+std::string ServerList(const Request& request, std::unique_ptr<Act>& act);
+std::string SelectServer(const Request& request, std::unique_ptr<Act>& act);
 std::string Quit(const Request& request, std::unique_ptr<Act>& act);
 
 // World family.
@@ -53,6 +61,7 @@ std::string Teleport(const Request& request, std::unique_ptr<Act>& act);
 std::string Attack(const Request& request, std::unique_ptr<Act>& act);
 std::string Skill(const Request& request, std::unique_ptr<Act>& act);
 std::string Pickup(const Request& request, std::unique_ptr<Act>& act);
+std::string Talk(const Request& request, std::unique_ptr<Act>& act);
 std::string UseItem(const Request& request, std::unique_ptr<Act>& act);
 std::string EquipItem(const Request& request, std::unique_ptr<Act>& act);
 std::string Say(const Request& request, std::unique_ptr<Act>& act);
@@ -62,4 +71,12 @@ std::string Halt(const Request& request, std::unique_ptr<Act>& act);
 
 // Trade family.
 std::string Trade(const Request& request, std::unique_ptr<Act>& act);
+
+// DebugUi family. `ui` with an `action` (list/show/hide/toggle/guarded_*/theme/scale).
+std::string Inject(const Request& request, std::unique_ptr<Act>& act);
+std::string Net(const Request& request, std::unique_ptr<Act>& act);
+std::string Ui(const Request& request, std::unique_ptr<Act>& act);
+std::string Window(const Request& request, std::unique_ptr<Act>& act);
+std::string Hover(const Request& request, std::unique_ptr<Act>& act);
+std::string Render(const Request& request, std::unique_ptr<Act>& act);
 } // namespace App::Control::Commands

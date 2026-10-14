@@ -1,5 +1,6 @@
 
 #include "stdafx.h"
+#include "UI/RmlBridge/RmlSyncField.h"
 #include "UI/HUD/MuHelperBar.h"
 #include "I18N/All.h"
 
@@ -60,6 +61,8 @@ bool CMuHelperBar::Create(CManager* pNewUIMng)
 void CMuHelperBar::BindRmlModel(Rml::DataModelConstructor& c, MuHelperBarRmlModel& model)
 {
     c.Bind("position_text", &model.positionText);
+    c.Bind("map_name", &model.mapName);
+    c.Bind("coordinate_text", &model.coordinateText);
     c.Bind("mu_helper_active", &model.muHelperActive);
     c.Bind("config_hint", &model.configHint);
     c.Bind("start_hint", &model.startHint);
@@ -140,20 +143,35 @@ bool CMuHelperBar::Render()
     return true;
 }
 
+void CMuHelperBar::SyncLocation()
+{
+    auto& model = m_RmlView.GetModel();
+    if (model.mapNumber == gMapManager.WorldActive && model.positionX == m_CurHeroPosition.x &&
+        model.positionY == m_CurHeroPosition.y)
+    {
+        return;
+    }
+    model.mapNumber = gMapManager.WorldActive;
+    model.positionX = m_CurHeroPosition.x;
+    model.positionY = m_CurHeroPosition.y;
+
+    const wchar_t* mapName = gMapManager.GetMapName(gMapManager.WorldActive);
+    wchar_t text[255] = {};
+    mu_swprintf(text, L"%ls (%d , %d)", mapName, m_CurHeroPosition.x, m_CurHeroPosition.y);
+    SyncField(m_RmlView.Binder(), &MuHelperBarRmlModel::positionText, "position_text", StringUtils::WideToNarrow(text));
+    SyncField(m_RmlView.Binder(), &MuHelperBarRmlModel::mapName, "map_name", StringUtils::WideToNarrow(mapName));
+    mu_swprintf(text, L"(%d, %d)", m_CurHeroPosition.x, m_CurHeroPosition.y);
+    SyncField(m_RmlView.Binder(), &MuHelperBarRmlModel::coordinateText, "coordinate_text",
+              StringUtils::WideToNarrow(text));
+}
+
 void CMuHelperBar::SyncRmlModel()
 {
     if (!m_RmlView.Document()) return;
 
     auto& model = m_RmlView.GetModel();
 
-    wchar_t szText[255] = {};
-    mu_swprintf(szText, L"%ls (%d , %d)", gMapManager.GetMapName(gMapManager.WorldActive), m_CurHeroPosition.x, m_CurHeroPosition.y);
-    const std::string positionUtf8 = StringUtils::WideToNarrow(szText);
-    if (model.positionText != positionUtf8)
-    {
-        model.positionText = positionUtf8;
-        m_RmlView.MarkDirty("position_text");
-    }
+    SyncLocation();
 
     const bool active = MUHelper::g_MuHelper.IsActive();
     if (model.muHelperActive != active)

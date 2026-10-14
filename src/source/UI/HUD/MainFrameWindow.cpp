@@ -3,6 +3,8 @@
 #include <algorithm>
 #include "I18N/All.h"
 
+#include "UI/HUD/CompactHud.h"
+#include "UI/HUD/ExperienceProgress.h"
 #include "UI/HUD/MainFrameWindow.h"	// self
 #include "UI/Options/OptionWindow.h"
 #include "UI/Core/WindowSystem.h"
@@ -47,7 +49,7 @@
 #include "GameLogic/Quests/QuestMng.h"
 #include "UI/Social/FriendWindow.h"
 
-mu::ui::window::CMainFrameWindow::CMainFrameWindow()
+mu::ui::window::CMainFrameWindow::CMainFrameWindow() : m_CompactHud(std::make_unique<UI::HUD::CompactHud>())
 {
     m_bExpEffect = false;
     m_dwExpEffectTime = 0;
@@ -118,6 +120,7 @@ SlotBox SlotBoxInReference(Rml::Element* element)
 
 void mu::ui::window::CMainFrameWindow::BindRmlModel(Rml::DataModelConstructor& c, MainFrameRmlModel& model)
 {
+    m_CompactHud->Bind(c);
 
     c.Bind("hp_fraction", &model.hpFraction);
     c.Bind("mp_fraction", &model.mpFraction);
@@ -282,6 +285,7 @@ void mu::ui::window::CMainFrameWindow::BindRmlModel(Rml::DataModelConstructor& c
 
 void mu::ui::window::CMainFrameWindow::OnRmlReloaded()
 {
+    m_CompactHud->Reset();
     UI::Placement::Invalidate();
 }
 
@@ -297,6 +301,7 @@ void mu::ui::window::CMainFrameWindow::Release()
     UI::Placement::UnregisterParticipant("main_hud");
     UI::Placement::UnregisterParticipant("top_bar");
     m_ItemHotKey.SetSlotIconsShown(false);
+    m_CompactHud->SetShown(false);
 
     if (m_pNewUIMng)
     {
@@ -340,6 +345,8 @@ bool mu::ui::window::CMainFrameWindow::UpdateMouseEvent()
 
 bool mu::ui::window::CMainFrameWindow::UpdateKeyEvent()
 {
+    if (UI::RmlBridge::ThemeUsesCompactHud())
+        return m_CompactHud->UpdateKeys();
     if (m_ItemHotKey.UpdateKeyEvent() == false)
     {
         return false;
@@ -568,6 +575,7 @@ void mu::ui::window::CMainFrameWindow::SyncRmlModel()
     mu_swprintf(szTip, I18N::Game::SDDD, wShield, wMaxShield);
     syncWide(&MainFrameRmlModel::sdTooltip, "sd_tooltip", szTip);
 
+    float levelProgress = 0.f;
     // EXP -- legacy RenderExperience(), flash-highlight overlay intentionally not reproduced (see
     // this class's header comment). expFraction is progress *within* the current decile, matching
     // buildExpSegment()'s original digit/fraction split.
@@ -587,40 +595,9 @@ void mu::ui::window::CMainFrameWindow::SyncRmlModel()
             dwExperience = CharacterAttribute->Experience;
         }
 
-        __int64 lowerBound;
-        if (masterActive)
-        {
-            const __int64 iTotalLevel = wLevel + 400;
-            const __int64 iTOverLevel = iTotalLevel - 255;
-            const __int64 iData_Master =
-                (((__int64)9 + iTotalLevel) * iTotalLevel * iTotalLevel * (__int64)10)
-                + (((__int64)9 + iTOverLevel) * iTOverLevel * iTOverLevel * (__int64)1000);
-            lowerBound = (iData_Master - (__int64)3892250000) / (__int64)2;
-        }
-        else
-        {
-            const __int64 iPriorLevel = wLevel - 1;
-            __int64 iPriorExperience = 0;
-            if (iPriorLevel > 0)
-            {
-                iPriorExperience = (9 + iPriorLevel) * iPriorLevel * iPriorLevel * 10;
-                if (iPriorLevel > 255)
-                {
-                    const __int64 iLevelOverN = iPriorLevel - 255;
-                    iPriorExperience += (9 + iLevelOverN) * iLevelOverN * iLevelOverN * 1000;
-                }
-            }
-            lowerBound = iPriorExperience;
-        }
-
-        __int64 upperBound = dwNexExperience;
-        if (upperBound < lowerBound)
-            upperBound = lowerBound;
-
-        const double fNeedExp = static_cast<double>(upperBound - lowerBound);
-        const double fClampedExp = std::clamp(static_cast<double>(dwExperience), static_cast<double>(lowerBound), static_cast<double>(upperBound));
-        const double fRatio = (fNeedExp > 0.0) ? std::clamp((fClampedExp - static_cast<double>(lowerBound)) / fNeedExp, 0.0, 1.0) : 0.0;
-
+        const double fRatio =
+            UI::HUD::NormalizeExperience(dwExperience, dwNexExperience, static_cast<int>(wLevel), masterActive);
+        levelProgress = static_cast<float>(fRatio);
         const double scaled = std::clamp(fRatio, 0.0, 1.0) * 10.0;
         int iExp = std::clamp(static_cast<int>(scaled), 0, 9);
         double fProgress = std::clamp(scaled - static_cast<double>(static_cast<long long>(scaled)), 0.0, 1.0);
@@ -785,6 +762,11 @@ void mu::ui::window::CMainFrameWindow::SyncRmlModel()
     {
         UI::RmlBridge::Tooltip::Hide(g_pSkillList);
     }
+    const bool masterExperience =
+        gCharacterManager.IsMasterExperienceActive(CharacterAttribute->Class, CharacterAttribute->Level);
+    m_CompactHud->Sync(m_RmlView.Document(), model.hpFraction, model.mpFraction, model.agFraction, levelProgress,
+                       masterExperience ? Master_Level_Data.nMLevel : CharacterAttribute->Level, masterExperience,
+                       {static_cast<int>(wLifeMax), static_cast<int>(wManaMax), static_cast<int>(dwMaxSkillMana)});
 }
 
 float mu::ui::window::CMainFrameWindow::GetLayerDepth()
@@ -794,7 +776,8 @@ float mu::ui::window::CMainFrameWindow::GetLayerDepth()
 
 float mu::ui::window::CMainFrameWindow::GetKeyEventOrder()
 {
-    return 2.9f;
+    constexpr float compactActionPriority = 50.f; // Below modal dialogs (100), above game menu shortcuts.
+    return UI::RmlBridge::ThemeUsesCompactHud() ? compactActionPriority : 2.9f;
 }
 
 void mu::ui::window::CMainFrameWindow::SetItemHotKey(int iHotKey, int iItemType, int iItemLevel)
@@ -923,5 +906,6 @@ void mu::ui::window::CMainFrameWindow::SyncDocVisibility(bool sceneAllowsShow)
 
     UI::RmlBridge::SyncDocumentVisibility(m_RmlView.Document(), show);
     m_ItemHotKey.SetSlotIconsShown(show);
+    m_CompactHud->SetShown(show);
     UI::RmlBridge::SyncDocumentVisibility(m_RmlView.Document(1), show);
 }

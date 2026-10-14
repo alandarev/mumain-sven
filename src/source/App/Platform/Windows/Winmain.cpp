@@ -7,6 +7,10 @@
 #include "Core/Platform/GameWindow.h"
 #include "Core/Input/UiInputRouter.h"
 #include "App/Control/ControlServer.h"
+#include "App/Control/ControlUiFrames.h"
+#if MU_ENABLE_CONTROL_SOCKET
+#include "App/Control/ControlQuickPeer.h"
+#endif
 #include "Core/Text/Utf8.h"
 #include "App/Platform/DiagnosticFrameCaptureSchedule.h"
 #include "App/Platform/DiagnosticFrameCaptureWriter.h"
@@ -143,6 +147,23 @@ bool ActiveIME = false;
 BYTE* RendomMemoryDump;
 ITEM_ATTRIBUTE* ItemAttRibuteMemoryDump;
 CHARACTER* CharacterMemoryDump;
+
+#if MU_ENABLE_CONTROL_SOCKET
+std::span<CHARACTER> App::Control::WorldCharacterStorage()
+{
+    if (CharacterMemoryDump == nullptr || CharactersClient == nullptr)
+        return {};
+    // Allocation below reserves MAX_CHARACTERS_CLIENT + 1 + 128 elements,
+    // then selects one of these 128 offsets. Equality avoids unrelated-pointer arithmetic.
+    constexpr int CharacterStorageOffsets = 128;
+    for (int offset = 0; offset < CharacterStorageOffsets; ++offset)
+    {
+        if (CharactersClient == CharacterMemoryDump + offset)
+            return {CharactersClient, MAX_CHARACTERS_CLIENT};
+    }
+    return {};
+}
+#endif
 
 int RandomTable[100];
 
@@ -1570,7 +1591,9 @@ MSG MainLoop()
 
                 RequestDiagnosticFrameCapture();
                 ApplyPendingVSyncPreference();
+                App::Control::BeginUiFrame();
                 RenderProfiledFrame();
+                App::Control::CompleteUiFrame();
 #ifdef _EDITOR
                 // The editor's own windows, now that the game's frame went to the GPU.
                 g_MuEditorCore.RenderPlatformWindows();

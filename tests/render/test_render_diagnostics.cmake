@@ -39,6 +39,11 @@ require_texts("${MU_DIAGNOSTICS_DOCUMENT}"
     "{{skin_cpu_ineligible}}"
     "{{skin_failed}}"
     "{{batch_draws}}"
+    "{{requested}}"
+    "{{submitted}}"
+    "{{textures_uploaded}}"
+    "pass.draws"
+    "pass.merged"
 )
 
 message(STATUS "Rendering parity diagnostics: OK")

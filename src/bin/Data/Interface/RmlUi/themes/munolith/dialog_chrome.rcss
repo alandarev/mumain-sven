@@ -1,0 +1,8 @@
+body { width: 100%; height: 100%; margin: 0; pointer-events: none; }
+.stone, .shade { left: 5dp; right: 5dp; top: 7dp; bottom: 7dp; pointer-events: none; }
+.top-left { width: 31dp; height: 27dp; }.top-mid { left: 31dp; right: 39dp; height: 27dp; }.top-right { width: 39dp; height: 27dp; }
+.side-left, .side-right { top: 26dp; bottom: 23dp; width: 7dp; }
+.bottom-left, .bottom-right { width: 23dp; height: 28dp; }.bottom-mid { left: 23dp; right: 23dp; height: 28dp; }
+/* Dialogs use their native action row; avoid the satchel's baked, inactive close icon. */
+.top-right { width: 31dp; decorator: image(sat-top-left); transform: scale(-1, 1); transform-origin: center center; }
+.top-mid { right: 31dp; }

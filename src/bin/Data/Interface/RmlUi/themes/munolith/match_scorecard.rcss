@@ -1,0 +1,21 @@
+/* Passive cards remain in the native background context at the native HUD anchor. */
+#panel { width: 170px; height: 70px; margin-left: -39px; font-family: "DejaVu Sans"; pointer-events: none; }
+#back { width: 170px; height: 70px; decorator: none; background-color: #071711ee; border: 1px #9c8855; box-sizing: border-box; pointer-events: none; }
+.match-caption { display: block; position: absolute; left: 9px; top: 7px; color: #e6d3a7; font-weight: bold; transform-origin: left top; white-space: nowrap; pointer-events: none; }
+.duel-text.hero { color: #85caff; top: 30px; }
+.duel-text.enemy { color: #ff9e89; top: 50px; }
+#hero_name, #enemy_name { left: 9px; }
+#hero_score, #enemy_score { left: 142px; }
+.team { left: 9px; width: 150px; height: 15px; }
+.team:nth-child(1) { top: 30px; }
+.team:nth-child(2) { top: 50px; }
+.team-text { color: #85caff; background-color: transparent; }
+.team.red .team-text { color: #ff9e89; }
+.team-name { left: 19px; }
+.team-score { left: 133px; }
+.mark { left: 0; top: 1px; width: 12px; height: 12px; }
+.mark-cell { width: 1.5px; height: 1.5px; }
+
+.hud-width-106 { width: calc(106px * var(--root-scale)); }
+
+.hud-width-125 { width: calc(125px * var(--root-scale)); }

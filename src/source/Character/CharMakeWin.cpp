@@ -33,6 +33,8 @@
 #include "UI/RmlBridge/RmlTheme.h"
 #include "Core/Utilities/StringUtils.h"
 #include <RmlUi/Core/ElementDocument.h>
+#include <RmlUi/Core/Event.h>
+#include <RmlUi/Core/Input.h>
 #include <RmlUi/Core/Element.h>
 #include <RmlUi/Core/Event.h>
 
@@ -211,6 +213,11 @@ void CCharMakeWin::BindRmlModel(Rml::DataModelConstructor& c, CharMakeRmlModel& 
     c.Bind("cancel_label", &model.cancelLabel);
     c.Bind("char_name", &model.charName);
 
+    BindActions(c);
+}
+
+void CCharMakeWin::BindActions(Rml::DataModelConstructor& c)
+{
     c.BindEventCallback("charmake_select_job",
         [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& arguments)
         {
@@ -221,6 +228,15 @@ void CCharMakeWin::BindRmlModel(Rml::DataModelConstructor& c, CharMakeRmlModel& 
         [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) { RmlClickOk(); });
     c.BindEventCallback("charmake_cancel_click",
         [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) { RmlClickCancel(); });
+    c.BindEventCallback("charmake_field_key",
+                        [this](Rml::DataModelHandle, Rml::Event& event, const Rml::VariantList&)
+                        {
+                            if (event.GetParameter<int>("key_identifier", 0) != Rml::Input::KI_ESCAPE ||
+                                g_MsgWin.IsVisible())
+                                return;
+                            RmlClickCancel();
+                            event.StopPropagation();
+                        });
 }
 
 void CCharMakeWin::OnRmlReloaded()

@@ -7,6 +7,7 @@
 #include "Engine/Object/EditObjects.h"
 #include "UI/Chat/Chat.h"
 #include "MainScene.h"
+#include "App/Control/ControlUiFrames.h"
 #include "SceneCommon.h"
 #include "Camera/CameraUtility.h"
 #include "Render/Textures/ZzzOpenglUtil.h"
@@ -231,7 +232,8 @@ static void UpdateUIAndInput()
         MouseOnWindow = true;
 
     g_pPartyManager->Update();
-    g_pNewUISystem->Update();
+    if (g_pNewUISystem->Update())
+        App::Control::ObserveUiUpdate();
 
     if (MouseLButton == true &&
         false == g_pNewUISystem->CheckMouseUse() &&
@@ -398,6 +400,19 @@ static bool g_bDisableEffectsDebug = false;
 void SetDisableEffects(bool disabled)
 {
     g_bDisableEffectsDebug = disabled;
+}
+
+// Control-socket toggle -- see MainScene.h's SetSkipWorldRender() doc comment.
+static bool g_bSkipWorldRender = false;
+
+void SetSkipWorldRender(bool skip)
+{
+    g_bSkipWorldRender = skip;
+}
+
+bool IsWorldRenderSkipped()
+{
+    return g_bSkipWorldRender;
 }
 
 // Diagnostic toggles, finer-grained bisection -- see MainScene.h doc comments.
@@ -634,7 +649,8 @@ static void RenderMainSceneUI()
     EndBitmap();
 
     g_pPartyManager->Render();
-    g_pNewUISystem->Render();
+    if (g_pNewUISystem->Render())
+        App::Control::ObserveUiRender();
 
     BeginBitmap();
     RenderInfomation();
@@ -733,7 +749,8 @@ bool RenderMainScene()
     }
 
     SetupMainSceneViewport(width, height, byWaterMap, cameraPos);
-    RenderGameWorld(byWaterMap, width, height);
+    if (!g_bSkipWorldRender)
+        RenderGameWorld(byWaterMap, width, height);
 
 #ifdef _EDITOR
     // Render spectated camera frustum wireframe when in FreeFly mode - but not

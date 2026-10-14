@@ -1,0 +1,7 @@
+/* Passive announcements stay below the header, clear of action dialogs. */
+body { position: absolute; left: 30%; width: 40%; height: auto; top: 78dp; pointer-events: none; font-family: "token(font-body)"; }
+.notice-row { display: block; text-align: center; margin-bottom: 4dp; pointer-events: none; }
+.notice-text { display: inline-block; font-weight: bold; background-color: #050809b0; padding: 2dp 6dp; font-effect: shadow(1dp 1dp #000000), shadow(-1dp -1dp #000000); }
+.notice-text--gold { color: #ffc850; }
+.notice-text--gold-dim { color: #ffc85080; }
+.notice-text--green { color: #64ffc8; }

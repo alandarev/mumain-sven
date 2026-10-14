@@ -63,12 +63,12 @@ namespace
     mu::ui::window::GuildMakeCellEntry EditorCell(int index)
     {
         if (index <= 0 || static_cast<std::size_t>(index) >= std::size(MarkColor))
-            return {"#000000ff", true};
+            return {"#000000ff", true, Guild::MarkPalette::CellColor(index)};
         const unsigned int argb = MarkColor[static_cast<std::size_t>(index)];
         char color[16] = {};
         std::snprintf(color, sizeof(color), "#%02x%02x%02x%02x", (argb >> 16) & 0xFFu, (argb >> 8) & 0xFFu,
                       argb & 0xFFu, (argb >> 24) & 0xFFu);
-        return {color, false};
+        return {color, false, Guild::MarkPalette::CellColor(index)};
     }
 
     // RenderText() shrinks a text wider than its box to fit it: the size it drew `text` at.
@@ -301,6 +301,11 @@ bool CGuildMakeWindow::Update()
     m_PendingButton = GUILDMAKEBUTTON_NONE;
     if (IsVisible() && button != GUILDMAKEBUTTON_NONE)
     {
+        if (button == GUILDMAKEBUTTON_EXIT)
+        {
+            g_pNewUISystem->Hide(mu::ui::window::INTERFACE_NPCGUILDMASTER);
+            return true;
+        }
         switch (m_GuildMakeState)
         {
         case GUILDMAKE_INFO:
@@ -377,6 +382,7 @@ void CGuildMakeWindow::BindRmlModel(Rml::DataModelConstructor& c, GuildMakeRmlMo
     auto cell = c.RegisterStruct<GuildMakeCellEntry>();
     cell.RegisterMember("color", &GuildMakeCellEntry::color);
     cell.RegisterMember("empty", &GuildMakeCellEntry::empty);
+    cell.RegisterMember("mark_color", &GuildMakeCellEntry::markColor);
     c.RegisterArray<std::vector<GuildMakeCellEntry>>();
     c.Bind("cells", &model.cells);
     c.Bind("palette", &model.palette);

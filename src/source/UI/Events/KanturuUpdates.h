@@ -56,5 +56,5 @@ enum class EntryResult : std::uint8_t
 void ShowEntryInfo(Stage stage, Detail detail, bool canEnter, std::uint8_t userCount, int remainingSeconds);
 void CompleteEntry(EntryResult result);
 void SetBattleInfoVisible(bool visible);
-void SetBattleTime(std::uint8_t timeLimit);
+void SetBattleTime(int timeLimitMilliseconds);
 }

@@ -2,6 +2,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
+#include "UI/Widgets/GameCursor.h"
 #include "UI/Placement/WindowPlacement.h"
 #include "UI/Core/UIManager.h"
 #include "Render/Textures/ZzzOpenglUtil.h"
@@ -48,6 +49,7 @@
 #include "UI/Dialogs/CustomMessageBox.h"
 #include "UI/Inventory/InventoryCtrl.h"
 #include "UI/Tooltip/LegacyTextListTooltip.h"
+#include "UI/RmlBridge/RmlTheme.h"
 #include "UI/Scaling/UITransform.h"
 #include "UI/Inventory/MyShopInventory.h" // ShowPersonalShopItemValueDialog
 #include "GameLogic/Events/w_CursedTemple.h"
@@ -403,6 +405,14 @@ void RenderTipTextList(const int sx, const int sy, int TextNum, int Tab, int iSo
 
 void SendRequestUse(int Index, int Target, bool addPoints)
 {
+    if (UI::RmlBridge::ThemeUsesEmbeddedInventory() &&
+        (g_pNewUISystem->IsVisible(mu::ui::window::INTERFACE_NPCSHOP) ||
+         g_pNewUISystem->IsVisible(mu::ui::window::INTERFACE_MIXINVENTORY)))
+    {
+        g_pSystemLogBox->AddText(L"Close the shop or crafting window to use this item.",
+                                 mu::ui::window::TYPE_ERROR_MESSAGE);
+        return;
+    }
     if (!IsCanUseItem())
     {
         g_pSystemLogBox->AddText(I18N::Game::YouCannotUseYourItemsWhileUsingTheVaultOrWhileTrading, mu::ui::window::TYPE_ERROR_MESSAGE);
@@ -1746,6 +1756,17 @@ void GetSpecialOptionText(int Type, wchar_t* Text, WORD Option, BYTE Value, int 
         break;
     }
 }
+
+namespace
+{
+void AppendEquipmentTooltipOptions(ITEM* item)
+{
+    auto* inventory = g_pMyInventory->GetInventoryCtrl();
+    const bool equipped = inventory->FindItemByKey(item->Key) == nullptr;
+    TextNum = g_csItemOption.RenderSetOptionListInItem(item, TextNum, equipped);
+    TextNum = g_SocketItemMgr.AttachToolTipForSocketItem(item, TextNum);
+}
+} // namespace
 
 // (sx, sy) in the screen's 640x480 stretch, `screen`.
 static void RenderItemInfo(const UI::Scaling::Transform& screen, int sx, int sy, ITEM* ip, bool Sell, int Inventype,
@@ -5258,56 +5279,25 @@ static void RenderItemInfo(const UI::Scaling::Transform& screen, int sx, int sy,
 
     if (!bItemTextListBoxUse)
     {
-        bool bThisisEquippedItem = false;
-
-        mu::ui::window::CInventoryCtrl* pNewInventoryCtrl = g_pMyInventory->GetInventoryCtrl();
-        ITEM* pFindItem = pNewInventoryCtrl->FindItemByKey(ip->Key);
-        (pFindItem == NULL) ? bThisisEquippedItem = true : bThisisEquippedItem = false;
-
-        TextNum = g_csItemOption.RenderSetOptionListInItem(ip, TextNum, bThisisEquippedItem);
-
-        TextNum = g_SocketItemMgr.AttachToolTipForSocketItem(ip, TextNum);
-
-        SIZE TextSize = { 0, 0 };
-        int	Height = 0;
-        int	EmptyLine = 0;
-        int TextLine = 0;
-
-        for (int i = 0; i < TextNum; ++i)
-        {
-            if (TextList[i][0] == '\0')		break;
-            else if (TextList[i][0] == '\n')	++EmptyLine;
-            else							++TextLine;
-        }
-        g_pRenderText->SetFont(g_hFont);
-        TextSize = g_pRenderText->MeasureText(L"Q", 1);
-
-        Height = static_cast<int>((TextLine * TextSize.cy + EmptyLine * TextSize.cy / 2.0f) * 1.1f);
-
-        int iScreenHeight = 420;
-
-        int nInvenHeight = p->Height * INVENTORY_SCALE;
-
+        AppendEquipmentTooltipOptions(ip);
         sy += INVENTORY_SCALE;
-        if (sy + Height > iScreenHeight)
-        {
-            sy += iScreenHeight - (sy + Height);
-        }
-        else if (sy + Height > iScreenHeight)
-        {
-        }
     }
 
-    bool isrendertooltip = true;
-
-    if (isrendertooltip)
-    {
-        UI::Tooltip::ShowLegacyTextList(
-            TextNum,
-            UI::Scaling::PositionX(screen, static_cast<float>(sx)),
-            UI::Scaling::PositionY(screen, static_cast<float>(sy)),
-            bItemTextListBoxUse ? UI::Tooltip::Placement::Above : UI::Tooltip::Placement::Below);
-    }
+    // Let the shared tooltip use its measured size and the real viewport. The original Y=420
+    // clamp was in legacy units and pushed lower item tooltips back across the cursor.
+    const UI::Scaling::Transform cursorTransform = UI::Scaling::ScreenOverlayTransform(WindowWidth, WindowHeight);
+    const float cursorBottom = g_fWindowMouseY + UI::Scaling::SizeY(cursorTransform, UI::Widgets::GameCursorSize);
+    const float anchorY = bItemTextListBoxUse
+                              ? UI::Scaling::PositionY(screen, static_cast<float>(sy))
+                              : std::max(UI::Scaling::PositionY(screen, static_cast<float>(sy)), cursorBottom);
+    const std::optional<float> flipAnchorY =
+        bItemTextListBoxUse
+            ? std::nullopt
+            : std::optional<float>{g_fWindowMouseY -
+                                   UI::Scaling::SizeY(cursorTransform, 2.f * UI::Widgets::GameCursorHotspotInset)};
+    UI::Tooltip::ShowLegacyTextList(TextNum, UI::Scaling::PositionX(screen, static_cast<float>(sx)), anchorY,
+                                    bItemTextListBoxUse ? UI::Tooltip::Placement::Above : UI::Tooltip::Placement::Below,
+                                    UI::Tooltip::ItemInfoOwner(), flipAnchorY);
 }
 
 // (sx, sy) in the screen's 640x480 stretch, `screen`.
@@ -5413,7 +5403,10 @@ static void RenderRepairInfo(const UI::Scaling::Transform& screen, int sx, int s
             if (iGold == -1)
                 return;
             ConvertRepairGold(iGold, ip->Durability, maxDurability, ip->Type, Text);
-            mu_swprintf(TextList[TextNum], I18N::Game::RepairingCostS, Text);
+            if (UI::RmlBridge::ThemeUsesEmbeddedInventory())
+                mu_swprintf(TextList[TextNum], L"Repair estimate: %ls Zen", Text);
+            else
+                mu_swprintf(TextList[TextNum], I18N::Game::RepairingCostS, Text);
 
             TextListColor[TextNum] = Color;
         }
@@ -6617,7 +6610,7 @@ constexpr float SelectedItemTurnSpeed = 0.45f;
 } // namespace
 
 void RenderObjectScreen(int Type, int ItemLevel, int excellentFlags, int ancientDiscriminator, vec3_t Target,
-                        int Select, bool PickUp)
+                        int Select, bool PickUp, float modelScale)
 {
     int Level = ItemLevel;
     vec3_t Direction, Position;
@@ -6675,7 +6668,7 @@ void RenderObjectScreen(int Type, int ItemLevel, int excellentFlags, int ancient
     CameraProjection::WorldToScreen(g_Camera, Position, &ScreenPos_X, &ScreenPos_Y);
 #endif //PBG_ADD_ITEMRESIZE
 
-    o->Scale = Scale;
+    o->Scale = Scale * modelScale;
 
     VectorCopy(Position, o->Position);
 
@@ -6693,13 +6686,22 @@ bool UI::Items::ShouldAnimatePreview(bool pointerInside, bool pickedItemActive, 
 }
 
 static void RenderItem3DAt(float sx, float sy, float Width, float Height, int Type, int Level, int excellentFlags,
-                           int ancientDiscriminator, bool PickUp, bool hovered);
+                           int ancientDiscriminator, bool PickUp, bool hovered, float modelScale = 1.f);
 
 void RenderItem3D(float sx, float sy, float Width, float Height, int Type, int Level, int excellentFlags, int ancientDiscriminator, bool PickUp)
 {
     const bool hovered = g_fWindowMouseX >= sx && g_fWindowMouseX < sx + Width && g_fWindowMouseY >= sy &&
                          g_fWindowMouseY < sy + Height;
     RenderItem3DAt(sx, sy, Width, Height, Type, Level, excellentFlags, ancientDiscriminator, PickUp, hovered);
+}
+
+void RenderItem3DScaled(float sx, float sy, float width, float height, int type, int level, int excellentFlags,
+                        int ancientDiscriminator, float modelScale)
+{
+    const bool hovered =
+        g_fWindowMouseX >= sx && g_fWindowMouseX < sx + width && g_fWindowMouseY >= sy && g_fWindowMouseY < sy + height;
+    RenderItem3DAt(sx, sy, width, height, type, level, excellentFlags, ancientDiscriminator, false, hovered,
+                   modelScale);
 }
 
 void RenderItem3DWithHover(float sx, float sy, float Width, float Height, int Type, int Level, int excellentFlags,
@@ -6709,7 +6711,7 @@ void RenderItem3DWithHover(float sx, float sy, float Width, float Height, int Ty
 }
 
 static void RenderItem3DAt(float sx, float sy, float Width, float Height, int Type, int Level, int excellentFlags,
-                           int ancientDiscriminator, bool PickUp, bool hovered)
+                           int ancientDiscriminator, bool PickUp, bool hovered, float modelScale)
 {
     const bool Success = UI::Items::ShouldAnimatePreview(hovered, g_pPickedItem != nullptr, PickUp);
 
@@ -6722,89 +6724,107 @@ static void RenderItem3DAt(float sx, float sy, float Width, float Height, int Ty
     //RenderObjectScreen(Type+MODEL_ITEM,Level,Option1,Position,Success,PickUp);
     if (Type == ITEM_BOX_OF_LUCK && Level == 1)	// 성탄의별
     {
-        RenderObjectScreen(MODEL_EVENT + 4, Level, excellentFlags, ancientDiscriminator, Position, Success, PickUp);
+        RenderObjectScreen(MODEL_EVENT + 4, Level, excellentFlags, ancientDiscriminator, Position, Success, PickUp,
+                           modelScale);
     }
     else if (Type == ITEM_BOX_OF_LUCK && Level == 2)
     {
-        RenderObjectScreen(MODEL_EVENT + 5, Level, excellentFlags, ancientDiscriminator, Position, Success, PickUp);
+        RenderObjectScreen(MODEL_EVENT + 5, Level, excellentFlags, ancientDiscriminator, Position, Success, PickUp,
+                           modelScale);
     }
     else if (Type == ITEM_BOX_OF_LUCK && Level == 3)
     {
-        RenderObjectScreen(MODEL_EVENT + 6, Level, excellentFlags, ancientDiscriminator, Position, Success, PickUp);
+        RenderObjectScreen(MODEL_EVENT + 6, Level, excellentFlags, ancientDiscriminator, Position, Success, PickUp,
+                           modelScale);
     }
     else if (Type == ITEM_BOX_OF_LUCK && Level == 5)
     {
-        RenderObjectScreen(MODEL_EVENT + 8, Level, excellentFlags, ancientDiscriminator, Position, Success, PickUp);
+        RenderObjectScreen(MODEL_EVENT + 8, Level, excellentFlags, ancientDiscriminator, Position, Success, PickUp,
+                           modelScale);
     }
     else if (Type == ITEM_BOX_OF_LUCK && Level == 6)
     {
-        RenderObjectScreen(MODEL_EVENT + 9, Level, excellentFlags, ancientDiscriminator, Position, Success, PickUp);
+        RenderObjectScreen(MODEL_EVENT + 9, Level, excellentFlags, ancientDiscriminator, Position, Success, PickUp,
+                           modelScale);
     }
     else if (Type == ITEM_BOX_OF_LUCK && 8 <= Level && Level <= 12)
     {
-        RenderObjectScreen(MODEL_EVENT + 10, Level, excellentFlags, ancientDiscriminator, Position, Success, PickUp);
+        RenderObjectScreen(MODEL_EVENT + 10, Level, excellentFlags, ancientDiscriminator, Position, Success, PickUp,
+                           modelScale);
     }
     else if (Type == ITEM_BOX_OF_LUCK && Level == 13)
     {
-        RenderObjectScreen(MODEL_EVENT + 6, Level, excellentFlags, ancientDiscriminator, Position, Success, PickUp);
+        RenderObjectScreen(MODEL_EVENT + 6, Level, excellentFlags, ancientDiscriminator, Position, Success, PickUp,
+                           modelScale);
     }
     else if (Type == ITEM_BOX_OF_LUCK && (Level == 14 || Level == 15))
     {
-        RenderObjectScreen(MODEL_EVENT + 5, Level, excellentFlags, ancientDiscriminator, Position, Success, PickUp);
+        RenderObjectScreen(MODEL_EVENT + 5, Level, excellentFlags, ancientDiscriminator, Position, Success, PickUp,
+                           modelScale);
     }
     else if (Type == ITEM_LOCHS_FEATHER && Level == 1)
     {
-        RenderObjectScreen(MODEL_EVENT + 16, Level, excellentFlags, ancientDiscriminator, Position, Success, PickUp);
+        RenderObjectScreen(MODEL_EVENT + 16, Level, excellentFlags, ancientDiscriminator, Position, Success, PickUp,
+                           modelScale);
     }
     else if (Type == ITEM_ALE && Level == 1)
     {
-        RenderObjectScreen(MODEL_EVENT + 7, Level, excellentFlags, ancientDiscriminator, Position, Success, PickUp);
+        RenderObjectScreen(MODEL_EVENT + 7, Level, excellentFlags, ancientDiscriminator, Position, Success, PickUp,
+                           modelScale);
     }
     else if (Type == ITEM_RENA)
     {
         switch (Level)
         {
         case 1:
-            RenderObjectScreen(MODEL_EVENT + 11, Level, excellentFlags, ancientDiscriminator, Position, Success, PickUp);
+            RenderObjectScreen(MODEL_EVENT + 11, Level, excellentFlags, ancientDiscriminator, Position, Success, PickUp,
+                               modelScale);
             break;
         case 2:
-            RenderObjectScreen(MODEL_EVENT + 11, Level, excellentFlags, ancientDiscriminator, Position, Success, PickUp);
+            RenderObjectScreen(MODEL_EVENT + 11, Level, excellentFlags, ancientDiscriminator, Position, Success, PickUp,
+                               modelScale);
             break;
         case 3:
             RenderObjectScreen(Data::Items::ToModelSlot(Type), Level, excellentFlags, ancientDiscriminator, Position,
-                               Success, PickUp);
+                               Success, PickUp, modelScale);
             break;
         default:
             RenderObjectScreen(Data::Items::ToModelSlot(Type), Level, excellentFlags, ancientDiscriminator, Position,
-                               Success, PickUp);
+                               Success, PickUp, modelScale);
             break;
         }
     }
     else if (Type == ITEM_PUMPKIN_OF_LUCK)
     {
-        RenderObjectScreen(MODEL_PUMPKIN_OF_LUCK, Level, excellentFlags, ancientDiscriminator, Position, Success, PickUp);
+        RenderObjectScreen(MODEL_PUMPKIN_OF_LUCK, Level, excellentFlags, ancientDiscriminator, Position, Success,
+                           PickUp, modelScale);
     }
     else if (Type >= ITEM_JACK_OLANTERN_BLESSINGS && Type <= ITEM_JACK_OLANTERN_CRY)
     {
-        RenderObjectScreen(MODEL_JACK_OLANTERN_BLESSINGS, Level, excellentFlags, ancientDiscriminator, Position, Success, PickUp);
+        RenderObjectScreen(MODEL_JACK_OLANTERN_BLESSINGS, Level, excellentFlags, ancientDiscriminator, Position,
+                           Success, PickUp, modelScale);
     }
     else if (Type == ITEM_JACK_OLANTERN_FOOD)
     {
-        RenderObjectScreen(MODEL_JACK_OLANTERN_FOOD, Level, excellentFlags, ancientDiscriminator, Position, Success, PickUp);
+        RenderObjectScreen(MODEL_JACK_OLANTERN_FOOD, Level, excellentFlags, ancientDiscriminator, Position, Success,
+                           PickUp, modelScale);
     }
     else if (Type == ITEM_JACK_OLANTERN_DRINK)
     {
-        RenderObjectScreen(MODEL_JACK_OLANTERN_DRINK, Level, excellentFlags, ancientDiscriminator, Position, Success, PickUp);
+        RenderObjectScreen(MODEL_JACK_OLANTERN_DRINK, Level, excellentFlags, ancientDiscriminator, Position, Success,
+                           PickUp, modelScale);
     }
     else if (Type == ITEM_PINK_CHOCOLATE_BOX)
     {
         switch (Level)
         {
         case 0:
-            RenderObjectScreen(MODEL_PINK_CHOCOLATE_BOX, Level, excellentFlags, ancientDiscriminator, Position, Success, PickUp);
+            RenderObjectScreen(MODEL_PINK_CHOCOLATE_BOX, Level, excellentFlags, ancientDiscriminator, Position, Success,
+                               PickUp, modelScale);
             break;
         case 1:
-            RenderObjectScreen(MODEL_EVENT + 21, Level, excellentFlags, ancientDiscriminator, Position, Success, PickUp);
+            RenderObjectScreen(MODEL_EVENT + 21, Level, excellentFlags, ancientDiscriminator, Position, Success, PickUp,
+                               modelScale);
             break;
         }
     }
@@ -6813,10 +6833,12 @@ static void RenderItem3DAt(float sx, float sy, float Width, float Height, int Ty
         switch (Level)
         {
         case 0:
-            RenderObjectScreen(MODEL_RED_CHOCOLATE_BOX, Level, excellentFlags, ancientDiscriminator, Position, Success, PickUp);
+            RenderObjectScreen(MODEL_RED_CHOCOLATE_BOX, Level, excellentFlags, ancientDiscriminator, Position, Success,
+                               PickUp, modelScale);
             break;
         case 1:
-            RenderObjectScreen(MODEL_EVENT + 22, Level, excellentFlags, ancientDiscriminator, Position, Success, PickUp);
+            RenderObjectScreen(MODEL_EVENT + 22, Level, excellentFlags, ancientDiscriminator, Position, Success, PickUp,
+                               modelScale);
             break;
         }
     }
@@ -6825,10 +6847,12 @@ static void RenderItem3DAt(float sx, float sy, float Width, float Height, int Ty
         switch (Level)
         {
         case 0:
-            RenderObjectScreen(MODEL_BLUE_CHOCOLATE_BOX, Level, excellentFlags, ancientDiscriminator, Position, Success, PickUp);
+            RenderObjectScreen(MODEL_BLUE_CHOCOLATE_BOX, Level, excellentFlags, ancientDiscriminator, Position, Success,
+                               PickUp, modelScale);
             break;
         case 1:
-            RenderObjectScreen(MODEL_EVENT + 23, Level, excellentFlags, ancientDiscriminator, Position, Success, PickUp);
+            RenderObjectScreen(MODEL_EVENT + 23, Level, excellentFlags, ancientDiscriminator, Position, Success, PickUp,
+                               modelScale);
             break;
         }
     }
@@ -6837,13 +6861,16 @@ static void RenderItem3DAt(float sx, float sy, float Width, float Height, int Ty
         switch (Level)
         {
         case 0:
-            RenderObjectScreen(MODEL_DIVINE_STAFF_OF_ARCHANGEL, -1, excellentFlags, ancientDiscriminator, Position, Success, PickUp);
+            RenderObjectScreen(MODEL_DIVINE_STAFF_OF_ARCHANGEL, -1, excellentFlags, ancientDiscriminator, Position,
+                               Success, PickUp, modelScale);
             break;
         case 1:
-            RenderObjectScreen(MODEL_DIVINE_SWORD_OF_ARCHANGEL, -1, excellentFlags, ancientDiscriminator, Position, Success, PickUp);
+            RenderObjectScreen(MODEL_DIVINE_SWORD_OF_ARCHANGEL, -1, excellentFlags, ancientDiscriminator, Position,
+                               Success, PickUp, modelScale);
             break;
         case 2:
-            RenderObjectScreen(MODEL_DIVINE_CB_OF_ARCHANGEL, -1, excellentFlags, ancientDiscriminator, Position, Success, PickUp);
+            RenderObjectScreen(MODEL_DIVINE_CB_OF_ARCHANGEL, -1, excellentFlags, ancientDiscriminator, Position,
+                               Success, PickUp, modelScale);
             break;
         }
     }
@@ -6853,10 +6880,11 @@ static void RenderItem3DAt(float sx, float sy, float Width, float Height, int Ty
         {
         case 0:
             RenderObjectScreen(Data::Items::ToModelSlot(Type), Level, excellentFlags, ancientDiscriminator, Position,
-                               Success, PickUp);
+                               Success, PickUp, modelScale);
             break;
         case 1:
-            RenderObjectScreen(MODEL_EVENT + 12, -1, excellentFlags, ancientDiscriminator, Position, Success, PickUp);
+            RenderObjectScreen(MODEL_EVENT + 12, -1, excellentFlags, ancientDiscriminator, Position, Success, PickUp,
+                               modelScale);
             break;
         }
     }
@@ -6866,10 +6894,11 @@ static void RenderItem3DAt(float sx, float sy, float Width, float Height, int Ty
         {
         case 0:
             RenderObjectScreen(Data::Items::ToModelSlot(Type), Level, excellentFlags, ancientDiscriminator, Position,
-                               Success, PickUp);
+                               Success, PickUp, modelScale);
             break;
         case 1:
-            RenderObjectScreen(MODEL_EVENT + 13, -1, excellentFlags, ancientDiscriminator, Position, Success, PickUp);
+            RenderObjectScreen(MODEL_EVENT + 13, -1, excellentFlags, ancientDiscriminator, Position, Success, PickUp,
+                               modelScale);
             break;
         }
     }
@@ -6878,18 +6907,21 @@ static void RenderItem3DAt(float sx, float sy, float Width, float Height, int Ty
         switch (Level)
         {
         case 0:
-            RenderObjectScreen(MODEL_EVENT + 15, Level, excellentFlags, ancientDiscriminator, Position, Success, PickUp);
+            RenderObjectScreen(MODEL_EVENT + 15, Level, excellentFlags, ancientDiscriminator, Position, Success, PickUp,
+                               modelScale);
             break;
         case 1:
         case 2:
         case 3:
-            RenderObjectScreen(MODEL_EVENT + 14, Level, excellentFlags, ancientDiscriminator, Position, Success, PickUp);
+            RenderObjectScreen(MODEL_EVENT + 14, Level, excellentFlags, ancientDiscriminator, Position, Success, PickUp,
+                               modelScale);
             break;
         }
     }
     else if (Type == ITEM_LIFE_STONE_ITEM && Level == 1)
     {
-        RenderObjectScreen(MODEL_EVENT + 18, Level, excellentFlags, ancientDiscriminator, Position, Success, PickUp);
+        RenderObjectScreen(MODEL_EVENT + 18, Level, excellentFlags, ancientDiscriminator, Position, Success, PickUp,
+                           modelScale);
     }
     else if (Type == ITEM_POTION + 100)
     {
@@ -6903,12 +6935,13 @@ static void RenderItem3DAt(float sx, float sy, float Width, float Height, int Ty
             _Angle = Success;
         }
 
-        RenderObjectScreen(MODEL_POTION + 100, Level, excellentFlags, ancientDiscriminator, Position, _Angle, PickUp);
+        RenderObjectScreen(MODEL_POTION + 100, Level, excellentFlags, ancientDiscriminator, Position, _Angle, PickUp,
+                           modelScale);
     }
     else
     {
         RenderObjectScreen(Render::Items::Display::GetInventoryModel(Type), Level, excellentFlags, ancientDiscriminator,
-                           Position, Success, PickUp);
+                           Position, Success, PickUp, modelScale);
     }
 }
 

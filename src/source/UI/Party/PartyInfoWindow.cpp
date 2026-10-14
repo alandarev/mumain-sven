@@ -175,6 +175,9 @@ bool CPartyInfoWindow::Render()
 
 bool CPartyInfoWindow::LeaveParty(const int iIndex)
 {
+    if (iIndex < 0 || iIndex >= PartyNumber ||
+        (wcscmp(Party[0].Name, Hero->ID) && wcscmp(Party[iIndex].Name, Hero->ID)))
+        return false;
     if (!gMapManager.IsCursedTemple())
     {
         PlayBuffer(SOUND_CLICK01);

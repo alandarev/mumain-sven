@@ -1,0 +1,33 @@
+/* Passive native Crywolf state; widths/timing and artwork remain native. */
+#battle_panel { position: absolute; left: 0; top: 0; width: 640px; height: 480px; pointer-events: none; }
+#battle_back { position: absolute; left: 500px; top: 264px; width: 140px; height: 165px; background-color: #071711ff; border: 1px #9c8855; box-sizing: border-box; pointer-events: none; }
+.battle-label { display: block; position: absolute; color: #c7c8ad; transform-origin: left top; white-space: nowrap; pointer-events: none; }
+.battle-title { left: 508px; top: 270px; font-weight: bold; color: #e6d3a7; }
+.altar-label { left: 508px; top: 290px; }
+.shield-label { left: 508px; top: 326px; }
+.altar:nth-child(1) { left: 511px; top: 305px; }
+.altar:nth-child(2) { left: 535px; top: 305px; }
+.altar:nth-child(3) { left: 559px; top: 305px; }
+.altar:nth-child(4) { left: 583px; top: 305px; }
+.altar:nth-child(5) { left: 607px; top: 305px; }
+#shield_track { position: absolute; left: 548px; top: 327px; width: 89px; height: 7px; background-color: #28392c; }
+#statue_bar { position: absolute; top: 327px; height: 7px; background-color: #82945a; }
+#boss_track { position: absolute; left: 548px; top: 388px; width: 68px; height: 7px; background-color: #392b27; }
+#balgass_bar { position: absolute; left: 548px; top: 388px; height: 7px; background-color: #b46650; }
+.hud-text { color: #ded1b4; }
+.notice { color: #c3cfb0; background-color: #071711e8; }
+.notice.heading { color: #e6d3a7; }
+#result_back { position: absolute; left: 142px; top: 42px; width: 365px; height: 250px; border: 1px #9c8855; background-color: #071711ff; pointer-events: none; }
+#rank_back { position: absolute; left: 220px; top: 150px; width: 215px; height: 130px; border: 1px #535b47; background-color: #071711ff; pointer-events: none; }
+@media (max-width: 1100px) {
+ #battle_panel { transform: translateY(-170px); }
+}
+
+@media (max-width: 1100px) {
+ .notices { position: absolute; left: 12px; top: 58px; width: 350px; }
+ .notices .notice { position: relative; left: 0; white-space: normal; margin-bottom: 4px; }
+ .notices .notice:nth-child(1), .notices .notice:nth-child(2), .notices .notice:nth-child(3), .notices .notice:nth-child(4) { top: auto; }
+}
+
+.hud-width-200 { width: calc(200px * var(--root-scale)); }
+.hud-width-350 { width: calc(350px * var(--root-scale)); }

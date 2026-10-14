@@ -25,6 +25,7 @@
 #include "I18N/All.h"
 #include "GameLogic/Items/ShopRestrictions.h"
 #include "GameLogic/Items/TradeRestrictions.h"
+#include "UI/RmlBridge/RmlTheme.h"
 
 namespace mu::ui::window
 {
@@ -44,6 +45,13 @@ bool CInventoryActionController::HandleInventoryActions(CInventoryCtrl* targetCo
     }
 
     const bool hasPickedItem = CInventoryCtrl::GetPickedItem() != nullptr;
+    if (UI::RmlBridge::ThemeUsesEmbeddedInventory() && !hasPickedItem &&
+        m_pContext->GetRepairMode() == SEASON3B::REPAIR_MODE_OFF && targetControl->ContainsPointer() &&
+        IsPress(VK_LBUTTON) && (IsRepeat(VK_SHIFT) || IsPress(VK_SHIFT)))
+    {
+        m_pContext->ResetMouseLButton();
+        return HandleFastTransfer(targetControl);
+    }
     if (UI::Items::Drag::ShouldConsumePanelPress(hasPickedItem, IsPress(VK_LBUTTON)))
     {
         return true;
@@ -126,12 +134,28 @@ bool CInventoryActionController::TryMoveItem(CInventoryCtrl* targetControl, CPic
 {
     if (iTargetIndex < 0 || !targetControl->CanMove(iTargetIndex, pPickItem))
     {
+        if (UI::RmlBridge::ThemeUsesEmbeddedInventory() && targetControl->ContainsPointer())
+        {
+            const auto& attributes = ItemAttribute[pPickItem->Type];
+            const bool withinSection =
+                UI::Items::Grid::Fits(iTargetIndex - targetControl->GetIndex(0, 0), attributes.Width, attributes.Height,
+                                      targetControl->GetNumberOfColumn(), targetControl->GetNumberOfRow());
+            g_pSystemLogBox->AddText(withinSection ? L"Those inventory cells are occupied."
+                                                   : L"The item must fit within one inventory section.",
+                                     TYPE_ERROR_MESSAGE);
+            return true;
+        }
         return false;
     }
 
     const auto sourceStorageType = pPickedItem->GetSourceStorageType();
     const auto targetStorageType = targetControl->GetStorageType();
 
+    if (sourceStorageType == STORAGE_TYPE::VAULT && targetStorageType == STORAGE_TYPE::INVENTORY)
+    {
+        g_pStorageInventory->SendRequestItemToMyInven(pPickItem, iSourceIndex, iTargetIndex);
+        return true;
+    }
     if (iTargetIndex != iSourceIndex)
     {
         return SendRequestEquipmentItem(sourceStorageType, iSourceIndex, pPickItem, targetStorageType, iTargetIndex);
@@ -149,6 +173,9 @@ bool CInventoryActionController::HandleRepairClick(CInventoryCtrl* targetControl
 bool CInventoryActionController::HandleRightClick(CInventoryCtrl* targetControl) const
 {
     m_pContext->ResetMouseRButton();
+
+    if (UI::RmlBridge::ThemeUsesEmbeddedInventory())
+        return HandleInventoryRightClickActions(targetControl);
 
     if (g_pNewUISystem->IsVisible(INTERFACE_STORAGE))
     {
@@ -185,6 +212,19 @@ bool CInventoryActionController::HandleRightClick(CInventoryCtrl* targetControl)
     return false;
 }
 
+bool CInventoryActionController::HandleFastTransfer(CInventoryCtrl* targetControl) const
+{
+    if (g_pNewUISystem->IsVisible(INTERFACE_TRADE))
+        return g_pTrade->ProcessMyInvenItemAutoMove(targetControl);
+    if (g_pNewUISystem->IsVisible(INTERFACE_STORAGE))
+        return HandleStorageAutoMove(targetControl);
+    if (g_pNewUISystem->IsVisible(INTERFACE_NPCSHOP))
+        return HandleSellToNPC(targetControl);
+    if (g_pNewUISystem->IsVisible(INTERFACE_MIXINVENTORY))
+        return HandleMixAutoMove(targetControl);
+    return TryTransferBetweenInventorySections(targetControl);
+}
+
 bool CInventoryActionController::HandleStorageAutoMove(CInventoryCtrl* targetControl) const
 {
     if (g_pStorageInventory->ProcessMyInvenItemAutoMove(targetControl))
@@ -192,7 +232,7 @@ bool CInventoryActionController::HandleStorageAutoMove(CInventoryCtrl* targetCon
         return true;
     }
 
-    if (g_pNewUISystem->IsVisible(INTERFACE_STORAGE_EXT))
+    if (g_pStorageInventoryExt->IsAvailable())
     {
         return g_pStorageInventoryExt->ProcessMyInvenItemAutoMove(targetControl);
     }
@@ -229,7 +269,7 @@ bool CInventoryActionController::HandleSellToNPC(CInventoryCtrl* targetControl) 
         return false;
     }
 
-    if (g_pNPCShop->IsSellingItem())
+    if (g_pNPCShop->IsTransactionPending() || g_pNPCShop->GetShopState() == CNPCShop::SHOP_STATE_REPAIR)
     {
         return false;
     }
@@ -260,56 +300,12 @@ bool CInventoryActionController::HandleSellToNPC(CInventoryCtrl* targetControl) 
     targetControl->RemoveItem(pItem);
     pPickedItem->HidePickedItem();
 
-    const int sourceIndex = pPickedItem->GetSourceLinealPos();
-    if (sourceIndex < MAX_EQUIPMENT_INDEX || sourceIndex >= MAX_MY_INVENTORY_EX_INDEX)
-    {
-        CInventoryCtrl::BackupPickedItem();
-        return false;
-    }
-
-    if (GameLogic::Items::IsHighValueItem(pItem))
-    {
-        GenericDialogConfig cfg;
-        cfg.showCancel = true;
-        if (ITEM* pPreviewItem = pPickedItem->GetItem())
-        {
-            cfg.item3D = *pPreviewItem;
-        }
-        cfg.lines = {
-            { I18N::Game::AnExpensiveItem, true },
-            { I18N::Game::CheckTheItemPlease, true },
-            { I18N::Game::AreYouSureYouWantToSellIt, true },
-        };
-        cfg.onPrimary = []
-        {
-            CPickedItem* pPickedItem = CInventoryCtrl::GetPickedItem();
-            int iSourceIndex = pPickedItem ? pPickedItem->GetSourceLinealPos() : -1;
-            if (iSourceIndex >= MAX_EQUIPMENT_INDEX && iSourceIndex < MAX_MY_INVENTORY_EX_INDEX)
-            {
-                SocketClient->ToGameServer()->SendSellItemToNpcRequest(iSourceIndex);
-                g_pNPCShop->SetSellingItem(true);
-            }
-            else
-            {
-                CInventoryCtrl::BackupPickedItem();
-            }
-        };
-        cfg.onCancel = []
-        {
-            CInventoryCtrl::BackupPickedItem();
-        };
-        g_pGenericConfirmDialog->Show(std::move(cfg));
-        return true;
-    }
-
-    SocketClient->ToGameServer()->SendSellItemToNpcRequest(sourceIndex);
-    g_pNPCShop->SetSellingItem(true);
-    return true;
+    return g_pNPCShop->SellPickedItem();
 }
 
 bool CInventoryActionController::HandleInventoryRightClickActions(CInventoryCtrl* targetControl) const
 {
-    if (g_pNewUISystem->IsVisible(INTERFACE_INVENTORY_EXT))
+    if (!UI::RmlBridge::ThemeUsesEmbeddedInventory() && g_pNewUISystem->IsVisible(INTERFACE_INVENTORY_EXT))
     {
         return TryTransferBetweenInventorySections(targetControl);
     }
@@ -354,6 +350,12 @@ bool CInventoryActionController::HandleInventoryRightClickActions(CInventoryCtrl
         {
             return true;
         }
+    }
+
+    if (UI::RmlBridge::ThemeUsesEmbeddedInventory())
+    {
+        g_pSystemLogBox->AddText(L"Drag this item to its destination.", TYPE_SYSTEM_MESSAGE);
+        return true;
     }
 
     if (TryDropItem(targetControl, pItem))
@@ -409,6 +411,9 @@ bool CInventoryActionController::TryEquipItem(CInventoryCtrl* targetControl, ITE
 
     if (!m_pContext->IsEquipable(nDstIndex, pItem))
     {
+        if (UI::RmlBridge::ThemeUsesEmbeddedInventory())
+            g_pSystemLogBox->AddText(g_pMyInventory->EquipmentRequirementFailure(nDstIndex, pItem).c_str(),
+                                     TYPE_ERROR_MESSAGE);
         return true;
     }
 
@@ -422,12 +427,18 @@ bool CInventoryActionController::TryEquipItem(CInventoryCtrl* targetControl, ITE
         }
         else
         {
+            if (UI::RmlBridge::ThemeUsesEmbeddedInventory())
+                g_pSystemLogBox->AddText(L"Equipment slot occupied. Unequip it in Character first.",
+                                         TYPE_ERROR_MESSAGE);
             return true;
         }
     }
 
     if (!m_pContext->IsEquipable(nDstIndex, pItem))
     {
+        if (UI::RmlBridge::ThemeUsesEmbeddedInventory())
+            g_pSystemLogBox->AddText(g_pMyInventory->EquipmentRequirementFailure(nDstIndex, pItem).c_str(),
+                                     TYPE_ERROR_MESSAGE);
         return true;
     }
 
@@ -445,7 +456,8 @@ bool CInventoryActionController::TryEquipItem(CInventoryCtrl* targetControl, ITE
     targetControl->RemoveItem(pItem);
     pPickedItem->HidePickedItem();
 
-    SendRequestEquipmentItem(STORAGE_TYPE::INVENTORY, iSrcIndex, pItem, STORAGE_TYPE::INVENTORY, nDstIndex);
+    SendRequestEquipmentItem(STORAGE_TYPE::INVENTORY, iSrcIndex, pPickedItem->GetItem(), STORAGE_TYPE::INVENTORY,
+                             nDstIndex);
     return true;
 }
 
@@ -1154,6 +1166,8 @@ bool CInventoryActionController::TryTransferBetweenInventorySections(CInventoryC
 
     if (destinationIndex == -1 || destinationIndex == sourceIndex)
     {
+        if (UI::RmlBridge::ThemeUsesEmbeddedInventory())
+            g_pSystemLogBox->AddText(L"No contiguous space in the other inventory section.", TYPE_ERROR_MESSAGE);
         return true;
     }
 

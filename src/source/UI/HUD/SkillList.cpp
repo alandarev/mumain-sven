@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "UI/HUD/SkillList.h"
 #include "GameLogic/Items/ItemCategories.h"
+#include "UI/RmlBridge/RmlTheme.h"
 #include <algorithm>
 #include "I18N/All.h"
 
@@ -21,6 +22,7 @@
 #include "Character/CharacterManager.h"
 #include "GameLogic/Skills/SkillManager.h"
 #include "UI/HUD/Skills/SkillIconAtlas.h"
+#include "UI/HUD/Skills/SkillAvailability.h"
 #include "UI/HUD/Skills/SkillTooltip.h"
 #include "UI/Scaling/UITransform.h"
 #include "Core/Time/CTimCheck.h"
@@ -144,6 +146,17 @@ bool mu::ui::window::CSkillList::UpdateMouseEvent()
 
 bool mu::ui::window::CSkillList::UpdateKeyEvent()
 {
+    if (UI::RmlBridge::ThemeUsesCompactHud())
+    {
+        if (mu::ui::window::IsRepeat(VK_SHIFT) && Hero->m_pPet != nullptr)
+            for (int i = 0; i < 4; ++i)
+                if (mu::ui::window::IsPress('1' + i))
+                {
+                    OnPetCellClick(AT_PET_COMMAND_DEFAULT + i);
+                    return false;
+                }
+        return true;
+    }
     for (int i = 0; i < 9; ++i)
     {
         if (mu::ui::window::IsPress('1' + i))
@@ -271,9 +284,18 @@ int mu::ui::window::CSkillList::GetSkillIndex(int iSkillType)
 
 void mu::ui::window::CSkillList::UseHotKey(int iHotKey)
 {
-    if (m_iHotKeySkillType[iHotKey] != -1)
+    SelectSkillIndex(m_iHotKeySkillType[iHotKey]);
+}
+
+void mu::ui::window::CSkillList::SelectSkillIndex(int skillIndex)
+{
+    // Pet commands occupy skill-array slots beyond the learned-spell range.
+    if (skillIndex < 0 || skillIndex >= MAX_SKILLS || Hero == nullptr)
+        return;
+
+    if (skillIndex != -1)
     {
-        if (m_iHotKeySkillType[iHotKey] >= AT_PET_COMMAND_DEFAULT && m_iHotKeySkillType[iHotKey] < AT_PET_COMMAND_END)
+        if (skillIndex >= AT_PET_COMMAND_DEFAULT && skillIndex < AT_PET_COMMAND_END)
         {
             if (Hero->m_pPet == NULL)
             {
@@ -281,7 +303,7 @@ void mu::ui::window::CSkillList::UseHotKey(int iHotKey)
             }
         }
 
-        auto wHotKeySkill = CharacterAttribute->Skill[m_iHotKeySkillType[iHotKey]];
+        auto wHotKeySkill = CharacterAttribute->Skill[skillIndex];
 
         if (wHotKeySkill == 0)
         {
@@ -290,7 +312,7 @@ void mu::ui::window::CSkillList::UseHotKey(int iHotKey)
 
         m_wHeroPriorSkill = CharacterAttribute->Skill[Hero->CurrentSkill];
 
-        Hero->CurrentSkill = m_iHotKeySkillType[iHotKey];
+        Hero->CurrentSkill = skillIndex;
 
         auto bySkill = CharacterAttribute->Skill[Hero->CurrentSkill];
 
@@ -416,222 +438,19 @@ void mu::ui::window::CSkillList::SetHeroPriorSkill(BYTE bySkill)
 
 namespace
 {
-bool HasOneHandedOrMeleeWeapon()
+bool IsHudSkillUsable(ActionSkillType type)
 {
-    const int iTypeL = CharacterMachine->Equipment[EQUIPMENT_WEAPON_LEFT].Type;
-    const int iTypeR = CharacterMachine->Equipment[EQUIPMENT_WEAPON_RIGHT].Type;
-    return iTypeR != -1 && (iTypeR < ITEM_STAFF || iTypeR >= ITEM_STAFF + MAX_ITEM_INDEX) &&
-           (iTypeL < ITEM_STAFF || iTypeL >= ITEM_STAFF + MAX_ITEM_INDEX);
-}
-
-// The original RenderSkillIcon()'s checks that chose the grey icon: equipment, mount, buffs,
-// party, map and stats. The atlas cell itself is UI::Skills::Icon::ResolveSkillIcon().
-bool IsHudSkillUsable(ActionSkillType bySkillType)
-{
-    bool bCantSkill = false;
-
-    const BYTE bySkillUseType = SkillAttribute[bySkillType].SkillUseType;
-
-    if (!gSkillManager.AreSkillAttributeRequirementsMet(bySkillType))
-    {
-        bCantSkill = true;
-    }
-
-    if (IsCanBCSkill(bySkillType) == false)
-    {
-        bCantSkill = true;
-    }
-    if (g_isCharacterBuff((&Hero->Object), eBuff_AddSkill) && bySkillUseType == SKILL_USE_TYPE_BRAND)
-    {
-        bCantSkill = true;
-    }
-    auto isSittingOnPet = GameLogic::Items::IsHornMountModel(Hero->Helper.Type);
-    if (bySkillType == AT_SKILL_IMPALE && !isSittingOnPet)
-    {
-        bCantSkill = true;
-    }
-
-    if (bySkillType == AT_SKILL_IMPALE && isSittingOnPet)
-    {
-        int iTypeL = CharacterMachine->Equipment[EQUIPMENT_WEAPON_LEFT].Type;
-        int iTypeR = CharacterMachine->Equipment[EQUIPMENT_WEAPON_RIGHT].Type;
-        if ((iTypeL < ITEM_SPEAR || iTypeL >= ITEM_BOW) && (iTypeR < ITEM_SPEAR || iTypeR >= ITEM_BOW))
-        {
-            bCantSkill = true;
-        }
-    }
-
-    if (isSittingOnPet && ((bySkillType >= AT_SKILL_BLOCKING && bySkillType <= AT_SKILL_SLASH) ||
-                           bySkillType == AT_SKILL_FALLING_SLASH_STR || bySkillType == AT_SKILL_LUNGE_STR ||
-                           bySkillType == AT_SKILL_CYCLONE_STR || bySkillType == AT_SKILL_CYCLONE_STR_MG ||
-                           bySkillType == AT_SKILL_SLASH_STR))
-    {
-        bCantSkill = true;
-    }
-
-    if ((bySkillType == AT_SKILL_POWER_SLASH || bySkillType == AT_SKILL_POWER_SLASH_STR) && isSittingOnPet)
-    {
-        bCantSkill = true;
-    }
-
-    if (bySkillType == AT_SKILL_PARTY_TELEPORT && PartyNumber <= 0)
-    {
-        bCantSkill = true;
-    }
-
-    if (bySkillType == AT_SKILL_PARTY_TELEPORT &&
-        (IsDoppelGanger1() || IsDoppelGanger2() || IsDoppelGanger3() || IsDoppelGanger4()))
-    {
-        bCantSkill = true;
-    }
-
-    if (bySkillType == AT_SKILL_EARTHSHAKE || bySkillType == AT_SKILL_EARTHSHAKE_STR ||
-        bySkillType == AT_SKILL_EARTHSHAKE_MASTERY)
-    {
-        BYTE byDarkHorseLife = 0;
-        byDarkHorseLife = CharacterMachine->Equipment[EQUIPMENT_HELPER].Durability;
-        if (byDarkHorseLife == 0 || Hero->Helper.Type != MODEL_DARK_HORSE_ITEM)
-        {
-            bCantSkill = true;
-        }
-    }
-#ifdef PJH_FIX_SPRIT
-    /*박종훈*/
-    if (bySkillType >= AT_PET_COMMAND_DEFAULT && bySkillType < AT_PET_COMMAND_END)
-    {
-        int iCharisma = CharacterAttribute->Charisma + CharacterAttribute->AddCharisma;
-        PET_INFO PetInfo;
-        giPetManager::GetPetInfo(PetInfo, 421 - PET_TYPE_DARK_SPIRIT);
-        int RequireCharisma = (185 + (PetInfo.m_wLevel * 15));
-        if (RequireCharisma > iCharisma)
-        {
-            bCantSkill = true;
-        }
-    }
-#endif // PJH_FIX_SPRIT
-    if ((bySkillType == AT_SKILL_INFINITY_ARROW) || (bySkillType == AT_SKILL_INFINITY_ARROW_STR) ||
-        (bySkillType == AT_SKILL_EXPANSION_OF_WIZARDRY) || (bySkillType == AT_SKILL_EXPANSION_OF_WIZARDRY_STR) ||
-        (bySkillType == AT_SKILL_EXPANSION_OF_WIZARDRY_MASTERY))
-    {
-        if ((g_isCharacterBuff((&Hero->Object), eBuff_InfinityArrow)) ||
-            (g_isCharacterBuff((&Hero->Object), eBuff_SwellOfMagicPower)))
-        {
-            bCantSkill = true;
-        }
-    }
-
-    if (bySkillType == AT_SKILL_FIRE_SLASH || bySkillType == AT_SKILL_FIRE_SLASH_STR)
-    {
-        WORD Strength;
-        const WORD wRequireStrength = 596;
-        Strength = CharacterAttribute->Strength + CharacterAttribute->AddStrength;
-        if (Strength < wRequireStrength)
-        {
-            bCantSkill = true;
-        }
-        int iTypeL = CharacterMachine->Equipment[EQUIPMENT_WEAPON_LEFT].Type;
-        int iTypeR = CharacterMachine->Equipment[EQUIPMENT_WEAPON_RIGHT].Type;
-
-        if (!(iTypeR != -1 && (iTypeR < ITEM_STAFF || iTypeR >= ITEM_STAFF + MAX_ITEM_INDEX) &&
-              (iTypeL < ITEM_STAFF || iTypeL >= ITEM_STAFF + MAX_ITEM_INDEX)))
-        {
-            bCantSkill = true;
-        }
-    }
-
-    switch (bySkillType)
-    {
-        // case AT_SKILL_PIERCING:
-    case AT_SKILL_ICE_ARROW:
-    case AT_SKILL_ICE_ARROW_STR:
-    {
-        WORD Dexterity;
-        const WORD wRequireDexterity = 646;
-        Dexterity = CharacterAttribute->Dexterity + CharacterAttribute->AddDexterity;
-        if (Dexterity < wRequireDexterity)
-        {
-            bCantSkill = true;
-        }
-    }
-    break;
-    }
-
-    if (bySkillType == AT_SKILL_TWISTING_SLASH || bySkillType == AT_SKILL_TWISTING_SLASH_STR ||
-        bySkillType == AT_SKILL_TWISTING_SLASH_STR_MG || bySkillType == AT_SKILL_TWISTING_SLASH_MASTERY ||
-        bySkillType == AT_SKILL_RAGEFUL_BLOW || bySkillType == AT_SKILL_RAGEFUL_BLOW_STR ||
-        bySkillType == AT_SKILL_RAGEFUL_BLOW_MASTERY || bySkillType == AT_SKILL_DEATHSTAB ||
-        bySkillType == AT_SKILL_DEATHSTAB_STR)
-    {
-        int iTypeL = CharacterMachine->Equipment[EQUIPMENT_WEAPON_LEFT].Type;
-        int iTypeR = CharacterMachine->Equipment[EQUIPMENT_WEAPON_RIGHT].Type;
-
-        if (!(iTypeR != -1 && (iTypeR < ITEM_STAFF || iTypeR >= ITEM_STAFF + MAX_ITEM_INDEX) &&
-              (iTypeL < ITEM_STAFF || iTypeL >= ITEM_STAFF + MAX_ITEM_INDEX)))
-        {
-            bCantSkill = true;
-        }
-    }
-
-    if (gMapManager.InChaosCastle() == true)
-    {
-        if (bySkillType == AT_SKILL_EARTHSHAKE || bySkillType == AT_SKILL_EARTHSHAKE_STR ||
-            bySkillType == AT_SKILL_EARTHSHAKE_MASTERY || bySkillType == AT_SKILL_RIDER ||
-            (static_cast<int>(bySkillType) >= static_cast<int>(AT_PET_COMMAND_DEFAULT) &&
-             static_cast<int>(bySkillType) <= static_cast<int>(AT_PET_COMMAND_TARGET)))
-        {
-            bCantSkill = true;
-        }
-    }
-    else
-    {
-        if (bySkillType == AT_SKILL_EARTHSHAKE || bySkillType == AT_SKILL_EARTHSHAKE_STR ||
-            bySkillType == AT_SKILL_EARTHSHAKE_MASTERY)
-        {
-            BYTE byDarkHorseLife = 0;
-            byDarkHorseLife = CharacterMachine->Equipment[EQUIPMENT_HELPER].Durability;
-            if (byDarkHorseLife == 0)
-            {
-                bCantSkill = true;
-            }
-        }
-    }
-
-    if (!g_CMonkSystem.IsSwordformGlovesUseSkill(bySkillType))
-    {
-        bCantSkill = true;
-    }
-    if (g_CMonkSystem.IsRideNotUseSkill(bySkillType, Hero->Helper.Type))
-    {
-        bCantSkill = true;
-    }
-
-    ITEM* pLeftRing = &CharacterMachine->Equipment[EQUIPMENT_RING_LEFT];
-    ITEM* pRightRing = &CharacterMachine->Equipment[EQUIPMENT_RING_RIGHT];
-
-    if (g_CMonkSystem.IsChangeringNotUseSkill(pLeftRing->Type, pRightRing->Type, pLeftRing->Level, pRightRing->Level) &&
-        (gCharacterManager.GetBaseClass(Hero->Class) == CLASS_RAGEFIGHTER))
-    {
-        bCantSkill = true;
-    }
-
-    if (!g_csItemOption.IsNonWeaponSkillOrIsSkillEquipped(bySkillType))
-    {
-        bCantSkill = true;
-    }
-
-    if (bySkillType == AT_SKILL_MULTI_SHOT && gCharacterManager.GetEquipedBowType_Skill() == BOWTYPE_NONE)
-    {
-        bCantSkill = true;
-    }
-
-    if (bySkillType == AT_SKILL_FLAME_STRIKE && !HasOneHandedOrMeleeWeapon())
-    {
-        bCantSkill = true;
-    }
-
-    return !bCantSkill;
+    return UI::Skills::ReadSkillRequirements(type).Usable();
 }
 } // namespace
+
+bool mu::ui::window::CSkillList::IsSkillUsable(int index) const
+{
+    if (Hero == nullptr || Hero->Dead != 0 || index < 0 || index >= MAX_MAGIC)
+        return false;
+    const auto type = CharacterAttribute->Skill[index];
+    return type != 0 && IsHudSkillUsable(type);
+}
 
 Rml::String mu::ui::window::CSkillList::GetSkillIconDecorator(int iIndex)
 {

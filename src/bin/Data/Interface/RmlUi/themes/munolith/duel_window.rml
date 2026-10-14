@@ -1,0 +1,29 @@
+<rml>
+<head>
+	<title>Duel</title>
+	<link type="text/rcss" href="base.rcss"/>
+	<link type="text/rcss" href="../legacy/duel_window.rcss"/>
+	<link type="text/rcss" href="match_scorecard.rcss"/>
+</head>
+<body data-model="duel_window" class="duel-card">
+	<!-- The duel score window (CDuelWindow) above the bottom HUD's right end: both duellists' names
+	     and scores. A LayoutMode::Hud window, so .screen is the 640x480 reference screen stretched
+	     W/640 x H/480 like the original and #panel sits at the window's reference position (m_Pos).
+	     Text does not stretch: each value takes the native bold text size and cancels the stretch
+	     with the inverse one. Takes no pointer events, as the original took none. -->
+	<div class="screen">
+		<div id="panel">
+			<div id="back"></div>
+			<span class="match-caption counter-scaled" data-style-font-size="(bold_text_px &lt; 8 ? 8 : bold_text_px) + 'px'">Duel</span>
+			<span class="duel-text hero counter-scaled hud-width-125" id="hero_name" data-style-font-size="(bold_text_px &lt; 8 ? 8 : bold_text_px) + 'px'"
+			     >{{hero_name}}</span>
+			<span class="duel-text hero counter-scaled" id="hero_score" data-style-font-size="(bold_text_px &lt; 8 ? 8 : bold_text_px) + 'px'"
+			     >{{hero_score}}</span>
+			<span class="duel-text enemy counter-scaled hud-width-125" id="enemy_name" data-style-font-size="(bold_text_px &lt; 8 ? 8 : bold_text_px) + 'px'"
+			     >{{enemy_name}}</span>
+			<span class="duel-text enemy counter-scaled" id="enemy_score" data-style-font-size="(bold_text_px &lt; 8 ? 8 : bold_text_px) + 'px'"
+			     >{{enemy_score}}</span>
+		</div>
+	</div>
+</body>
+</rml>

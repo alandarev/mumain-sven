@@ -1,0 +1,4 @@
+<rml><head><title>Satchel Background</title><link type="text/rcss" href="my_inventory_shared.rcss"/><link type="text/rcss" href="my_inventory_bg.rcss"/></head>
+<body data-model="my_inventory_bg"><div id="bg_root" data-class-expanded-one="owned_extensions == 1" data-class-expanded-two="owned_extensions == 2">
+<div class="stone"/><div class="shade"/><div class="trim top-left"/><div class="trim top-mid"/><div class="trim top-right"/><div class="trim side-left"/><div class="trim side-right"/><div class="trim bottom-left"/><div class="trim bottom-mid"/><div class="trim bottom-right"/>
+<div class="grid"><div class="grid-row" data-for="row : rows" data-class-partition="row == 8 || row == 12"><div class="cell"/><div class="cell"/><div class="cell"/><div class="cell"/><div class="cell"/><div class="cell"/><div class="cell"/><div class="cell"/></div></div></div></body></rml>

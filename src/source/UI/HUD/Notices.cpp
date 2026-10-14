@@ -58,6 +58,8 @@ namespace
     // Render() (the loading scene draws no notices).
     UI::RmlBridge::ThemedView<UI::Notices::NoticesRmlModel> s_view{"notices", BindModel, {{"Data/Interface/RmlUi/notices.rml"}}};
     bool s_renderedThisFrame = false;
+    bool s_hudDialogOpen = false;
+    bool s_armoryOpen = false;
 
     // Shift the buffer up by one when it is full so the newest line fits.
     void Scroll()
@@ -116,12 +118,29 @@ namespace UI::Notices
             UI::RmlBridge::SyncDocumentVisibility(s_view.Document(), false);
         s_renderedThisFrame = false;
 
+        if (s_hudDialogOpen || s_armoryOpen)
+            return;
+
         s_time -= FPS_ANIMATION_FACTOR;
         if (s_time <= 0)
         {
             s_time = NOTICE_LIFETIME;
             Create(L"", 0);
         }
+    }
+
+    void SetHudDialogOpen(bool open)
+    {
+        s_hudDialogOpen = open;
+        if (open)
+            UI::RmlBridge::SyncDocumentVisibility(s_view.Document(), false);
+    }
+
+    void SetArmoryOpen(bool open)
+    {
+        s_armoryOpen = open;
+        if (open)
+            UI::RmlBridge::SyncDocumentVisibility(s_view.Document(), false);
     }
 
     namespace
@@ -200,6 +219,11 @@ namespace UI::Notices
     void Render()
     {
         s_renderedThisFrame = true;
+        if (s_hudDialogOpen || s_armoryOpen)
+        {
+            UI::RmlBridge::SyncDocumentVisibility(s_view.Document(), false);
+            return;
+        }
 
 #ifdef KJH_ADD_INGAMESHOP_UI_SYSTEM
         if (g_pNewUISystem->IsVisible(mu::ui::window::INTERFACE_INGAMESHOP) == true)

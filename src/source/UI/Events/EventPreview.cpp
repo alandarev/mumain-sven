@@ -1,5 +1,7 @@
 #include "stdafx.h"
 
+#include <cstdio>
+
 #include "UI/Events/EventPreview.h"
 
 #include "Engine/Object/ZzzCharacter.h"
@@ -294,7 +296,7 @@ void ReturnMatch()
 MatchResult SampleResult(const char* name, DWORD score, DWORD exp, DWORD zen)
 {
     MatchResult result{};
-    strncpy_s(reinterpret_cast<char*>(result.m_lpID), sizeof(result.m_lpID), name, _TRUNCATE);
+    std::snprintf(reinterpret_cast<char*>(result.m_lpID), sizeof(result.m_lpID), "%s", name);
     result.m_iScore = score;
     result.m_dwExp = exp;
     result.m_iZen = zen;

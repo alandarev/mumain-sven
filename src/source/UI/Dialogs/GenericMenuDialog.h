@@ -11,6 +11,7 @@
 #include <deque>
 #include <functional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace Rml { class ElementDocument; }
@@ -83,6 +84,8 @@ namespace mu::ui::window
         std::string kind;
         // The in-game system menu (native CSystemMenuMsgBox): a theme may lay it out like native.
         bool systemMenu = false;
+        // A crafting NPC's menu: a theme may present it as such, with a close action.
+        bool crafting = false;
 
         // Optional, fires on Esc. Decoupled from `buttons` (not "whichever button is last") so a
         // caller can't accidentally rely on button order for cancel semantics.
@@ -99,6 +102,9 @@ namespace mu::ui::window
     class CGenericMenuDialog : public CObject
     {
     public:
+        CGenericMenuDialog() = default;
+        CGenericMenuDialog(const CGenericMenuDialog&) = delete;
+        CGenericMenuDialog& operator=(const CGenericMenuDialog&) = delete;
         void Create(CManager* pMng);
         void Release();
 
@@ -119,6 +125,28 @@ namespace mu::ui::window
         // value, not low -- CManager::CompareKeyEventOrder sorts descending (highest runs first),
         // the opposite of what "first priority" suggests. 100.0f, matching that sibling exactly.
         float GetKeyEventOrder() override { return 100.0f; }
+        bool IsOnlySystemMenu() const
+        {
+            return m_bActive && m_Queue.empty() && !m_bButtonClicked && m_Active.systemMenu;
+        }
+        // The ordinary cancel path, restricted to an identified system menu.
+        bool DismissSystemMenu();
+        void OnButtonClicked(int index);
+#if MU_ENABLE_CONTROL_SOCKET
+        // Only this fixed-content constructor can associate a token with m_Active.
+        // Tokens are never copied into caller-supplied or queued configurations.
+        std::string CreateControlFixture(std::string_view nonce);
+        bool OwnsControlFixture(std::string_view token) const;
+        bool RetireControlFixture(std::string_view token);
+        bool HasQueuedMenus() const
+        {
+            return !m_Queue.empty();
+        }
+        bool HasPendingClick() const
+        {
+            return m_bButtonClicked;
+        }
+#endif
 
     private:
         void BuildRmlUi();
@@ -157,6 +185,7 @@ namespace mu::ui::window
             // For a theme that gives the system menu its own heading and a close action.
             Rml::String systemMenuLabel;
             Rml::String closeLabel;
+            bool isCraftingMenu = false; // GenericMenuConfig::crafting
             bool highlightTitle = false;
             Rml::String kind;      // GenericMenuConfig::kind
             float canvasTop = 0.f; // UI::RmlBridge::DialogCanvasTop, in dp
@@ -172,6 +201,7 @@ namespace mu::ui::window
             float rootX = 0.f;
             float rootY = 0.f;
         };
+        void BindMenuPresentation(Rml::DataModelConstructor& c, GenericMenuRmlModel& model);
         void BindRmlModel(Rml::DataModelConstructor& c, GenericMenuRmlModel& model);
         UI::RmlBridge::ThemedView<GenericMenuRmlModel> m_RmlView{"generic_menu_dialog",
             [this](Rml::DataModelConstructor& c, GenericMenuRmlModel& model) { BindRmlModel(c, model); },
@@ -185,6 +215,9 @@ namespace mu::ui::window
         std::deque<GenericMenuConfig> m_Queue;
         GenericMenuConfig m_Active;
         bool m_bActive = false;
+#if MU_ENABLE_CONTROL_SOCKET
+        std::string m_ControlFixtureToken;
+#endif
     };
 
     // Convenience global, same convention as g_pGenericConfirmDialog. Set once, in

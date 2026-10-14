@@ -151,6 +151,7 @@ private:
         Rml::String charName;
     };
     void BindRmlModel(Rml::DataModelConstructor& c, CharMakeRmlModel& model);
+    void BindActions(Rml::DataModelConstructor& c);
     UI::RmlBridge::ThemedView<CharMakeRmlModel> m_RmlView{"char_make",
         [this](Rml::DataModelConstructor& c, CharMakeRmlModel& model) { BindRmlModel(c, model); },
         {{"Data/Interface/RmlUi/char_make.rml"}},

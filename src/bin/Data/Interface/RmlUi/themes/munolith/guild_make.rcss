@@ -1,0 +1,21 @@
+.welcome { position: absolute; left: 30px; top: 110px; text-align: center; color: #c6cbb9; white-space: normal; }
+#btn_make { position: absolute; left: 140px; top: 290px; width: 120px; height: 24px; }
+#name_label { position: absolute; left: 30px; top: 43px; color: #b9c4aa; }
+#name_field { display: none; position: absolute; left: 30px; top: 64px; padding: 0; box-sizing: border-box; color: #efd29c; background-color: #101c17; border: 1px #746d52; }
+#name_field.shown { display: block; }
+#mark_editor { display: flex; flex-wrap: wrap; position: absolute; left: 30px; top: 110px; width: 160px; height: 160px; border: 1px #8e8051; background-color: #111c16; pointer-events: none; }
+.gm-cell { display: block; width: 12.5%; height: 12.5%; box-sizing: border-box; border: 1px #65735244; pointer-events: none; }
+#mark_palette { display: flex; flex-wrap: wrap; position: absolute; left: 238px; top: 110px; width: 104px; height: 104px; pointer-events: none; }
+.palette-cell { display: block; width: 25%; height: 25%; box-sizing: border-box; border: 2px #657352; pointer-events: none; }
+#selected_swatch { position: absolute; left: 300px; top: 238px; width: 26px; height: 26px; border: 1px #dfc989; }
+.empty { decorator: none; background-color: #26382b; border: 1px #899576; }
+#edit_preview { position: absolute; left: 238px; top: 228px; width: 48px; height: 48px; }
+.editor-hint { position: absolute; left: 30px; top: 302px; color: #aebda1; }
+.editor-hint span { display: block; white-space: normal; }
+#result_mark { position: absolute; left: 140px; top: 110px; width: 120px; height: 120px; }
+.result-label { position: absolute; left: 30px; top: 250px; color: #e6cf91; text-align: center; }
+#btn_back, #btn_next { position: absolute; top: 360px; width: 74px; height: 24px; }
+#btn_back { left: 112px; } #btn_next { right: 112px; }
+/* Empty editor space reaches the native paint/erase reader. Controls opt into RmlUi input. */
+#panel { pointer-events: none; }
+#name_field { pointer-events: auto; }

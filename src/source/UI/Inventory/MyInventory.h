@@ -87,6 +87,11 @@ namespace mu::ui::window
         bool m_bRepairEnableLevel;
         bool m_bMyShopOpen;
         bool m_bMyShopLocked = false;
+        int m_MerchantDeliverySlot = -1;
+        unsigned long long m_MerchantDeliveryUntil = 0;
+        unsigned long long m_GoldDeltaUntil = 0;
+        unsigned long long m_PreviousGold = 0;
+        bool m_GoldObserved = false;
 
         // The whole window is RmlUi: the equipped and the grid's items are live 3D, drawn into the
         // document's #item_view (m_ItemTarget).
@@ -124,6 +129,22 @@ namespace mu::ui::window
             // "unequipable"), and "refused" while the item on the cursor cannot go in.
             std::vector<Rml::String> slotStates = std::vector<Rml::String>(MAX_EQUIPMENT_INDEX);
             UI::Items::ItemGridCells gridCells;
+
+            // A theme that embeds the first two extensions (ThemeUsesEmbeddedInventory()) draws
+            // them in this document: their cells, the rows its frame shows, and the merchant
+            // feedback (gold delta, delivered item highlight).
+            UI::Items::ItemGridCells gridCellsExtension1;
+            UI::Items::ItemGridCells gridCellsExtension2;
+            std::vector<int> rows;
+            int ownedExtensions = 0;
+            Rml::String capacityText;
+            bool expansionVisible = false;
+            bool overflowVisible = false;
+            bool repairActive = false;
+            Rml::String goldLabel = "Zen";
+            bool goldGained = false;
+            bool deliveryVisible = false;
+            int deliveryColumn = 0, deliveryRow = 0, deliveryWidth = 1, deliveryHeight = 1;
         };
         void BindRmlModel(Rml::DataModelConstructor& c, MyInventoryRmlModel& model);
         void OnRmlBuilt();
@@ -136,6 +157,9 @@ namespace mu::ui::window
         void SyncRmlModel();
         // The equipment slots' states and the grid's cells, into the model.
         void SyncSlotStates();
+        void SyncEmbeddedExtensions();
+        void BindMerchantFeedback(Rml::DataModelConstructor& c, MyInventoryRmlModel& model);
+        void SyncMerchantFeedback();
 
     public:
         CMyInventory();
@@ -153,6 +177,10 @@ namespace mu::ui::window
 
         SEASON3B::REPAIR_MODE GetRepairMode() const override;
         bool IsEquipable(int iIndex, ITEM* pItem) const override;
+        // Why `pItem` cannot go into equipment slot `slot`; empty when it can.
+        std::wstring EquipmentRequirementFailure(int slot, ITEM* item) const;
+        // The character window's equipment slots (a theme that draws the paperdoll there).
+        bool HandleArmoryEquipmentSlot(int slot, bool rightButton);
         void ResetMouseRButton() override;
         void ResetMouseLButton() override;
         int  FindEmptySlot(ITEM* pItem) const override;
@@ -186,6 +214,8 @@ namespace mu::ui::window
         float GetLayerDepth();
 
         CInventoryCtrl* GetInventoryCtrl() const;
+        // Briefly marks an item a merchant delivered into the bag.
+        void HighlightMerchantDelivery(int slot);
 
         ITEM* FindItem(int iLinealPos) const;
         ITEM* FindItemByKey(DWORD dwKey) const;
@@ -211,6 +241,8 @@ namespace mu::ui::window
         void SetRepairEnableLevel(bool bOver);
 
         void ChangeMyShopButtonStateOpen();
+        // Opens the personal store from a menu, when the theme shows it and the player may.
+        void OpenPersonalStore();
         void ChangeMyShopButtonStateClose();
         void LockMyShopButtonOpen();
         void UnlockMyShopButtonOpen();
@@ -232,6 +264,7 @@ namespace mu::ui::window
         void UnloadImages();
 
         bool EquipmentWindowProcess();
+        bool ProcessEquipmentSlot(int slot, bool leftRelease, bool rightRelease);
         // The pointer over the drawn panel.
         bool IsPointerOverPanel() const;
         // Whether the item in equipmentSlot may be taken off here; tells the

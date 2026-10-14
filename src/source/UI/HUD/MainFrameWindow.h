@@ -16,6 +16,10 @@
 #include <memory>
 
 namespace Rml { class ElementDocument; }
+namespace UI::HUD
+{
+class CompactHud;
+}
 
 namespace mu::ui::window
 {
@@ -98,9 +102,10 @@ namespace mu::ui::window
         __int64	m_loGetExp;
 
     private:
-        CManager* m_pNewUIMng;
+        CManager* m_pNewUIMng = nullptr;
 
         CItemHotKey m_ItemHotKey;
+        std::unique_ptr<UI::HUD::CompactHud> m_CompactHud;
 
         bool m_bExpEffect;
         DWORD m_dwExpEffectTime;

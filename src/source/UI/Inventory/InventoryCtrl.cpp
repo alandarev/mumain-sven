@@ -23,6 +23,11 @@
 using namespace SEASON3B;
 using namespace mu::ui::window;
 
+namespace
+{
+constexpr float ThemedGridModelScale = .8f;
+}
+
 POINT UI::Items::Drag::PickupOffset(int itemLeft, int itemTop, int itemWidth, int itemHeight,
                                     int pointerX, int pointerY, bool preserveAnchor)
 {
@@ -274,6 +279,9 @@ void mu::ui::window::CInventoryCtrl::Init()
 {
     m_pNewItemMng = nullptr;
     m_pOwner = nullptr;
+    m_pPresentationOwner = nullptr;
+    m_ThemedGrid = false;
+    m_VisibleRows = 0;
     m_Geometry = {};
     m_nColumn = m_nRow = 0;
     m_pdwItemCheckBox = nullptr;
@@ -935,6 +943,12 @@ int mu::ui::window::CInventoryCtrl::GetEmptySlotCount()
 
 bool mu::ui::window::CInventoryCtrl::UpdateMouseEvent()
 {
+    // A themed grid's Shift-click is its window's fast transfer, not a pickup.
+    if (m_ThemedGrid && !m_bRepairMode && IsRelease(VK_LBUTTON) && IsRepeat(VK_SHIFT))
+    {
+        m_EventState = EVENT_NONE;
+        return true;
+    }
     if (m_EventState == EVENT_NONE && mu::ui::window::IsNone(VK_LBUTTON) && m_iPointedSquareIndex != -1)
     {
         m_EventState = EVENT_HOVER;
@@ -1233,10 +1247,24 @@ bool UI::Items::DrawnGridGeometry(Rml::Element* grid, int columns, int rows, flo
 void mu::ui::window::CInventoryCtrl::FollowGridPx(Rml::ElementDocument* doc, const char* gridId)
 {
     UI::Items::GridGeometry geometry;
-    if (!UI::Items::DrawnGridGeometry(doc ? doc->GetElementById(gridId) : nullptr, m_nColumn, m_nRow,
-                                      m_Geometry.PitchX(), m_Geometry.PitchY(), geometry))
+    const int rows = m_VisibleRows > 0 ? m_VisibleRows : m_nRow;
+    if (!UI::Items::DrawnGridGeometry(doc ? doc->GetElementById(gridId) : nullptr, m_nColumn, rows, m_Geometry.PitchX(),
+                                      m_Geometry.PitchY(), geometry))
         return;
     m_Geometry = geometry;
+}
+
+void mu::ui::window::CInventoryCtrl::SetPresentation(CObject* owner, bool themedGrid)
+{
+    m_pPresentationOwner = owner;
+    m_ThemedGrid = themedGrid;
+}
+
+void mu::ui::window::CInventoryCtrl::SetVisibleRowCount(int rows)
+{
+    m_VisibleRows = std::clamp(rows, 1, m_nRow);
+    m_Geometry = {m_Geometry.Left(),   m_Geometry.Top(), m_Geometry.PitchX(),
+                  m_Geometry.PitchY(), m_nColumn,        m_VisibleRows};
 }
 
 POINT mu::ui::window::CInventoryCtrl::PointerPos()
@@ -1291,10 +1319,15 @@ CObject* mu::ui::window::CInventoryCtrl::GetOwner() const
     return m_pOwner;
 }
 
+CObject* mu::ui::window::CInventoryCtrl::GetPresentationOwner() const
+{
+    return m_pPresentationOwner ? m_pPresentationOwner : m_pOwner;
+}
+
 bool mu::ui::window::CInventoryCtrl::IsVisible() const
 {
-    if (m_pOwner)
-        return (m_pOwner->IsVisible() && m_bShow);
+    if (const CObject* owner = GetPresentationOwner())
+        return (owner->IsVisible() && m_bShow);
     return m_bShow;
 }
 
@@ -1496,7 +1529,11 @@ void mu::ui::window::CInventoryCtrl::RenderItemToolTip()
         }
         else if (m_ToolTipType == TOOLTIP_TYPE_NPC_SHOP)
         {
-            itemInfo(true, 0);
+            // Native shop controls keep their buy tooltip. Carried items in a themed grid disclose
+            // the sell price only while the separate transfer modifier is held.
+            const bool shopPrice =
+                m_StorageType == STORAGE_TYPE::UNDEFINED || !m_ThemedGrid || IsRepeat(VK_SHIFT) || IsPress(VK_SHIFT);
+            itemInfo(shopPrice, 0);
         }
         else if (m_ToolTipType == TOOLTIP_TYPE_MY_SHOP || m_ToolTipType == TOOLTIP_TYPE_PURCHASE_SHOP)
         {
@@ -1585,8 +1622,13 @@ void mu::ui::window::CInventoryCtrl::Render3D()
 
         const UI::Items::GridRect box = m_Geometry.CellsRect(pItem->x, pItem->y, pItemAttr->Width, pItemAttr->Height);
 
-        RenderItem3D(box.x, box.y, box.width, box.height, pItem->Type, pItem->Level, pItem->ExcellentFlags, pItem->AncientDiscriminator,
-                     false);
+        // A themed grid draws its items a little smaller, inside its framed cells.
+        if (m_ThemedGrid)
+            RenderItem3DScaled(box.x, box.y, box.width, box.height, pItem->Type, pItem->Level, pItem->ExcellentFlags,
+                               pItem->AncientDiscriminator, ThemedGridModelScale);
+        else
+            RenderItem3D(box.x, box.y, box.width, box.height, pItem->Type, pItem->Level, pItem->ExcellentFlags,
+                         pItem->AncientDiscriminator, false);
     }
 }
 

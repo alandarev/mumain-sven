@@ -1,0 +1,27 @@
+#panel.gatekeeper-desk { width: 400px; height: 340px; }
+#panel.gate-switch-desk, #panel.catapult-desk { width: 360px; height: 340px; }
+.keeper-content, .gate-content, .catapult-content { position: absolute; left: 15px; top: 40px; transform-origin: left top; overflow: hidden auto; }
+.service-line { display: block; white-space: normal; line-height: 1.4em; color: #c6cbb4; margin-bottom: 5px; }
+.service-line.unaffordable, .warning { color: #df9e84; }
+.public-setting { display: block; width: 95%; min-height: 26px; margin: 10px 0; text-align: left; }
+.check { display: inline-block; width: 15px; height: 15px; color: transparent; border: 1px #766b45; margin-right: 6px; background-color: #0c170d; }
+.check.on { color: #d7b864; }
+.fee-draft { display: flex; gap: 6px; align-items: center; margin-bottom: 10px; color: #d7b864; }
+.fee-draft > div { flex: 1 1 0; }
+.fee-draft button { width: 25px; height: 24px; padding: 1px; }
+.service-actions { position: absolute; left: 15px; right: 15px; bottom: 52px; height: 24px; display: flex; gap: 6px; }
+.service-actions button { flex: 1 1 0; padding: 2px 3px; }
+#gate { position: absolute; left: 15px; top: 65px; width: 155px; height: 168px; decorator: image(gs-gate-closed); border: 1px #545139; }
+#gate.opened { decorator: image(gs-gate-opened); }
+.gate-content { left: 190px; top: 45px; }
+.gate-action { position: absolute; left: 190px; top: 266px; width: 155px; height: 24px; padding: 2px; }
+.catapult-content { top: 40px; }
+.target-areas { position: absolute; left: 15px; top: 158px; width: 330px; height: 94px; }
+.target-area { position: absolute; width: 160px; height: 43px; padding: 4px; }
+.target-area:nth-child(1) { left: 0; top: 0; }
+.target-area:nth-child(2) { left: 170px; top: 0; }
+.target-area:nth-child(3) { left: 0; top: 51px; }
+.target-area:nth-child(4) { left: 170px; top: 51px; }
+.target-area.selected { background-color: #40522c; border-color: #b8a563; color: #eff0c4; }
+.fire-action { position: absolute; left: 15px; right: 15px; top: 266px; height: 24px; padding: 2px; }
+.keeper-content button { font-size: inherit; }

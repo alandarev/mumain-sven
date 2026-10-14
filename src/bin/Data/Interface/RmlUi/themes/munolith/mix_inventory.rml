@@ -1,0 +1,38 @@
+<rml>
+<head><link type="text/rcss" href="../legacy/item_grid.rcss"/><link type="text/rcss" href="native_items.rcss"/>
+    <title>Compact Forge</title>
+    <link type="text/rcss" href="base.rcss"/>
+    <link type="text/rcss" href="my_inventory_shared.rcss"/>
+    <link type="text/rcss" href="mix_inventory.rcss"/>
+</head>
+<body data-model="mix_inventory">
+    <div id="panel"><div class="stone"></div><div class="shade"></div><div class="trim top-left"></div><div class="trim top-mid"></div><div class="trim top-right"></div><div class="trim side-left"></div><div class="trim side-right"></div><div class="trim bottom-left"></div><div class="trim bottom-mid"></div><div class="trim bottom-right"></div>
+        <div id="title"><span class="native-text counter-scaled" data-style-font-size="text_px + 'px'">{{title}}</span></div>
+        <button id="btn_corner_close" data-event-click="window_close">×</button>
+        <div class="materials-label">Materials</div>
+        <div id="item_grid" class="native-anchor themed-grid item-grid"><div class="item-grid-cells"><div data-for="c : grid_cells" data-attr-class="'item-cell ' + c.tint + ' ' + c.drop"><div class="item-cell-drop"></div></div></div></div><img id="item_view" class="item-view"/><div id="item_grid_counts" class="item-grid-counts"><div class="item-count" data-for="c : grid_cells"><span class="item-count-text counter-scaled" data-if="c.count != ''" data-style-font-size="text_px + 'px'">{{c.count}}</span></div></div>
+        <div id="forge_content" class="scroll-pane counter-scaled" data-style-font-size="text_px + 'px'">
+            <div class="recipe-content" data-if="show_recipe">
+                <div class="recipe-name" data-class-ready="recipe_ready">{{recipe_line1}}</div>
+                <div class="recipe-name" data-if="show_recipe_line2" data-class-ready="recipe_ready">{{recipe_line2}}</div>
+                <div class="prediction" data-if="show_prediction">{{prediction_text}}</div>
+                <div class="mix-line mix-kind" data-for="s : source_lines" data-attr-class="'mix-line mix-kind ' + s.kind">{{s.text}}</div>
+                <div class="mix-line mix-kind" data-for="s : status_lines" data-attr-class="'mix-line mix-kind ' + s.kind">{{s.text}}</div>
+                <div class="mix-value" data-if="show_success_rate" data-class-boosted="success_boosted">{{success_rate_text}}</div>
+                <div class="mix-value" data-if="show_required_zen">{{required_zen_text}}</div>
+                <div class="mix-line mix-kind" data-for="a : advice_lines" data-attr-class="'mix-line mix-kind ' + a.kind">{{a.text}}</div>
+                <div class="mix-line mix-kind" data-for="d : description_lines" data-attr-class="'mix-line mix-kind ' + d.kind">{{d.text}}</div>
+                <div class="socket-prompt" data-if="show_socket_prompt">{{socket_prompt_text}}</div>
+            </div>
+            <div id="socket_list" data-if="show_socket_list">
+                <button class="socket-row" data-for="l : socket_lines" data-class-selected="l.selected" data-attrif-disabled="mix_locked" data-event-click="mix_inventory_select_socket(l.index)">{{l.text}}</button>
+            </div>
+            <div class="mix-tax" data-if="show_tax_rate">{{tax_rate_text}}</div>
+        </div>
+        <div class="forge-actions">
+            <button id="btn_exit" data-event-click="window_close"><span class="native-text counter-scaled" data-style-font-size="text_px + 'px'">Close</span></button>
+            <button id="btn_mix" data-if="mix_visible" data-class-locked="mix_locked" data-attrif-disabled="mix_locked" data-event-click="mix_inventory_mix_click"><span class="native-text counter-scaled" data-style-font-size="text_px + 'px'">{{mix_tooltip}}</span></button>
+        </div>
+    </div>
+</body>
+</rml>

@@ -1,0 +1,53 @@
+<rml>
+<head><link type="text/rcss" href="scaled_content.rcss"/>
+	<title>NPC Dialogue</title>
+	<link type="text/rcss" href="base.rcss"/>
+	<link type="text/rcss" href="my_inventory_shared.rcss"/>
+	<link type="text/rcss" href="quest_shared.rcss"/>
+	<link type="text/rcss" href="quest_flow.rcss"/>
+</head>
+<body>
+	<div id="panel" data-model="npc_dialogue"
+
+	     data-style-font-size="(text_px / root_scale) + 'px'">
+		<div class="stone"></div>
+<div class="shade"></div>
+<div class="trim top-left"></div>
+<div class="trim top-mid"></div>
+<div class="trim top-right"></div>
+<div class="trim side-left"></div>
+<div class="trim side-right"></div>
+<div class="trim bottom-left"></div>
+<div class="trim bottom-mid"></div>
+<div class="trim bottom-right"></div>
+		<span id="title" class="sharp-text counter-scaled scaled-width-240 scaled-reference" data-style-font-size="text_px + 'px'">{{npc_name}}</span>
+		<div class="nd-contribute sharp-text counter-scaled scaled-width-168 scaled-line-height-18 scaled-reference" data-class-hidden="!show_contribute"
+		     data-style-font-size="text_px + 'px'">{{contribute_text}}</div>
+		<div id="npc_lines_container" class="nd-npc-lines sharp-text counter-scaled scaled-width-210 scaled-line-height-15 scaled-reference"
+		     data-style-font-size="text_px + 'px'">
+			<span class="nd-line" data-for="l : npc_lines">{{l.text}}</span>
+		</div>
+		<div id="btn_npc_prev" class="nd-btn-l nd-btn-npc" data-class-locked="!npc_prev_enabled"
+		     data-event-click="npcdialogue_npc_prev_page">‹</div>
+		<div id="btn_npc_next" class="nd-btn-r nd-btn-npc" data-class-locked="!npc_next_enabled"
+		     data-event-click="npcdialogue_npc_next_page">›</div>
+		<div class="nd-divider"></div>
+		<div id="answers_container" class="nd-answers sharp-text scaled-height-128 counter-scaled scaled-width-210 scaled-line-height-15 scaled-reference" data-class-hidden="!show_answers"
+		     data-style-font-size="text_px + 'px'">
+			<div class="nd-answer-row" data-for="a : answers"
+			     data-event-click="npcdialogue_select_answer(a.index)">{{a.text}}</div>
+		</div>
+		<div id="btn_ans_prev" class="nd-btn-l nd-btn-ans" data-class-locked="!ans_prev_enabled"
+		     data-event-click="npcdialogue_ans_prev_page">‹</div>
+		<div id="btn_ans_next" class="nd-btn-r nd-btn-ans" data-class-locked="!ans_next_enabled"
+		     data-event-click="npcdialogue_ans_next_page">›</div>
+		<div id="btn_corner_close" data-event-click="npcdialogue_click_close">
+			×
+		</div>
+		<span class="sharp-text tooltip tooltip-exit counter-scaled scaled-width-110 scaled-padding-2-4 scaled-reference"
+		      data-style-font-size="text_px + 'px'"
+
+		     ><span class="tooltip-text scaled-padding-0-3 scaled-reference">{{exit_tooltip}}</span></span>
+	</div>
+</body>
+</rml>

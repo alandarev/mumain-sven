@@ -12,6 +12,7 @@ struct ChatCommandLine
 {
     Rml::String text;
     float textPx = 0.f;
+    int index = -1; // Absolute template index; ordinary text lines have no action identity.
 
     bool operator==(const ChatCommandLine&) const = default;
 };
@@ -22,6 +23,7 @@ struct ChatCommandRow
     Rml::String text;
     float textPx = 0.f;
     bool favourite = false;
+    int index = -1; // Absolute row in the favourites-first command order.
 
     bool operator==(const ChatCommandRow&) const = default;
 };
@@ -36,6 +38,7 @@ enum class ChatCommandAction
     SaveTemplate = 4,
     ExecuteTemplate = 5,
     RemoveTemplate = 6,
+    FinishEditing = 7,
 };
 
 // One of the selected command's parameters: its label, whether a required value is still missing
@@ -70,6 +73,11 @@ struct ChatCommandRmlModel
     std::vector<ChatCommandRow> commandRows;
     std::vector<ChatCommandLine> descriptionLines;
     std::vector<ChatCommandLine> templateRows;
+    // Complete facts for themes with a scrolling pane; the legacy slices remain above.
+    std::vector<ChatCommandRow> allCommandRows;
+    std::vector<ChatCommandLine> allTemplateRows;
+    Rml::String descriptionText;
+    Rml::String editedParameterLabel;
 
     std::vector<ChatCommandParameterRow> parameters;
     ChatCommandLine favouriteAction;

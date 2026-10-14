@@ -426,25 +426,26 @@ void SlideTicker::Init()
 // visible at a time.
 SlideDisplay SlideTicker::Display()
 {
+    SlideDisplay display;
     if (m_NoticeSlide.HaveText() == FALSE)
     {
         m_HelpSlide.Advance(TRUE);
-        return m_HelpSlide.Display(TRUE);
+        display = m_HelpSlide.Display(TRUE);
     }
-
-    if (m_NoticeSlide.GetAlphaRate() <= 0)
+    else if (m_NoticeSlide.GetAlphaRate() <= 0)
     {
         m_HelpSlide.Advance();
-        return m_HelpSlide.Display();
+        display = m_HelpSlide.Display();
     }
 
+    // Like Render(), start the notice in the same frame that the help finishes fading.
     if (m_HelpSlide.GetAlphaRate() <= 0)
     {
         m_NoticeSlide.Advance();
         return m_NoticeSlide.Display();
     }
 
-    return {};
+    return display;
 }
 
 void SlideTicker::Render()

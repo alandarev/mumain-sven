@@ -15,7 +15,7 @@
 #include "Render/Text/CUIRenderText.h"
 
 #include <RmlUi/Core/ElementDocument.h>
-
+#include <RmlUi/Core/Input.h>
 
 using namespace mu::ui::window;
 
@@ -76,6 +76,17 @@ void mu::ui::window::EventItemEntryView::BindModel(Rml::DataModelConstructor& c,
                         {
                             if (arguments.size() == 1)
                                 m_PressedButton = arguments[0].Get<int>(-1);
+                        });
+    // Escape on a focused control presses the button the theme names, as its close does.
+    c.BindEventCallback("item_entry_key",
+                        [this](Rml::DataModelHandle, Rml::Event& event, const Rml::VariantList& arguments)
+                        {
+                            if (arguments.size() != 1 ||
+                                event.GetParameter<int>("key_identifier", Rml::Input::KI_UNKNOWN) !=
+                                    Rml::Input::KI_ESCAPE)
+                                return;
+                            m_PressedButton = arguments[0].Get<int>(-1);
+                            event.StopPropagation();
                         });
 }
 

@@ -1,0 +1,4 @@
+<rml><head><link type="text/rcss" href="base.rcss"/><title>Menu</title><link type="text/rcss" href="window_menu.rcss"/></head>
+<body data-model="window_menu" data-style-font-size="text_px + 'px'">
+<div id="panel"><div class="title">Menu</div><div class="rows"><button data-for="row : rows" data-event-click="windowmenu_select(row.index)">{{row.label}}</button></div></div>
+</body></rml>

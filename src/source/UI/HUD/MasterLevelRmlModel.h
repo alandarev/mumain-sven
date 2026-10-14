@@ -16,6 +16,7 @@ struct MasterLevelNodeEntry
     int column = 0;
     int slot = 0;
     int rank = 1;
+    int maxLevel = 0;
     Rml::String icon; // decorator value, e.g. "image(master-icon-lit-137)"
     bool usable = false;
     int arrow = 0; // _MASTER_SKILLTREE_DATA::ArrowDirection, 0 = none

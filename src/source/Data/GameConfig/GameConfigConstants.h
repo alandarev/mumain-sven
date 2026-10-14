@@ -44,6 +44,9 @@ namespace CfgKeys
     // Rml::Context::SetDensityIndependentPixelRatio(). Only RCSS authored in `dp` units responds
     // to this; existing `px`-authored windows are unaffected until retrofitted.
     inline constexpr wchar_t CfgKeyUIScalePercent[] = L"UIScalePercent";
+    // A window group's saved anchor (GameConfig::GetWindowPosition/SetWindowPosition):
+    // "WindowPos.<id>.X"/".Y"/".HasOverride", <id> the group's data-position-key.
+    inline constexpr wchar_t CfgKeyWindowPositionPrefix[] = L"WindowPos.";
 
     // Camera
     inline constexpr wchar_t CfgKeyZoom[] = L"Zoom";

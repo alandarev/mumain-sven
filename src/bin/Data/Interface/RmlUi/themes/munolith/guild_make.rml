@@ -1,0 +1,32 @@
+<rml><head><link type="text/rcss" href="scaled_content.rcss"/><title>{{title_text}}</title>
+<link type="text/rcss" href="base.rcss"/>
+<link type="text/rcss" href="my_inventory_shared.rcss"/>
+<link type="text/rcss" href="social_shared.rcss"/>
+<link type="text/rcss" href="guild_make.rcss"/>
+</head><body>
+<div id="panel" data-model="guild_make">
+<div class="stone"></div><div class="shade"></div>
+<div class="trim top-left"></div><div class="trim top-mid"></div><div class="trim top-right"></div>
+<div class="trim side-left"></div><div class="trim side-right"></div>
+<div class="trim bottom-left"></div><div class="trim bottom-mid"></div><div class="trim bottom-right"></div>
+<span id="title" class="sharp-text scaled-width-400 counter-scaled scaled-reference" data-style-font-size="text_px + 'px'">{{title_text}}</span>
+<div id="btn_corner_close" data-event-click="guild_make_button(3)"></div>
+<div class="welcome sharp-text scaled-width-340 counter-scaled scaled-reference" data-if="page == 0" data-style-font-size="text_px + 'px'">{{info_text}}</div>
+<div id="btn_make" class="social-btn" data-if="page == 0" data-event-click="guild_make_button(0)"><span class="sharp-text scaled-width-120 scaled-line-height-24 counter-scaled scaled-reference" data-style-font-size="text_px + 'px'">{{make_text}}</span></div>
+<div data-if="page == 1">
+  <span id="name_label" class="sharp-text counter-scaled" data-style-font-size="text_px + 'px'">{{name_text}}</span>
+  <div id="mark_editor">
+    <div class="gm-cell" data-for="c : cells" data-event-mousedown="guild_mark_paint(it_index)" data-event-mouseover="guild_mark_paint(it_index)" data-attr-id="'guild_cell_' + it_index" data-class-empty="c.empty" data-style-background-color="c.mark_color"></div>
+  </div>
+  <div id="mark_palette"><div class="palette-cell" data-for="c : palette" data-event-mousedown="guild_mark_color(it_index)" data-attr-id="'guild_color_' + it_index" data-class-empty="c.empty" data-style-background-color="c.mark_color"></div></div>
+  <div id="selected_swatch" data-class-empty="selected.empty" data-style-background-color="selected.mark_color"></div>
+  <div id="edit_preview" class="social-mark"><div class="mark-cell" data-for="m : mark_cells" data-style-background-color="m"></div></div>
+  <div class="editor-hint sharp-text scaled-width-340 counter-scaled scaled-reference" data-style-font-size="text_px + 'px'"><span>{{palette_hint_1}}</span><span>{{palette_hint_2}}</span></div>
+</div>
+<div data-if="page == 2"><div id="result_mark" class="social-mark"><div class="mark-cell" data-for="m : mark_cells" data-style-background-color="m"></div></div><div class="result-label sharp-text scaled-width-340 counter-scaled scaled-reference" data-style-font-size="text_px + 'px'">{{result_text}}</div></div>
+<div data-if="page != 0">
+  <div id="btn_back" class="social-btn" data-event-click="guild_make_button(1)"><span class="sharp-text scaled-width-74 scaled-line-height-24 counter-scaled scaled-reference" data-style-font-size="text_px + 'px'">{{back_text}}</span></div>
+  <div id="btn_next" class="social-btn" data-event-click="guild_make_button(2)"><span class="sharp-text scaled-width-74 scaled-line-height-24 counter-scaled scaled-reference" data-style-font-size="text_px + 'px'">{{next_text}}</span></div>
+</div>
+<input id="name_field" type="text" class="text-field sharp-text scaled-width-340 scaled-height-24 scaled-line-height-24 counter-scaled scaled-reference" maxlength="8" data-value="guild_name" data-class-shown="page == 1" data-style-font-size="text_px + 'px'"/>
+</div></body></rml>

@@ -1,0 +1,19 @@
+<rml>
+<head>
+<title>Viewer roster</title>
+<link type="text/rcss" href="base.rcss"/>
+<link type="text/rcss" href="duel_watch_spectators.rcss"/>
+</head>
+<body data-model="duel_watch_spectators">
+<div id="screen" class="screen">
+<div id="panel" class="roster">
+<div class="roster-heading">
+<span data-style-font-size="(text_px < 11 ? 11 : text_px) + 'px'" class="counter-scaled hud-width-96">Viewers</span>
+</div>
+<div class="viewer" data-for="name : spectators">
+<span data-style-font-size="(text_px < 11 ? 11 : text_px) + 'px'" class="counter-scaled hud-width-90">{{name}}</span>
+</div>
+</div>
+</div>
+</body>
+</rml>

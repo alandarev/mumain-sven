@@ -1,6 +1,7 @@
 #include <doctest.h>
 
 #include <RmlUi/Core.h>
+#include "UI/Placement/WindowGroupState.h"
 
 #include <fstream>
 #include <sstream>
@@ -41,7 +42,9 @@ std::string ReadFile(const std::string& path)
 std::string WorkspaceFor(const std::string& theme)
 {
     const std::string root = MU_RMLUI_DIR;
-    std::string rml = ReadFile(root + "/workspace.rml");
+    std::string rml = ReadFile(root + "/themes/" + theme + "/workspace.rml");
+    if (rml.empty())
+        rml = ReadFile(root + "/workspace.rml");
     const std::string link = "<link type=\"text/rcss\" href=\"workspace.rcss\"/>";
     const auto at = rml.find(link);
     REQUIRE(at != std::string::npos);
@@ -201,52 +204,52 @@ TEST_CASE("A theme-sized slot fills the safe area's height [ui][window-placement
     REQUIRE(context != nullptr);
 
     for (const char* theme : {"legacy", "modern"})
-    for (const std::string window : {"character", "pet"})
-    {
-        CAPTURE(theme);
-        CAPTURE(window);
-        std::string rml = WorkspaceFor(theme);
-        const std::string region = "class=\"region dock-right\" data-ref-height=\"432\"";
-        const auto regionAt = rml.find(region);
-        REQUIRE(regionAt != std::string::npos);
-        rml.replace(regionAt, region.size(), "class=\"region dock-right\"");
-        const std::string slot = "class=\"slot\" data-window=\"" + window + "\"";
-        const auto slotAt = rml.find(slot);
-        REQUIRE(slotAt != std::string::npos);
-        rml.replace(slotAt, slot.size(),
-                    "class=\"slot fill-window\" data-window=\"" + window + "\" data-fit=\"fill\"");
-        const auto headEnd = rml.find("</head>");
-        REQUIRE(headEnd != std::string::npos);
-        rml.insert(headEnd, "<style>.dock-right { top: 0; } "
-                            ".fill-window { width: 35%; height: 100%; }</style>");
+        for (const std::string window : {"character", "pet"})
+        {
+            CAPTURE(theme);
+            CAPTURE(window);
+            std::string rml = WorkspaceFor(theme);
+            const std::string region = "class=\"region dock-right\" data-ref-height=\"432\"";
+            const auto regionAt = rml.find(region);
+            REQUIRE(regionAt != std::string::npos);
+            rml.replace(regionAt, region.size(), "class=\"region dock-right\"");
+            const std::string slot = "class=\"slot\" data-window=\"" + window + "\"";
+            const auto slotAt = rml.find(slot);
+            REQUIRE(slotAt != std::string::npos);
+            rml.replace(slotAt, slot.size(),
+                        "class=\"slot fill-window\" data-window=\"" + window + "\" data-fit=\"fill\"");
+            const auto headEnd = rml.find("</head>");
+            REQUIRE(headEnd != std::string::npos);
+            rml.insert(headEnd, "<style>.dock-right { top: 0; } "
+                                ".fill-window { width: 35%; height: 100%; }</style>");
 
-        auto* document = context->LoadDocumentFromMemory(rml);
-        REQUIRE(document != nullptr);
-        Open(document, "main_hud", 1.f);
-        Slot(document, "main_hud")->SetProperty(Rml::PropertyId::Height, Rml::Property(102.f, Rml::Unit::PX));
-        Rml::Element* fillSlot = Slot(document, window);
-        REQUIRE(fillSlot != nullptr);
-        fillSlot->SetClass("open", true);
-        document->UpdateDocument();
+            auto* document = context->LoadDocumentFromMemory(rml);
+            REQUIRE(document != nullptr);
+            Open(document, "main_hud", 1.f);
+            Slot(document, "main_hud")->SetProperty(Rml::PropertyId::Height, Rml::Property(102.f, Rml::Unit::PX));
+            Rml::Element* fillSlot = Slot(document, window);
+            REQUIRE(fillSlot != nullptr);
+            fillSlot->SetClass("open", true);
+            document->UpdateDocument();
 
-        // A theme's header (modern keeps one) takes its height off the content area's top.
-        const float header = document->GetElementById("shell_header")->GetBox().GetSize(Rml::BoxArea::Border).y;
-        const Rml::Vector2f size = fillSlot->GetBox().GetSize(Rml::BoxArea::Border);
-        const Rml::Vector2f offset = fillSlot->GetAbsoluteOffset(Rml::BoxArea::Border);
-        CHECK(size.x == doctest::Approx(672.f));
-        CHECK(size.y == doctest::Approx(978.f - header));
-        CHECK(offset.x == doctest::Approx(1248.f));
-        CHECK(offset.y == doctest::Approx(header));
+            // A theme's header (modern keeps one) takes its height off the content area's top.
+            const float header = document->GetElementById("shell_header")->GetBox().GetSize(Rml::BoxArea::Border).y;
+            const Rml::Vector2f size = fillSlot->GetBox().GetSize(Rml::BoxArea::Border);
+            const Rml::Vector2f offset = fillSlot->GetAbsoluteOffset(Rml::BoxArea::Border);
+            CHECK(size.x == doctest::Approx(672.f));
+            CHECK(size.y == doctest::Approx(978.f - header));
+            CHECK(offset.x == doctest::Approx(1248.f));
+            CHECK(offset.y == doctest::Approx(header));
 
-        // The service gives a fill slot the window's content size as its minimum.
-        fillSlot->SetProperty(Rml::PropertyId::MinWidth, Rml::Property(800.f, Rml::Unit::PX));
-        document->UpdateDocument();
-        CHECK(fillSlot->GetBox().GetSize(Rml::BoxArea::Border).x == doctest::Approx(800.f));
-        CHECK(fillSlot->GetAbsoluteOffset(Rml::BoxArea::Border).x == doctest::Approx(1120.f));
+            // The service gives a fill slot the window's content size as its minimum.
+            fillSlot->SetProperty(Rml::PropertyId::MinWidth, Rml::Property(800.f, Rml::Unit::PX));
+            document->UpdateDocument();
+            CHECK(fillSlot->GetBox().GetSize(Rml::BoxArea::Border).x == doctest::Approx(800.f));
+            CHECK(fillSlot->GetAbsoluteOffset(Rml::BoxArea::Border).x == doctest::Approx(1120.f));
 
-        context->UnloadDocument(document);
-        context->Update();
-    }
+            context->UnloadDocument(document);
+            context->Update();
+        }
 
     Rml::RemoveContext("window-fill");
     Rml::Shutdown();
@@ -281,9 +284,9 @@ TEST_CASE("Both themes' workspaces place docked windows on the original columns 
         for (Rml::Element* region : regions)
         {
             if (region->HasAttribute("data-ref-height"))
-                region->SetProperty(Rml::PropertyId::Height,
-                                    Rml::Property(region->GetAttribute<float>("data-ref-height", 0.f) * Scale,
-                                                  Rml::Unit::PX));
+                region->SetProperty(
+                    Rml::PropertyId::Height,
+                    Rml::Property(region->GetAttribute<float>("data-ref-height", 0.f) * Scale, Rml::Unit::PX));
         }
 
         // Opened out of document order: placement follows the slots' order, not the opening order.
@@ -318,6 +321,47 @@ TEST_CASE("Both themes' workspaces place docked windows on the original columns 
     }
 
     Rml::RemoveContext("window-placement");
+    Rml::Shutdown();
+    Rml::SetRenderInterface(nullptr);
+}
+
+TEST_CASE("Munolith companion rows share top edges and stable order [ui][window-placement]")
+{
+    NullRenderer renderer;
+    Rml::SetRenderInterface(&renderer);
+    REQUIRE(Rml::Initialise());
+    auto* context = Rml::CreateContext("companion-row", {1920, 1080});
+    REQUIRE(context != nullptr);
+    for (const char* companion : {"character", "trade", "storage", "npc_shop", "mix"})
+    {
+        CAPTURE(companion);
+        auto* document = context->LoadDocumentFromMemory(WorkspaceFor("munolith"));
+        REQUIRE(document != nullptr);
+        auto* group = Slot(document, "inventory")->GetParentNode();
+        CHECK(group->GetAttribute<Rml::String>("data-anchor", "") == "inventory");
+        const auto openSized = [&](const char* name, float width, float height)
+        {
+            auto* slot = Slot(document, name);
+            REQUIRE(slot != nullptr);
+            slot->SetClass("open", true);
+            slot->SetProperty("width", std::to_string(width) + "px");
+            slot->SetProperty("height", std::to_string(height) + "px");
+            group->SetClass("occupied", true);
+        };
+        openSized("inventory", 350.f, 440.f);
+        openSized(companion, std::string(companion) == "character" ? 1100.f : 350.f, 740.f);
+        document->UpdateDocument();
+        const auto companionPosition = Slot(document, companion)->GetAbsoluteOffset(Rml::BoxArea::Border);
+        const auto inventoryPosition = Slot(document, "inventory")->GetAbsoluteOffset(Rml::BoxArea::Border);
+        const auto companionSize = Slot(document, companion)->GetBox().GetSize(Rml::BoxArea::Border);
+        CHECK(companionPosition.y == doctest::Approx(inventoryPosition.y));
+        CHECK(inventoryPosition.x - companionPosition.x - companionSize.x == doctest::Approx(8.f));
+        CHECK(Slot(document, "inventory")->GetBox().GetSize(Rml::BoxArea::Border).y == doctest::Approx(440.f));
+        CHECK(inventoryPosition.x + 350.f <= 1920.f + .01f);
+        context->UnloadDocument(document);
+        context->Update();
+    }
+    Rml::RemoveContext("companion-row");
     Rml::Shutdown();
     Rml::SetRenderInterface(nullptr);
 }

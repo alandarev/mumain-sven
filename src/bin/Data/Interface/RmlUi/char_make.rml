@@ -1,3 +1,4 @@
+<!-- rml-contract-optional-callback: charmake_field_key: the name field submits on Enter through charmake_field; a theme that routes keys itself binds this -->
 <rml>
 <head>
 	<title>Character Creation</title>

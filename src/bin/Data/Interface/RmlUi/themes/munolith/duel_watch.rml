@@ -1,0 +1,46 @@
+<rml>
+<head><link type="text/rcss" href="scaled_content.rcss"/>
+<title>Arena browser</title>
+<link type="text/rcss" href="base.rcss"/>
+<link type="text/rcss" href="my_inventory_shared.rcss"/>
+<link type="text/rcss" href="castle_desks_common.rcss"/>
+<link type="text/rcss" href="duel_watch.rcss"/>
+</head>
+<body data-model="duel_watch">
+<div id="panel" data-compact-scale="0.9" data-style---text-px="text_px">
+<div class="stone"/>
+<div class="shade"/>
+<div class="trim top-left"/>
+<div class="trim top-mid"/>
+<div class="trim top-right"/>
+<div class="trim side-left"/>
+<div class="trim side-right"/>
+<div class="trim bottom-left"/>
+<div class="trim bottom-mid"/>
+<div class="trim bottom-right"/>
+<div id="title">
+<span class="native-text scaled-width-330 readable-text counter-scaled scaled-reference">{{title}}</span>
+</div>
+<button class="corner-close" data-event-click="window_close">×</button>
+<div class="arena-description scroll-pane scaled-width-330 scaled-height-20 readable-text counter-scaled scaled-reference">
+<div>{{subtitle}}</div>
+</div>
+<div class="arena-rooms scroll-pane scaled-width-330 scaled-height-228 readable-text counter-scaled scaled-reference">
+<div class="arena-room" data-for="r : rooms" data-class-open="r.joinable" data-class-running="r.running">
+<div class="room-info">
+<div class="room-heading">{{r.heading}}</div>
+<div class="fighters" data-if="r.running">
+<div>{{r.player1}}</div>
+<div><span class="versus">{{vs_text}} </span>{{r.player2}}</div>
+</div>
+<div class="room-empty" data-if="!r.running">{{no_duel_text}}</div>
+</div>
+<button data-class-locked="!r.joinable" data-attrif-disabled="!r.joinable" data-event-click="duelwatch_join(r.index)" class="readable-text">{{watch_text}}</button>
+</div>
+</div>
+<button class="desk-close" data-event-click="window_close">
+<span class="native-text scaled-width-330 readable-text counter-scaled scaled-reference">Close</span>
+</button>
+</div>
+</body>
+</rml>

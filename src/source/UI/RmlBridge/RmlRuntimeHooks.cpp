@@ -26,9 +26,13 @@ void InstallRuntimeHooks()
 {
     RmlUiRuntimeHooks hooks;
 
-    // The panel scale, so dp and the native transforms grow and stop growing together.
+    // The panel scale, so dp and the native transforms grow and stop growing together. The active
+    // theme declares its window design viewport, so it is resolved before the first layout.
     hooks.dpRatio = [](int windowWidth, int windowHeight)
-    { return UI::Scaling::TypographyScale(windowWidth, windowHeight); };
+    {
+        GetActiveThemeName();
+        return UI::Scaling::TypographyScale(windowWidth, windowHeight);
+    };
     hooks.afterScale = [](Rml::Context* context)
     {
         ApplyScaleInputs(context);

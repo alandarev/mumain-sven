@@ -22,9 +22,21 @@ GameLogic::PersonalShop::ItemPrice ReplacedPrice{};
 
 namespace UI::Shop
 {
-void NpcSaleFinished()
+void NpcSaleFinished(bool success)
 {
-    g_pNPCShop->SetSellingItem(false);
+    g_pNPCShop->SaleFinished(success);
+}
+
+void NpcPurchaseFinished(bool success, int slot)
+{
+    g_pNPCShop->PurchaseFinished(success);
+    if (success)
+        g_pMyInventory->HighlightMerchantDelivery(slot);
+}
+
+void NpcRepairFinished(bool success)
+{
+    g_pNPCShop->RepairFinished(success);
 }
 
 void SetNpcTaxRate(int rate)

@@ -1,0 +1,23 @@
+<rml>
+<head>
+    <title>Preparing the client</title>
+    <link type="text/rcss" href="base.rcss"/>
+    <link type="text/rcss" href="loading_card.rcss"/>
+    <link type="text/rcss" href="title_scene.rcss"/>
+</head>
+<body class="viewport-progress">
+    <div id="loading-wallpaper">
+        <img class="loading-tile loading-top-left" src="../../../LSBg01.JPG" rect="0 0 400 512"/>
+        <img class="loading-tile loading-top-right" src="../../../LSBg02.JPG" rect="0 0 400 512"/>
+        <img class="loading-tile loading-bottom-left" src="../../../LSBg03.JPG" rect="0 0 400 88"/>
+        <img class="loading-tile loading-bottom-right" src="../../../LSBg04.JPG" rect="0 0 400 88"/>
+    </div>
+    <div id="transition-shade"/>
+    <div id="loading-card">
+        <div class="loading-kicker">MU ONLINE</div>
+        <div class="loading-title">Preparing the client</div>
+        <div class="loading-note">Loading game resources…</div>
+        <progress id="gauge_fill" class="gauge-fill" direction="right" value="0" max="1"/>
+    </div>
+</body>
+</rml>

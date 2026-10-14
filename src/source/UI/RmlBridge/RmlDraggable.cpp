@@ -40,8 +40,10 @@ Rml::Vector2f PinnedPosition(Rml::Element* panel)
 class DragMoveListener : public Rml::EventListener
 {
 public:
-    DragMoveListener(Rml::Element* panel, OnPanelMoved onMove, OnDragEnd onDragEnd)
-        : m_Panel(panel), m_OnMove(std::move(onMove)), m_OnDragEnd(std::move(onDragEnd))
+    DragMoveListener(Rml::Element* panel, OnPanelMoved onMove, OnDragEnd onDragEnd, CanDrag canDrag,
+                     bool external = false)
+        : m_Panel(panel), m_OnMove(std::move(onMove)), m_OnDragEnd(std::move(onDragEnd)), m_CanDrag(std::move(canDrag)),
+          m_External(external)
     {
     }
 
@@ -55,59 +57,31 @@ public:
         switch (event.GetId())
         {
         case Rml::EventId::Mousedown:
-            m_PressMouseX = event.GetParameter<int>("mouse_x", 0);
-            m_PressMouseY = event.GetParameter<int>("mouse_y", 0);
+            m_PressMouseX = m_External ? static_cast<int>(event.GetUnprojectedMouseScreenPos().x)
+                                       : event.GetParameter<int>("mouse_x", 0);
+            m_PressMouseY = m_External ? static_cast<int>(event.GetUnprojectedMouseScreenPos().y)
+                                       : event.GetParameter<int>("mouse_y", 0);
             break;
 
         case Rml::EventId::Dragstart:
         {
-            // RmlUi gives a transformed panel's events its local coordinates: a centred panel's
-            // press arrives shifted by its centring, until the pin below drops it.
-            Rml::Rectanglef drawn;
-            m_LocalShift = {0.f, 0.f};
-            if (m_Panel->GetComputedValues().has_local_transform()
-                && Rml::ElementUtilities::GetBoundingBox(drawn, m_Panel, Rml::BoxArea::Border))
-                m_LocalShift = m_Panel->GetAbsoluteOffset(Rml::BoxArea::Border) - drawn.Position();
-            // From the press, not dragstart's own mouse_x/y: that is the pointer's previous position,
-            // which need not be where the button went down.
-            m_DragStartMouseX = m_PressMouseX - static_cast<int>(std::lround(m_LocalShift.x));
-            m_DragStartMouseY = m_PressMouseY - static_cast<int>(std::lround(m_LocalShift.y));
-            // Read from the laid-out box rather than the left/top Property -- unit-agnostic,
-            // unlike Property::Get<float>() which returns the raw authored number.
-            const Rml::Vector2f start = PinnedPosition(m_Panel);
-            m_DragStartPanelLeft = start.x;
-            m_DragStartPanelTop = start.y;
+            m_DragAllowed = !m_CanDrag || m_CanDrag();
+            if (!m_DragAllowed)
+                break;
+            BeginDrag();
             break;
         }
 
         case Rml::EventId::Drag:
         {
-            // A step that arrives before the pin's layout still has the local shift.
-            const Rml::Vector2f shift =
-                m_Panel->GetComputedValues().has_local_transform() ? m_LocalShift : Rml::Vector2f(0.f, 0.f);
-            const int mouseX = event.GetParameter<int>("mouse_x", 0) - static_cast<int>(std::lround(shift.x));
-            const int mouseY = event.GetParameter<int>("mouse_y", 0) - static_cast<int>(std::lround(shift.y));
-            const float newLeftPx = m_DragStartPanelLeft + static_cast<float>(mouseX - m_DragStartMouseX);
-            const float newTopPx = m_DragStartPanelTop + static_cast<float>(mouseY - m_DragStartMouseY);
-
-            // Write in dp, not raw px -- px doesn't scale with UIScalePercent and would
-            // drift from every dp-authored sibling. Divide by the same ratio
-            // RmlUiRuntime::RefreshScale() sets on the context.
-            const float dpRatio = m_Panel->GetOwnerDocument()->GetContext()->GetDensityIndependentPixelRatio();
-            const float newLeftDp = dpRatio > 0.0f ? newLeftPx / dpRatio : newLeftPx;
-            const float newTopDp = dpRatio > 0.0f ? newTopPx / dpRatio : newTopPx;
-            m_Panel->SetProperty("left", std::to_string(newLeftDp) + "dp");
-            m_Panel->SetProperty("top", std::to_string(newTopDp) + "dp");
-
-            // onMove's contract is real window pixels, for syncing a hybrid window's
-            // legacy CWin position -- pass px, not the dp values just written above.
-            if (m_OnMove)
-                m_OnMove(newLeftPx, newTopPx);
+            if (!m_DragAllowed || (m_CanDrag && !m_CanDrag()))
+                break;
+            MovePanel(event);
             break;
         }
 
         case Rml::EventId::Dragend:
-            if (m_OnDragEnd)
+            if (m_DragAllowed && m_OnDragEnd)
                 m_OnDragEnd();
             break;
 
@@ -128,10 +102,76 @@ public:
     }
 
 private:
+    void BeginDrag()
+    {
+        if (m_External)
+        {
+            Rml::Rectanglef drawn;
+            m_DragAllowed = Rml::ElementUtilities::GetBoundingBox(drawn, m_Panel, Rml::BoxArea::Border);
+            m_DragStartPanelLeft = drawn.Left();
+            m_DragStartPanelTop = drawn.Top();
+            m_DragStartMouseX = m_PressMouseX;
+            m_DragStartMouseY = m_PressMouseY;
+            return;
+        }
+        // RmlUi gives a transformed panel's events its local coordinates: a centred panel's
+        // press arrives shifted by its centring, until the pin below drops it.
+        Rml::Rectanglef drawn;
+        m_LocalShift = {0.f, 0.f};
+        if (m_Panel->GetComputedValues().has_local_transform() &&
+            Rml::ElementUtilities::GetBoundingBox(drawn, m_Panel, Rml::BoxArea::Border))
+            m_LocalShift = m_Panel->GetAbsoluteOffset(Rml::BoxArea::Border) - drawn.Position();
+        // From the press, not dragstart's own mouse_x/y: that is the pointer's previous position,
+        // which need not be where the button went down.
+        m_DragStartMouseX = m_PressMouseX - static_cast<int>(std::lround(m_LocalShift.x));
+        m_DragStartMouseY = m_PressMouseY - static_cast<int>(std::lround(m_LocalShift.y));
+        // Read from the laid-out box rather than the left/top Property -- unit-agnostic,
+        // unlike Property::Get<float>() which returns the raw authored number.
+        const Rml::Vector2f start = PinnedPosition(m_Panel);
+        m_DragStartPanelLeft = start.x;
+        m_DragStartPanelTop = start.y;
+    }
+
+    void MovePanel(Rml::Event& event)
+    {
+        if (m_External)
+        {
+            const auto mouse = event.GetUnprojectedMouseScreenPos();
+            if (m_OnMove)
+                m_OnMove(m_DragStartPanelLeft + mouse.x - m_DragStartMouseX,
+                         m_DragStartPanelTop + mouse.y - m_DragStartMouseY);
+            return;
+        }
+        // A step that arrives before the pin's layout still has the local shift.
+        const Rml::Vector2f shift =
+            m_Panel->GetComputedValues().has_local_transform() ? m_LocalShift : Rml::Vector2f(0.f, 0.f);
+        const int mouseX = event.GetParameter<int>("mouse_x", 0) - static_cast<int>(std::lround(shift.x));
+        const int mouseY = event.GetParameter<int>("mouse_y", 0) - static_cast<int>(std::lround(shift.y));
+        const float newLeftPx = m_DragStartPanelLeft + static_cast<float>(mouseX - m_DragStartMouseX);
+        const float newTopPx = m_DragStartPanelTop + static_cast<float>(mouseY - m_DragStartMouseY);
+
+        // Write in dp, not raw px -- px doesn't scale with UIScalePercent and would
+        // drift from every dp-authored sibling. Divide by the same ratio
+        // RmlUiRuntime::RefreshScale() sets on the context.
+        const float dpRatio = m_Panel->GetOwnerDocument()->GetContext()->GetDensityIndependentPixelRatio();
+        const float newLeftDp = dpRatio > 0.0f ? newLeftPx / dpRatio : newLeftPx;
+        const float newTopDp = dpRatio > 0.0f ? newTopPx / dpRatio : newTopPx;
+        m_Panel->SetProperty("left", std::to_string(newLeftDp) + "dp");
+        m_Panel->SetProperty("top", std::to_string(newTopDp) + "dp");
+
+        // onMove's contract is real window pixels, for syncing a hybrid window's
+        // legacy CWin position -- pass px, not the dp values just written above.
+        if (m_OnMove)
+            m_OnMove(newLeftPx, newTopPx);
+    }
+
     int m_Attachments = 0;
     Rml::Element* m_Panel;
     OnPanelMoved m_OnMove;
     OnDragEnd m_OnDragEnd;
+    CanDrag m_CanDrag;
+    bool m_DragAllowed = true;
+    bool m_External = false;
     Rml::Vector2f m_LocalShift{0.f, 0.f};
     int m_PressMouseX = 0;
     int m_PressMouseY = 0;
@@ -176,7 +216,8 @@ void KeepInsideWindow(Rml::Element* panel)
     panel->SetProperty("top", std::to_string(dpRatio > 0.0f ? top / dpRatio : top) + "dp");
 }
 
-void MakeDraggable(Rml::Element* handle, Rml::Element* panel, OnPanelMoved onMove, OnDragEnd onDragEnd)
+static void AttachDraggable(Rml::Element* handle, Rml::Element* panel, OnPanelMoved onMove, OnDragEnd onDragEnd,
+                            CanDrag canDrag, bool external)
 {
     // RmlUi only fires dragstart/drag for an element whose computed `drag` isn't `none` --
     // set it here so the caller doesn't need a matching RCSS rule.
@@ -187,10 +228,21 @@ void MakeDraggable(Rml::Element* handle, Rml::Element* panel, OnPanelMoved onMov
     // Force it here regardless of what the handle inherited from its document.
     handle->SetProperty("pointer-events", "auto");
 
-    DragMoveListener* listener = new DragMoveListener(panel, std::move(onMove), std::move(onDragEnd));
+    DragMoveListener* listener =
+        new DragMoveListener(panel, std::move(onMove), std::move(onDragEnd), std::move(canDrag), external);
     handle->AddEventListener(Rml::EventId::Mousedown, listener);
     handle->AddEventListener(Rml::EventId::Dragstart, listener);
     handle->AddEventListener(Rml::EventId::Drag, listener);
     handle->AddEventListener(Rml::EventId::Dragend, listener);
+}
+void MakeDraggable(Rml::Element* handle, Rml::Element* panel, OnPanelMoved onMove, OnDragEnd onDragEnd, CanDrag canDrag)
+{
+    AttachDraggable(handle, panel, std::move(onMove), std::move(onDragEnd), std::move(canDrag), false);
+}
+
+void MakeExternalDraggable(Rml::Element* handle, Rml::Element* panel, OnPanelMoved onMove, OnDragEnd onDragEnd,
+                           CanDrag canDrag)
+{
+    AttachDraggable(handle, panel, std::move(onMove), std::move(onDragEnd), std::move(canDrag), true);
 }
 } // namespace UI::RmlBridge

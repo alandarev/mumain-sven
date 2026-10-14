@@ -94,6 +94,7 @@ private:
     void BuildRmlUi();
     // Builds the HUD's images and texts in the original Render()'s order and syncs the document.
     void SyncView();
+    void SyncOverlay(const CursedTempleSystemRmlModel& model);
     void SyncGameTime();
     void SyncMiniMap(std::vector<CursedTempleSpriteEntry>& sprites);
     void SyncSkill();
@@ -162,6 +163,11 @@ private:
     UI::RmlBridge::ThemedView<CursedTempleSystemRmlModel> m_RmlView{"cursed_temple_system",
         [this](Rml::DataModelConstructor& c, CursedTempleSystemRmlModel& model) { BindRmlModel(c, model); },
         {{"Data/Interface/RmlUi/cursed_temple_system.rml"}}};
+    // Themes can place transient content above the windows without raising the tactical HUD.
+    UI::RmlBridge::ThemedView<CursedTempleSystemRmlModel> m_OverlayView{
+        "cursed_temple_overlay",
+        [this](Rml::DataModelConstructor& c, CursedTempleSystemRmlModel& model) { BindRmlModel(c, model); },
+        {{"Data/Interface/RmlUi/cursed_temple_overlay.rml"}}};
 };
 
     inline

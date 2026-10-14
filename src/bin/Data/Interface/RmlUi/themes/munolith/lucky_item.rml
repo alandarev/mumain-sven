@@ -1,0 +1,29 @@
+<rml>
+<head><link type="text/rcss" href="../legacy/item_grid.rcss"/><link type="text/rcss" href="native_items.rcss"/>
+<title>Reward counter</title>
+<link type="text/rcss" href="base.rcss"/>
+<link type="text/rcss" href="my_inventory_shared.rcss"/>
+<link type="text/rcss" href="castle_desks_common.rcss"/>
+<link type="text/rcss" href="reward_services.rcss"/>
+</head>
+<body data-model="lucky_item">
+<div id="panel" class="lucky-item-counter" data-compact-scale="0.9" data-style---text-px="text_px"><div class="stone"></div><div class="shade"></div><div class="trim top-left"></div><div class="trim top-mid"></div><div class="trim top-right"></div><div class="trim side-left"></div><div class="trim side-right"></div><div class="trim bottom-left"></div><div class="trim bottom-mid"></div><div class="trim bottom-right"></div>
+<div id="title">
+<span class="native-text counter-scaled">{{title}}</span>
+</div>
+<button class="corner-close" data-event-click="window_close">×</button>
+<div id="item_grid" class="native-anchor themed-grid item-grid"><div class="item-grid-cells"><div data-for="c : grid_cells" data-attr-class="'item-cell ' + c.tint + ' ' + c.drop"><div class="item-cell-drop"></div></div></div></div><img id="item_view" class="item-view"/><div id="item_grid_counts" class="item-grid-counts"><div class="item-count" data-for="c : grid_cells"><span class="item-count-text counter-scaled" data-style-font-size="text_px + 'px'" data-if="c.count != ''">{{c.count}}</span></div></div>
+<div class="lucky-notes scroll-pane counter-scaled">
+<div class="reward-line" data-for="t : text_lines" data-if="t.text != ''" data-style-color="t.color">{{t.text}}</div>
+</div>
+<div class="lucky-actions">
+<button data-event-click="window_close">
+<span class="native-text counter-scaled">Close</span>
+</button>
+<button data-if="mix_visible" data-event-click="lucky_item_mix_click">
+<span class="native-text counter-scaled">{{mix_tooltip}}</span>
+</button>
+</div>
+</div>
+</body>
+</rml>

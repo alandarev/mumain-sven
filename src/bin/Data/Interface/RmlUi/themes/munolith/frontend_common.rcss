@@ -1,0 +1,13 @@
+body { pointer-events: none; }
+.stone, .shade { left: 5rem; right: 5rem; top: 7rem; bottom: 7rem; pointer-events: none; }
+.top-left { width: 31rem; height: 27rem; }
+.top-mid { left: 31rem; right: 39rem; height: 27rem; }
+.top-right { width: 39rem; height: 27rem; }
+.side-left, .side-right { top: 26rem; bottom: 23rem; width: 7rem; }
+.bottom-left, .bottom-right { width: 23rem; height: 28rem; }
+.bottom-mid { left: 23rem; right: 23rem; height: 28rem; }
+.scene-title { display: block; position: absolute; left: 15rem; right: 15rem; top: 8rem; height: 18rem; text-align: center; color: #d7b864; font-size: 12rem; white-space: nowrap; }
+.btn, .btn-icon, .group-btn, .server-row { box-sizing: border-box; color: #ded1ac; background-color: #172018; border: 1rem #6b6646; font-family: "DejaVu Sans"; cursor: pointer; pointer-events: auto; }
+.btn:hover, .btn-icon:hover, .group-btn:hover, .server-row:hover { background-color: #35452a; border-color: #b8a563; }
+.btn:active, .btn-icon:active { background-color: #51482b; }
+.btn-icon.disabled, .job-btn.disabled { color: #82917e; pointer-events: none; cursor: default; }

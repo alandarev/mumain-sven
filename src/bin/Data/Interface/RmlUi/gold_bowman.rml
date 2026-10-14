@@ -1,3 +1,4 @@
+<!-- rml-contract-optional-callback: item_entry_key: Escape closes through the window, without a focused control -->
 <rml>
 <!-- rml-contract-optional-id: entry_item: this score window shows text/buttons and does not install an item preview drawer -->
 <head>

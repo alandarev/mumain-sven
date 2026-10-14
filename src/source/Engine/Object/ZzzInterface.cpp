@@ -7,6 +7,7 @@
 #include "Core/Platform/Imm.h"
 #include "UI/Core/UIManager.h"
 #include "UI/Widgets/TextSearch.h"
+#include "UI/Widgets/GameCursor.h"
 #include "Render/Renderer/MuRenderer.h"
 #include "Core/Input/UiInputRouter.h"
 #include "Render/Textures/ZzzOpenglUtil.h"
@@ -3724,7 +3725,7 @@ void CollectCrownSwitchLines(std::wstring (&lines)[2])
             wchar_t szSwitch[64]{};
             _snwprintf_s(szSwitch, std::size(szSwitch), _TRUNCATE, I18N::Game::CrownSwitchD, i + 1);
             mu_swprintf(Buff, L"%ls / %ls / %ls", szSwitch, Switch_Info[i].m_szGuildName, Switch_Info[i].m_szUserName);
-            lines[i] = Buff;
+            lines[i].assign(Buff);
         }
     }
 }
@@ -3916,6 +3917,16 @@ bool MacroCooldownFraction(float& fraction)
 
 extern int g_iKeyPadEnable;
 
+namespace
+{
+void RenderPointerBitmap(int texture, float u = 0.f, float v = 0.f, float uWidth = 1.f, float vHeight = 1.f)
+{
+    RenderBitmap(texture, static_cast<float>(MouseX) - UI::Widgets::GameCursorHotspotInset,
+                 static_cast<float>(MouseY) - UI::Widgets::GameCursorHotspotInset, UI::Widgets::GameCursorSize,
+                 UI::Widgets::GameCursorSize, u, v, uWidth, vHeight);
+}
+} // namespace
+
 void RenderCursor()
 {
     if (!g_bRenderGameCursor)
@@ -3933,21 +3944,21 @@ void RenderCursor()
     if (Frame == 2 || Frame == 3 || Frame == 4) v = 0.5f;
     if (g_iKeyPadEnable || ErrorMessage)
     {
-        RenderBitmap(BITMAP_CURSOR, (float)MouseX - 2.f, (float)MouseY - 2.f, 24.f, 24.f);
+        RenderPointerBitmap(BITMAP_CURSOR);
     }
     else if (SelectedItem != -1)
     {
-        RenderBitmap(BITMAP_CURSOR + 3, (float)MouseX - 2.f, (float)MouseY - 2.f, 24.f, 24.f);
+        RenderPointerBitmap(BITMAP_CURSOR + 3);
     }
     else if (SelectedNpc != -1)
     {
         if (M38Kanturu2nd::Is_Kanturu2nd())
         {
-            RenderBitmap(BITMAP_CURSOR2, (float)MouseX - 2.f, (float)MouseY - 2.f, 24.f, 24.f);
+            RenderPointerBitmap(BITMAP_CURSOR2);
         }
         else
         {
-            RenderBitmap(BITMAP_CURSOR + 4, (float)MouseX - 2.f, (float)MouseY - 2.f, 24.f, 24.f, u, v, 0.5f, 0.5f);
+            RenderPointerBitmap(BITMAP_CURSOR + 4, u, v, 0.5f, 0.5f);
         }
     }
     else if (SelectedOperate != -1)
@@ -3957,9 +3968,9 @@ void RenderCursor()
             (gMapManager.WorldActive == WD_2DEVIAS && Operates[SelectedOperate].Owner->Type == 91) ||
             (gMapManager.WorldActive == WD_3NORIA && Operates[SelectedOperate].Owner->Type == 38)
             )
-            RenderBitmap(BITMAP_CURSOR + 6, (float)MouseX - 2.f, (float)MouseY - 2.f, 24.f, 24.f);
+            RenderPointerBitmap(BITMAP_CURSOR + 6);
         else
-            RenderBitmap(BITMAP_CURSOR + 7, (float)MouseX - 2.f, (float)MouseY - 2.f, 24.f, 24.f);
+            RenderPointerBitmap(BITMAP_CURSOR + 7);
     }
     else if ((!Hero->SafeZone/*||EnableEdit*/) && SelectedCharacter != -1)
     {
@@ -3967,29 +3978,29 @@ void RenderCursor()
         {
             if (gMapManager.InBattleCastle())
             {
-                RenderBitmap(BITMAP_CURSOR2, (float)MouseX - 2.f, (float)MouseY - 2.f, 24.f, 24.f);
+                RenderPointerBitmap(BITMAP_CURSOR2);
             }
             else
             {
-                RenderBitmap(BITMAP_CURSOR + 2, (float)MouseX - 2.f, (float)MouseY - 2.f, 24.f, 24.f);
+                RenderPointerBitmap(BITMAP_CURSOR + 2);
             }
         }
         else
-            RenderBitmap(BITMAP_CURSOR, (float)MouseX - 2.f, (float)MouseY - 2.f, 24.f, 24.f);
+            RenderPointerBitmap(BITMAP_CURSOR);
     }
     else if (g_pNewUISystem->IsVisible(mu::ui::window::INTERFACE_COMMAND))
     {
         if (g_pCommandWindow->GetMouseCursor() == CURSOR_IDSELECT)
         {
-            RenderBitmap(BITMAP_INTERFACE_EX + 29, (float)MouseX - 2.f, (float)MouseY - 2.f, 24.f, 24.f);
+            RenderPointerBitmap(BITMAP_INTERFACE_EX + 29);
         }
         else if (g_pCommandWindow->GetMouseCursor() == CURSOR_NORMAL)
         {
-            RenderBitmap(BITMAP_CURSOR, (float)MouseX - 2.f, (float)MouseY - 2.f, 24.f, 24.f);
+            RenderPointerBitmap(BITMAP_CURSOR);
         }
         else if (g_pCommandWindow->GetMouseCursor() == CURSOR_PUSH)
         {
-            RenderBitmap(BITMAP_CURSOR + 1, (float)MouseX - 2.f, (float)MouseY - 2.f, 24.f, 24.f);
+            RenderPointerBitmap(BITMAP_CURSOR + 1);
         }
     }
     else if (((g_pNewUISystem->IsVisible(mu::ui::window::INTERFACE_INVENTORY) || g_pNewUISystem->IsVisible(mu::ui::window::INTERFACE_INVENTORY_EXT))
@@ -4000,34 +4011,37 @@ void RenderCursor()
     {
         if (MouseLButton == false)
         {
-            RenderBitmap(BITMAP_CURSOR + 5, (float)MouseX - 2.f, (float)MouseY - 2.f, 24.f, 24.f);
+            RenderPointerBitmap(BITMAP_CURSOR + 5);
         }
         else
         {
-            RenderBitmapRotate(BITMAP_CURSOR + 5, (float)MouseX + 5.f, (float)MouseY + 18.f, 24.f, 24.f, 45.f);
+            RenderBitmapRotate(BITMAP_CURSOR + 5, (float)MouseX + 5.f, (float)MouseY + 18.f,
+                               UI::Widgets::GameCursorSize, UI::Widgets::GameCursorSize, 45.f);
         }
     }
     else if (RepairEnable == 2)
     {
         if (sin(WorldTime * 0.02f) > 0)
         {
-            RenderBitmapRotate(BITMAP_CURSOR + 5, (float)MouseX + 10.f, (float)MouseY + 10.f, 24.f, 24.f, 0.f);
+            RenderBitmapRotate(BITMAP_CURSOR + 5, (float)MouseX + 10.f, (float)MouseY + 10.f,
+                               UI::Widgets::GameCursorSize, UI::Widgets::GameCursorSize, 0.f);
         }
         else
         {
-            RenderBitmapRotate(BITMAP_CURSOR + 5, (float)MouseX + 5.f, (float)MouseY + 18.f, 24.f, 24.f, 45.f);
+            RenderBitmapRotate(BITMAP_CURSOR + 5, (float)MouseX + 5.f, (float)MouseY + 18.f,
+                               UI::Widgets::GameCursorSize, UI::Widgets::GameCursorSize, 45.f);
         }
     }
     else
     {
         if (!MouseLButton)
-            RenderBitmap(BITMAP_CURSOR, (float)MouseX - 2.f, (float)MouseY - 2.f, 24.f, 24.f);
+            RenderPointerBitmap(BITMAP_CURSOR);
         else
         {
             if (DontMove)
-                RenderBitmap(BITMAP_CURSOR + 8, (float)MouseX - 2.f, (float)MouseY - 2.f, 24.f, 24.f);
+                RenderPointerBitmap(BITMAP_CURSOR + 8);
             else
-                RenderBitmap(BITMAP_CURSOR + 1, (float)MouseX - 2.f, (float)MouseY - 2.f, 24.f, 24.f);
+                RenderPointerBitmap(BITMAP_CURSOR + 1);
         }
     }
 }

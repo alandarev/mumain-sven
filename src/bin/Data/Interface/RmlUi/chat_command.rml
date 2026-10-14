@@ -1,3 +1,5 @@
+<!-- rml-contract-optional-id: command_scroller: this list pages by rows; a theme with a scrolled pane names it for the arrow keys -->
+<!-- rml-contract-optional-callback: chat_command_scroll: this list pages by rows; a scrolled-pane theme binds its scroll buttons -->
 <rml>
 <head>
 	<title>Chat Commands</title>
@@ -30,7 +32,7 @@
 		     that goes with it is this row's class. -->
 		<div class="cc-rows" data-if="page == 0">
 			<div class="cc-row" data-for="r, i : command_rows" data-class-favourite="r.favourite"
-			     data-event-click="chat_command_hit(1, i)">
+			     data-event-click="chat_command_hit(1, r.index)">
 				<span class="sharp-text cc-cell"
 				      data-style-font-size="r.text_px + 'px'">{{r.text}}</span>
 			</div>
@@ -49,7 +51,7 @@
 					<div class="cc-value-box" data-if="!p.edited" data-event-click="chat_command_hit(2, i)"></div>
 					<span class="sharp-text cc-param-value" data-if="!p.edited" data-class-placeholder="p.placeholder" data-style-font-size="p.value_text_px + 'px'">{{p.value}}</span>
 					<div class="cc-value-box" data-if="p.edited"></div>
-					<input data-if="p.edited" data-value="edit_value" type="text" class="text-field sharp-text cc-value-field"
+					<input data-if="p.edited" data-event-keydown="chat_command_edit_key" data-value="edit_value" type="text" class="text-field sharp-text cc-value-field"
 					       data-style-font-size="text_px + 'px'"/>
 				</div>
 			</div>
@@ -70,10 +72,10 @@
 		     theme sizes. -->
 		<div class="cc-rows" data-if="page == 2">
 			<div class="cc-row" data-for="r, i : template_rows">
-				<div class="cc-template-hit" data-event-click="chat_command_hit(5, i)"></div>
+				<div class="cc-template-hit" data-event-click="chat_command_hit(5, r.index)"></div>
 				<span class="sharp-text cc-cell cc-template-label"
 				      data-style-font-size="r.text_px + 'px'">{{r.text}}</span>
-				<div class="cc-template-remove" data-event-click="chat_command_hit(6, i)">
+				<div class="cc-template-remove" data-event-click="chat_command_hit(6, r.index)">
 					<span class="sharp-text cc-remove-mark"
 					      data-style-font-size="text_px + 'px'">x</span>
 				</div>

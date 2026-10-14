@@ -40,7 +40,7 @@ std::string AssetMarkup(const std::string& theme, const std::string& name)
         if (!std::filesystem::exists(stylesheet))
             stylesheet = root / (*it)[1].str();
         resolved.append(markup, end, static_cast<size_t>(it->position()) - end);
-        resolved += "href=\"" + stylesheet.generic_string() + "\"";
+        resolved += "href=\"" + std::filesystem::relative(stylesheet, root).generic_string() + "\"";
         end = static_cast<size_t>(it->position() + it->length());
     }
     resolved.append(markup, end, std::string::npos);
@@ -90,7 +90,21 @@ Rml::ElementDocument* RmlLayoutFixture::Load(const std::string& theme, const std
 
 Rml::ElementDocument* RmlLayoutFixture::LoadMarkup(const std::string& markup)
 {
-    auto* document = context->LoadDocumentFromMemory(markup);
+    // RmlUi treats a leading '/' as asset-root-relative and strips it. Generated audit
+    // documents carry host-absolute links; resolve them relative to this explicit source URL.
+    const std::filesystem::path root = MU_RMLUI_DIR;
+    const std::regex absoluteLinks(R"rcss(href="(/[^"]+\.rcss)")rcss");
+    std::string resolved;
+    size_t end = 0;
+    for (auto it = std::sregex_iterator(markup.begin(), markup.end(), absoluteLinks);
+         it != std::sregex_iterator(); ++it)
+    {
+        resolved.append(markup, end, static_cast<size_t>(it->position()) - end);
+        resolved += "href=\"" + std::filesystem::relative((*it)[1].str(), root).generic_string() + "\"";
+        end = static_cast<size_t>(it->position() + it->length());
+    }
+    resolved.append(markup, end, std::string::npos);
+    auto* document = context->LoadDocumentFromMemory(resolved, (root / "headless_fixture.rml").generic_string());
     REQUIRE(document != nullptr);
     document->Show();
     Refresh();

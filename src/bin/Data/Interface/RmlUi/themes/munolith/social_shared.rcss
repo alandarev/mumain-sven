@@ -1,0 +1,16 @@
+/* Officer desk social family: shared window profile, silver/stone chrome and native-sized text. */
+#panel { width: 400px; height: 400px; pointer-events: auto; }
+#title { display: block; position: absolute; left: 0; top: 10px; text-align: center; color: #e6d3a7; height: 23px; pointer-events: auto; }
+#btn_corner_close { display: block; position: absolute; right: 1px; top: 1px; width: 16px; height: 16px; cursor: pointer; pointer-events: auto; }
+#btn_corner_close:hover { border: 1px #e7c568; }
+.sharp-text { transform-origin: left top; }
+#panel .hidden { display: none; }
+.social-btn { display: block; box-sizing: border-box; text-align: center; color: #dac99d; border: 1px #746d52; background-color: #172523; cursor: pointer; pointer-events: auto; }
+.social-btn:hover { color: #ffe0a2; border-color: #b99d57; background-color: #263731; }
+.social-scroll { display: block; overflow: hidden auto; pointer-events: auto; }
+.social-mark { display: flex; flex-wrap: wrap; background-color: #101914; }
+.mark-cell { display: block; width: 12.5%; height: 12.5%; }
+scrollbarvertical { width: 8px; }
+scrollbarvertical slidertrack { decorator: none; background-color: #0a1412; }
+scrollbarvertical sliderbar { decorator: none; background-color: #756c4f; border: 1px #b2a278; }
+scrollbarvertical sliderarrowdec, scrollbarvertical sliderarrowinc { decorator: none; height: 0; }

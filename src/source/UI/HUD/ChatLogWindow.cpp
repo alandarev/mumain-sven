@@ -22,6 +22,7 @@
 #include "Core/Utilities/StringUtils.h"
 #include "Render/Text/CUIRenderText.h"
 #include <RmlUi/Core/ElementDocument.h>
+#include <RmlUi/Core/ElementUtilities.h>
 #include <RmlUi/Core/Element.h>
 
 using namespace SEASON3B;
@@ -508,11 +509,43 @@ bool mu::ui::window::CChatLogWindow::IsShowFrame()
     return m_bShowFrame;
 }
 
+bool mu::ui::window::CChatLogWindow::HandleHistoryWheel()
+{
+    if (MouseWheel == 0 || !m_bShowFrame || !m_bShowChatLog || !m_bSceneAllowsShow ||
+        RmlUiRuntime::Instance().IsMouseOverUI())
+        return false;
+    // A modal document can block other documents without an interactive element under the
+    // pointer. Its focused document still owns input, including wheels over passive history.
+    Rml::Context* context = RmlUiRuntime::Instance().GetContext();
+    Rml::Element* focus = context ? context->GetFocusElement() : nullptr;
+    if (focus && focus->GetOwnerDocument() && focus->GetOwnerDocument()->IsModal())
+        return false;
+    Rml::Element* lines = m_RmlView.Document() ? m_RmlView.Document()->GetElementById("lines") : nullptr;
+    if (lines == nullptr || !lines->IsVisible(true))
+        return false;
+    Rml::Rectanglef well;
+    if (!Rml::ElementUtilities::GetBoundingBox(well, lines, Rml::BoxArea::Content) || g_fWindowMouseX < well.Left() ||
+        g_fWindowMouseX >= well.Right() || g_fWindowMouseY < well.Top() || g_fWindowMouseY >= well.Bottom())
+        return false;
+
+    constexpr float wheelLines = 3.0f;
+    const float rowHeight = lines->GetClientHeight() / std::max(1, m_nShowingLines);
+    lines->SetScrollTop(lines->GetScrollTop() - static_cast<float>(MouseWheel) * wheelLines * rowHeight);
+    m_bFollowTail = IsScrolledToBottom();
+    m_bScrollPending = false;
+    m_bScrollRequest = false;
+    SyncLogicalScrollFromView();
+    MouseWheel = 0;
+    return true;
+}
+
 bool mu::ui::window::CChatLogWindow::UpdateMouseEvent()
 {
-    // Everything this used to do belongs to RmlUi now: the wheel, the scrollbar and the per-line
-    // hit tests are #lines' (base.rcss's .scroll-pane), and the resize is a drag on #resize_handle
-    // (ResizeToPointer()).
+    // The scrollbar, the per-line hit tests and the resize drag on #resize_handle
+    // (ResizeToPointer()) are RmlUi's. A theme's passive history (pointer-events: none) lets world
+    // clicks through, so its wheel input inside the painted well is claimed here.
+    if (HandleHistoryWheel())
+        return false;
     return true;
 }
 
@@ -654,6 +687,8 @@ void mu::ui::window::CChatLogWindow::SyncRmlModel()
 
     UI::RmlBridge::SyncDocumentVisibility(m_RmlView.Document(), IsVisible() && m_bShowChatLog && m_bSceneAllowsShow);
 
+    // A resize keeps a view that was at the bottom there, and leaves a scrolled-up one alone.
+    const bool following = !m_bShowFrame || IsScrolledToBottom();
     ChatLogRmlModel& model = m_RmlView.GetModel();
 
     // Native's own UpdateWndSize(): 15 per line, plus the 3+3 scroll caps and the 2+2 edges.
@@ -664,11 +699,15 @@ void mu::ui::window::CChatLogWindow::SyncRmlModel()
     {
         model.clientHeight = clientHeight;
         m_RmlView.MarkDirty("client_height");
+        m_bFollowTail = following;
+        m_bScrollPending = following;
     }
     if (model.panelHeight != panelHeight)
     {
         model.panelHeight = panelHeight;
         m_RmlView.MarkDirty("panel_height");
+        m_bFollowTail = following;
+        m_bScrollPending = following;
     }
     if (model.showFrame != m_bShowFrame)
     {
@@ -740,6 +779,7 @@ void mu::ui::window::CChatLogWindow::SyncNativeLineGeometry()
 {
     const float dpRatio = RmlUiRuntime::Instance().GetContext()->GetDensityIndependentPixelRatio();
 
+    const bool following = !m_bShowFrame || IsScrolledToBottom();
     ChatLogRmlModel& model = m_RmlView.GetModel();
     auto syncFloat = [&](float ChatLogRmlModel::* field, const char* name, float value)
     {
@@ -747,6 +787,8 @@ void mu::ui::window::CChatLogWindow::SyncNativeLineGeometry()
         {
             model.*field = value;
             m_RmlView.MarkDirty(name);
+            m_bFollowTail = following;
+            m_bScrollPending = following;
         }
     };
     syncFloat(&ChatLogRmlModel::textPx, "text_px", UI::RmlBridge::NativeTextPx(UI::Scaling::FontRole::Normal));
@@ -817,10 +859,9 @@ void mu::ui::window::CChatLogWindow::UpdatePointedLine()
         const float py = g_fWindowMouseY;
 
         // Clip to the scrolling well first, so a line scrolled out of view is never pointed.
-        const Rml::Vector2f wellPos = lines->GetAbsoluteOffset();
-        const float wellW = lines->GetClientWidth();
-        const float wellH = lines->GetClientHeight();
-        if (px >= wellPos.x && px < wellPos.x + wellW && py >= wellPos.y && py < wellPos.y + wellH)
+        Rml::Rectanglef well;
+        if (Rml::ElementUtilities::GetBoundingBox(well, lines, Rml::BoxArea::Content) && px >= well.Left() &&
+            px < well.Right() && py >= well.Top() && py < well.Bottom())
         {
             for (int i = 0; i < lines->GetNumChildren(); i++)
             {
@@ -830,10 +871,13 @@ void mu::ui::window::CChatLogWindow::UpdatePointedLine()
 
                 // The whole row (native tested SCROLL_MIDDLE_PART_HEIGHT), including the gap under
                 // a line whose background is only as tall as its text (legacy chat_log.rml).
-                const Rml::Vector2f pos = child->GetAbsoluteOffset();
-                const float h =
-                    child->GetOffsetHeight() + child->GetBox().GetEdge(Rml::BoxArea::Margin, Rml::BoxEdge::Bottom);
-                if (py >= pos.y && py < pos.y + h)
+                Rml::Rectanglef row;
+                if (!Rml::ElementUtilities::GetBoundingBox(row, child, Rml::BoxArea::Border))
+                    continue;
+                const float localHeight = child->GetOffsetHeight();
+                const float scale = localHeight > 0.f ? row.Height() / localHeight : 1.f;
+                const float gap = child->GetBox().GetEdge(Rml::BoxArea::Margin, Rml::BoxEdge::Bottom) * scale;
+                if (py >= row.Top() && py < row.Bottom() + gap)
                 {
                     // Only a line carrying a sender is a target, matching native -- an
                     // unattributed system line has nothing to whisper to.

@@ -1,0 +1,17 @@
+#panel { height: 340px; }
+.party-list { position: absolute; left: 15px; top: 42px; }
+.party-row { display: flex; box-sizing: border-box; align-items: center; border: 1px #49583e; background-color: #111c15; }
+.party-identity { flex: 0 0 auto; }
+.party-name { display: block; color: #d2d6c4; }
+.party-row.leader .party-name, .party-leader { color: #e2c887; }
+.party-leader { display: block; }
+.party-vitals { flex: 1 1 0; min-width: 0; }
+.party-hp-text { color: #bfcab3; }
+.party-hp-bar { display: block; margin: 3px 0; background-color: #323c29; }
+.party-hp-fill { display: block; height: 100%; background-color: #963f38; }
+.party-location { color: #9fab94; white-space: nowrap; }
+.party-kick-btn { display: flex; flex: 0 0 auto; justify-content: center; align-items: center; color: #aaad94; border: 1px #546147; background-color: #152018; cursor: pointer; }
+.party-kick-btn:hover { color: #f3d9a1; border-color: #b79958; }
+.party-empty { position: absolute; left: 15px; top: 100px; color: #b8c1aa; }
+.party-empty span { display: block; white-space: normal; }
+#btn_exit { position: absolute; right: 15px; bottom: 16px; width: 74px; height: 22px; }

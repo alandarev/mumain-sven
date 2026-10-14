@@ -124,6 +124,7 @@ namespace mu::ui::window
 
         void BuildRmlUi();
         void SyncRmlModel();
+        void SyncNativeLayout();
 
     public:
         CMixInventory();

@@ -1,0 +1,21 @@
+/* A physical-height rail above the workspace header. Native text movement, color and fade
+   remain authoritative; the theme provides the readable rail and vertical placement. */
+#band {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 28px;
+    box-sizing: border-box;
+    border-bottom: 1px #797344;
+    overflow: hidden;
+    pointer-events: none;
+}
+#slide_text {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    font-family: "DejaVu Sans";
+    white-space: nowrap;
+    pointer-events: none;
+}

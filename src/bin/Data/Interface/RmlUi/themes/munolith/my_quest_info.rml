@@ -1,0 +1,104 @@
+<rml>
+<head><link type="text/rcss" href="scaled_content.rcss"/>
+	<title>My Quest Info</title>
+	<link type="text/rcss" href="base.rcss"/>
+	<link type="text/rcss" href="my_inventory_shared.rcss"/>
+	<link type="text/rcss" href="quest_shared.rcss"/>
+	<link type="text/rcss" href="my_quest_info.rcss"/>
+</head>
+<body>
+	<div id="panel" data-model="my_quest_info"
+
+	     data-style-font-size="(text_px / root_scale) + 'px'">
+		<div class="stone"></div>
+<div class="shade"></div>
+<div class="trim top-left"></div>
+<div class="trim top-mid"></div>
+<div class="trim top-right"></div>
+<div class="trim side-left"></div>
+<div class="trim side-right"></div>
+<div class="trim bottom-left"></div>
+<div class="trim bottom-mid"></div>
+<div class="trim bottom-right"></div>
+		<span class="sharp-text counter-scaled scaled-width-360 scaled-reference" id="title"
+		     data-style-font-size="text_px + 'px'">Quest</span>
+		<div class="tab-row">
+			<div id="tab_quest" class="sharp-text tab-btn tab-btn-quest counter-scaled scaled-width-90 scaled-height-22 scaled-line-height-22 scaled-reference" data-class-active="active_tab == 0" data-style-font-size="text_px + 'px'"
+			     data-event-click="myquest_select_tab(0)">{{tab_quest_label}}</div>
+			<div id="tab_jobchange" class="sharp-text tab-btn tab-btn-jobchange counter-scaled scaled-width-90 scaled-height-22 scaled-line-height-22 scaled-reference" data-class-active="active_tab == 1" data-style-font-size="text_px + 'px'"
+			     data-event-click="myquest_select_tab(1)">{{tab_jobchange_label}}</div>
+			<div id="tab_castletemple" class="sharp-text tab-btn tab-btn-castletemple counter-scaled scaled-width-130 scaled-height-22 scaled-line-height-22 scaled-reference" data-class-active="active_tab == 2" data-style-font-size="text_px + 'px'"
+			     data-event-click="myquest_select_tab(2)">{{tab_castletemple_label}}</div>
+		</div>
+		<div class="quest-tab" data-class-hidden="active_tab != 0">
+			<div class="sharp-text quest-empty-msg counter-scaled scaled-width-140 scaled-line-height-18 scaled-reference" data-class-hidden="!quest_list_empty"
+		     data-style-font-size="text_px + 'px'">
+				<span data-for="line : empty_quest_lines">{{line.text}}</span>
+			</div>
+			<div class="sharp-text quest-list counter-scaled scaled-width-144 scaled-height-294 scaled-reference" data-class-hidden="quest_list_empty"
+		     data-style-font-size="text_px + 'px'">
+				<div class="quest-row scaled-height-18 scaled-line-height-18 scaled-padding-left-4 scaled-reference" data-for="q : quests" data-class-selected="q.selected"
+
+				     data-event-click="myquest_select_quest(q.index)">{{q.text}}</div>
+			</div>
+			<div class="quest-divider"></div>
+			<div class="sharp-text quest-contents counter-scaled scaled-width-170 scaled-height-294 scaled-reference"
+		     data-style-font-size="text_px + 'px'">
+				<span class="quest-content-row scaled-padding-1-4 scaled-reference" data-for="c : contents"
+
+				      data-class-clickable="c.clickable"
+				      data-class-row-subject="c.style == 'subject'"
+				      data-class-row-summary="c.style == 'summary'"
+				      data-class-row-heading="c.style == 'heading'"
+				      data-class-row-requirement="c.style == 'requirement'"
+				      data-class-row-requirement-unmet="c.style == 'requirement-unmet'"
+				      data-class-row-reward="c.style == 'reward'"
+				      data-class-row-random-reward="c.style == 'random-reward'"
+				      data-event-click="myquest_select_content(c.index)">{{c.text}}</span>
+			</div>
+		</div>
+		<div id="reward_popup_anchor" class="quest-popup-anchor" data-class-hidden="active_tab != 0"></div>
+		<div id="btn_quest_open" class="quest-btn quest-btn-open" data-class-hidden="active_tab != 0"
+		     data-class-locked="!open_enabled" data-event-click="myquest_click_open"><span>Start</span></div>
+		<span class="sharp-text tooltip tooltip-open counter-scaled scaled-width-110 scaled-padding-2-4 scaled-reference"
+		     data-style-font-size="text_px + 'px'"><span class="tooltip-text scaled-padding-0-3 scaled-reference">{{open_tooltip}}</span></span>
+		<div id="btn_quest_giveup" class="quest-btn quest-btn-giveup" data-class-hidden="active_tab != 0"
+		     data-class-locked="!giveup_enabled" data-event-click="myquest_click_giveup"><span>Give up</span></div>
+		<span class="sharp-text tooltip tooltip-giveup counter-scaled scaled-width-110 scaled-padding-2-4 scaled-reference"
+		     data-style-font-size="text_px + 'px'"><span class="tooltip-text scaled-padding-0-3 scaled-reference">{{giveup_tooltip}}</span></span>
+		<div class="jobchange-tab" data-class-hidden="active_tab != 1">
+			<div class="sharp-text jobchange-title counter-scaled scaled-width-170 scaled-line-height-16 scaled-reference"
+		     data-style-font-size="text_px + 'px'">{{jobchange_title}}</div>
+			<div class="sharp-text jobchange-contents counter-scaled scaled-width-170 scaled-line-height-16 scaled-reference"
+		     data-style-font-size="text_px + 'px'">
+				<span data-for="line : jobchange_lines">{{line.text}}</span>
+			</div>
+			<div class="quest-divider jobchange-divider"></div>
+			<div class="sharp-text jobchange-state counter-scaled scaled-width-144 scaled-line-height-18 scaled-reference"
+		     data-style-font-size="text_px + 'px'">
+				<span data-for="line : jobchange_state_lines">{{line.text}}</span>
+			</div>
+		</div>
+		<div class="castletemple-tab" data-class-hidden="active_tab != 2">
+			<div class="sharp-text castle-block counter-scaled scaled-width-170 scaled-line-height-20 scaled-reference"
+		     data-style-font-size="text_px + 'px'">
+				<div class="castle-title">{{castle_title}}</div>
+				<div class="castle-line">{{castle_line0}}</div>
+				<div class="castle-line">{{castle_line1}}</div>
+			</div>
+			<div class="sharp-text temple-block counter-scaled scaled-width-170 scaled-line-height-20 scaled-reference"
+		     data-style-font-size="text_px + 'px'">
+				<div class="temple-title">{{temple_title}}</div>
+				<div class="temple-line">{{temple_line0}}</div>
+				<div class="temple-line">{{temple_line1}}</div>
+			</div>
+			<div class="quest-divider castletemple-divider"></div>
+		</div>
+		<div id="btn_corner_close" class="quest-close" data-event-click="myquest_click_exit">
+			×
+		</div>
+		<span class="sharp-text tooltip tooltip-exit counter-scaled scaled-width-110 scaled-padding-2-4 scaled-reference"
+		     data-style-font-size="text_px + 'px'"><span class="tooltip-text scaled-padding-0-3 scaled-reference">{{exit_tooltip}}</span></span>
+	</div>
+</body>
+</rml>

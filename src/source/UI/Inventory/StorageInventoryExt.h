@@ -60,6 +60,16 @@ namespace mu::ui::window
         bool Create(CManager* pNewUIMng);
         void Release();
 
+        void Show(bool visible = true) override;
+        // A theme that embeds the extra vault in the vault (ThemeUsesEmbeddedVault()) keeps this
+        // window hidden; its grid is available while the vault is open.
+        bool IsAvailable() const;
+        void SyncEmbeddedLayout(Rml::ElementDocument* document);
+        bool UpdateEmbeddedMouseEvent();
+        void UpdateEmbedded();
+        void RenderEmbedded();
+        void RenderEmbedded3D();
+        const CInventoryCtrl* GetEmbeddedControl() const;
 
         bool UpdateMouseEvent() override;
         bool UpdateKeyEvent() override;

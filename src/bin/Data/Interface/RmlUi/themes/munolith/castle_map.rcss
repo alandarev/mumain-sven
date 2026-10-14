@@ -1,0 +1,5 @@
+@spritesheet cw-map-sheet { src: "../../../senatusmap.jpg"; cw-map: 0px 0px 160px 165px; }
+@spritesheet cw-gate-on-sheet { src: "../../../gate_button1.jpg"; cw-gate-on: 0px 0px 24px 24px; }
+@spritesheet cw-gate-off-sheet { src: "../../../gate_button2.jpg"; cw-gate-off: 0px 0px 24px 24px; }
+@spritesheet cw-statue-on-sheet { src: "../../../suho_button1.jpg"; cw-statue-on: 0px 0px 24px 24px; }
+@spritesheet cw-statue-off-sheet { src: "../../../suho_button2.jpg"; cw-statue-off: 0px 0px 24px 24px; }

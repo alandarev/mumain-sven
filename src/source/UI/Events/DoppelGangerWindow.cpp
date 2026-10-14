@@ -1,6 +1,7 @@
 ﻿
 #include "stdafx.h"
 #include "UI/Events/DoppelGangerWindow.h"
+#include "UI/Events/EntryDescription.h"
 #include "UI/Core/WindowSystem.h"
 #include "UI/Core/WindowGeometry.h"
 #include "UI/Dialogs/CustomMessageBox.h"
@@ -16,7 +17,6 @@
 
 #include "Audio/DSPlaySound.h"
 #include "Render/Text/CUIRenderText.h"
-#include "Render/Text/TextWrap.h"
 
 using namespace SEASON3B;
 using namespace mu::ui::window;
@@ -115,22 +115,11 @@ void CDoppelGangerWindow::SyncView()
 {
     if (IsVisible())
     {
-        // The original's Render(): every text in (220, 220, 220), the colour RenderFrame() left
-        // set. Both descriptions are cut into one buffer, the second over the first without a
-        // terminator, so a shorter line keeps the tail of the longer one ("the...sion of a") --
-        // shared with the original, kept. The original also dropped the second line of each cut
-        // (finding EV1): that came from its uninitialised stack buffer, not from its layout, so
-        // those lines are kept here.
-        wchar_t szTextOut[2][300] = {};
         std::vector<EventItemEntryView::Text> texts;
         texts.push_back({I18N::Game::Lugard, 160.f, true});
         g_pRenderText->SetFont(g_hFont);
-        CutStr(I18N::Game::OnlyThoseInPossessionOfAMirrorOfDimensions, szTextOut[0], 140, 2, 300);
-        texts.push_back({szTextOut[0], 190.f});
-        texts.push_back({szTextOut[1], 190.f});
-        CutStr(I18N::Game::MayPassThroughTheDoppelgangerGate, szTextOut[0], 100, 2, 300);
-        texts.push_back({szTextOut[0], 190.f});
-        texts.push_back({szTextOut[1], 190.f});
+        UI::Events::AppendWrappedDescription(texts, I18N::Game::OnlyThoseInPossessionOfAMirrorOfDimensions, 140, 190.f);
+        UI::Events::AppendWrappedDescription(texts, I18N::Game::MayPassThroughTheDoppelgangerGate, 100, 190.f);
         texts.push_back({I18N::Game::WillYouShowMeYourMirror, 190.f});
         texts.push_back({I18N::Game::MirrorOfDimensions, 190.f, true});
         texts.push_back({I18N::Game::EntryTime, 190.f});

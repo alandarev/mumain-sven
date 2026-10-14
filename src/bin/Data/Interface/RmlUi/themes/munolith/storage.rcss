@@ -1,0 +1,33 @@
+#panel, #bg_root { width: 190px; height: 425px; }
+#panel.expanded, #bg_root.expanded { width: 360px; }
+#panel { pointer-events: auto; }
+#title { position: absolute; top: 8px; left: 31px; right: 39px; height: 15px; text-align: center; color: #d7b864; overflow: hidden; white-space: nowrap; }
+.native-text { display: inline-block; transform-origin: left top; white-space: nowrap; }
+#vault_close { position: absolute; right: 5px; top: 3px; width: 10px; height: 12px; padding: 0; border-width: 0; background-color: transparent; color: #d7b864; font-size: 9px; }
+.section-label { position: absolute; left: 15px; top: 30px; width: 160px; height: 12px; color: #a9a48e; }
+.section-label.extra { left: 185px; }
+.native-anchor { position: absolute; left: 15px; top: 45px; width: 160px; height: 300px; pointer-events: none; }
+#item_grid_extra { left: 185px; }
+.vault-grids { position: absolute; left: 15px; top: 45px; display: flex; gap: 10px; }
+.vault-grid { width: 160px; height: 300px; }
+.grid-row { height: 20px; width: 160px; display: flex; }
+.cell { width: 20px; height: 20px; box-sizing: border-box; border: 1px #373d2d; background-color: #10170dee; }
+.vault-footer { position: absolute; left: 15px; right: 15px; top: 352px; height: 52px; border-top: 1px #545139; box-sizing: border-box; }
+.money-line { height: 16px; padding-top: 3px; display: flex; justify-content: space-between; color: #d7b864; }
+.money-label { font-size: 8px; }
+.fee-line { height: 13px; color: #aaa48e; }
+.vault-actions { display: flex; gap: 4px; }
+button { display: inline-block; height: 18px; box-sizing: border-box; font-family: "DejaVu Sans"; font-size: 8px; color: #ded1ac; background-color: #343422; border: 1px #6b6646; pointer-events: auto; padding: 2px 4px; }
+button:hover { background-color: #51482b; border-color: #c9a65c; }
+#btn_insert, #btn_take { width: 62px; }
+#btn_lock { width: 28px; margin-left: auto; }
+#btn_lock.locked { color: #f0cc77; border-color: #c9a65c; }
+.transfer-hint { position: absolute; left: 15px; right: 15px; top: 407px; font-size: 6px; height: 9px; color: #8b927e; text-align: center; }
+
+/* The same measured boxes drive native hits, drop tints and live item composition. */
+#item_grid, #item_grid_counts { left: 15px; top: 45px; width: 160px; height: 300px; }
+#item_grid_extra, #item_grid_extra_counts { left: 185px; top: 45px; width: 160px; height: 300px; }
+.item-grid-cells { background-color: #10150cf5; }
+.item-cell { box-sizing: border-box; border: 1px #343930; }
+.item-view { left: -20px; top: -20px; width: calc(100% + 40px); height: calc(100% + 40px); }
+#btn_expand { position: absolute; right: 15px; top: 30px; }

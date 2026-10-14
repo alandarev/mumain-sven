@@ -29,9 +29,11 @@
 #include "UI/RmlBridge/RmlDocumentVisibility.h"
 #include "Core/Utilities/StringUtils.h"
 #include "Core/Input/ImeInput.h"
+#include "UI/RmlBridge/RmlNativeTextSize.h"
 #include <RmlUi/Core/ElementDocument.h>
 #include <RmlUi/Core/Element.h>
 #include <RmlUi/Core/Elements/ElementFormControlInput.h>
+#include <RmlUi/Core/Input.h>
 
 using namespace SEASON3B;
 using namespace mu::ui::window;
@@ -121,7 +123,12 @@ int mu::ui::window::CChatInputBox::GetInputMsgType() const
 
 bool mu::ui::window::CChatInputBox::HaveFocus()
 {
-    return IsFieldFocused("chat_field") || IsFieldFocused("whisper_field");
+    return OwnsFocusedInput();
+}
+
+bool mu::ui::window::CChatInputBox::OwnsFocusedInput() const
+{
+    return IsVisible() && (IsFieldFocused("chat_field") || IsFieldFocused("whisper_field"));
 }
 
 void mu::ui::window::CChatInputBox::AddChatHistory(const type_string& strText)
@@ -193,86 +200,89 @@ bool mu::ui::window::CChatInputBox::UpdateMouseEvent()
     return !UI::RmlBridge::IsPointerOver(m_RmlView.Document());
 }
 
-bool mu::ui::window::CChatInputBox::UpdateKeyEvent()
+bool mu::ui::window::CChatInputBox::HandleHistoryShortcut(int key)
 {
-    if (mu::ui::window::IsPress(VK_F2))
+    switch (key)
     {
+    case VK_F2:
         m_bShowMessageElseNormal = !m_bShowMessageElseNormal;
-
-        if (m_bShowMessageElseNormal)
-        {
-            m_pNewUIChatLogWnd->ChangeMessage(mu::ui::window::TYPE_WHISPER_MESSAGE);
-        }
-        else
-        {
-            m_pNewUIChatLogWnd->ChangeMessage(mu::ui::window::TYPE_ALL_MESSAGE);
-        }
-
+        m_pNewUIChatLogWnd->ChangeMessage(m_bShowMessageElseNormal ? TYPE_WHISPER_MESSAGE : TYPE_ALL_MESSAGE);
         PlayBuffer(SOUND_CLICK01);
-        return false;
-    }
-
-    if (mu::ui::window::IsPress(VK_F3))
-    {
-        if (m_bWhisperSend == false)
-        {
-            m_bWhisperSend = true;
-        }
-        else
-        {
-            m_bWhisperSend = false;
-            // RmlUi disables the recipient field through its binding. Keep typing in the
-            // message field when whispering is switched off.
-            if (g_pNewUISystem->IsVisible(mu::ui::window::INTERFACE_CHATINPUTBOX))
-            {
-                FocusField("chat_field");
-            }
-        }
-
-        return false;
-    }
-
-    if (m_pNewUIChatLogWnd->IsShowFrame())
-    {
-        if (mu::ui::window::IsPress(VK_F4))
-        {
-            m_pNewUIChatLogWnd->SetSizeAuto();
-            m_pNewUIChatLogWnd->UpdateWndSize();
-            m_pNewUIChatLogWnd->UpdateScrollPos();
-            PlayBuffer(SOUND_CLICK01);
+        return true;
+    case VK_F3:
+        m_bWhisperSend = !m_bWhisperSend;
+        if (!m_bWhisperSend && IsVisible())
+            FocusField("chat_field");
+        return true;
+    case VK_F4:
+        if (!m_pNewUIChatLogWnd->IsShowFrame())
             return false;
-        }
-    }
-
-    if (mu::ui::window::IsPress(VK_F5))
-    {
-        if (g_pNewUISystem->IsVisible(mu::ui::window::INTERFACE_CHATINPUTBOX))
+        m_pNewUIChatLogWnd->SetSizeAuto();
+        m_pNewUIChatLogWnd->UpdateWndSize();
+        m_pNewUIChatLogWnd->UpdateScrollPos();
+        PlayBuffer(SOUND_CLICK01);
+        return true;
+    case VK_F5:
+        if (IsVisible())
         {
             if (m_pNewUIChatLogWnd->IsShowFrame())
-            {
                 m_pNewUIChatLogWnd->HideFrame();
-            }
             else
-            {
                 m_pNewUIChatLogWnd->ShowFrame();
-            }
         }
-
         PlayBuffer(SOUND_CLICK01);
+        return true;
+    case VK_PRIOR:
+    case VK_NEXT:
+        if (!m_pNewUIChatLogWnd->IsShowFrame())
+            return false;
+        {
+            const int direction = key == VK_PRIOR ? -1 : 1;
+            m_pNewUIChatLogWnd->Scrolling(m_pNewUIChatLogWnd->GetCurrentRenderEndLine() +
+                                          direction * static_cast<int>(m_pNewUIChatLogWnd->GetNumberOfShowingLines()));
+        }
+        return true;
+    default:
         return false;
     }
+}
 
-    if (m_pNewUIChatLogWnd->IsShowFrame())
+namespace
+{
+int HistoryVirtualKey(int key)
+{
+    switch (key)
     {
-        if (IsPress(VK_PRIOR))
+    case Rml::Input::KI_F2:
+        return VK_F2;
+    case Rml::Input::KI_F3:
+        return VK_F3;
+    case Rml::Input::KI_F4:
+        return VK_F4;
+    case Rml::Input::KI_F5:
+        return VK_F5;
+    case Rml::Input::KI_PRIOR:
+        return VK_PRIOR;
+    case Rml::Input::KI_NEXT:
+        return VK_NEXT;
+    default:
+        return 0;
+    }
+}
+} // namespace
+
+bool mu::ui::window::CChatInputBox::UpdateKeyEvent()
+{
+    // A focused field delivers these keys through its RmlUi callbacks (chat_history_key). The
+    // physical key stays down after that event, so polling it here as well would run the same
+    // action twice; this scan is the path while no chat field has focus.
+    if (!HaveFocus())
+    {
+        static constexpr int historyKeys[] = {VK_F2, VK_F3, VK_F4, VK_F5, VK_PRIOR, VK_NEXT};
+        for (const int key : historyKeys)
         {
-            m_pNewUIChatLogWnd->Scrolling(m_pNewUIChatLogWnd->GetCurrentRenderEndLine() - m_pNewUIChatLogWnd->GetNumberOfShowingLines());
-            return false;
-        }
-        if (IsPress(VK_NEXT))
-        {
-            m_pNewUIChatLogWnd->Scrolling(m_pNewUIChatLogWnd->GetCurrentRenderEndLine() + m_pNewUIChatLogWnd->GetNumberOfShowingLines());
-            return false;
+            if (mu::ui::window::IsPress(key) && HandleHistoryShortcut(key))
+                return false;
         }
     }
 
@@ -458,6 +468,8 @@ bool mu::ui::window::CChatInputBox::UpdateKeyEvent()
 
 bool mu::ui::window::CChatInputBox::Update()
 {
+    if (!HaveFocus())
+        m_iHeldHistoryKey = 0;
     BuildRmlUi();
     SyncRmlModel();
     return true;
@@ -473,6 +485,35 @@ bool mu::ui::window::CChatInputBox::Render()
 void mu::ui::window::CChatInputBox::BindRmlModel(Rml::DataModelConstructor& c, ChatInputRmlModel& model)
 {
     c.Bind("chat_text", &model.chatText);
+    c.Bind("text_px", &model.textPx);
+    c.BindEventCallback("chat_history_key",
+                        [this](Rml::DataModelHandle, Rml::Event& event, const Rml::VariantList&)
+                        {
+                            if (!HaveFocus())
+                                return;
+                            const int key =
+                                HistoryVirtualKey(event.GetParameter<int>("key_identifier", Rml::Input::KI_UNKNOWN));
+                            if (key == 0)
+                                return;
+                            if (key == m_iHeldHistoryKey)
+                            {
+                                event.StopPropagation();
+                                return;
+                            }
+                            if (HandleHistoryShortcut(key))
+                            {
+                                m_iHeldHistoryKey = key;
+                                event.StopPropagation();
+                            }
+                        });
+    c.BindEventCallback("chat_history_release",
+                        [this](Rml::DataModelHandle, Rml::Event& event, const Rml::VariantList&)
+                        {
+                            const int key =
+                                HistoryVirtualKey(event.GetParameter<int>("key_identifier", Rml::Input::KI_UNKNOWN));
+                            if (key == m_iHeldHistoryKey)
+                                m_iHeldHistoryKey = 0;
+                        });
     c.Bind("whisper_id", &model.whisperId);
     c.Bind("input_msg_type", &model.inputMsgType);
     c.Bind("block_whisper", &model.blockWhisper);
@@ -562,6 +603,14 @@ void mu::ui::window::CChatInputBox::SyncRmlModel()
     if (!m_RmlView.Document()) return;
 
     UI::RmlBridge::SyncDocumentVisibility(m_RmlView.Document(), IsVisible());
+
+    // Compact themed controls set their labels a little below the native text size.
+    const float textPx = std::max(8.0f, UI::RmlBridge::NativeTextPx(UI::Scaling::FontRole::Normal) * 0.75f);
+    if (m_RmlView.GetModel().textPx != textPx)
+    {
+        m_RmlView.GetModel().textPx = textPx;
+        m_RmlView.MarkDirty("text_px");
+    }
 
     // Deliberately after the line above: the field can only take focus once its document is
     // showing, and SyncDocumentVisibility()'s Show() would blur it if the order were reversed.

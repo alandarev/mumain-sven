@@ -1,0 +1,64 @@
+@spritesheet gens-d-sheet
+{
+	src: "../../../Gens_mark_D_new.tga";
+	gens-d-0: 0px 0px 50px 69px;
+	gens-d-1: 50px 0px 50px 69px;
+	gens-d-2: 100px 0px 50px 69px;
+	gens-d-3: 150px 0px 50px 69px;
+	gens-d-4: 200px 0px 50px 69px;
+	gens-d-5: 0px 69px 50px 69px;
+	gens-d-6: 50px 69px 50px 69px;
+	gens-d-7: 100px 69px 50px 69px;
+	gens-d-8: 150px 69px 50px 69px;
+	gens-d-9: 200px 69px 50px 69px;
+	gens-d-10: 0px 138px 50px 69px;
+	gens-d-11: 50px 138px 50px 69px;
+	gens-d-12: 100px 138px 50px 69px;
+	gens-d-13: 150px 138px 50px 69px;
+}
+@spritesheet gens-v-sheet
+{
+	src: "../../../Gens_mark_V_new.tga";
+	gens-v-0: 0px 0px 50px 69px;
+	gens-v-1: 50px 0px 50px 69px;
+	gens-v-2: 100px 0px 50px 69px;
+	gens-v-3: 150px 0px 50px 69px;
+	gens-v-4: 200px 0px 50px 69px;
+	gens-v-5: 0px 69px 50px 69px;
+	gens-v-6: 50px 69px 50px 69px;
+	gens-v-7: 100px 69px 50px 69px;
+	gens-v-8: 150px 69px 50px 69px;
+	gens-v-9: 200px 69px 50px 69px;
+	gens-v-10: 0px 138px 50px 69px;
+	gens-v-11: 50px 138px 50px 69px;
+	gens-v-12: 100px 138px 50px 69px;
+	gens-v-13: 150px 138px 50px 69px;
+}
+#mark.gens-d-0 { decorator: image(gens-d-0); }
+#mark.gens-d-1 { decorator: image(gens-d-1); }
+#mark.gens-d-2 { decorator: image(gens-d-2); }
+#mark.gens-d-3 { decorator: image(gens-d-3); }
+#mark.gens-d-4 { decorator: image(gens-d-4); }
+#mark.gens-d-5 { decorator: image(gens-d-5); }
+#mark.gens-d-6 { decorator: image(gens-d-6); }
+#mark.gens-d-7 { decorator: image(gens-d-7); }
+#mark.gens-d-8 { decorator: image(gens-d-8); }
+#mark.gens-d-9 { decorator: image(gens-d-9); }
+#mark.gens-d-10 { decorator: image(gens-d-10); }
+#mark.gens-d-11 { decorator: image(gens-d-11); }
+#mark.gens-d-12 { decorator: image(gens-d-12); }
+#mark.gens-d-13 { decorator: image(gens-d-13); }
+#mark.gens-v-0 { decorator: image(gens-v-0); }
+#mark.gens-v-1 { decorator: image(gens-v-1); }
+#mark.gens-v-2 { decorator: image(gens-v-2); }
+#mark.gens-v-3 { decorator: image(gens-v-3); }
+#mark.gens-v-4 { decorator: image(gens-v-4); }
+#mark.gens-v-5 { decorator: image(gens-v-5); }
+#mark.gens-v-6 { decorator: image(gens-v-6); }
+#mark.gens-v-7 { decorator: image(gens-v-7); }
+#mark.gens-v-8 { decorator: image(gens-v-8); }
+#mark.gens-v-9 { decorator: image(gens-v-9); }
+#mark.gens-v-10 { decorator: image(gens-v-10); }
+#mark.gens-v-11 { decorator: image(gens-v-11); }
+#mark.gens-v-12 { decorator: image(gens-v-12); }
+#mark.gens-v-13 { decorator: image(gens-v-13); }

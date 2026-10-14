@@ -14,6 +14,20 @@
 #include "stdafx.h"
 #include "Connection.h"
 #include "PacketFunctions_ClientToServer.h"
+#include "Network/Server/ArmoryPacketFormat.h"
+
+bool PacketFunctions_ClientToServer_Custom::SendArmoryRequest(const UI::Character::ArmoryRequest& request)
+{
+    if (GetHandle() <= 0 || request.requestId == 0)
+        return false;
+    using Send = void(CORECLR_DELEGATE_CALLTYPE*)(int32_t, const BYTE*, int32_t);
+    static const auto send = LoadManagedSymbol<Send>("ConnectionManager_Send");
+    if (send == nullptr)
+        return false;
+    const auto bytes = Network::Server::Armory::Encode(request);
+    send(GetHandle(), bytes.data(), static_cast<int32_t>(bytes.size()));
+    return true;
+}
 
 typedef void(CORECLR_DELEGATE_CALLTYPE* SendLoginFn)(int32_t, const char16_t*, const char16_t*, uint32_t, const BYTE*,
                                                      const BYTE*);

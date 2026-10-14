@@ -71,11 +71,13 @@ namespace mu::ui::window
         void SetHotKey(int iHotKey, int iSkillType);
         int GetHotKey(int iHotKey);
         int GetSkillIndex(int iSkillType);
+        void SelectSkillIndex(int skillIndex);
 
         // The icon decorator ("image(<sprite>)", or "none") for a skill/pet-command index, lit or
         // grey as the original's RenderSkillIcon() chose: UI::Skills::Icon::ResolveSkillIcon() on
         // this frame's usability.
         Rml::String GetSkillIconDecorator(int iIndex);
+        bool IsSkillUsable(int index) const;
         Rml::String GetHotKeySlotIconDecorator(int iSlotIndex);
         Rml::String GetCurrentSkillIconDecorator();
 

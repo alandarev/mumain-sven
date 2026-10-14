@@ -141,7 +141,12 @@ private:
 
     void BuildRmlUi();
     void SyncRmlModel();
+    void BindContentRows(Rml::DataModelConstructor& c, ChatCommandRmlModel& model);
     void SyncContent();
+    void SyncCompleteContent();
+    void SyncCompleteCommands();
+    void SyncCompleteTemplates();
+    void SyncNavigationLabels();
     void SyncValueField();
     Rml::Element* GetValueField() const;
     std::wstring ReadValueField() const;

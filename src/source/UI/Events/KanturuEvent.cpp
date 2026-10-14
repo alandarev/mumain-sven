@@ -745,11 +745,15 @@ void mu::ui::window::CKanturuInfoWindow::SyncView()
     }
     SyncInfoField(m_RmlView.Binder(), &KanturuInfoRmlModel::colonVisible, "colon_visible", m_bColonVisible);
 
-    // RenderNumber()'s newui_number1 cells; the theme lays out each run.
+    // RenderNumber()'s newui_number1 cells; the theme lays out each run. The seconds keep two
+    // digits, so the clock reads 1:05 rather than 1:5.
+    auto secondDigits = UI::RmlBridge::DigitCells(iSecond, 12.f, 14.f);
+    if (secondDigits.size() < 2)
+        secondDigits.insert(secondDigits.begin(), 2 - secondDigits.size(),
+                            Rml::CreateString("%g 0 %g %g", 0.f, 12.f, 14.f));
     SyncInfoField(m_RmlView.Binder(), &KanturuInfoRmlModel::minuteDigits, "minute_digits",
                   UI::RmlBridge::DigitCells(m_iMinute, 12.f, 14.f));
-    SyncInfoField(m_RmlView.Binder(), &KanturuInfoRmlModel::secondDigits, "second_digits",
-                  UI::RmlBridge::DigitCells(iSecond, 12.f, 14.f));
+    SyncInfoField(m_RmlView.Binder(), &KanturuInfoRmlModel::secondDigits, "second_digits", secondDigits);
 }
 
 float mu::ui::window::CKanturuInfoWindow::GetLayerDepth()

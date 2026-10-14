@@ -1,0 +1,9 @@
+#panel { font-family: "DejaVu Sans"; align-items: stretch; }
+.syslog-line { height: auto; min-height: 1.4em; margin-bottom: 0; white-space: normal; flex-shrink: 0; }
+.syslog-back { background-color: #101910; }
+.syslog-text { color: #c6cbb4; }
+.syslog-line--error .syslog-text { color: #ff907b; }
+
+@media (max-width: 1100px) {
+    #panel { width: 170dp; }
+}

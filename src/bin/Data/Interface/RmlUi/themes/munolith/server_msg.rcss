@@ -1,0 +1,26 @@
+/* Character-selection notices remain passive and follow the native five-message lifetime. */
+#panel {
+    position: absolute;
+    left: 50%;
+    top: 16vh;
+    transform: translateX(-50%);
+    width: 52vw;
+    max-width: 900px;
+    box-sizing: border-box;
+    padding: 12px 16px;
+    background-color: #101b16ed;
+    border: 1px #797344;
+    font-family: "DejaVu Sans";
+    pointer-events: none;
+}
+.notice-title {
+    color: #dbc892;
+    font-size: 14px;
+    font-weight: bold;
+    margin-bottom: 8px;
+}
+.server-lines { display: flex; flex-direction: column; gap: 7px; }
+.server-line { color: #ced4be; line-height: 1.4em; white-space: normal; }
+@media (max-width: 1100px) {
+    #panel { width: 70vw; top: 10vh; }
+}

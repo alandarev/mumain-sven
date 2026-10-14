@@ -1,0 +1,2 @@
+@spritesheet gs-gate-closed-sheet { src: "../../../doorCL.jpg"; gs-gate-closed: 0px 0px 155px 168px; }
+@spritesheet gs-gate-opened-sheet { src: "../../../doorOP.jpg"; gs-gate-opened: 0px 0px 155px 168px; }

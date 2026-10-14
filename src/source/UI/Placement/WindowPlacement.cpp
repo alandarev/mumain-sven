@@ -2,13 +2,18 @@
 #include "Core/Utilities/FrameProfiler.h"
 
 #include "UI/Placement/WindowPlacement.h"
+#include "UI/Placement/WindowGroupState.h"
 
+#include "Data/GameConfig/GameConfig.h"
 #include "Render/RmlUi/RmlUiRuntime.h"
 #include "Render/Textures/ZzzOpenglUtil.h"
 #include "UI/Core/WindowObject.h"
 #include "UI/Core/WindowSystem.h"
+#include "UI/Inventory/InventoryCtrl.h"
+#include "UI/RmlBridge/RmlDraggable.h"
 #include "UI/RmlBridge/RmlPanelGeometry.h"
 #include "UI/RmlBridge/RmlThemedView.h"
+#include "UI/RmlBridge/RmlTheme.h"
 #include "UI/Scaling/UITransform.h"
 
 #include <RmlUi/Core/Context.h>
@@ -28,6 +33,9 @@ namespace
 // no document to read a #panel from.
 constexpr float DefaultPanelWidth = 190.f;
 constexpr float DefaultPanelHeight = 429.f;
+constexpr int MaximumRegionFitPasses = 3;
+constexpr float RegionFitTolerance = 0.0001f;
+constexpr float GroupPreferenceUnits = 1000000.f;
 
 struct Entry
 {
@@ -40,14 +48,22 @@ struct Entry
     bool lastVisible = false;
     bool placed = false;
     bool warnedUnsupportedFill = false;
+    PlacementParticipant::Box previousBox;
+    bool previouslyPlaced = false;
+    bool reservesSpace = false;
+    Rml::Vector2f measuredSize;
 };
 
 std::unordered_map<std::string, Entry> g_windows;
 bool g_namesChecked = false;
 UI::Scaling::Transform g_lastDock{};
 bool g_dirty = true;
-// Regions the theme capped below their reference height, and the factor that makes them fit.
+// Regions the theme capped below their reference dimensions, and the factor that makes them fit.
 std::unordered_map<Rml::Element*, float> g_regionFit;
+std::unordered_map<std::string, WindowGroupState> g_groups;
+std::unordered_map<Rml::Element*, Rml::Vector2f> g_groupOffsets;
+bool g_groupViewportChanged = false;
+bool g_reservedSizeChanged = false;
 unsigned int g_lastWidth = 0;
 unsigned int g_lastHeight = 0;
 float g_uncoveredLeft = 0.f;
@@ -56,6 +72,8 @@ float g_uncoveredRight = 0.f;
 void OnWorkspaceReloaded()
 {
     g_namesChecked = false;
+    g_groups.clear();
+    g_groupOffsets.clear();
     for (auto& [name, entry] : g_windows)
     {
         entry.placed = false;
@@ -97,7 +115,7 @@ void CheckNames(const Rml::ElementList& slots)
 bool IsOpen(const Entry& entry)
 {
     return entry.participant.visible ? entry.participant.visible()
-        : g_pNewUISystem != nullptr && g_pNewUISystem->IsVisible(entry.windowId);
+                                     : g_pNewUISystem != nullptr && g_pNewUISystem->IsVisible(entry.windowId);
 }
 
 Entry* EntryFor(Rml::Element* slot)
@@ -119,6 +137,11 @@ float BaseRegionScale(Rml::Element* region, const UI::Scaling::Transform& dock)
         return UI::Scaling::PanelTransform(WindowWidth, WindowHeight).scaleX;
     if (scale == "hud")
         return UI::Scaling::BottomHudScale(WindowWidth, WindowHeight);
+    if (scale == "window")
+    {
+        const float unit = UI::RmlBridge::ThemeWindowUnitPixels(WindowWidth, WindowHeight);
+        return unit > 0.f ? unit : dock.scaleX;
+    }
     return dock.scaleX;
 }
 
@@ -127,6 +150,36 @@ float RegionScale(Rml::Element* region, const UI::Scaling::Transform& dock)
 {
     const auto fit = g_regionFit.find(region);
     return BaseRegionScale(region, dock) * (fit != g_regionFit.end() ? fit->second : 1.f);
+}
+
+Rml::Element* SlotGroup(Rml::Element* slot)
+{
+    Rml::Element* parent = slot != nullptr ? slot->GetParentNode() : nullptr;
+    return parent != nullptr && parent->HasAttribute("data-group") ? parent : nullptr;
+}
+
+float SlotScale(Rml::Element* slot, const UI::Scaling::Transform& dock)
+{
+    Rml::Element* region = slot->GetParentNode();
+    const auto fit = g_regionFit.find(region);
+    const float base = BaseRegionScale(slot->HasAttribute("data-scale") ? slot : region, dock);
+    return base * (fit != g_regionFit.end() ? fit->second : 1.f);
+}
+
+Rml::ElementDocument* DocumentFor(const Entry& entry)
+{
+    Rml::Context* context = RmlUiRuntime::Instance().GetContext();
+    if (entry.document.empty() || context == nullptr)
+        return nullptr;
+    const std::string suffix = "/" + entry.document;
+    for (int i = 0; i < context->GetNumDocuments(); ++i)
+    {
+        Rml::ElementDocument* document = context->GetDocument(i);
+        const std::string& url = document->GetSourceURL();
+        if (url.size() >= suffix.size() && url.compare(url.size() - suffix.size(), suffix.size(), suffix) == 0)
+            return document;
+    }
+    return nullptr;
 }
 
 // The window's own #panel size, in its layout units; the docked windows' size without one.
@@ -138,38 +191,197 @@ Rml::Vector2f PanelSize(const Entry& entry)
         return {size.width, size.height};
     }
     const Rml::Vector2f fallback{DefaultPanelWidth, DefaultPanelHeight};
-    Rml::Context* context = RmlUiRuntime::Instance().GetContext();
-    if (entry.document.empty() || context == nullptr)
+    Rml::ElementDocument* document = DocumentFor(entry);
+    if (document == nullptr)
         return fallback;
-    const std::string suffix = "/" + entry.document;
-    for (int i = 0; i < context->GetNumDocuments(); ++i)
+    // The panel's layout box: its own units, before the scale a slot gives it.
+    const auto panelSize = [document]() -> Rml::Vector2f
     {
-        Rml::ElementDocument* document = context->GetDocument(i);
-        const std::string& url = document->GetSourceURL();
-        if (url.size() < suffix.size() || url.compare(url.size() - suffix.size(), suffix.size(), suffix) != 0)
-            continue;
-        // The panel's layout box: its own units, before the scale a slot gives it.
-        const auto panelSize = [document]() -> Rml::Vector2f
+        Rml::Element* panel = document->GetElementById("panel");
+        return panel != nullptr ? panel->GetBox().GetSize(Rml::BoxArea::Border) : Rml::Vector2f{};
+    };
+    Rml::Vector2f size = panelSize();
+    // The context leaves hidden documents out of its update: a window about to open may still be laid
+    // out as it was when hidden (before a resize or a content change), or never laid out at all.
+    if (!document->IsVisible() || size.x <= 0.f || size.y <= 0.f)
+    {
         {
-            Rml::Element* panel = document->GetElementById("panel");
-            return panel != nullptr ? panel->GetBox().GetSize(Rml::BoxArea::Border) : Rml::Vector2f{};
-        };
-        Rml::Vector2f size = panelSize();
-        // The context leaves hidden documents out of its update: a window about to open may still be laid
-        // out as it was when hidden (before a resize or a content change), or never laid out at all.
-        if (!document->IsVisible() || size.x <= 0.f || size.y <= 0.f)
-        {
-            {
-                FRAME_PROFILE(UILayout);
-                document->UpdateDocument();
-            }
-            size = panelSize();
+            FRAME_PROFILE(UILayout);
+            document->UpdateDocument();
         }
-        return size.x > 0.f && size.y > 0.f ? size : fallback;
+        size = panelSize();
     }
-    return fallback;
+    return size.x > 0.f && size.y > 0.f ? size : fallback;
 }
 
+using GroupBounds = WindowGroupState::Bounds;
+using GroupPoint = WindowGroupState::Point;
+
+GroupBounds ElementBounds(Rml::Element* element)
+{
+    const auto offset = element->GetAbsoluteOffset(Rml::BoxArea::Border);
+    const auto size = element->GetBox().GetSize(Rml::BoxArea::Border);
+    return {offset.x, offset.y, size.x, size.y};
+}
+
+GroupBounds SafeBounds()
+{
+    Rml::ElementDocument* workspace = g_workspaceView.Document();
+    Rml::Element* safe = workspace != nullptr ? workspace->GetElementById("safe_area") : nullptr;
+    return safe != nullptr ? ElementBounds(safe)
+                           : GroupBounds{0.f, 0.f, static_cast<float>(WindowWidth), static_cast<float>(WindowHeight)};
+}
+
+GroupBounds CombinedBounds(const Rml::ElementList& slots, bool placed = false)
+{
+    GroupBounds result{};
+    bool first = true;
+    for (Rml::Element* slot : slots)
+    {
+        if (!slot->IsClassSet("open"))
+            continue;
+        const Entry* entry = EntryFor(slot);
+        const auto& box = entry != nullptr ? entry->box : PlacementParticipant::Box{};
+        const GroupBounds next = placed ? GroupBounds{box.left, box.top, box.width, box.height} : ElementBounds(slot);
+        if (first)
+            result = next;
+        else
+        {
+            const float right = std::max(result.left + result.width, next.left + next.width);
+            const float bottom = std::max(result.top + result.height, next.top + next.height);
+            result.left = std::min(result.left, next.left);
+            result.top = std::min(result.top, next.top);
+            result.width = right - result.left;
+            result.height = bottom - result.top;
+        }
+        first = false;
+    }
+    return result;
+}
+
+Rml::Element* NamedSlot(std::string_view name)
+{
+    Rml::ElementDocument* workspace = Workspace();
+    if (workspace == nullptr)
+        return nullptr;
+    Rml::ElementList slots;
+    workspace->QuerySelectorAll(slots, ".slot");
+    for (Rml::Element* slot : slots)
+        if (slot->GetAttribute<Rml::String>("data-window", "") == name)
+            return slot;
+    return nullptr;
+}
+
+Rml::Element* GroupAnchor(Rml::Element* group)
+{
+    const std::string name = group->GetAttribute<Rml::String>("data-anchor", "");
+    for (int i = 0; i < group->GetNumChildren(); ++i)
+    {
+        Rml::Element* child = group->GetChild(i);
+        if (child->GetAttribute<Rml::String>("data-window", "") == name)
+            return child;
+    }
+    return nullptr;
+}
+
+GroupPoint RightTop(const GroupBounds& bounds)
+{
+    return {bounds.left + bounds.width, bounds.top};
+}
+
+WindowGroupState& GroupState(Rml::Element* group)
+{
+    const auto [found, added] = g_groups.try_emplace(group->GetAttribute<Rml::String>("data-group", ""));
+    if (!added)
+        return found->second;
+    const std::string key = group->GetAttribute<Rml::String>("data-position-key", "");
+    int x = 0;
+    int y = 0;
+    if (!key.empty() && GameConfig::GetInstance().GetWindowPosition(std::wstring(key.begin(), key.end()), x, y))
+        found->second.SetPreferred({x / GroupPreferenceUnits, y / GroupPreferenceUnits});
+    return found->second;
+}
+
+void PlaceGroupedEntry(Entry& entry)
+{
+    if (mu::ui::window::CObject* window = entry.getWindow ? entry.getWindow() : nullptr)
+    {
+        const auto& box = entry.box;
+        window->PlaceInWorkspace(box.left, box.top, box.scale);
+    }
+}
+
+GroupPoint PlacedAnchor(Rml::Element* group, const GroupBounds& extent)
+{
+    Rml::Element* anchor = GroupAnchor(group);
+    const Entry* entry = anchor != nullptr && anchor->IsClassSet("open") ? EntryFor(anchor) : nullptr;
+    return entry != nullptr && entry->hasBox ? GroupPoint{entry->box.left + entry->box.width, entry->box.top}
+                                             : RightTop(extent);
+}
+
+void MoveGroup(std::string_view name, float left, float top)
+{
+    Rml::Element* slot = NamedSlot(name);
+    Rml::Element* group = SlotGroup(slot);
+    Entry* moving = slot != nullptr ? EntryFor(slot) : nullptr;
+    if (group == nullptr || moving == nullptr || !moving->hasBox || mu::ui::window::CInventoryCtrl::GetPickedItem())
+        return;
+    Rml::ElementList slots;
+    group->QuerySelectorAll(slots, ".slot.open");
+    const GroupBounds bounds = CombinedBounds(slots, true);
+    const GroupPoint anchor = PlacedAnchor(group, bounds);
+    const GroupPoint desired{anchor.x + left - moving->box.left, anchor.y + top - moving->box.top};
+    const GroupPoint shift = GroupState(group).Translation(SafeBounds(), bounds, anchor, desired);
+    for (Rml::Element* child : slots)
+    {
+        Entry* entry = EntryFor(child);
+        if (entry == nullptr || !entry->hasBox)
+            continue;
+        entry->box.left += shift.x;
+        entry->box.top += shift.y;
+        PlaceGroupedEntry(*entry);
+    }
+    const GroupBounds shifted{bounds.left + shift.x, bounds.top + shift.y, bounds.width, bounds.height};
+    GroupState(group).lastAnchor = PlacedAnchor(group, shifted);
+    Invalidate();
+}
+
+void SaveGroupPosition(std::string_view name)
+{
+    Rml::Element* group = SlotGroup(NamedSlot(name));
+    if (group == nullptr)
+        return;
+    Rml::ElementList slots;
+    group->QuerySelectorAll(slots, ".slot.open");
+    const auto preferred = WindowGroupState::Normalize(PlacedAnchor(group, CombinedBounds(slots, true)), SafeBounds());
+    GroupState(group).SetPreferred(preferred);
+    const std::string key = group->GetAttribute<Rml::String>("data-position-key", "");
+    if (!key.empty())
+        GameConfig::GetInstance().SetWindowPosition(std::wstring(key.begin(), key.end()),
+                                                    static_cast<int>(std::lround(preferred.x * GroupPreferenceUnits)),
+                                                    static_cast<int>(std::lround(preferred.y * GroupPreferenceUnits)));
+}
+
+} // namespace
+
+bool MakeGroupDraggable(std::string_view name, Rml::ElementDocument* document)
+{
+    Rml::Element* slot = NamedSlot(name);
+    if (SlotGroup(slot) == nullptr)
+        return false;
+    if (document == nullptr)
+        return true;
+    const std::string selector = slot->GetAttribute<Rml::String>("data-drag-handle", "");
+    Rml::Element* handle = selector.empty() ? nullptr : document->QuerySelector(selector);
+    Rml::Element* panel = document->GetElementById("panel");
+    if (handle == nullptr || panel == nullptr || handle->IsClassSet("placement-draggable"))
+        return true;
+    handle->SetClass("placement-draggable", true);
+    const std::string ownedName(name);
+    UI::RmlBridge::MakeExternalDraggable(
+        handle, panel, [ownedName](float x, float y) { MoveGroup(ownedName, x, y); }, [ownedName]
+        { SaveGroupPosition(ownedName); }, [] { return mu::ui::window::CInventoryCtrl::GetPickedItem() == nullptr; });
+    return true;
 }
 
 void Invalidate()
@@ -220,6 +432,19 @@ bool SlotBox(std::string_view name, PlacementParticipant::Box& box)
     return true;
 }
 
+bool SlotBox(std::uint32_t windowId, PlacementParticipant::Box& box)
+{
+    for (const auto& [name, entry] : g_windows)
+    {
+        if (entry.windowId == windowId && entry.hasBox)
+        {
+            box = entry.box;
+            return true;
+        }
+    }
+    return false;
+}
+
 void RegisterWindow(std::uint32_t windowId, std::string_view slotName, GetWindow getWindow, const char* document)
 {
     Entry& entry = g_windows[std::string(slotName)];
@@ -265,20 +490,46 @@ static void PrepareRegions(Rml::ElementDocument* workspace, const UI::Scaling::T
 {
     // RCSS lays out the shell; only component sizes and region reference units enter from C++.
     for (auto& [name, entry] : g_windows)
+    {
+        entry.previousBox = entry.box;
+        entry.previouslyPlaced = entry.hasBox;
         entry.hasBox = false;
+    }
     Rml::ElementList regions;
     workspace->QuerySelectorAll(regions, ".region");
     for (Rml::Element* region : regions)
     {
+        region->SetClass("occupied", false);
+        if (region->HasAttribute("data-group"))
+        {
+            const auto state = g_groups.find(region->GetAttribute<Rml::String>("data-group", ""));
+            if (state != g_groups.end() && state->second.active && !g_groupViewportChanged)
+                g_regionFit[region] = state->second.fit;
+        }
+        const float referenceWidth = region->GetAttribute<float>("data-ref-width", 0.f);
         const float referenceHeight = region->GetAttribute<float>("data-ref-height", 0.f);
+        if (referenceWidth > 0.f)
+            SetLength(region, Rml::PropertyId::Width, referenceWidth * BaseRegionScale(region, dock));
         if (referenceHeight > 0.f)
-            SetLength(region, Rml::PropertyId::Height, referenceHeight * RegionScale(region, dock));
+            SetLength(region, Rml::PropertyId::Height, referenceHeight * BaseRegionScale(region, dock));
     }
-
 }
 
-// A region whose theme caps it (max-height) below its reference height draws its windows at the
-// scale that fits. True when a region changed, so the slots need sizing again.
+// Fit both axes uniformly, including a column narrowed by its neighbouring windows.
+static float RegionFit(Rml::Element* region, float scale)
+{
+    const Rml::Vector2f reference{region->GetAttribute<float>("data-ref-width", 0.f),
+                                  region->GetAttribute<float>("data-ref-height", 0.f)};
+    const Rml::Vector2f resolved = region->GetBox().GetSize(Rml::BoxArea::Border);
+    float fit = 1.f;
+    if (reference.x > 0.f && resolved.x > 0.f)
+        fit = std::min(fit, resolved.x / (reference.x * scale));
+    if (reference.y > 0.f && resolved.y > 0.f)
+        fit = std::min(fit, resolved.y / (reference.y * scale));
+    return fit;
+}
+
+// True when a region changed, so its slots need sizing again.
 static bool FitRegions(Rml::ElementDocument* workspace, const UI::Scaling::Transform& dock)
 {
     bool changed = false;
@@ -286,14 +537,14 @@ static bool FitRegions(Rml::ElementDocument* workspace, const UI::Scaling::Trans
     workspace->QuerySelectorAll(regions, ".region");
     for (Rml::Element* region : regions)
     {
-        const float referenceHeight = region->GetAttribute<float>("data-ref-height", 0.f);
-        if (referenceHeight <= 0.f)
+        if (region->HasAttribute("data-group"))
             continue;
-        const float wanted = referenceHeight * BaseRegionScale(region, dock);
-        const float resolved = region->GetBox().GetSize(Rml::BoxArea::Border).y;
-        if (resolved > 0.f && resolved < wanted - 0.5f)
+        const float fit = RegionFit(region, BaseRegionScale(region, dock));
+        const auto previous = g_regionFit.find(region);
+        const float previousFit = previous != g_regionFit.end() ? previous->second : 1.f;
+        if (std::abs(fit - previousFit) > RegionFitTolerance)
         {
-            g_regionFit[region] = resolved / wanted;
+            g_regionFit[region] = fit;
             changed = true;
         }
     }
@@ -312,8 +563,13 @@ static Rml::ElementList PrepareSlots(Rml::ElementDocument* workspace, const UI::
         const bool open = entry != nullptr && (window != nullptr || entry->participant.visible) && IsOpen(*entry);
         const bool wantsFill = slot->GetAttribute<Rml::String>("data-fit", "") == "fill";
         const bool fill = open && wantsFill && window != nullptr && window->SupportsFillPlacement();
+        if (entry != nullptr)
+            entry->reservesSpace = slot->GetParentNode() != nullptr && slot->GetParentNode()->GetAttribute<Rml::String>(
+                                                                           "data-participation", "") == "reserve";
         slot->SetClass("open", open);
         slot->SetClass("fill", fill);
+        if (open && slot->GetParentNode() != nullptr)
+            slot->GetParentNode()->SetClass("occupied", true);
         if (wantsFill && open && !fill && !entry->warnedUnsupportedFill)
         {
             g_ErrorReport.Write(L"> [Placement] window '%hs' does not support data-fit=fill.\r\n",
@@ -327,7 +583,7 @@ static Rml::ElementList PrepareSlots(Rml::ElementDocument* workspace, const UI::
         if (fill)
         {
             // The theme sizes a fill slot, but never below the window's content size.
-            const float scale = RegionScale(slot->GetParentNode(), dock);
+            const float scale = SlotScale(slot, dock);
             Rml::Vector2f content = PanelSize(*entry);
             window->GetFillMinimumSize(content.x, content.y);
             slot->RemoveProperty(Rml::PropertyId::Width);
@@ -337,14 +593,100 @@ static Rml::ElementList PrepareSlots(Rml::ElementDocument* workspace, const UI::
         }
         else if (open)
         {
-            const float scale = RegionScale(slot->GetParentNode(), dock);
+            const float scale = SlotScale(slot, dock);
             const Rml::Vector2f size = PanelSize(*entry);
+            entry->measuredSize = size;
             SetLength(slot, Rml::PropertyId::Width, size.x * scale);
             SetLength(slot, Rml::PropertyId::Height, size.y * scale);
+            if (SlotGroup(slot) != nullptr)
+                MakeGroupDraggable(slot->GetAttribute<Rml::String>("data-window", ""), DocumentFor(*entry));
         }
     }
 
     return slots;
+}
+
+static bool FitGroups(Rml::ElementDocument* workspace)
+{
+    bool changed = false;
+    Rml::ElementList groups;
+    workspace->QuerySelectorAll(groups, "[data-group]");
+    for (Rml::Element* group : groups)
+    {
+        Rml::ElementList slots;
+        group->QuerySelectorAll(slots, ".slot.open");
+        if (slots.empty())
+            continue;
+        const GroupBounds requested = CombinedBounds(slots);
+        float panelsWidth = 0.f;
+        for (Rml::Element* slot : slots)
+            panelsWidth += ElementBounds(slot).width;
+        const float fit = WindowGroupState::FitFactor(ElementBounds(group), requested, requested.width - panelsWidth);
+        if (fit < 1.f - RegionFitTolerance)
+        {
+            const auto previous = g_regionFit.find(group);
+            g_regionFit[group] = fit * (previous != g_regionFit.end() ? previous->second : 1.f);
+            changed = true;
+        }
+    }
+    return changed;
+}
+
+static std::optional<GroupPoint> RetainedGroupAnchor(Rml::Element* group, const Rml::ElementList& slots,
+                                                     GroupPoint anchor, const WindowGroupState& state)
+{
+    if (!state.active || g_groupViewportChanged)
+        return std::nullopt;
+    Rml::Element* primary = GroupAnchor(group);
+    if (primary != nullptr && primary->IsClassSet("open"))
+        return state.lastAnchor;
+    // Closing the anchor itself keeps an existing companion where it was drawn.
+    for (Rml::Element* slot : slots)
+    {
+        const Entry* entry = EntryFor(slot);
+        if (entry != nullptr && entry->previouslyPlaced)
+        {
+            const auto current = ElementBounds(slot);
+            return GroupPoint{anchor.x + entry->previousBox.left - current.left,
+                              anchor.y + entry->previousBox.top - current.top};
+        }
+    }
+    return std::nullopt;
+}
+
+static void ResolveGroups(Rml::ElementDocument* workspace)
+{
+    Rml::ElementList groups;
+    workspace->QuerySelectorAll(groups, "[data-group]");
+    g_groupOffsets.clear();
+    for (Rml::Element* group : groups)
+    {
+        Rml::ElementList slots;
+        group->QuerySelectorAll(slots, ".slot.open");
+        if (slots.empty())
+        {
+            const auto state = g_groups.find(group->GetAttribute<Rml::String>("data-group", ""));
+            if (state != g_groups.end())
+            {
+                state->second.active = false;
+                state->second.fit = 1.f;
+            }
+            continue;
+        }
+        WindowGroupState& state = GroupState(group);
+        const GroupBounds bounds = CombinedBounds(slots);
+        Rml::Element* primary = GroupAnchor(group);
+        const bool anchorOpen = primary != nullptr && primary->IsClassSet("open");
+        const GroupPoint anchor = RightTop(anchorOpen ? ElementBounds(primary) : bounds);
+        const auto retained = RetainedGroupAnchor(group, slots, anchor, state);
+        const GroupPoint shift = state.Translation(SafeBounds(), bounds, anchor, retained);
+        g_groupOffsets[group] = {shift.x, shift.y};
+        if (anchorOpen)
+            state.lastAnchor = GroupPoint{anchor.x + shift.x, anchor.y + shift.y};
+        state.active = true;
+        const auto fit = g_regionFit.find(group);
+        state.fit = fit != g_regionFit.end() ? fit->second : 1.f;
+    }
 }
 
 static void PublishWorkspaceBounds(Rml::ElementDocument* workspace, Rml::Element* content)
@@ -386,8 +728,10 @@ static void UpdateUncoveredArea(Rml::ElementDocument* workspace, const Rml::Elem
         Rml::Element* region = slot->GetParentNode();
         if (!slot->IsClassSet("open") || region == nullptr || !region->HasAttribute("data-covers-world"))
             continue;
-        const float left = slot->GetAbsoluteOffset(Rml::BoxArea::Border).x;
-        const float right = left + slot->GetBox().GetSize(Rml::BoxArea::Border).x;
+        const Entry* entry = EntryFor(slot);
+        const bool grouped = SlotGroup(slot) != nullptr && entry != nullptr && entry->hasBox;
+        const float left = grouped ? entry->box.left : slot->GetAbsoluteOffset(Rml::BoxArea::Border).x;
+        const float right = left + (grouped ? entry->box.width : slot->GetBox().GetSize(Rml::BoxArea::Border).x);
         const auto [it, added] = groups.try_emplace(region, Group{left, right});
         if (!added)
             it->second = {std::min(it->second.left, left), std::max(it->second.right, right)};
@@ -406,7 +750,6 @@ static void UpdateUncoveredArea(Rml::ElementDocument* workspace, const Rml::Elem
         else
             g_uncoveredLeft = std::max(g_uncoveredLeft, group.right);
     }
-
     PublishWorkspaceBounds(workspace, content);
 }
 
@@ -426,8 +769,11 @@ static void PlaceSlots(const Rml::ElementList& slots, const UI::Scaling::Transfo
             continue;
         }
 
-        const float scale = RegionScale(slot->GetParentNode(), dock);
-        const Rml::Vector2f offset = slot->GetAbsoluteOffset(Rml::BoxArea::Border);
+        const float scale = SlotScale(slot, dock);
+        Rml::Vector2f offset = slot->GetAbsoluteOffset(Rml::BoxArea::Border);
+        const auto shift = g_groupOffsets.find(SlotGroup(slot));
+        if (shift != g_groupOffsets.end())
+            offset += shift->second;
         const Rml::Vector2f size = slot->GetBox().GetSize(Rml::BoxArea::Border);
         entry->box = {offset.x, offset.y, size.x, size.y, scale};
         entry->hasBox = true;
@@ -448,7 +794,6 @@ static void PlaceSlots(const Rml::ElementList& slots, const UI::Scaling::Transfo
         }
         entry->placed = true;
     }
-
 }
 
 static void RestoreUnslotted(const Rml::ElementList& slots)
@@ -471,14 +816,58 @@ static void RestoreUnslotted(const Rml::ElementList& slots)
     }
 }
 
+static Rml::ElementList FitWorkspace(Rml::ElementDocument* workspace, const UI::Scaling::Transform& dock,
+                                     Rml::ElementList slots)
+{
+    // A fitted neighbour can release width; keep the reference boxes unscaled while fitting slots.
+    for (int pass = 0; pass < MaximumRegionFitPasses; ++pass)
+    {
+        const bool regionsChanged = FitRegions(workspace, dock);
+        const bool groupsChanged = FitGroups(workspace);
+        if (!regionsChanged && !groupsChanged)
+            break;
+        slots = PrepareSlots(workspace, dock);
+        {
+            FRAME_PROFILE(UILayout);
+            workspace->UpdateDocument();
+        }
+    }
+    // Match a fitted column to its windows after solving, so height fitting cannot leave a wide gap.
+    bool fittedWidthChanged = false;
+    for (const auto& [region, fit] : g_regionFit)
+    {
+        const float referenceWidth = region->GetAttribute<float>("data-ref-width", 0.f);
+        if (referenceWidth > 0.f && fit < 1.f)
+        {
+            SetLength(region, Rml::PropertyId::Width, referenceWidth * RegionScale(region, dock));
+            fittedWidthChanged = true;
+        }
+    }
+    if (fittedWidthChanged)
+    {
+        FRAME_PROFILE(UILayout);
+        workspace->UpdateDocument();
+    }
+    return slots;
+}
+
 static void ArrangeNow()
 {
     Rml::ElementDocument* workspace = Workspace();
     if (workspace == nullptr)
         return;
+    if (workspace->QuerySelector("[data-group]") != nullptr &&
+        mu::ui::window::CInventoryCtrl::GetPickedItem() != nullptr)
+    {
+        Invalidate();
+        return;
+    }
 
     const auto dock = UI::Scaling::DockRightTransform(WindowWidth, WindowHeight);
+    g_groupViewportChanged = g_reservedSizeChanged || WindowWidth != g_lastWidth || WindowHeight != g_lastHeight ||
+                             dock.scaleX != g_lastDock.scaleX || dock.offsetY != g_lastDock.offsetY;
     g_lastDock = dock;
+    g_reservedSizeChanged = false;
     g_dirty = false;
     g_lastWidth = WindowWidth;
     g_lastHeight = WindowHeight;
@@ -492,18 +881,10 @@ static void ArrangeNow()
         FRAME_PROFILE(UILayout);
         workspace->UpdateDocument();
     }
-    // The content area depends only on the shell, so one more pass sizes capped regions' windows.
-    if (FitRegions(workspace, dock))
-    {
-        PrepareRegions(workspace, dock);
-        slots = PrepareSlots(workspace, dock);
-        {
-            FRAME_PROFILE(UILayout);
-            workspace->UpdateDocument();
-        }
-    }
-    UpdateUncoveredArea(workspace, slots);
+    slots = FitWorkspace(workspace, dock, std::move(slots));
+    ResolveGroups(workspace);
     PlaceSlots(slots, dock);
+    UpdateUncoveredArea(workspace, slots);
     RestoreUnslotted(slots);
 }
 
@@ -513,12 +894,32 @@ void Arrange()
     ArrangeNow();
 }
 
+static void CheckReservedSize(Entry& entry, bool visible)
+{
+    if (!entry.reservesSpace || !entry.participant.measure)
+        return;
+    if (visible != entry.lastVisible)
+        g_reservedSizeChanged = true;
+    if (!visible)
+        return;
+    const auto size = entry.participant.measure();
+    if (std::abs(size.width - entry.measuredSize.x) > RegionFitTolerance ||
+        std::abs(size.height - entry.measuredSize.y) > RegionFitTolerance)
+    {
+        // HUD models can finish reflow after the synchronous resize arrangement.
+        // A changed safe area must recover the preferred anchor, rather than retain that interim clamp.
+        g_reservedSizeChanged = true;
+        Invalidate();
+    }
+}
+
 void Update()
 {
     const auto dock = UI::Scaling::DockRightTransform(WindowWidth, WindowHeight);
     for (auto& [name, entry] : g_windows)
     {
         const bool visible = IsOpen(entry);
+        CheckReservedSize(entry, visible);
         if (visible != entry.lastVisible)
         {
             entry.lastVisible = visible;
@@ -597,6 +998,8 @@ void Release()
 {
     g_workspaceView.Release();
     g_windows.clear();
+    g_groups.clear();
+    g_groupOffsets.clear();
     g_dirty = true;
 }
-}
+} // namespace UI::Placement

@@ -1,0 +1,38 @@
+#panel { pointer-events: auto; }
+#panel.command-desk { width: 210px; height: 330px; }
+#panel.gens-desk { width: 250px; height: 350px; }
+#title { position: absolute; left: 15px; right: 15px; top: 8px; height: 19px; text-align: center; color: #d7b864; overflow: hidden; }
+.native-text { display: block; transform-origin: left top; pointer-events: none; white-space: normal; }
+button { font-family: "DejaVu Sans"; font-size: 8px; box-sizing: border-box; color: #ded1ac; background-color: #343422; border: 1px #6b6646; pointer-events: auto; }
+button:hover { background-color: #51482b; border-color: #c9a65c; }
+.corner-close { position: absolute; right: 5px; top: 3px; width: 10px; height: 12px; padding: 0; border-width: 0; background-color: transparent; color: #d7b864; }
+.desk-close { position: absolute; left: 15px; right: 15px; bottom: 14px; height: 21px; padding: 2px 3px; }
+.command-list { position: absolute; left: 15px; top: 37px; transform-origin: left top; overflow: hidden auto; }
+.command-row { display: block; width: 96%; margin-bottom: 1px; padding: 2px 5px; font-size: inherit; text-align: left; }
+.command-row.selected { background-color: #40522c; border-color: #c3b16b; color: #eff0c4; font-weight: bold; }
+#target { position: absolute; width: 128px; padding: 4px; background-color: #071009ed; border: 1px #899270; pointer-events: none; color: #e8eacb; }
+#target.out-of-range { color: #df9e84; }
+#mark { position: absolute; left: 22px; top: 42px; width: 50px; height: 69px; }
+.gens-summary { position: absolute; left: 87px; top: 37px; width: 140px; }
+.gens-summary > div { height: 19px; }
+.summary-label { color: #b9aa78; }
+.gens-values { position: absolute; left: 15px; top: 123px; width: 220px; display: flex; gap: 8px; }
+.value-card { width: 106px; height: 43px; border-top: 1px #545139; padding-top: 4px; }
+.value-card .native-text { height: 18px; }
+.notes-heading { position: absolute; left: 15px; top: 188px; color: #d7b864; }
+.gens-notes { position: absolute; left: 15px; top: 211px; transform-origin: left top; overflow: hidden auto; }
+.promotion, .reward { display: block; white-space: normal; line-height: 1.3em; }
+.promotion { color: #c7d4ad; }
+.reward { color: #bbc1af; }
+.scroll-pane scrollbarvertical { width: 6px; }
+.scroll-pane scrollbarvertical slidertrack { decorator: none; background-color: #10170d; }
+.scroll-pane scrollbarvertical sliderbar { decorator: none; background-color: #766b45; min-height: 16px; height: auto; }
+.scroll-pane scrollbarvertical sliderarrowdec, .scroll-pane scrollbarvertical sliderarrowinc { decorator: none; height: 0; }
+
+.gens-values { transform-origin: left top; gap: 8px; }
+.value-card { width: 48%; height: auto; line-height: 1.3em; }
+.value-card .summary-label { min-height: 2.6em; white-space: normal; }
+.value-card > div { display: block; }
+
+.command-row { height: calc(21px * var(--root-scale)); }
+#panel.compact-scale .command-row { height: 24px; }

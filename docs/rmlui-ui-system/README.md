@@ -94,6 +94,9 @@ The runtime renders, updates and routes input; the game adds the rest through
   modding constraints.
 - **[Engine Findings](engine-findings.md)** — empirical gotchas of this RmlUi build and the
   `CObject`/`CManager` machinery. Check before assuming a bug is new.
+- **Munolith examples** — [Armory](munolith-armory.md), [Inventory](munolith-inventory.md)
+  and [NPC counter](munolith-npc-counter.md) describe the accepted player flows and options.
+  Start a theme change with the [native verification workflow](building-new-ui.md#implement-and-verify-a-theme-change).
 - **[Migration Ledger](migration-ledger.md)** — where each original window class went; check
   here for "what replaced `X`?".
 
@@ -166,8 +169,9 @@ A theme is a **folder name** — adding one needs no recompile. A window's `Them
 `themes/<active-theme>/` URL, so its `<link href>` pulls that theme's `.rcss`; a theme can also
 fork the `.rml` itself (`themes/<theme>/<name>.rml`).
 
-**Two built-in themes, `legacy`** (original sprite art and compatibility layout) **and `modern`**,
-are maintained together. Update both when a window's content or behavior changes.
+**The shipped themes are `legacy`** (original sprite art and compatibility layout), **`modern`
+and `munolith`**. Keep shared changes compatible with all three; a theme-specific composition
+belongs in its own assets and declared capabilities.
 Shared rules live in `themes/<name>/base.rcss` (`.btn`, `.checkbox-box`, `.hidden`, the
 mandatory `body { pointer-events: none; }` reset). Full mechanism in
 [Theming & Modding](theming-and-modding.md).
@@ -219,4 +223,4 @@ must hide its document** (`CLoginWin::Release()`), or it paints over the next sc
 | Native drawing in a document | [`UI/RmlBridge/RmlRenderTarget.h/.cpp`](../../src/source/UI/RmlBridge/RmlRenderTarget.h) |
 | Workspace placement | [`UI/Placement/WindowPlacement.h/.cpp`](../../src/source/UI/Placement/WindowPlacement.h) |
 | Texture lifetime | [`Render/Sprites/GlobalBitmap.h/.cpp`](../../src/source/Render/Sprites/GlobalBitmap.h) — `LoadImageExclusive()` |
-| RML/RCSS assets | [`bin/Data/Interface/RmlUi/`](../../src/bin/Data/Interface/RmlUi/) — one `.rml` per window + `themes/{legacy,modern}/` |
+| RML/RCSS assets | [`bin/Data/Interface/RmlUi/`](../../src/bin/Data/Interface/RmlUi/) — shared documents + `themes/{legacy,modern,munolith}/` |

@@ -3,6 +3,8 @@
 #include "CharInfoBalloonMng.h"
 
 #include "CharInfoBalloon.h"
+#include "CharMakeWin.h"
+#include "UI/RmlBridge/RmlSyncField.h"
 #include "Core/Globals/_enum.h"
 #include "Core/Utilities/StringUtils.h"
 #include "Render/RmlUi/RmlUiRuntime.h"
@@ -89,6 +91,7 @@ void CCharInfoBalloonMng::BindRmlModel(Rml::DataModelConstructor& c, BalloonList
     c.RegisterArray<std::vector<BalloonEntry>>();
 
     c.Bind("balloons", &model.balloons);
+    c.Bind("creation_active", &model.creationActive);
 }
 
 //*****************************************************************************
@@ -135,6 +138,8 @@ void CCharInfoBalloonMng::UpdateDisplay()
 void CCharInfoBalloonMng::SyncRmlModel()
 {
     if (!m_RmlView.Document()) return;
+
+    SyncField(m_RmlView.Binder(), &BalloonListModel::creationActive, "creation_active", g_CharMakeWin.IsVisible());
 
     auto& balloons = m_RmlView.GetModel().balloons;
     for (std::size_t i = 0; i < kBalloonCount; ++i)

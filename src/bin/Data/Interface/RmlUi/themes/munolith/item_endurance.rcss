@@ -1,0 +1,21 @@
+/* Keep native indicator and hover geometry; only the presentation changes. */
+.pet-frame { decorator: none; border: 1px #9c8855; background-color: #071711ef; box-sizing: border-box; }
+.pet-fill { background-color: transparent; }
+.pet-track { position: absolute; left: 4px; top: 16px; width: 49px; height: 3px; background-color: #304033; }
+.pet-bar { background-color: #95ad63; }
+.pet-name { color: #e6d3a7; }
+.icon { background-color: #071711df; border: 1px #657049; box-sizing: border-box; }
+.icon-tint--half { background-color: #d4bd5670; }
+.icon-tint--third { background-color: #d794487e; }
+.icon-tint--fifth { background-color: #db643890; }
+.icon-tint--zero { background-color: #cf3333a0; }
+.text-row .tooltip { background-color: #071711f5; }
+.tooltip--half { color: #e1cd77; }
+.tooltip--third { color: #e8b06b; }
+.tooltip--fifth { color: #ed8969; }
+.tooltip--zero { color: #f17676; }
+#arrows { color: #e6d3a7; background-color: #071711ef; }
+
+/* Physical anchors read by the native companion, independent of dock offsets. */
+#pet_safe_top { position: absolute; left: 0; top: 60dp; width: 0; height: 0; pointer-events: none; }
+#warning_safe_top { position: absolute; left: 0; top: 120dp; width: 0; height: 0; pointer-events: none; }

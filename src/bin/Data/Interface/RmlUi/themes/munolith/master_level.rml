@@ -1,0 +1,49 @@
+<rml>
+<head>
+	<title>Master Skill Tree</title>
+	<link type="text/rcss" href="base.rcss"/>
+	<link type="text/rcss" href="../legacy/master_skill_icons.rcss"/>
+	<link type="text/rcss" href="my_inventory_shared.rcss"/>
+	<link type="text/rcss" href="master_level.rcss"/>
+</head>
+<body data-model="master_level">
+	<div id="panel" data-style-left="root_x + 'px'" data-style-top="root_y + 'px'" data-style-transform="'scale(' + scale_x + ', ' + scale_y + ')'">
+		<div class="stone"></div><div class="shade"></div>
+        <div class="trim top-left"></div><div class="trim top-mid"></div><div class="trim top-right"></div>
+        <div class="trim side-left"></div><div class="trim side-right"></div>
+        <div class="trim bottom-left"></div><div class="trim bottom-mid"></div><div class="trim bottom-right"></div>
+        <div id="title">Master skill tree</div>
+        <div class="branch branch-0"></div><div class="branch branch-1"></div><div class="branch branch-2"></div>
+
+		<!-- Each node where it is in the tree: its group's column, its slot in its rank, and the
+		     rank. The theme turns that into a position; the id is what the hint reads back. -->
+		<div data-for="node : nodes" data-attr-id="'node_' + node.id"
+		     data-attr-class="'node column-' + node.column + ' slot-' + node.slot + ' rank-' + node.rank + (node.usable ? '' : ' locked') + (node.level_text != '0' ? ' learned' : '')">
+			<div class="node-box"></div>
+			<!-- The icon is the hit area, as native's 20x28 CheckMouseIn(). A press acts on
+			     mousedown, native's IsPress(). -->
+			<div class="node-icon" data-style-decorator="node.icon"
+			     data-event-mousedown="master_node_press(node.id)"
+			     data-event-mouseover="master_node_hover(node.id)"
+			     data-event-mouseout="master_node_hover(-1)"></div>
+			<div data-attr-class="'node-arrow arrow-' + node.arrow"></div>
+			<span class="text node-level">{{node.level_text}} / {{node.max_level}}</span>
+		</div>
+
+		<div id="close" data-event-click="master_close"
+		    >×</div>
+
+		<span id="class_name" class="text head-text">{{class_name_text}}</span>
+		<span id="master_level" class="text head-text">{{master_level_text}}</span>
+		<span id="level_point" class="text head-text">{{level_point_text}}</span>
+		<span id="experience" class="text head-text">{{experience_text}}</span>
+		<!-- This measured area is also the native experience hint anchor. -->
+		<div id="experience_area"
+		     data-event-mouseover="master_experience_hover(1)" data-event-mouseout="master_experience_hover(0)"></div>
+
+		<span id="column_0" class="text column-text">{{column_text_0}}</span>
+		<span id="column_1" class="text column-text">{{column_text_1}}</span>
+		<span id="column_2" class="text column-text">{{column_text_2}}</span>
+	</div>
+</body>
+</rml>

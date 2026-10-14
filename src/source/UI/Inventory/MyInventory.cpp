@@ -8,6 +8,7 @@ extern bool SelectFlag;
 #include "UI/Console/MuEditorConsoleUI.h"
 #endif
 #include "UI/Dialogs/CustomMessageBox.h"
+#include "UI/Dialogs/GenericConfirmDialog.h"
 #include "Engine/AI/GOBoid.h"
 #include "Render/Effects/ZzzEffect.h"
 #include "GameLogic/Pets/GIPetManager.h"
@@ -41,6 +42,7 @@ extern bool SelectFlag;
 // RmlUi migration -- see this class's header comment.
 #include "Render/RmlUi/RmlUiRuntime.h"
 #include "UI/RmlBridge/RmlTheme.h"
+#include "UI/Placement/WindowPlacement.h"
 #include "UI/RmlBridge/RmlStyleKeys.h"
 #include "UI/RmlBridge/RmlDraggable.h"
 #include "UI/RmlBridge/RmlElementBox.h"
@@ -52,9 +54,12 @@ extern bool SelectFlag;
 #include "UI/Tooltip/LegacyTextListTooltip.h"
 #include "UI/Inventory/ItemOptionTooltipModel.h"
 #include "Core/Utilities/StringUtils.h"
+#include <RmlUi/Core/Context.h>
 #include <RmlUi/Core/ElementDocument.h>
 #include <RmlUi/Core/Event.h>
 #include <cmath>
+#include <numeric>
+#include <span>
 
 namespace
 {
@@ -141,6 +146,7 @@ bool CMyInventory::Create(CManager* pNewUIMng)
 void CMyInventory::BindRmlModel(Rml::DataModelConstructor& c, MyInventoryRmlModel& model)
 {
     UI::RmlBridge::BindWindowClose(c, INTERFACE_INVENTORY);
+    BindMerchantFeedback(c, model);
     model.textPx = UI::RmlBridge::NativeTextPx(UI::Scaling::FontRole::Normal);
     c.Bind("text_px", &model.textPx);
 
@@ -148,7 +154,17 @@ void CMyInventory::BindRmlModel(Rml::DataModelConstructor& c, MyInventoryRmlMode
     c.Bind("gold_text", &model.goldText);
     c.Bind("gold_tier", &model.goldTier);
 
+    c.Bind("owned_extensions", &model.ownedExtensions);
+    c.Bind("capacity_text", &model.capacityText);
+    c.Bind("expansion_visible", &model.expansionVisible);
+    c.Bind("overflow_visible", &model.overflowVisible);
+    c.Bind("grid_cells_extension_1", &model.gridCellsExtension1);
+    c.Bind("grid_cells_extension_2", &model.gridCellsExtension2);
+    c.RegisterArray<std::vector<int>>();
+    c.Bind("rows", &model.rows);
+
     c.Bind("repair_visible", &model.repairVisible);
+    c.Bind("repair_active", &model.repairActive);
     c.Bind("repair_tooltip", &model.repairTooltip);
 
     c.Bind("myshop_visible", &model.myShopVisible);
@@ -214,14 +230,34 @@ void CMyInventory::BindRmlModel(Rml::DataModelConstructor& c, MyInventoryRmlMode
                 g_pNewUISystem->Hide(INTERFACE_PURCHASESHOP_INVENTORY);
             }
         });
-    c.BindEventCallback("my_inventory_expand_click",
-        [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) { g_pNewUISystem->Toggle(INTERFACE_INVENTORY_EXT); });
+    c.BindEventCallback(
+        "my_inventory_expand_click",
+        [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&)
+        {
+            if (!UI::RmlBridge::ThemeUsesEmbeddedInventory())
+                g_pNewUISystem->Toggle(INTERFACE_INVENTORY_EXT);
+            else
+            {
+                GenericDialogConfig config;
+                const int capacity = ROW_INVENTORY * COLUMN_INVENTORY +
+                                     MAX_INVENTORY_EXT_ONE * UI::RmlBridge::ThemeInventoryExpansionLimit();
+                const std::wstring capacityText =
+                    L"Each unlock adds 32 cells. Maximum: " + std::to_wstring(capacity) + L" cells.";
+                config.lines = {{L"Additional inventory space is not available yet.", false}, {capacityText, false}};
+                g_pGenericConfirmDialog->Show(std::move(config));
+            }
+        });
+    c.BindEventCallback("my_inventory_overflow_click", [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&)
+                        { g_pNewUISystem->Toggle(INTERFACE_INVENTORY_EXT); });
 }
 
 // #title is the drag handle (MakeDraggable). The paperdoll and grid follow their drawn boxes, so
 // they move with it. The position lasts until the workspace places it again.
 void CMyInventory::OnRmlBuilt()
 {
+    // A theme that links the inventory with its neighbours drags the whole group by this title.
+    if (UI::Placement::MakeGroupDraggable("inventory", m_RmlView.Document()))
+        return;
     Rml::Element* panelEl = m_RmlView.Document()->GetElementById("panel");
     Rml::Element* titleEl = m_RmlView.Document()->GetElementById("title");
     if (panelEl && titleEl)
@@ -346,8 +382,13 @@ void CMyInventory::UnequipAllItems()
 
 bool CMyInventory::IsEquipable(int iIndex, ITEM* pItem) const
 {
+    return EquipmentRequirementFailure(iIndex, pItem).empty();
+}
+
+std::wstring CMyInventory::EquipmentRequirementFailure(int iIndex, ITEM* pItem) const
+{
     if (pItem == nullptr)
-        return false;
+        return L"This item cannot be equipped in this slot.";
 
     const ITEM_ATTRIBUTE* pItemAttr = &ItemAttribute[pItem->Type];
     bool bEquipable = false;
@@ -362,11 +403,11 @@ bool CMyInventory::IsEquipable(int iIndex, ITEM* pItem) const
     const BYTE byStepClass = gCharacterManager.GetStepClass(Hero->Class);
     if (pItemAttr->RequireClass[byFirstClass] > byStepClass)
     {
-        return false;
+        return L"Requires a higher class advancement.";
     }
 
     if (bEquipable == false)
-        return false;
+        return L"Requires a different character class or equipment slot.";
 
     bEquipable = false;
     if (pItemAttr->m_byItemSlot == iIndex)
@@ -383,7 +424,7 @@ bool CMyInventory::IsEquipable(int iIndex, ITEM* pItem) const
             else
             {
                 bEquipable = false;
-                return false;
+                return L"This item cannot be equipped in this slot.";
             }
 #endif //PBG_FIX_EQUIP_TWOHANDSWORD
         }
@@ -414,7 +455,7 @@ bool CMyInventory::IsEquipable(int iIndex, ITEM* pItem) const
     }
 
     if (bEquipable == false)
-        return false;
+        return L"This item cannot be equipped in this slot.";
 
     const WORD wStrength = CharacterAttribute->Strength + CharacterAttribute->AddStrength;
     const WORD wDexterity = CharacterAttribute->Dexterity + CharacterAttribute->AddDexterity;
@@ -457,58 +498,65 @@ bool CMyInventory::IsEquipable(int iIndex, ITEM* pItem) const
     }
 
     if (pItem->RequireStrength - iDecNeedStrength > wStrength)
-        return false;
+        return L"Requires Strength " + std::to_wstring(pItem->RequireStrength - iDecNeedStrength) + L" (you have " +
+               std::to_wstring(wStrength) + L").";
     if (pItem->RequireDexterity - iDecNeedDex > wDexterity)
-        return false;
+        return L"Requires Agility " + std::to_wstring(pItem->RequireDexterity - iDecNeedDex) + L" (you have " +
+               std::to_wstring(wDexterity) + L").";
     if (pItem->RequireEnergy > wEnergy)
-        return false;
+        return L"Requires Energy " + std::to_wstring(pItem->RequireEnergy) + L" (you have " + std::to_wstring(wEnergy) +
+               L").";
     if (pItem->RequireVitality > wVitality)
-        return false;
+        return L"Requires Vitality " + std::to_wstring(pItem->RequireVitality) + L" (you have " +
+               std::to_wstring(wVitality) + L").";
     if (pItem->RequireCharisma > wCharisma)
-        return false;
+        return L"Requires Command " + std::to_wstring(pItem->RequireCharisma) + L" (you have " +
+               std::to_wstring(wCharisma) + L").";
     if (pItem->RequireLevel > wLevel)
-        return false;
+        return L"Requires Level " + std::to_wstring(pItem->RequireLevel) + L" (you have " + std::to_wstring(wLevel) +
+               L").";
 
     if (pItem->Type == ITEM_DARK_RAVEN_ITEM)
     {
         const auto pPetInfo = GetPetInfo(pItem);
         if (pPetInfo->m_dwPetType == PET_TYPE_NONE)
         {
-            return false;
+            return L"Pet details are still loading.";
         }
 
         const auto requiredCharisma = (185 + (pPetInfo->m_wLevel * 15));
         if (requiredCharisma > wCharisma)
         {
-            return false;
+            return L"Requires Command " + std::to_wstring(requiredCharisma) + L" (you have " +
+                   std::to_wstring(wCharisma) + L").";
         }
     }
 
     if (gMapManager.WorldActive == WD_7ATLANSE && (pItem->Type >= ITEM_HORN_OF_UNIRIA && pItem->Type <= ITEM_HORN_OF_DINORANT))
     {
-        return false;
+        return L"This item cannot be equipped in this slot.";
     }
     if (pItem->Type == ITEM_HORN_OF_UNIRIA && gMapManager.WorldActive == WD_10HEAVEN)
     {
-        return false;
+        return L"This item cannot be equipped in this slot.";
     }
     if (pItem->Type == ITEM_HORN_OF_UNIRIA && g_Direction.m_CKanturu.IsMayaScene())
     {
-        return false;
+        return L"This item cannot be equipped in this slot.";
     }
     if (gMapManager.InChaosCastle() || (Get_State_Only_Elf()
         && g_isCharacterBuff((&Hero->Object), eBuff_CrywolfHeroContracted)))
     {
         if ((pItem->Type >= ITEM_HORN_OF_UNIRIA && pItem->Type <= ITEM_DARK_RAVEN_ITEM) || pItem->Type == ITEM_HORN_OF_FENRIR)
-            return false;
+            return L"This item cannot be equipped in this slot.";
     }
     else if (GameLogic::Items::IsRideableMount(pItem)
         && Hero->Object.CurrentAction >= PLAYER_SIT1 && Hero->Object.CurrentAction <= PLAYER_SIT_FEMALE2)
     {
-        return false;
+        return L"This item cannot be equipped in this slot.";
     }
 
-    return bEquipable;
+    return bEquipable ? L"" : L"This item cannot be equipped in this slot.";
 }
 
 bool CMyInventory::InsertItem(int iIndex, std::span<const BYTE> pbyItemPacket) const
@@ -554,7 +602,12 @@ void CMyInventory::DeleteAllItems() const
 void CMyInventory::SyncNativeLayout()
 {
     Rml::ElementDocument* document = m_RmlView.Document();
-    for (const SlotAnchor& anchor : SlotAnchors)
+    const bool embedded = UI::RmlBridge::ThemeUsesEmbeddedInventory();
+    m_pNewInventoryCtrl->SetPresentation(nullptr, embedded);
+    if (g_pMyInventoryExt)
+        g_pMyInventoryExt->SyncEmbeddedLayout(document);
+    // A theme that embeds the extensions draws the paperdoll in the character window instead.
+    for (const SlotAnchor& anchor : embedded ? std::span<const SlotAnchor>{} : std::span<const SlotAnchor>{SlotAnchors})
     {
         auto& slot = m_EquipmentSlots[anchor.slot];
         Rml::Element* box = document != nullptr ? document->GetElementById(anchor.id) : nullptr;
@@ -612,6 +665,7 @@ void CMyInventory::SetRepairMode(bool bRepair)
     else
     {
         m_RepairMode = SEASON3B::REPAIR_MODE_OFF;
+        RepairEnable = 0;
         if (m_pNewInventoryCtrl)
         {
             m_pNewInventoryCtrl->SetRepairMode(false);
@@ -624,7 +678,11 @@ bool CMyInventory::UpdateMouseEvent()
     if (m_pNewInventoryCtrl && !m_pNewInventoryCtrl->UpdateMouseEvent())
         return false;
 
-    if (true == EquipmentWindowProcess())
+    const bool embedded = UI::RmlBridge::ThemeUsesEmbeddedInventory();
+    if (embedded && g_pMyInventoryExt && !g_pMyInventoryExt->UpdateEmbeddedMouseEvent())
+        return false;
+
+    if (!embedded && true == EquipmentWindowProcess())
         return false;
     if (true == InventoryProcess())
         return false;
@@ -633,6 +691,14 @@ bool CMyInventory::UpdateMouseEvent()
     if (pPickedItem && IsPress(VK_LBUTTON)
         && !(g_pMainFrame != nullptr && g_pMainFrame->IsMouseOverHud()))
     {
+        // A press on the character window (its paperdoll, in such a theme) is not a ground drop.
+        if (embedded && g_pNewUISystem->IsVisible(INTERFACE_CHARACTER))
+        {
+            auto* document = g_pCharacterInfoWindow->GetFillDocument();
+            auto* hovered = document && document->GetContext() ? document->GetContext()->GetHoverElement() : nullptr;
+            if (hovered && hovered->GetOwnerDocument() == document)
+                return true;
+        }
         if (g_pNewUISystem->IsVisible(INTERFACE_NPCSHOP) == true
             || g_pNewUISystem->IsVisible(INTERFACE_TRADE) == true
             || g_pNewUISystem->IsVisible(INTERFACE_DEVILSQUARE) == true
@@ -739,6 +805,23 @@ bool CMyInventory::UpdateKeyEvent()
 
     if (IsPress(VK_ESCAPE) == true)
     {
+        if (UI::RmlBridge::ThemeUsesEmbeddedInventory() && CInventoryCtrl::GetPickedItem())
+        {
+            CInventoryCtrl::BackupPickedItem();
+            return false;
+        }
+        // Inventory receives Escape first. Let the merchant own its quantity,
+        // pending purchase and repair state instead of clearing only the bag's mode.
+        if (UI::RmlBridge::ThemeUsesCompactNpcShop() && g_pNPCShop->IsVisible())
+        {
+            g_pNPCShop->UpdateKeyEvent();
+            return false;
+        }
+        if (UI::RmlBridge::ThemeUsesEmbeddedInventory() && m_RepairMode == REPAIR_MODE_ON)
+        {
+            SetRepairMode(false);
+            return false;
+        }
         if (g_pNPCShop->IsSellingItem() == false)
         {
             g_pNewUISystem->Hide(INTERFACE_INVENTORY);
@@ -760,7 +843,7 @@ bool CMyInventory::UpdateKeyEvent()
         }
     }
 
-    if (CanOpenMyShopInterface() == true && IsPress('S'))
+    if (UI::RmlBridge::ThemeShowsPersonalStore() && CanOpenMyShopInterface() == true && IsPress('S'))
     {
         if (m_bMyShopOpen)
         {
@@ -780,6 +863,9 @@ bool CMyInventory::UpdateKeyEvent()
 
     if (IsPress('K'))
     {
+        // Embedded extensions are in this window; only historical overflow pages open the window.
+        if (UI::RmlBridge::ThemeUsesEmbeddedInventory() && CharacterAttribute->InventoryExtensions <= 2)
+            return false;
         g_pNewUISystem->Toggle(INTERFACE_INVENTORY_EXT);
         PlayBuffer(SOUND_CLICK01);
 
@@ -833,6 +919,8 @@ bool CMyInventory::UpdateKeyEvent()
 
 bool CMyInventory::Update()
 {
+    if (g_pMyInventoryExt)
+        g_pMyInventoryExt->UpdateEmbedded();
     if (m_pNewInventoryCtrl && false == m_pNewInventoryCtrl->Update())
     {
         return false;
@@ -842,7 +930,9 @@ bool CMyInventory::Update()
     {
         m_iPointedSlot = -1;
         Rml::ElementDocument* document = m_RmlView.Document();
-        for (const SlotAnchor& anchor : SlotAnchors)
+        for (const SlotAnchor& anchor : UI::RmlBridge::ThemeUsesEmbeddedInventory()
+                                            ? std::span<const SlotAnchor>{}
+                                            : std::span<const SlotAnchor>{SlotAnchors})
         {
             const std::string itemId = std::string(anchor.id) + "_item";
             if (document != nullptr && UI::RmlBridge::IsPointerWithin(document->GetElementById(itemId)))
@@ -886,6 +976,36 @@ void CMyInventory::SyncRmlModel()
     };
 
     syncWide(&MyInventoryRmlModel::title, "title", I18N::Game::Inventory);
+
+    if (UI::RmlBridge::ThemeUsesEmbeddedInventory())
+    {
+        const int extensions = std::clamp<int>(CharacterAttribute->InventoryExtensions, 0, 2);
+        const int rows = ROW_INVENTORY + ROW_INVENTORY_EXT * extensions;
+        auto& model = m_RmlView.GetModel();
+        if (model.ownedExtensions != extensions)
+        {
+            model.ownedExtensions = extensions;
+            m_RmlView.MarkDirty("owned_extensions");
+        }
+        if (static_cast<int>(model.rows.size()) != rows)
+        {
+            model.rows.resize(rows);
+            std::iota(model.rows.begin(), model.rows.end(), 0);
+            m_RmlView.MarkDirty("rows");
+        }
+        const int free = m_pNewInventoryCtrl->GetEmptySlotCount() +
+                         (g_pMyInventoryExt ? g_pMyInventoryExt->GetEmbeddedFreeSlotCount() : 0);
+        syncText(&MyInventoryRmlModel::capacityText, "capacity_text",
+                 "Free space " + std::to_string(free) + " / " + std::to_string(rows * COLUMN_INVENTORY));
+        syncBool(&MyInventoryRmlModel::expansionVisible, "expansion_visible",
+                 CharacterAttribute->InventoryExtensions <= 2 &&
+                     CharacterAttribute->InventoryExtensions < UI::RmlBridge::ThemeInventoryExpansionLimit());
+        syncBool(&MyInventoryRmlModel::overflowVisible, "overflow_visible",
+                 CharacterAttribute->InventoryExtensions > 2);
+        SyncEmbeddedExtensions();
+    }
+    syncBool(&MyInventoryRmlModel::repairActive, "repair_active", m_RepairMode == REPAIR_MODE_ON);
+    SyncMerchantFeedback();
 
     const DWORD dwZen = CharacterMachine->Gold;
     wchar_t goldBuf[256] = { 0, };
@@ -1003,6 +1123,8 @@ bool CMyInventory::Render()
 {
     if (m_pNewInventoryCtrl)
         m_pNewInventoryCtrl->Render();
+    if (g_pMyInventoryExt)
+        g_pMyInventoryExt->RenderEmbedded();
     if (m_iPointedSlot != -1)
         RenderItemToolTip(m_iPointedSlot);
     return true;
@@ -1013,6 +1135,13 @@ void CMyInventory::Render3D()
 {
     if (m_pNewInventoryCtrl && m_pNewInventoryCtrl->IsVisible())
         m_pNewInventoryCtrl->Render3D();
+    if (UI::RmlBridge::ThemeUsesEmbeddedInventory())
+    {
+        // The embedded extensions' items; the equipment is drawn by the character window.
+        if (g_pMyInventoryExt)
+            g_pMyInventoryExt->RenderEmbedded3D();
+        return;
+    }
     Rml::Element* panel = m_RmlView.Document() != nullptr ? m_RmlView.Document()->GetElementById("panel") : nullptr;
     const float scale = panel != nullptr ? UI::RmlBridge::DrawnScale(*panel) : 1.f;
     for (int i = 0; i < MAX_EQUIPMENT_INDEX; i++)
@@ -1052,6 +1181,7 @@ bool CMyInventory::IsVisible() const
 void CMyInventory::OpenningProcess()
 {
     SetRepairMode(false);
+    m_GoldObserved = false;
 
     m_MyShopMode = MYSHOP_MODE_OPEN;
     ChangeMyShopButtonStateOpen();
@@ -1091,6 +1221,8 @@ void CMyInventory::ClosingProcess()
     m_pNewInventoryCtrl->BackupPickedItem();
     RepairEnable = 0;
     SetRepairMode(false);
+    m_MerchantDeliveryUntil = 0;
+    m_GoldDeltaUntil = 0;
 }
 
 float CMyInventory::GetLayerDepth()
@@ -1444,15 +1576,53 @@ void CMyInventory::SyncSlotStates()
 
 }
 
+void CMyInventory::SyncEmbeddedExtensions()
+{
+    auto& model = m_RmlView.GetModel();
+    const auto sync = [this](UI::Items::ItemGridCells& field, const char* name, const CInventoryCtrl* control)
+    {
+        if (control != nullptr && field != control->Cells())
+        {
+            field = control->Cells();
+            m_RmlView.MarkDirty(name);
+        }
+    };
+    if (g_pMyInventoryExt)
+    {
+        sync(model.gridCellsExtension1, "grid_cells_extension_1", g_pMyInventoryExt->GetEmbeddedControl(0));
+        sync(model.gridCellsExtension2, "grid_cells_extension_2", g_pMyInventoryExt->GetEmbeddedControl(1));
+    }
+}
+
 bool CMyInventory::EquipmentWindowProcess()
 {
-    if (m_iPointedSlot != -1 && IsRelease(VK_LBUTTON))
+    return ProcessEquipmentSlot(m_iPointedSlot, IsRelease(VK_LBUTTON), IsRelease(VK_RBUTTON));
+}
+
+bool CMyInventory::HandleArmoryEquipmentSlot(int slot, bool rightButton)
+{
+    if (slot < 0 || slot >= MAX_EQUIPMENT_INDEX || Hero->Dead != 0 || EquipmentItem)
+        return false;
+    auto& item = CharacterMachine->Equipment[slot];
+    if (rightButton && GetRepairMode() == REPAIR_MODE_OFF && !CInventoryCtrl::GetPickedItem() &&
+        (item.Type == ITEM_DARK_HORSE_ITEM || item.Type == ITEM_DARK_RAVEN_ITEM))
+    {
+        g_pNewUISystem->Show(INTERFACE_PET);
+        g_pPetInfoWindow->RmlClickSelectTab(item.Type == ITEM_DARK_RAVEN_ITEM ? 1 : 0);
+        return true;
+    }
+    return ProcessEquipmentSlot(slot, !rightButton, rightButton);
+}
+
+bool CMyInventory::ProcessEquipmentSlot(int slot, bool leftRelease, bool rightRelease)
+{
+    if (slot != -1 && leftRelease)
     {
         if (CPickedItem* pPickedItem = CInventoryCtrl::GetPickedItem())
         {
             ITEM* pItemObj = pPickedItem->GetItem();
             const int iSourceIndex = pPickedItem->GetSourceLinealPos();
-            const int iTargetIndex = m_iPointedSlot;
+            const int iTargetIndex = slot;
             if (pItemObj->bPeriodItem && pItemObj->bExpiredPeriod)
             {
                 g_pSystemLogBox->AddText(I18N::Game::CanTWearItem, mu::ui::window::TYPE_ERROR_MESSAGE);
@@ -1465,6 +1635,8 @@ bool CMyInventory::EquipmentWindowProcess()
             ITEM* pEquipmentItemSlot = &CharacterMachine->Equipment[iTargetIndex];
             if (pEquipmentItemSlot && pEquipmentItemSlot->Type != -1)
             {
+                if (UI::RmlBridge::ThemeUsesEmbeddedInventory())
+                    g_pSystemLogBox->AddText(L"Equipment slot occupied. Unequip it first.", TYPE_ERROR_MESSAGE);
                 return true;
             }
 
@@ -1497,12 +1669,15 @@ bool CMyInventory::EquipmentWindowProcess()
                     return true;
                 }
             }
+            else if (UI::RmlBridge::ThemeUsesEmbeddedInventory())
+                g_pSystemLogBox->AddText(EquipmentRequirementFailure(iTargetIndex, pItemObj).c_str(),
+                                         TYPE_ERROR_MESSAGE);
         }
         else // pPickedItem == NULL
         {
             if (GetRepairMode() == SEASON3B::REPAIR_MODE_ON)
             {
-                ITEM* pEquippedItem = &CharacterMachine->Equipment[m_iPointedSlot];
+                ITEM* pEquippedItem = &CharacterMachine->Equipment[slot];
 
                 if (pEquippedItem == NULL)
                 {
@@ -1516,32 +1691,32 @@ bool CMyInventory::EquipmentWindowProcess()
 
                 if (g_pNewUISystem->IsVisible(INTERFACE_NPCSHOP) && g_pNPCShop->IsRepairShop())
                 {
-                    SocketClient->ToGameServer()->SendRepairItemRequest(m_iPointedSlot, 0);
+                    SocketClient->ToGameServer()->SendRepairItemRequest(slot, 0);
                 }
                 else if (m_bRepairEnableLevel == true)
                 {
-                    SocketClient->ToGameServer()->SendRepairItemRequest(m_iPointedSlot, 1);
+                    SocketClient->ToGameServer()->SendRepairItemRequest(slot, 1);
                 }
 
                 return true;
             }
 
-            ITEM* pEquippedItem = &CharacterMachine->Equipment[m_iPointedSlot];
-            if (pEquippedItem->Type >= 0 && CheckTakeOff(m_iPointedSlot))
+            ITEM* pEquippedItem = &CharacterMachine->Equipment[slot];
+            if (pEquippedItem->Type >= 0 && CheckTakeOff(slot))
             {
                 if (CInventoryCtrl::CreatePickedItem(nullptr, pEquippedItem))
                 {
-                    UnequipItem(m_iPointedSlot);
+                    UnequipItem(slot);
                 }
             }
         }
     }
 
-    if (IsRelease(VK_RBUTTON))
+    if (rightRelease)
     {
         const CPickedItem* pPickedItem = CInventoryCtrl::GetPickedItem();
 
-        const int iSourceIndex = m_iPointedSlot;
+        const int iSourceIndex = slot;
         if (GetRepairMode() != SEASON3B::REPAIR_MODE_ON && EquipmentItem == false
             && pPickedItem == nullptr
             && iSourceIndex != -1
@@ -1553,7 +1728,7 @@ bool CMyInventory::EquipmentWindowProcess()
 
             if (pEquippedItem->Type >= 0 && CheckTakeOff(iSourceIndex))
             {
-                const int emptySlotIndex = FindEmptySlot(pEquippedItem);
+                const int emptySlotIndex = FindEmptySlotIncludingExtensions(pEquippedItem);
 
                 // Simulates picking the item up and putting it into the free
                 // inventory slot. Without the pick-up nothing is sent, so the
@@ -1568,6 +1743,8 @@ bool CMyInventory::EquipmentWindowProcess()
                                              STORAGE_TYPE::INVENTORY, emptySlotIndex);
                     return true;
                 }
+                if (emptySlotIndex == -1 && UI::RmlBridge::ThemeUsesEmbeddedInventory())
+                    g_pSystemLogBox->AddText(L"No contiguous space for this item in Inventory.", TYPE_ERROR_MESSAGE);
             }
         }
     }
@@ -1600,7 +1777,11 @@ bool CMyInventory::InventoryProcess() const
         return false;
     }
 
-    return m_ActionController.HandleInventoryActions(m_pNewInventoryCtrl);
+    CInventoryCtrl* control = m_pNewInventoryCtrl;
+    if (g_pMyInventoryExt)
+        if (CInventoryCtrl* extension = g_pMyInventoryExt->FindEmbeddedControlAtPointer())
+            control = extension;
+    return m_ActionController.HandleInventoryActions(control);
 }
 
 bool CMyInventory::WindowProcess()
@@ -1709,6 +1890,15 @@ bool CMyInventory::CanOpenMyShopInterface()
         return false;
     }
     return true;
+}
+
+void CMyInventory::OpenPersonalStore()
+{
+    if (!UI::RmlBridge::ThemeShowsPersonalStore() || !m_bMyShopOpen || m_bMyShopLocked || !CanOpenMyShopInterface())
+        return;
+    g_pNewUISystem->Show(INTERFACE_INVENTORY);
+    ChangeMyShopButtonStateClose();
+    g_pNewUISystem->Show(INTERFACE_MYSHOP_INVENTORY);
 }
 
 bool CMyInventory::IsRepairEnableLevel() const

@@ -1,0 +1,36 @@
+#panel { width: 400px; height: 400px; pointer-events: auto; }
+#title { position: absolute; left: 15px; top: 8px; width: 370px; height: 20px; color: #d7b864; text-align: center; overflow: hidden; }
+.native-text { display: inline-block; transform-origin: left top; white-space: normal; pointer-events: none; }
+button { font-family: "DejaVu Sans"; box-sizing: border-box; font-size: inherit; color: #ded1ac; background-color: #343422; border: 1px #6b6646; padding: 4px 6px; pointer-events: auto; }
+button:hover { background-color: #51482b; border-color: #c9a65c; }
+.corner-close { position: absolute; right: 5px; top: 3px; width: 10px; height: 12px; padding: 0; border-width: 0; background-color: transparent; color: #d7b864; }
+#command_scroller { position: absolute; left: 15px; top: 38px; transform-origin: left top; overflow: hidden auto; }
+.empty-note { color: #c6cbb4; white-space: normal; line-height: 1.4em; }
+.command-entry { display: block; width: 97%; margin-bottom: 3px; text-align: left; min-height: 25px; }
+.command-entry.favourite { color: #e8d08e; border-color: #9c8651; }
+.description { display: block; white-space: normal; line-height: 1.4em; color: #bbc1af; margin-bottom: 12px; }
+.parameter { display: block; margin-bottom: 10px; width: 97%; }
+.parameter-name { display: block; color: #d7b864; white-space: normal; line-height: 1.4em; margin-bottom: 3px; }
+.parameter-name.missing { color: #df9e84; }
+.parameter-value { display: block; width: 100%; min-height: 26px; text-align: left; background-color: #0f1a12; }
+.parameter-value.placeholder { color: #8d9b81; }
+.parameter-value.edited { border-color: #b7af72; }
+.local-actions { display: flex; gap: 6px; padding-bottom: 5px; width: 97%; }
+.local-actions button { flex: 1 1 0; min-height: 26px; }
+.template-row { display: flex; gap: 5px; width: 97%; margin-bottom: 3px; }
+.template-entry { flex: 1 1 0; min-width: 0; min-height: 26px; text-align: left; }
+.template-remove { width: 24px; color: #df9e84; }
+.editing-well { display: none; position: absolute; left: 15px; bottom: 52px; width: 370px; height: 80px; border-top: 1px #6b6646; }
+.editing-well.editing { display: block; }
+.editing-label { position: absolute; left: 0; top: 4px; color: #d7b864; }
+#value_field { position: absolute; left: 0; top: 32px; transform-origin: left top; box-sizing: border-box; padding: 2px 5px; border: 1px #c0af6b; background-color: #0c170d; color: #e5e6c9; pointer-events: auto; }
+.footer { position: absolute; left: 15px; right: 15px; bottom: 14px; height: 24px; display: flex; gap: 6px; }
+.footer button { flex: 1 1 0; height: 24px; padding: 2px 3px; }
+.scroll-pane scrollbarvertical { width: 6px; }
+.scroll-pane scrollbarvertical slidertrack { decorator: none; background-color: #10170d; }
+.scroll-pane scrollbarvertical sliderbar { decorator: none; background-color: #766b45; min-height: 16px; height: auto; }
+.scroll-pane scrollbarvertical sliderarrowdec, .scroll-pane scrollbarvertical sliderarrowinc { decorator: none; height: 0; }
+
+#command_scroller { height: calc(310px * var(--root-scale)); }
+#command_scroller.editing { height: calc(220px * var(--root-scale)); }
+.command-entry { height: max(22px, calc(26px * var(--root-scale))); }

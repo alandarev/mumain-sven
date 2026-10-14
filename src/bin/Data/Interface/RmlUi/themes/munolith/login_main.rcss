@@ -1,0 +1,6 @@
+#panel { position: absolute; }
+.btn-icon { position: absolute; width: 54rem; height: 30rem; }
+.btn-icon-menu { left: 0; top: 0; }
+.btn-icon-credit { right: 0; top: 0; }
+.btn-credit-deco, .btn-credit-icon, .btn-icon-caption { display: none; }
+.btn-icon-label { display: block; position: absolute; left: 0; right: 0; top: 0; height: 30rem; line-height: 30rem; font-size: 11rem; text-align: center; pointer-events: none; color: inherit; }

@@ -43,7 +43,20 @@ namespace mu::ui::window
         void SetID(const wchar_t* strID);
         void SetSelectedCharacterIndex(int iIndex);
 
+        int SelectedCharacterIndex() const
+        {
+            return m_iSelectedCharacterIndex;
+        }
+        // Observations follow the document; no parallel native row/position state.
+        int SelectedCommandIndex() const;
+        const wchar_t* TargetName() const
+        {
+            return m_strID;
+        }
+        POINT Position() const;
+
     private:
+        friend class UiLifecycleFixture;
         void BuildRmlUi();
         void SyncRmlModel();
         void RunCommand(int index);

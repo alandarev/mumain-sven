@@ -10,6 +10,40 @@
 #include <RmlUi/Core/Types.h>
 
 #include <string>
+#include <charconv>
+#include <cmath>
+
+void UI::RmlBridge::ApplyLayoutScale(Rml::Element* root, float effectiveScale, bool publishScale)
+{
+    if (root == nullptr)
+        return;
+    const bool validScale = std::isfinite(effectiveScale) && effectiveScale > 0.f;
+    const auto declaration = root->GetAttribute<Rml::String>("data-compact-scale", "");
+    float threshold = 0.f;
+    const auto parsed = std::from_chars(declaration.data(), declaration.data() + declaration.size(), threshold);
+    const bool optedIn = parsed.ec == std::errc{} && parsed.ptr == declaration.data() + declaration.size() &&
+                         std::isfinite(threshold) && threshold > 0.f;
+    // Attribute presence is cleanup ownership only; its numeric value never supplies layout state.
+    const bool hadGeneratedScale = root->HasAttribute("data-layout-scale");
+    const auto scaleText = std::to_string(effectiveScale);
+    if (validScale && (publishScale || optedIn))
+    {
+        const auto* property = root->GetLocalProperty("--root-scale");
+        if (property == nullptr || property->ToString() != scaleText)
+            root->SetProperty("--root-scale", scaleText);
+    }
+    else if (publishScale || hadGeneratedScale)
+        root->RemoveProperty("--root-scale");
+
+    root->SetClass("compact-scale", validScale && optedIn && effectiveScale < threshold);
+    if (validScale && optedIn)
+    {
+        if (root->GetAttribute<Rml::String>("data-layout-scale", "") != scaleText)
+            root->SetAttribute("data-layout-scale", scaleText);
+    }
+    else
+        root->RemoveAttribute("data-layout-scale");
+}
 
 bool UI::RmlBridge::FillPlacementSize::Set(float newWidth, float newHeight)
 {
@@ -71,20 +105,19 @@ void UI::RmlBridge::SlotPlacement::Apply(Rml::ElementDocument* doc, const char* 
 
     // A new place takes over from where the player dragged it.
     ResetDrag(doc, panelId);
-    const bool placed = scale > 0.f;
+    const bool placed = std::isfinite(scale) && scale > 0.f;
     panel->SetClass("slot-placed", placed);
     if (placed)
     {
         panel->SetProperty("--slot-left", std::to_string(left) + "px");
         panel->SetProperty("--slot-top", std::to_string(top) + "px");
-        panel->SetProperty("--root-scale", std::to_string(scale));
     }
     else
     {
         panel->RemoveProperty("--slot-left");
         panel->RemoveProperty("--slot-top");
-        panel->RemoveProperty("--root-scale");
     }
+    ApplyLayoutScale(panel, scale);
 }
 
 void UI::RmlBridge::SlotPlacement::Sync(Rml::ElementDocument* doc, const char* panelId) const
@@ -94,6 +127,8 @@ void UI::RmlBridge::SlotPlacement::Sync(Rml::ElementDocument* doc, const char* p
     Rml::Element* panel = doc->GetElementById(panelId);
     if (panel != nullptr && !panel->IsClassSet("slot-placed"))
         Apply(doc, panelId);
+    else
+        ApplyLayoutScale(panel, scale);
 }
 
 void UI::RmlBridge::SlotPlacement::ResetDrag(Rml::ElementDocument* doc, const char* panelId)

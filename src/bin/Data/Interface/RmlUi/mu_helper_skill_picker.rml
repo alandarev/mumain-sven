@@ -1,3 +1,6 @@
+<!-- rml-contract-optional-id: skill_library: this theme shows the flyout; a skill-library theme names its list -->
+<!-- rml-contract-optional-callback: muhelper_choose: the flyout picks by slot (mhsp_pick); a library theme picks by skill -->
+<!-- rml-contract-optional-callback: muhelper_picker_close: the flyout closes by a second slot click; a library theme has a close control -->
 <rml>
 	<!-- bound-geometry: the flyout hangs off the config window's drawn top-left and scale, which the
 	     player drags; its entries are the theme's -->

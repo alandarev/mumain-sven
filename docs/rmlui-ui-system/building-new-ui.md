@@ -42,6 +42,49 @@ belong in `UI/RmlBridge/`. `UI/Widgets/` is for feature-independent controls, an
 the existing login/credit set. Name classes and assets for their responsibility and follow
 [the repository coding rules](../CODING_RULES.md) for file and namespace conventions.
 
+## Implement and verify a theme change
+
+Start with one populated native state and one interaction. A browser draft helps choose
+composition, but cannot prove RCSS support, native hit areas, camera framing or server replies.
+
+1. **Audit the existing flow before moving it.** List its actions, native item indices,
+   session companions, close vetoes, keyboard defaults and acknowledgements. Separate the
+   presentation change from gameplay decisions. For example, hiding Personal Store or an
+   expansion guide must not discard owned items or disable an upstream server's storage.
+2. **Use the right example.** Armory shows live models in document-owned targets; Inventory
+   and the NPC counter retain native grids with foreground/background chrome. Reuse shared
+   tooltips, numeric input and placement rather than copying their behavior into a new panel.
+3. **Declare layout in the theme.** Ordinary Munolith panels use the shared window profile;
+   HUD parts retain their independent scale. Related item panes join workspace groups.
+   Keep automatic fitting separate from saved preferences and defer rearrangement during pickup.
+   Read [scaling](layout-and-scaling.md#coordinate-contract-for-hybrid-panels) and
+   [grouped placement](window-placement.md#related-window-groups) before adding coordinates.
+4. **Check the native styling contract early.** Link each needed stylesheet explicitly,
+   provide the canonical `base.rcss`, and declare flow display, scrollbars and clipping.
+   The [engine findings](engine-findings.md#hybrid-panels-and-native-theme-verification)
+   list failure signatures. Verify the runtime assets, then cold-restart an owned QA client
+   after editing a loaded stylesheet; switching themes may retain cached RCSS.
+5. **Exercise the action, then inspect the pixels.** A visible flag or model value does not
+   prove a populated window, readable text or visible held item. Click native grid edges,
+   hover upper and lower slots, pick up/cancel an item, and close/reopen focused controls.
+   For commerce or allocation, await the server result and compare actual items, money and
+   stats. Render-only injection proves presentation, not transaction success.
+6. **Scale the verification to the change.** New layout/scaling/group behavior needs a small
+   viewport, 1080p and 4K, user scale changes, both companion opening orders, drag/reopen and
+   a resize round trip. Local visual polish normally needs one 1920×1080 world-off capture
+   plus the affected interaction. A damage trail or other timed effect needs transient and
+   settled states. Reopen the saved image and compare it with the accepted draft.
+7. **Record a reproducible checkpoint.** Keep build/test exits, touched-file diagnostics,
+   asset guards, source revision and native receipts together. Report quality findings and
+   untested flows explicitly. Fully exit disposable clients before restoring fixtures or
+   replacing their runtimes; socket disappearance alone does not prove process exit.
+   Restore world rendering and preserve any manual review client.
+
+The workspace harness and its namespace/account setup live outside this public client;
+use that repository's tooling guide. Inside this repository, register focused tests with
+`mu_add_test(...)` and retain player/theme behavior in the relevant usage guide. Extend the
+engine findings only with reproduced lessons, not speculative CSS workarounds.
+
 ## Ownership: what the C++ side of a window may own
 
 Keep the implementation responsibilities clear:
