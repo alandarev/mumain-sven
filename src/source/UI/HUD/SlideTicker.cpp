@@ -10,6 +10,8 @@
 // Defined in UIWindows.cpp; declared per translation unit across the UI, with no header.
 void SetLineColor(int iType, float fAlphaRate = 1.0f);
 
+extern bool g_bWndActive; // Winmain.cpp; global, not a member of UI::HUD
+
 namespace UI::HUD
 {
 SlideLane::SlideLane()
@@ -412,7 +414,6 @@ void SlideTicker::Init()
     //m_HelpSlide.SetPosition(0, 429);
     //m_NoticeSlide.SetPosition(0, 429);
 
-    extern bool g_bWndActive;
     Core::Time::FrameTimerScheduler::Instance().SetRepeating(
         SLIDEHELP_TIMER, m_iCreateDelay * 1000,
         [this] { if (g_bWndActive) CreateSlideText(); });
