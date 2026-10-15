@@ -9,7 +9,7 @@
 <body>
 	<div id="panel" data-model="my_quest_info"
 
-	     data-style-font-size="(text_px / root_scale) + 'px'">
+	     data-style---native-text-px="text_px">
 		<div class="stone"></div>
 <div class="shade"></div>
 <div class="trim top-left"></div>

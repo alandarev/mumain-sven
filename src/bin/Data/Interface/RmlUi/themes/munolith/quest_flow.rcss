@@ -35,3 +35,5 @@
 .nd-answer-row { margin-bottom: 0; }
 .nd-btn-ans { top: 364px; }
 .nd-btn-l.locked, .nd-btn-r.locked { display: none; }
+
+#panel { font-size: calc(var(--native-text-px) * 1px / var(--root-scale)); }

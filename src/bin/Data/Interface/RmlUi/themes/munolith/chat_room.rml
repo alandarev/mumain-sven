@@ -17,7 +17,7 @@
      Frame, header rail, title and drag anchor come from the shared window_shell template; the
      markup below is spliced into its #content, so a position here is relative to the content well
      and the window buttons reach back out with negative offsets each theme supplies. -->
-<body template="window_shell" data-model="chat_room" data-style-max-height="workspace_height + 'px'">
+<body template="window_shell" data-model="chat_room">
     <div id="window_controls">
         <button id="btn_minimize" data-event-click="room_action('minimize')"></button>
         <button id="btn_maximize" data-class-restore="maximized" data-event-click="room_action('maximize')"></button>

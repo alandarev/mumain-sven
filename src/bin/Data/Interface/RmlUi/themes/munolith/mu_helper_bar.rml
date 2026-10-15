@@ -18,16 +18,16 @@
 		<div id="btn_config" class="mu-btn" data-event-click="mu_helper_config_click">
 			<div class="dot"></div>
 		</div>
-		<span class="tooltip tooltip-config">{{config_tooltip}}</span>
+		<span class="tooltip tooltip-config">{{config_hint}}</span>
 		<!-- Start/Stop share one screen position, mutually exclusive by mu_helper_active. -->
 		<div id="btn_start" class="mu-btn" data-class-hidden="mu_helper_active" data-event-click="mu_helper_toggle_click">
 			<div class="dot"></div>
 		</div>
-		<span class="tooltip tooltip-start">{{start_tooltip}}</span>
+		<span class="tooltip tooltip-start">{{start_hint}}</span>
 		<div id="btn_stop" class="mu-btn" data-class-hidden="!mu_helper_active" data-event-click="mu_helper_toggle_click">
 			<div class="dot"></div>
 		</div>
-		<span class="tooltip tooltip-stop">{{stop_tooltip}}</span>
+		<span class="tooltip tooltip-stop">{{stop_hint}}</span>
 	</div>
 </body>
 </rml>

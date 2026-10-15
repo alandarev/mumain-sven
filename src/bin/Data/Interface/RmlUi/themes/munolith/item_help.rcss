@@ -1,0 +1,9 @@
+/* Munolith item-help material; flow/layout and authoritative line/column models are shared. */
+#tip_box { border-color: #9c8855; background-color: #071711f5; color: #ded5bb; }
+.tip-cell--head { color: #d7b864; }
+.tip-cell.cannot-equip { color: #e27f63; }
+
+/* Preserve the reference card's viewport-centred placement. Text is already physical pixels;
+   only reference line heights/borders use the shared UI unit, so do not counter-scale twice. */
+.reference-foreground #panel.stage { left: 0; top: 0; width: 100%; height: 100%; margin-left: 0; margin-top: 0; transform: none; }
+.reference-foreground #tip_box { left: 50%; top: 50%; transform: translate(-50%, -50%); transform-origin: center center; }

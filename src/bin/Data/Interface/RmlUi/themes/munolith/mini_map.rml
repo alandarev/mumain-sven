@@ -20,14 +20,14 @@
 	<div class="clip" data-for="clip : clips" data-style-left="clip.left + 'px'" data-style-top="clip.top + 'px'"
 	     data-style-width="clip.width + 'px'" data-style-height="clip.height + 'px'">
 		<div class="world" data-style-left="clip.world_left + 'px'" data-style-top="clip.world_top + 'px'">
-			<div class="screen" data-style-transform="'scale(' + scale_x + ', ' + scale_y + ')'">
+			<div class="screen">
 				<div class="dim"></div>
 			</div>
 			<img class="map" data-attr-src="map_source" data-style-transform="map_transform"/>
 			<div class="marker" data-for="marker : markers" data-class-portal="marker.portal"
 			     data-style-width="marker.size + 'px'" data-style-height="marker.size + 'px'"
 			     data-style-transform="marker.transform"></div>
-			<div class="screen" data-style-transform="'scale(' + scale_x + ', ' + scale_y + ')'">
+			<div class="screen">
 				<div class="hero"></div>
 				<!-- The top and bottom edge tiling: 25 fixed 35-unit tiles each, which the theme
 				     lays out. -->
@@ -37,7 +37,7 @@
 			<!-- Extend the legacy 430-row side tiling to the full 480-row viewport.
 			     The complete frame stays behind the foreground compact HUD. -->
 			<div class="side-frame"><div class="edge-side" data-for="line : side_lines" data-style-transform="line"></div></div>
-			<div class="screen" data-style-transform="'scale(' + scale_x + ', ' + scale_y + ')'">
+			<div class="screen">
 				<div class="corner corner-tl"></div>
 				<div class="corner corner-tr"></div>
 				<div class="corner corner-bl"></div>

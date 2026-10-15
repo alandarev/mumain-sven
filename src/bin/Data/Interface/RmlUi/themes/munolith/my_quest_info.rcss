@@ -39,3 +39,5 @@
 .temple-block { position: absolute; left: 160px; top: 12px; }
 .castle-title, .temple-title { display: block; color: #e2c991; font-weight: bold; margin-bottom: 10px; }
 .castle-line, .temple-line { display: block; white-space: normal; color: #b6beaa; }
+
+#panel { font-size: calc(var(--native-text-px) * 1px / var(--root-scale)); }

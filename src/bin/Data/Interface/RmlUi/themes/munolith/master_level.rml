@@ -7,7 +7,7 @@
 	<link type="text/rcss" href="master_level.rcss"/>
 </head>
 <body data-model="master_level">
-	<div id="panel" data-style-left="root_x + 'px'" data-style-top="root_y + 'px'" data-style-transform="'scale(' + scale_x + ', ' + scale_y + ')'">
+	<div id="panel">
 		<div class="stone"></div><div class="shade"></div>
         <div class="trim top-left"></div><div class="trim top-mid"></div><div class="trim top-right"></div>
         <div class="trim side-left"></div><div class="trim side-right"></div>

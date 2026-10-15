@@ -76,6 +76,8 @@ struct _MASTER_SKILL_TOOLTIP_FILE
 
 namespace mu::ui::window
 {
+class CManager;
+
 // The master skill tree. Drawn entirely by RmlUi (master_level.rml): the window keeps the tree
 // data, the eligibility rules and the learn request, and publishes one row per node.
 class CMasterLevel : public CObject

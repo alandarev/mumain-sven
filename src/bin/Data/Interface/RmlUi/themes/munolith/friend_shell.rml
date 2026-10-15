@@ -15,7 +15,7 @@
      template's #content, so a position here is relative to the content well, not the panel: the
      window buttons and the resize grip reach back out to the panel corners with negative offsets
      each theme supplies for its own chrome. -->
-<body template="window_shell" data-model="friend_shell" data-style-max-height="workspace_height + 'px'">
+<body template="window_shell" data-model="friend_shell">
     <div id="window_controls">
         <button id="btn_minimize" data-event-click="shell_action('minimize')"></button>
         <button id="btn_maximize" data-class-restore="maximized" data-event-click="shell_action('maximize')"></button>

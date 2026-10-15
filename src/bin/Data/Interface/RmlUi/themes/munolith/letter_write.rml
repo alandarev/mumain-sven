@@ -22,7 +22,7 @@
 
      Handlers are data-event-*, never on*: on* is RmlUi's inline script event and this build has no
      script interpreter, so those bind to nothing at all and fail silently. -->
-<body template="window_shell" data-model="letter_write" data-style-max-height="workspace_height + 'px'">
+<body template="window_shell" data-model="letter_write">
     <div id="frame_fill"></div>
     <div id="drag_strip"></div>
     <div id="window_controls">
