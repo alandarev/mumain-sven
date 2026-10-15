@@ -2,7 +2,7 @@
 #include <doctest.h>
 
 #include "RmlLayoutFixture.h"
-#include "../../src/ThirdParty/RmlUi/Source/Core/DecoratorTiled.h"
+#include <DecoratorTiled.h>
 #include <RmlUi/Core/FontEngineInterface.h>
 #include <RmlUi/Core/Mesh.h>
 #include <RmlUi/Core/TextShapingContext.h>

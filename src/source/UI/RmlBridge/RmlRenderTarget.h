@@ -1,6 +1,7 @@
 #pragma once
 
 #include <RmlUi/Core/Types.h>
+#include <RmlUi/Core/ObserverPtr.h>
 
 #include <cstdint>
 #include <functional>
@@ -13,11 +14,21 @@
 // (MuRenderer::SetOffscreenRenderCallback), inside a capture of exactly Width() x Height() physical
 // pixels. The capture brings its own viewport and a transparent clear, so the drawer sets only its
 // projection, for that aspect, and draws.
+namespace Rml
+{
+class Element;
+}
+
 namespace UI::RmlBridge
 {
 class RenderTarget
 {
 public:
+    enum class ImageExtent
+    {
+        Content,
+        DrawnContent
+    };
     using Drawer = std::function<void(std::uint32_t width, std::uint32_t height)>;
 
     explicit RenderTarget(Drawer drawer);
@@ -30,6 +41,9 @@ public:
     void Resize(std::uint32_t width, std::uint32_t height);
     // Draws only while enabled, so a hidden window costs nothing.
     void SetEnabled(bool enabled) { m_enabled = enabled; }
+    // One owner per element. Readiness never overwrites authored visibility or intrinsic size.
+    void BindImage(Rml::Element* image, bool enabled = true, ImageExtent extent = ImageExtent::Content);
+    static std::uint64_t PublicationRevision();
 
     // Empty until the first frame has been drawn.
     const Rml::String& Source() const { return m_source; }
@@ -51,6 +65,15 @@ private:
     };
 
     void Draw();
+    void PublishImage();
+    void UnbindImage();
+    bool PrepareImageExtent();
+    Rml::ObserverPtr<Rml::Element> m_image;
+    Rml::String m_bindingToken;
+    Rml::String m_boundSource;
+    bool m_imageEnabled = true;
+    bool m_imageBound = false;
+    ImageExtent m_imageExtent = ImageExtent::Content;
 
     Drawer m_drawer;
     Texture m_current;

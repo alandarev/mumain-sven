@@ -1,0 +1,81 @@
+cmake_minimum_required(VERSION 3.25)
+foreach(required MU_ROOT MU_OUTPUT MU_CONFIGURED MU_SDL_SOURCE)
+    if(NOT DEFINED ${required} OR "${${required}}" STREQUAL "")
+        message(FATAL_ERROR "${required} must be set")
+    endif()
+endforeach()
+# A fresh signature-addressed materialization independent of the configured application copy.
+set(CMAKE_BINARY_DIR "${MU_OUTPUT}")
+include("${MU_ROOT}/cmake/PrepareRmlUi.cmake")
+mu_prepare_rmlui(first "${MU_ROOT}/src/ThirdParty/RmlUi")
+mu_prepare_rmlui(second "${MU_ROOT}/src/ThirdParty/RmlUi")
+if(NOT first STREQUAL second)
+    message(FATAL_ERROR "idempotent preparation changed destination")
+endif()
+execute_process(COMMAND "${CMAKE_COMMAND}" "-DSOURCE_DIR=${first}"
+    "-DPATCH_FILE=${MU_ROOT}/cmake/patches/rmlui-bd5f66-transform-cache.patch"
+    -P "${MU_ROOT}/cmake/ApplyGitPatch.cmake" COMMAND_ERROR_IS_FATAL ANY)
+foreach(file Include/RmlUi/Core/Element.h Include/RmlUi/Core/ElementUtilities.h Source/Core/ElementUtilities.cpp)
+    file(SHA256 "${first}/${file}" digest)
+    file(SHA256 "${MU_CONFIGURED}/${file}" configured)
+    if(NOT digest STREQUAL configured)
+        message(FATAL_ERROR "fresh patched source differs from compiled copy: ${file}")
+    endif()
+endforeach()
+message(STATUS "Pristine pinned archive -> tracked patch -> idempotent application matches compiled source")
+
+# Existing SDL patch must retain fresh/already-applied behavior on its actual pinned input.
+file(SHA256 "${MU_ROOT}/cmake/ApplyGitPatch.cmake" helper_digest)
+set(sdl "${MU_OUTPUT}/helper-${helper_digest}/sdl")
+file(MAKE_DIRECTORY "${sdl}")
+set(sdl_pin "a1ce3670aec736ecbf0936c43f2f0cc53aa61e5b")
+execute_process(COMMAND "${GIT_EXECUTABLE}" -C "${MU_SDL_SOURCE}" archive
+    "--output=${sdl}/source.tar" "${sdl_pin}" COMMAND_ERROR_IS_FATAL ANY)
+execute_process(COMMAND "${CMAKE_COMMAND}" -E tar xf "${sdl}/source.tar"
+    WORKING_DIRECTORY "${sdl}" COMMAND_ERROR_IS_FATAL ANY)
+foreach(pass RANGE 1 2)
+    foreach(patch sdl_ttf-3.2.2-batch-glyph-uploads sdl_ttf-3.2.2-fallback-baseline)
+        execute_process(COMMAND "${CMAKE_COMMAND}" -E env "GIT_DIR=${MU_ROOT}/.git" "GIT_WORK_TREE=${MU_ROOT}"
+            "${CMAKE_COMMAND}" "-DSOURCE_DIR=${sdl}" "-DPATCH_FILE=${MU_ROOT}/cmake/patches/${patch}.patch"
+            -P "${MU_ROOT}/cmake/ApplyGitPatch.cmake" COMMAND_ERROR_IS_FATAL ANY)
+    endforeach()
+    foreach(file src/SDL_gpu_textengine.c src/SDL_ttf.c)
+        file(SHA256 "${sdl}/${file}" digest)
+        file(SHA256 "${MU_SDL_SOURCE}/${file}" compiled)
+        if(NOT digest STREQUAL compiled)
+            message(FATAL_ERROR "SDL clean/already-applied changed existing patch output: ${file}, pass ${pass}")
+        endif()
+    endforeach()
+endforeach()
+# Real FetchContent dependency has its own checkout: already-applied helper must leave it byte-identical.
+foreach(patch sdl_ttf-3.2.2-batch-glyph-uploads sdl_ttf-3.2.2-fallback-baseline)
+    execute_process(COMMAND "${CMAKE_COMMAND}" -E env "GIT_DIR=${MU_ROOT}/.git" "GIT_WORK_TREE=${MU_ROOT}"
+        "${CMAKE_COMMAND}" "-DSOURCE_DIR=${MU_SDL_SOURCE}" "-DPATCH_FILE=${MU_ROOT}/cmake/patches/${patch}.patch"
+        -P "${MU_ROOT}/cmake/ApplyGitPatch.cmake" COMMAND_ERROR_IS_FATAL ANY)
+endforeach()
+foreach(file src/SDL_gpu_textengine.c src/SDL_ttf.c)
+    file(SHA256 "${sdl}/${file}" expected)
+    file(SHA256 "${MU_SDL_SOURCE}/${file}" actual)
+    if(NOT expected STREQUAL actual)
+        message(FATAL_ERROR "own-checkout helper changed compiled SDL input: ${file}")
+    endif()
+endforeach()
+# Malformed and neither-forward-nor-reverse matching patches remain hard errors, inputs unchanged.
+set(negative "${MU_OUTPUT}/helper-${helper_digest}/negative")
+file(MAKE_DIRECTORY "${negative}")
+file(WRITE "${negative}/sample" "original\n")
+file(WRITE "${negative}/malformed.patch" "not a patch\n")
+file(WRITE "${negative}/mismatch.patch" "--- a/sample\n+++ b/sample\n@@ -1 +1 @@\n-absent\n+other absent\n")
+foreach(patch malformed mismatch)
+    execute_process(COMMAND "${CMAKE_COMMAND}" "-DSOURCE_DIR=${negative}"
+        "-DPATCH_FILE=${negative}/${patch}.patch" -P "${MU_ROOT}/cmake/ApplyGitPatch.cmake"
+        RESULT_VARIABLE result OUTPUT_VARIABLE output ERROR_VARIABLE error)
+    if(result EQUAL 0)
+        message(FATAL_ERROR "${patch} patch was silently accepted")
+    endif()
+    file(READ "${negative}/sample" unchanged)
+    if(NOT unchanged STREQUAL "original\n")
+        message(FATAL_ERROR "${patch} failure mutated its input")
+    endif()
+endforeach()
+message(STATUS "RmlUi and existing SDL first/second apply exact hashes; malformed/mismatch reject unchanged")

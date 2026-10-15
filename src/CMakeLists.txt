@@ -87,7 +87,11 @@ set(RMLUI_LUA_BINDINGS OFF CACHE BOOL "" FORCE)
 set(RMLUI_INSTALL OFF CACHE BOOL "" FORCE)
 # calc(), min(), max() and clamp(): the themes size the item grids from their --item-cell pitch.
 set(RMLUI_MATH_EXPRESSIONS ON CACHE BOOL "" FORCE)
-add_subdirectory(ThirdParty/RmlUi EXCLUDE_FROM_ALL)
+# Keep the pinned vendor checkout pristine: reproduce the tracked project patch in build output.
+include("${REPO_ROOT}/cmake/PrepareRmlUi.cmake")
+mu_prepare_rmlui(MU_RMLUI_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/RmlUi")
+set(MU_RMLUI_SOURCE "${MU_RMLUI_SOURCE}" PARENT_SCOPE)
+add_subdirectory("${MU_RMLUI_SOURCE}" "${CMAKE_CURRENT_BINARY_DIR}/rmlui" EXCLUDE_FROM_ALL)
 
 # Determine architecture if CMAKE_SIZEOF_VOID_P isn't set
 if (NOT DEFINED CMAKE_SIZEOF_VOID_P OR CMAKE_SIZEOF_VOID_P EQUAL 0)
@@ -192,14 +196,14 @@ list(FILTER MU_CLIENT_SOURCES EXCLUDE REGEX "[/\\]Render[/\\](Core|RHI|Shaders)[
 # need -- see RmlUiSystemInterface). Not picked up by the GLOB_RECURSE above since it globs
 # "source/*.cpp", not ThirdParty/.
 list(APPEND MU_CLIENT_SOURCES
-  "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/RmlUi/Backends/RmlUi_Platform_SDL.cpp"
-  "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/RmlUi/Backends/RmlUi_Renderer_SDL_GPU.cpp"
+  "${MU_RMLUI_SOURCE}/Backends/RmlUi_Platform_SDL.cpp"
+  "${MU_RMLUI_SOURCE}/Backends/RmlUi_Renderer_SDL_GPU.cpp"
 )
 
 # Keep the UI composition attachments single-sampled. The game's sprites are
 # already antialiased, and this avoids multisampled stencil failures on Vulkan.
 set_source_files_properties(
-  "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/RmlUi/Backends/RmlUi_Renderer_SDL_GPU.cpp"
+  "${MU_RMLUI_SOURCE}/Backends/RmlUi_Renderer_SDL_GPU.cpp"
   PROPERTIES COMPILE_DEFINITIONS RMLUI_SDL_GPU_NUM_MSAA_SAMPLES=1
 )
 
@@ -301,7 +305,7 @@ endif()
 # (Source/Core/CMakeLists.txt).
 target_link_libraries(MuClient PUBLIC RmlUi::Core)
 target_include_directories(MuClient PUBLIC
-  "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/RmlUi/Backends"
+  "${MU_RMLUI_SOURCE}/Backends"
 )
 # RmlUi_Platform_SDL.h's SDL2-vs-SDL3 API switch -- this project is SDL3-only.
 target_compile_definitions(MuClient PUBLIC RMLUI_SDL_VERSION_MAJOR=3)

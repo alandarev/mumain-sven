@@ -390,11 +390,9 @@ int CTrade::ConvertYourLevel() const
 
 void CTrade::SyncRmlModel()
 {
-    m_ItemTarget.Sync(m_RmlView.Document() ? m_RmlView.Document()->GetElementById("item_view") : nullptr, IsVisible());
     if (!m_RmlView.Document()) return;
     UI::RmlBridge::SyncDocumentVisibility(m_RmlView.Document(), IsVisible());
 
-    SyncNativeLayout();
     if (m_pYourInvenCtrl && m_RmlView.GetModel().partnerCells != m_pYourInvenCtrl->Cells())
     {
         m_RmlView.GetModel().partnerCells = m_pYourInvenCtrl->Cells();
@@ -546,6 +544,7 @@ void CTrade::ProcessClosing()
 // A theme marks its grids .themed-grid when its own cells frame the items.
 void CTrade::SyncNativeLayout()
 {
+    m_ItemTarget.Sync(m_RmlView.Document() ? m_RmlView.Document()->GetElementById("item_view") : nullptr, IsVisible());
     Rml::ElementDocument* document = m_RmlView.Document();
     Rml::Element* grid = document != nullptr ? document->GetElementById("item_grid") : nullptr;
     const bool themedGrid = grid != nullptr && grid->IsClassSet("themed-grid");

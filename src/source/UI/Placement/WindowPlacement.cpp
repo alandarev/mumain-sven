@@ -11,6 +11,7 @@
 #include "UI/Core/WindowSystem.h"
 #include "UI/Inventory/InventoryCtrl.h"
 #include "UI/RmlBridge/RmlDraggable.h"
+#include "UI/RmlBridge/RmlElementBox.h"
 #include "UI/RmlBridge/RmlPanelGeometry.h"
 #include "UI/RmlBridge/RmlThemedView.h"
 #include "UI/RmlBridge/RmlTheme.h"
@@ -18,6 +19,7 @@
 
 #include <RmlUi/Core/Context.h>
 #include <RmlUi/Core/ElementDocument.h>
+#include <RmlUi/Core/ElementUtilities.h>
 
 #include <algorithm>
 #include <cmath>
@@ -35,6 +37,9 @@ constexpr float DefaultPanelWidth = 190.f;
 constexpr float DefaultPanelHeight = 429.f;
 constexpr int MaximumRegionFitPasses = 3;
 constexpr float RegionFitTolerance = 0.0001f;
+constexpr int MaximumIntrinsicFitPasses = 8;
+// All reconciliation residuals are projected screen pixels, not component/reference units.
+constexpr float IntrinsicFitTolerancePixels = 0.25f;
 constexpr float GroupPreferenceUnits = 1000000.f;
 
 struct Entry
@@ -51,6 +56,8 @@ struct Entry
     PlacementParticipant::Box previousBox;
     bool previouslyPlaced = false;
     bool reservesSpace = false;
+    bool fill = false;
+    bool unresolved = false;
     Rml::Vector2f measuredSize;
 };
 
@@ -58,12 +65,15 @@ std::unordered_map<std::string, Entry> g_windows;
 bool g_namesChecked = false;
 UI::Scaling::Transform g_lastDock{};
 bool g_dirty = true;
+ReconciliationResult g_reconciliation = ReconciliationResult::Converged;
+std::string g_lastFailureSignature;
 // Regions the theme capped below their reference dimensions, and the factor that makes them fit.
 std::unordered_map<Rml::Element*, float> g_regionFit;
 std::unordered_map<std::string, WindowGroupState> g_groups;
 std::unordered_map<Rml::Element*, Rml::Vector2f> g_groupOffsets;
 bool g_groupViewportChanged = false;
 bool g_reservedSizeChanged = false;
+bool g_intrinsicSizeChanged = false;
 unsigned int g_lastWidth = 0;
 unsigned int g_lastHeight = 0;
 float g_uncoveredLeft = 0.f;
@@ -168,6 +178,9 @@ float SlotScale(Rml::Element* slot, const UI::Scaling::Transform& dock)
 
 Rml::ElementDocument* DocumentFor(const Entry& entry)
 {
+    if (auto* window = entry.getWindow ? entry.getWindow() : nullptr)
+        if (auto* document = window->GetPlacedDocument())
+            return document;
     Rml::Context* context = RmlUiRuntime::Instance().GetContext();
     if (entry.document.empty() || context == nullptr)
         return nullptr;
@@ -486,13 +499,17 @@ void CloseForOpening(std::uint32_t windowId)
     }
 }
 
-static void PrepareRegions(Rml::ElementDocument* workspace, const UI::Scaling::Transform& dock)
+static void PrepareRegions(Rml::ElementDocument* workspace, const UI::Scaling::Transform& dock, bool snapshot = true,
+                           bool retainFit = true)
 {
     // RCSS lays out the shell; only component sizes and region reference units enter from C++.
     for (auto& [name, entry] : g_windows)
     {
-        entry.previousBox = entry.box;
-        entry.previouslyPlaced = entry.hasBox;
+        if (snapshot)
+        {
+            entry.previousBox = entry.box;
+            entry.previouslyPlaced = entry.hasBox;
+        }
         entry.hasBox = false;
     }
     Rml::ElementList regions;
@@ -503,7 +520,7 @@ static void PrepareRegions(Rml::ElementDocument* workspace, const UI::Scaling::T
         if (region->HasAttribute("data-group"))
         {
             const auto state = g_groups.find(region->GetAttribute<Rml::String>("data-group", ""));
-            if (state != g_groups.end() && state->second.active && !g_groupViewportChanged)
+            if (retainFit && state != g_groups.end() && state->second.active && !g_groupViewportChanged)
                 g_regionFit[region] = state->second.fit;
         }
         const float referenceWidth = region->GetAttribute<float>("data-ref-width", 0.f);
@@ -563,6 +580,8 @@ static Rml::ElementList PrepareSlots(Rml::ElementDocument* workspace, const UI::
         const bool open = entry != nullptr && (window != nullptr || entry->participant.visible) && IsOpen(*entry);
         const bool wantsFill = slot->GetAttribute<Rml::String>("data-fit", "") == "fill";
         const bool fill = open && wantsFill && window != nullptr && window->SupportsFillPlacement();
+        if (entry != nullptr)
+            entry->fill = fill;
         if (entry != nullptr)
             entry->reservesSpace = slot->GetParentNode() != nullptr && slot->GetParentNode()->GetAttribute<Rml::String>(
                                                                            "data-participation", "") == "reserve";
@@ -777,6 +796,7 @@ static void PlaceSlots(const Rml::ElementList& slots, const UI::Scaling::Transfo
         const Rml::Vector2f size = slot->GetBox().GetSize(Rml::BoxArea::Border);
         entry->box = {offset.x, offset.y, size.x, size.y, scale};
         entry->hasBox = true;
+        entry->unresolved = false;
         if (entry->participant.place)
         {
             entry->participant.place(&entry->box);
@@ -787,6 +807,7 @@ static void PlaceSlots(const Rml::ElementList& slots, const UI::Scaling::Transfo
         if (!entry->placed)
             window->ResetSlotDrag();
         window->PlaceInWorkspace(offset.x, offset.y, scale);
+        window->SyncSlotPlacement(); // Equal-box reload still needs its new document attached.
         if (slot->IsClassSet("fill"))
         {
             const Rml::Vector2f size = slot->GetBox().GetSize(Rml::BoxArea::Border);
@@ -801,7 +822,7 @@ static void RestoreUnslotted(const Rml::ElementList& slots)
     // A registered component the workspace gives no slot keeps its own placement.
     for (auto& [name, entry] : g_windows)
     {
-        if (entry.participant.place && !entry.hasBox)
+        if (entry.participant.place && !entry.hasBox && !entry.unresolved)
             entry.participant.place(nullptr);
         mu::ui::window::CObject* window = entry.getWindow ? entry.getWindow() : nullptr;
         if (window == nullptr || !window->IsInWorkspace())
@@ -851,6 +872,137 @@ static Rml::ElementList FitWorkspace(Rml::ElementDocument* workspace, const UI::
     return slots;
 }
 
+static void FlushPlacedDocuments()
+{
+    for (auto& [name, entry] : g_windows)
+    {
+        if (!entry.hasBox)
+            continue;
+        auto* window = entry.getWindow ? entry.getWindow() : nullptr;
+        auto* document = window ? window->GetPlacedDocument() : DocumentFor(entry);
+        if (document != nullptr)
+        {
+            FRAME_PROFILE(UILayout);
+            document->UpdateDocument(); // Publish class/style changes before reading intrinsic boxes.
+        }
+    }
+}
+
+static bool IntrinsicSizeChanged(const Entry& entry, Rml::Vector2f size)
+{
+    const float scale = entry.hasBox ? entry.box.scale : 1.f;
+    return std::abs(size.x - entry.measuredSize.x) * scale > IntrinsicFitTolerancePixels ||
+           std::abs(size.y - entry.measuredSize.y) * scale > IntrinsicFitTolerancePixels;
+}
+
+static bool PlacedContentChanged()
+{
+    FlushPlacedDocuments();
+    bool changed = false;
+    for (const auto& [name, entry] : g_windows)
+        if (entry.hasBox && !entry.fill && IntrinsicSizeChanged(entry, PanelSize(entry)))
+            changed = true;
+    return changed;
+}
+
+// On exhaustion, freeze the already applied scale, not an oversized historic size. This can
+// retain a measured safe candidate, but does not invent one when theme constraints cannot fit.
+static void SizeSlotsAtAppliedScale(const Rml::ElementList& slots)
+{
+    for (Rml::Element* slot : slots)
+        if (Entry* entry = EntryFor(slot); entry && entry->hasBox && !entry->fill)
+        {
+            entry->measuredSize = PanelSize(*entry);
+            SetLength(slot, Rml::PropertyId::Width, entry->measuredSize.x * entry->box.scale);
+            SetLength(slot, Rml::PropertyId::Height, entry->measuredSize.y * entry->box.scale);
+        }
+}
+
+static bool CandidateMatchesLayout(const Entry& entry)
+{
+    // RmlUi updates paint transform matrices later in Context::Update. Validate the just-flushed
+    // intrinsic layout at its applied scale here, not the previous render's matrix cache.
+    const auto size = PanelSize(entry);
+    return std::abs(size.x * entry.box.scale - entry.box.width) <= IntrinsicFitTolerancePixels &&
+           std::abs(size.y * entry.box.scale - entry.box.height) <= IntrinsicFitTolerancePixels;
+}
+
+static bool Fits(const GroupBounds& outer, const PlacementParticipant::Box& box)
+{
+    return box.left >= outer.left - IntrinsicFitTolerancePixels && box.top >= outer.top - IntrinsicFitTolerancePixels &&
+           box.left + box.width <= outer.left + outer.width + IntrinsicFitTolerancePixels &&
+           box.top + box.height <= outer.top + outer.height + IntrinsicFitTolerancePixels;
+}
+
+static bool ValidatePublishedSlots(const Rml::ElementList& slots)
+{
+    bool safe = true;
+    const auto available = SafeBounds();
+    for (Rml::Element* slot : slots)
+    {
+        Entry* entry = EntryFor(slot);
+        if (!entry || !entry->hasBox)
+            continue;
+        const bool fits = SlotGroup(slot) == nullptr || Fits(available, entry->box);
+        if (!CandidateMatchesLayout(*entry) || !fits)
+        {
+            // Reject metadata only. No document hiding, owner/session/pref mutation or claim of
+            // input quarantine: unsupported no-safe themes require a broader integration policy.
+            entry->unresolved = true;
+            entry->hasBox = false;
+            safe = false;
+        }
+        entry->measuredSize = PanelSize(*entry); // Idle does not retry the same failed signature.
+    }
+    return safe;
+}
+
+static void ReportReconciliationFailure()
+{
+    std::ostringstream signature;
+    signature << WindowWidth << ':' << WindowHeight << ':' << g_lastDock.scaleX << ':'
+              << UI::RmlBridge::GetActiveThemeName();
+    for (const auto& [name, entry] : g_windows)
+        if (entry.lastVisible)
+            signature << '|' << name << ':' << entry.measuredSize.x << ':' << entry.measuredSize.y << ':'
+                      << entry.box.scale << ':' << entry.unresolved;
+    if (signature.str() == g_lastFailureSignature)
+        return;
+    g_lastFailureSignature = signature.str();
+    g_ErrorReport.Write(L"> [Placement] intrinsic layout did not settle within %d passes (0.25 screen px); %hs. "
+                        L"Check responsive size rules/available workspace. Signature: %hs\r\n",
+                        MaximumIntrinsicFitPasses,
+                        g_reconciliation == ReconciliationResult::MeasuredSafe
+                            ? "using measured safe geometry"
+                            : "no safe geometry; bounds rejected, input quarantine not implemented",
+                        g_lastFailureSignature.c_str());
+}
+
+static bool ReconcileContent(Rml::ElementDocument* workspace, const UI::Scaling::Transform& dock,
+                             Rml::ElementList& slots)
+{
+    for (int pass = 0; pass < MaximumIntrinsicFitPasses; ++pass)
+    {
+        if (pass > 0)
+        {
+            g_regionFit.clear();
+            PrepareRegions(workspace, dock, false, false); // Refit shrinking as well as growing content.
+        }
+        slots = PrepareSlots(workspace, dock);
+        workspace->UpdateDocument();
+        slots = FitWorkspace(workspace, dock, std::move(slots));
+        // Scale/class publication may reflow a content panel. Group anchors/prefs are resolved
+        // only once below, against final dimensions, not interim too-small clamps.
+        g_groupOffsets.clear();
+        PlaceSlots(slots, dock);
+        if (!PlacedContentChanged())
+            return true;
+    }
+    SizeSlotsAtAppliedScale(slots);
+    workspace->UpdateDocument();
+    return false;
+}
+
 static void ArrangeNow()
 {
     Rml::ElementDocument* workspace = Workspace();
@@ -874,18 +1026,31 @@ static void ArrangeNow()
     for (auto& [name, entry] : g_windows)
         entry.lastVisible = IsOpen(entry);
 
+    UI::RmlBridge::SyncDocumentLayoutScales();
+    workspace->GetContext()->Update(); // Resolve owner bindings before measuring first-open/capacity.
     g_regionFit.clear();
-    PrepareRegions(workspace, dock);
-    Rml::ElementList slots = PrepareSlots(workspace, dock);
-    {
-        FRAME_PROFILE(UILayout);
-        workspace->UpdateDocument();
-    }
-    slots = FitWorkspace(workspace, dock, std::move(slots));
+    PrepareRegions(workspace, dock, true, !g_intrinsicSizeChanged);
+    g_intrinsicSizeChanged = false;
+    Rml::ElementList slots;
+    const bool converged = ReconcileContent(workspace, dock, slots);
     ResolveGroups(workspace);
     PlaceSlots(slots, dock);
+    FlushPlacedDocuments();
+    const bool safe = ValidatePublishedSlots(slots);
+    g_reconciliation = !safe       ? ReconciliationResult::Unresolved
+                       : converged ? ReconciliationResult::Converged
+                                   : ReconciliationResult::MeasuredSafe;
+    if (g_reconciliation == ReconciliationResult::Converged)
+        g_lastFailureSignature.clear();
+    else
+        ReportReconciliationFailure();
     UpdateUncoveredArea(workspace, slots);
     RestoreUnslotted(slots);
+    workspace->GetContext()->Update();
+    Rml::ElementUtilities::UpdateTransformCaches(workspace->GetContext()->GetRootElement());
+    for (const auto& [name, entry] : g_windows)
+        if (auto* window = entry.getWindow ? entry.getWindow() : nullptr)
+            window->SyncNativeLayout();
 }
 
 void Arrange()
@@ -894,49 +1059,63 @@ void Arrange()
     ArrangeNow();
 }
 
-static void CheckReservedSize(Entry& entry, bool visible)
+static void CheckIntrinsicSize(Entry& entry, bool visible)
 {
-    if (!entry.reservesSpace || !entry.participant.measure)
-        return;
-    if (visible != entry.lastVisible)
+    if (entry.reservesSpace && visible != entry.lastVisible)
         g_reservedSizeChanged = true;
-    if (!visible)
+    if (!visible || entry.fill)
         return;
-    const auto size = entry.participant.measure();
-    if (std::abs(size.width - entry.measuredSize.x) > RegionFitTolerance ||
-        std::abs(size.height - entry.measuredSize.y) > RegionFitTolerance)
+    const auto size = PanelSize(entry); // Cached completed layout; no layout/Arrange on idle getters.
+    if (IntrinsicSizeChanged(entry, size))
     {
-        // HUD models can finish reflow after the synchronous resize arrangement.
-        // A changed safe area must recover the preferred anchor, rather than retain that interim clamp.
-        g_reservedSizeChanged = true;
+        if (entry.reservesSpace)
+            g_reservedSizeChanged = true; // Restore preferred anchor after a changed safe area.
+        else
+            g_intrinsicSizeChanged = true; // Refit at base scale, without discarding preferred/drag anchor.
         Invalidate();
     }
 }
 
-void Update()
+bool Update()
 {
     const auto dock = UI::Scaling::DockRightTransform(WindowWidth, WindowHeight);
     for (auto& [name, entry] : g_windows)
     {
         const bool visible = IsOpen(entry);
-        CheckReservedSize(entry, visible);
+        CheckIntrinsicSize(entry, visible);
         if (visible != entry.lastVisible)
         {
             entry.lastVisible = visible;
             Invalidate();
         }
     }
-    if (g_dirty || WindowWidth != g_lastWidth || WindowHeight != g_lastHeight || dock.scaleX != g_lastDock.scaleX ||
-        dock.offsetY != g_lastDock.offsetY)
+    const bool arrange = g_dirty || WindowWidth != g_lastWidth || WindowHeight != g_lastHeight ||
+                         dock.scaleX != g_lastDock.scaleX || dock.offsetY != g_lastDock.offsetY;
+    if (arrange)
         ArrangeNow();
+    if (auto* context = RmlUiRuntime::Instance().GetContext())
+        Rml::ElementUtilities::UpdateTransformCaches(context->GetRootElement());
     for (const auto& [name, entry] : g_windows)
     {
-        if (const mu::ui::window::CObject* window = entry.getWindow ? entry.getWindow() : nullptr)
+        if (mu::ui::window::CObject* window = entry.getWindow ? entry.getWindow() : nullptr)
         {
             window->SyncFillPlacement();
             window->SyncSlotPlacement();
+            if (!arrange)
+                window->SyncNativeLayout();
         }
     }
+    return arrange;
+}
+
+void AfterRmlLayout(Rml::Context*)
+{
+    Update(); // Dirty arrangements flush their final context; idle only syncs native anchors.
+}
+
+ReconciliationResult LastReconciliationResult()
+{
+    return g_reconciliation;
 }
 
 float UncoveredWorldLeft()
@@ -1001,5 +1180,9 @@ void Release()
     g_groups.clear();
     g_groupOffsets.clear();
     g_dirty = true;
+    g_reconciliation = ReconciliationResult::Converged;
+    g_lastFailureSignature.clear();
+    g_intrinsicSizeChanged = false;
+    g_reservedSizeChanged = false;
 }
 } // namespace UI::Placement

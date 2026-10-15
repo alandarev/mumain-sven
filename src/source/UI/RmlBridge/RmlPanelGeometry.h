@@ -17,6 +17,8 @@ namespace UI::RmlBridge
 // publishScale=false for a transform-owned root: missing opt-in leaves its old CSS untouched.
 // Returns whether opt-in responsive scale is active; transform owners use that same token.
 bool ApplyLayoutScale(Rml::Element* root, float effectiveScale, bool publishScale = true);
+// Pre-layout cleanup of removed/replaced document-scale owners (observer identity, not ID alone).
+void SyncDocumentLayoutScales();
 
 // The size a theme's data-fit="fill" slot gives a window (CObject::SetFillPlacementSize()), in
 // the panel's reference units; zero while the window is content-sized.

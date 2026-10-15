@@ -1166,3 +1166,6 @@ input, select, textarea, .btn, [data-event-click] { drag: block; }
 	pointer-events: auto;
 	z-index: 1;
 }
+
+/* Capture readiness owns only this class, never authored visibility or layout. */
+.render-target-pending { opacity: 0; }

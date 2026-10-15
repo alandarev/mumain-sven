@@ -348,3 +348,46 @@ state-driven geometry with per-document ownership comments.
 The published numeric scale round-trips the actual float; the compact predicate is never compared
 against a separately rounded paint value. Opted-in transform owners paint through the same
 `--root-scale` token. Adjacent floats below/equal/above a threshold are covered by placement tests.
+
+### Intrinsic-size reconciliation and frame geometry
+
+Placement can change intrinsic size: an opted-in root's compact class may change its content
+height after fitting. Production arrangement reconciles measured reference size with the final
+applied scale, for at most eight passes and an absolute 0.25 **physical-pixel** residual. It then
+resolves group anchors/clamps using final dimensions. Ordinary visible content, not only reserved
+HUD participants, invalidates placement when its intrinsic size changes. Idle frames do not
+rearrange; drag/preferred group anchors survive content refits.
+
+`LastReconciliationResult()` distinguishes convergence, an exhausted-bound measured-safe candidate,
+and unsupported no-safe constraints. Failure diagnostics deduplicate by actual geometry/input
+signature. An unresolved participant exposes no fabricated/stale `SlotBox`. This is **not** input
+quarantine: it does not disable Rml callbacks, native gestures, held items or world input. Supporting
+pathological no-safe themes still requires an explicit cross-system policy; source checks do not
+establish native/runtime acceptance.
+
+Preparation happens before native capture. Layout is flushed, placement reconciled, engine
+absolute-offset/stacking/transform caches refreshed, and geometry-only native hooks synchronized.
+Render submits that prepared context; successful render-target promotion may require one hook-free,
+layout-neutral image-publication flush. A skipped preparation is not reused as the next frame.
+Geometry getters do not update layout or render. They project full, unclipped absolute layout-plane
+points with the engine's forward transform, preserving transformed top-left/two-corner semantics
+rather than substituting AABB minima.
+
+The canonical `--root-scale` token is also published at the owning document/rem root, with observer
+identity/lifetime ownership. One placed root owns a document's token; another live root cannot silently
+take it over. Explicit unplace, invalid scale and removed/replaced roots clean ownership before layout;
+a hidden but still-placed root retains it. Equal-box reload republishes it. A native-font rem root may
+round to at least 1px: geometry needing fractional physical units uses the same canonical token directly,
+while native text/line metrics keep their font floor (Munolith Armory).
+
+Bound capture images declare their extent space (`Content` or `DrawnContent`). Final prepared DOM
+extents, including full off-mask gear images, size the target immediately before capture. Invalid,
+expired or unmeasured bindings defer rather than capturing an old size or forcing 1px. Manual/unbound
+targets retain explicit sizing. Capture success, source serials and retirement lag are unchanged;
+readiness opacity does not override authored visibility or owner enable/interaction state.
+
+The pinned RmlUi checkout remains pristine. `cmake/PrepareRmlUi.cmake` archives its exact committed
+pin into ignored, patch-signature-addressed build output and applies the tracked transform utility
+patch there. Core, headers and SDL backends use that reproducible copy. The patch reproducibility
+test checks fresh materialization, idempotence and equality to compiled utility inputs; repinning
+requires explicitly reviewing/updating the patch contract. No vendor commit or pin movement is needed.

@@ -606,9 +606,11 @@ void CMyInventory::DeleteAllItems() const
 // The paperdoll's slots and their items' boxes where the theme draws them, in window pixels.
 void CMyInventory::SyncNativeLayout()
 {
+    m_ItemTarget.Sync(m_RmlView.Document() ? m_RmlView.Document()->GetElementById("item_view") : nullptr, IsVisible());
     Rml::ElementDocument* document = m_RmlView.Document();
     const bool embedded = UI::RmlBridge::ThemeUsesEmbeddedInventory();
-    m_pNewInventoryCtrl->SetPresentation(nullptr, embedded);
+    if (m_pNewInventoryCtrl)
+        m_pNewInventoryCtrl->SetPresentation(nullptr, embedded);
     if (g_pMyInventoryExt)
         g_pMyInventoryExt->SyncEmbeddedLayout(document);
     // A theme that embeds the extensions draws the paperdoll in the character window instead.
@@ -959,12 +961,10 @@ bool CMyInventory::Update()
 
 void CMyInventory::SyncRmlModel()
 {
-    m_ItemTarget.Sync(m_RmlView.Document() ? m_RmlView.Document()->GetElementById("item_view") : nullptr, IsVisible());
     if (!m_RmlView.Document()) return;
     UI::RmlBridge::SyncDocumentVisibility(m_RmlView.Document(), IsVisible());
 
     UI::RmlBridge::SyncNativeTextSize(m_RmlView.Binder());
-    SyncNativeLayout();
     SyncSlotStates();
 
     auto syncBool = [this](bool MyInventoryRmlModel::* field, const char* boundName, bool value)

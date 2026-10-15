@@ -547,17 +547,8 @@ void CCharMakeWin::SyncPreview()
     if (!preview)
         return;
 
-    // The image's own box in RmlUi pixels, which are physical ones: drawn at the size it is shown.
-    const auto size = preview->GetBox().GetSize(Rml::BoxArea::Content);
-    m_PreviewTarget.Resize(static_cast<std::uint32_t>(std::lround(size.x)),
-                           static_cast<std::uint32_t>(std::lround(size.y)));
-
-    // An <img> without a texture still draws its quad, untextured: invisible until the first frame,
-    // but still laid out, since the target takes its size from the box.
-    const Rml::String& source = m_PreviewTarget.Source();
-    preview->SetClass("awaiting-frame", source.empty());
-    if (!source.empty() && preview->GetAttribute<Rml::String>("src", "") != source)
-        preview->SetAttribute("src", source);
+    preview->SetClass("awaiting-frame", false); // Old theme markup defers readiness to shared binding.
+    m_PreviewTarget.BindImage(preview);
 }
 
 void CCharMakeWin::RenderPreviewInto(std::uint32_t width, std::uint32_t height)

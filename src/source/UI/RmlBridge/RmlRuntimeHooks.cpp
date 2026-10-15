@@ -10,9 +10,11 @@
 #include "UI/RmlBridge/RmlNativeText.h"
 #include "UI/RmlBridge/RmlNativeTextFit.h"
 #include "UI/RmlBridge/RmlRenderTarget.h"
+#include "UI/Placement/WindowPlacement.h"
 #include "UI/RmlBridge/RmlScaleInputs.h"
 #include "UI/RmlBridge/RmlTheme.h"
 #include "UI/RmlBridge/RmlTooltip.h"
+#include "UI/RmlBridge/RmlPanelGeometry.h"
 #include "UI/RmlBridge/ThemeFileInterface.h"
 #include "UI/RmlBridge/ThemeInheritance.h"
 #include "UI/RmlBridge/ThemeFonts.h"
@@ -47,6 +49,7 @@ void InstallRuntimeHooks()
     hooks.beforeDestroy = [] { UI::Diagnostics::Release(); ClearThemeFontCache(); };
     hooks.beforeUpdate = []
     {
+        SyncDocumentLayoutScales();
         SuspendMainSceneDocumentsOutsideMainScene();
         ApplySceneStackingDepths();
         Tooltip::ExpireUnrefreshed();
@@ -56,10 +59,12 @@ void InstallRuntimeHooks()
     hooks.afterUpdate = [](Rml::Context* context)
     {
         FitNativeTextToBoxes(context);
+        UI::Placement::AfterRmlLayout(context);
         UpdateMarquees(context);
         if (auto* chat = g_pChatListBox)
             chat->AfterRmlLayout(context);
     };
+    hooks.publicationRevision = [] { return RenderTarget::PublicationRevision(); };
     hooks.resolveTextureFile = [](const Rml::String& source) { return ResolveThemeResource(source, true); };
     hooks.createFileInterface = [] { return std::make_unique<ThemeFileInterface>(); };
     hooks.resolveTexture = [](const Rml::String& source, void*& texture, int& width, int& height)

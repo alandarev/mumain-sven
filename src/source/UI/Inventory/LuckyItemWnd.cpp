@@ -550,6 +550,7 @@ bool CLuckyItemWnd::Render(void)
 // A theme marks its grid .themed-grid when its own cells frame the items.
 void CLuckyItemWnd::SyncNativeLayout()
 {
+    m_ItemTarget.Sync(m_RmlView.Document() ? m_RmlView.Document()->GetElementById("item_view") : nullptr, IsVisible());
     if (!m_pNewInventoryCtrl)
         return;
     Rml::ElementDocument* document = m_RmlView.Document();
@@ -560,11 +561,9 @@ void CLuckyItemWnd::SyncNativeLayout()
 
 void CLuckyItemWnd::SyncRmlModel()
 {
-    m_ItemTarget.Sync(m_RmlView.Document() ? m_RmlView.Document()->GetElementById("item_view") : nullptr, IsVisible());
     if (!m_RmlView.Document()) return;
     UI::RmlBridge::SyncDocumentVisibility(m_RmlView.Document(), IsVisible());
 
-    SyncNativeLayout();
     if (m_pNewInventoryCtrl && m_RmlView.GetModel().gridCells != m_pNewInventoryCtrl->Cells())
     {
         m_RmlView.GetModel().gridCells = m_pNewInventoryCtrl->Cells();

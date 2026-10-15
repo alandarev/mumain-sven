@@ -6,6 +6,8 @@
 #include "UI/Scaling/UITransform.h"
 
 #include <RmlUi/Core/Element.h>
+#include <RmlUi/Core/Context.h>
+#include <RmlUi/Core/ObserverPtr.h>
 #include <RmlUi/Core/ElementDocument.h>
 #include <RmlUi/Core/Types.h>
 
@@ -13,6 +15,75 @@
 #include <charconv>
 #include <cmath>
 #include <limits>
+#include <vector>
+#include <algorithm>
+
+namespace
+{
+struct DocumentScaleLease
+{
+    Rml::ObserverPtr<Rml::Element> document, root;
+    bool conflictReported = false;
+};
+std::vector<DocumentScaleLease> documentScales;
+bool ValidOwner(const DocumentScaleLease& lease)
+{
+    auto* doc = static_cast<Rml::ElementDocument*>(lease.document.get());
+    return doc && lease.root && lease.root->GetOwnerDocument() == doc &&
+           doc->GetElementById(lease.root->GetId()) == lease.root.get() && lease.root->GetLocalProperty("--root-scale");
+}
+void PublishDocumentScale(Rml::Element* root, const std::string& scale)
+{
+    auto* doc = root->GetOwnerDocument();
+    if (!doc || root == doc || root->GetId().empty())
+        return;
+    auto found = std::find_if(documentScales.begin(), documentScales.end(),
+                              [doc](const auto& lease) { return lease.document.get() == doc; });
+    if (found != documentScales.end() && !ValidOwner(*found))
+    {
+        doc->RemoveProperty("--root-scale");
+        documentScales.erase(found);
+        found = documentScales.end();
+    }
+    if (found != documentScales.end() && found->root.get() != root)
+    {
+        if (!found->conflictReported)
+            g_ErrorReport.Write(
+                L"RmlUi document scale ownership conflict; multiple placed roots need separate documents.\r\n");
+        found->conflictReported = true;
+        return; // Never take another still-live root's document scale.
+    }
+    if (scale.empty())
+    {
+        if (found != documentScales.end())
+        {
+            doc->RemoveProperty("--root-scale");
+            documentScales.erase(found);
+        }
+        return;
+    }
+    if (found == documentScales.end())
+        documentScales.push_back({doc->GetObserverPtr(), root->GetObserverPtr()});
+    const auto* current = doc->GetLocalProperty("--root-scale");
+    if (!current || current->ToString() != scale)
+        doc->SetProperty("--root-scale", scale);
+}
+} // namespace
+
+void UI::RmlBridge::SyncDocumentLayoutScales()
+{
+    for (auto i = documentScales.begin(); i != documentScales.end();)
+    {
+        if (ValidOwner(*i))
+        {
+            ++i;
+            continue;
+        }
+        if (i->document)
+            i->document->RemoveProperty("--root-scale");
+        i = documentScales.erase(i);
+    }
+}
 
 bool UI::RmlBridge::ApplyLayoutScale(Rml::Element* root, float effectiveScale, bool publishScale)
 {
@@ -44,6 +115,8 @@ bool UI::RmlBridge::ApplyLayoutScale(Rml::Element* root, float effectiveScale, b
     else if (publishScale || hadGeneratedScale)
         root->RemoveProperty("--root-scale");
 
+    // Same canonical token at the owning rem root, not a gameplay-updated scale model.
+    PublishDocumentScale(root, validScale && (publishScale || optedIn) ? scaleText : std::string{});
     root->SetClass("compact-scale", validScale && optedIn && effectiveScale < threshold);
     if (validScale && optedIn)
     {

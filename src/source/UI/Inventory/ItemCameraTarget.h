@@ -8,6 +8,8 @@
 #include "UI/RmlBridge/RmlRenderTarget.h"
 #include "UI/Scaling/UITransform.h"
 
+class RmlViewLayoutFixture;
+
 namespace Rml
 {
 class Element;
@@ -37,6 +39,7 @@ public:
     void SetFieldOfView(float degrees) { m_fieldOfView = degrees; }
 
 private:
+    friend class ::RmlViewLayoutFixture; // Verify actual capture geometry before production input/render.
     void Render(std::uint32_t width, std::uint32_t height);
 
     Drawer m_drawer;

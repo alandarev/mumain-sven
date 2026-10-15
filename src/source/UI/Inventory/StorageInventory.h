@@ -85,7 +85,7 @@ namespace mu::ui::window
         void BindWithdrawAction(Rml::DataModelConstructor& c);
         void BuildRmlUi();
         void SyncRmlModel();
-        void SyncNativeLayout();
+        void SyncNativeLayout() override;
         void ResumeProtectedWithdrawal();
 
     public:

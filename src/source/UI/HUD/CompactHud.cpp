@@ -158,18 +158,11 @@ void CompactHud::SyncItemTarget(int index, Rml::ElementDocument* document)
     const bool visible = m_Shown && filled && icon != nullptr && icon->GetParentNode()->IsVisible();
     target.SetEnabled(visible);
     if (icon == nullptr)
-        return;
-    if (visible)
     {
-        const auto size = icon->GetBox().GetSize(Rml::BoxArea::Content);
-        target.Resize(static_cast<std::uint32_t>(std::lround(std::max(0.f, size.x))),
-                      static_cast<std::uint32_t>(std::lround(std::max(0.f, size.y))));
+        target.BindImage(nullptr);
+        return;
     }
-    const auto& source = target.Source();
-    // Preserve its layout while the first offscreen texture is being prepared.
-    icon->SetProperty("visibility", !filled || source.empty() ? "hidden" : "visible");
-    if (icon->GetAttribute<Rml::String>("src", "") != source)
-        icon->SetAttribute("src", source);
+    target.BindImage(icon, visible);
 }
 void CompactHud::SyncActions(Rml::ElementDocument* document)
 {
@@ -274,13 +267,7 @@ void CompactHud::SyncChoiceTargets(Rml::ElementDocument* document)
         auto* image = document->GetElementById(id);
         const bool visible = m_Shown && m_Model.pickerOpen && m_Model.consumablesTab && image && image->IsVisible();
         target->SetEnabled(visible);
-        if (!visible)
-            continue;
-        const auto size = image->GetBox().GetSize(Rml::BoxArea::Content);
-        target->Resize(static_cast<std::uint32_t>(std::lround(std::max(0.f, size.x))),
-                       static_cast<std::uint32_t>(std::lround(std::max(0.f, size.y))));
-        if (image->GetAttribute<Rml::String>("src", "") != target->Source())
-            image->SetAttribute("src", target->Source());
+        target->BindImage(image, visible);
     }
 }
 } // namespace UI::HUD

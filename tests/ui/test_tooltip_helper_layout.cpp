@@ -1,4 +1,9 @@
 #include "stdafx.h"
+#include "HeadlessCaptureRenderer.h"
+#include "UI/RmlBridge/RmlRenderTarget.h"
+#include "UI/RmlBridge/RmlRuntimeHooks.h"
+#include "UI/RmlBridge/RmlPanelGeometry.h"
+#include <RmlUi/Core/FontMetrics.h>
 #include <doctest.h>
 #include <RmlUi/Core.h>
 #include <RmlUi/Core/ComputedValues.h>
@@ -9,8 +14,10 @@
 #include "Render/RmlUi/RmlUiRuntime.h"
 #include "UI/HUD/MuHelperBar.h"
 #include "UI/Inventory/MyInventory.h"
+#include "UI/Core/WindowSystem.h"
 #include "UI/Inventory/ItemMng.h"
 #include "UI/Character/CharacterInfoWindow.h"
+#include "UI/Character/Armory/ArmoryController.h"
 #include <numeric>
 #include "UI/Placement/WindowPlacement.h"
 #include "UI/RmlBridge/RmlDocumentHints.h"
@@ -23,8 +30,13 @@
 #include "UI/Scaling/UITransform.h"
 #include <filesystem>
 
+extern int LoadingWorld;
+
 namespace
 {
+HeadlessCaptureRenderer captureRenderer;
+int rmlDrawCalls = 0;
+std::map<std::wstring, std::pair<int, int>> savedPositions;
 namespace Tip = UI::RmlBridge::Tooltip;
 struct NullRenderer : Rml::RenderInterface
 {
@@ -32,11 +44,18 @@ struct NullRenderer : Rml::RenderInterface
     {
         return 1;
     }
-    void RenderGeometry(Rml::CompiledGeometryHandle, Rml::Vector2f, Rml::TextureHandle) override {}
-    void ReleaseGeometry(Rml::CompiledGeometryHandle) override {}
-    Rml::TextureHandle LoadTexture(Rml::Vector2i&, const Rml::String&) override
+    void RenderGeometry(Rml::CompiledGeometryHandle, Rml::Vector2f, Rml::TextureHandle) override
     {
-        return 0;
+        ++rmlDrawCalls;
+    }
+    void ReleaseGeometry(Rml::CompiledGeometryHandle) override {}
+    Rml::TextureHandle LoadTexture(Rml::Vector2i& size, const Rml::String& source) override
+    {
+        if (!UI::RmlBridge::RenderTarget::IsSource(source))
+            return 0;
+        void* handle = UI::RmlBridge::RenderTarget::Resolve(source, size.x, size.y);
+        CHECK(handle != nullptr);
+        return reinterpret_cast<Rml::TextureHandle>(handle);
     }
     Rml::TextureHandle GenerateTexture(Rml::Span<const Rml::byte>, Rml::Vector2i) override
     {
@@ -87,8 +106,30 @@ const char* startHint = "Start Official MU Helper";
 const char* stopHint = "Stop Official MU Helper";
 } // namespace
 
+extern "C" mu::IMuRenderer& __wrap__ZN2mu11GetRendererEv()
+{
+    return captureRenderer;
+}
+
 // Same native metric contract, backed by real bundled TTF faces without a GPU renderer.
 // The production model, row classes, measuring/placement and hint mechanism remain unchanged.
+// Isolate real drag/save callbacks from executable/live preference files.
+extern "C" void __wrap__ZN10GameConfig17SetWindowPositionERKNSt7__cxx1112basic_stringIwSt11char_traitsIwESaIwEEEii(
+    GameConfig*, const std::wstring& id, int x, int y)
+{
+    savedPositions[id] = {x, y};
+}
+extern "C" bool __wrap__ZNK10GameConfig17GetWindowPositionERKNSt7__cxx1112basic_stringIwSt11char_traitsIwESaIwEEERiS8_(
+    const GameConfig*, const std::wstring& id, int& x, int& y)
+{
+    auto found = savedPositions.find(id);
+    if (found == savedPositions.end())
+        return false;
+    x = found->second.first;
+    y = found->second.second;
+    return true;
+}
+
 extern "C" int __wrap__ZN19CUIRenderTextSDLTtf10LineHeightEN2UI7Scaling8FontRoleE(UI::Scaling::FontRole role)
 {
     const auto transform = UI::Scaling::GetActiveTransform();
@@ -108,6 +149,33 @@ namespace
 void CheckInventoryText(Rml::ElementDocument* doc);
 }
 
+namespace
+{
+class InputGeometryProbe : public mu::ui::window::CObject
+{
+public:
+    std::function<void()> check;
+    bool Render() override
+    {
+        return true;
+    }
+    bool UpdateKeyEvent() override
+    {
+        return true;
+    }
+    float GetLayerDepth() override
+    {
+        return 1000.f;
+    }
+    bool UpdateMouseEvent() override
+    {
+        if (check)
+            check();
+        return true;
+    }
+};
+} // namespace
+
 class RmlViewLayoutFixture
 {
 public:
@@ -117,6 +185,9 @@ public:
           mouseY(g_fWindowMouseY)
     {
         REQUIRE(RmlUiRuntime::Instance().m_Context == nullptr);
+        savedPositions.clear();
+        oldManager = mu::ui::window::CSystem::GetInstance()->m_pNewUIMng;
+        mu::ui::window::CSystem::GetInstance()->m_pNewUIMng = &manager;
         std::filesystem::current_path(std::string(MU_RMLUI_DIR) + "/../../..");
         REQUIRE(TTF_Init());
         normal = TTF_OpenFont((std::string(MU_FONT_DIR) + "/DejaVuSans.ttf").c_str(), 14.f);
@@ -134,6 +205,21 @@ public:
         REQUIRE(context);
         RmlUiRuntime::Instance().m_Context = context;
         UI::RmlBridge::SetActiveThemeName("munolith");
+        oldHooks = RmlUiRuntime::Instance().m_Hooks;
+        RmlUiRuntimeHooks hooks;
+        hooks.beforeUpdate = [this]
+        {
+            ++beforeHooks;
+            UI::RmlBridge::SyncDocumentLayoutScales();
+            Tip::ExpireUnrefreshed();
+        };
+        hooks.afterUpdate = [this](Rml::Context* c)
+        {
+            ++afterHooks;
+            UI::Placement::AfterRmlLayout(c);
+        };
+        hooks.publicationRevision = [] { return UI::RmlBridge::RenderTarget::PublicationRevision(); };
+        RmlUiRuntime::Instance().SetHooks(std::move(hooks));
     }
     ~RmlViewLayoutFixture()
     {
@@ -141,8 +227,11 @@ public:
         character.reset();
         helper.reset();
         UI::Placement::Release();
+        mu::ui::window::CSystem::GetInstance()->m_pNewUIMng = oldManager;
         Tip::Hide();
         RmlUiRuntime::Instance().m_Context = nullptr;
+        RmlUiRuntime::Instance().m_framePrepared = false;
+        RmlUiRuntime::Instance().SetHooks(oldHooks);
         UI::RmlBridge::ReloadAllThemedDocuments(); // Release static shared views before owned context dies.
         UI::RmlBridge::SetActiveThemeName(theme);
         Rml::Shutdown();
@@ -216,7 +305,7 @@ public:
             helper->m_RmlView.MarkDirty(field);
         helper->SyncDocVisibility(true);
         Refresh();
-        UI::Placement::Arrange();
+        UI::Placement::Update();
         Refresh();
         return helper->m_RmlView.Document();
     }
@@ -250,6 +339,8 @@ public:
         inventory->m_pNewInventoryCtrl = new CInventoryCtrl;
         REQUIRE(inventory->m_pNewInventoryCtrl->Create(STORAGE_TYPE::INVENTORY, &items, inventory.get(), 8, 8,
                                                        MAX_EQUIPMENT_INDEX));
+        inventory->m_pNewUIMng = &manager;
+        manager.AddUIObj(mu::ui::window::INTERFACE_INVENTORY, inventory.get());
         inventory->BuildRmlUi();
         REQUIRE(inventory->GetPlacedDocument());
         inventory->CObject::Show(true);
@@ -264,25 +355,21 @@ public:
     }
     void RegisterPane(const char* name, mu::ui::window::CObject* owner)
     {
-        UI::Placement::RegisterParticipant(
-            name, {[] { return true; },
-                   [owner]
-                   {
-                       auto* doc = owner->GetPlacedDocument();
-                       auto* root = doc ? doc->GetElementById("panel") : nullptr;
-                       const auto size = root ? root->GetBox().GetSize(Rml::BoxArea::Border) : Rml::Vector2f{};
-                       return UI::Placement::PlacementParticipant::Size{size.x, size.y};
-                   },
-                   [owner](const UI::Placement::PlacementParticipant::Box* b)
-                   {
-                       if (b)
-                           owner->PlaceInWorkspace(b->left, b->top, b->scale);
-                       else
-                           owner->LeaveWorkspace();
-                       owner->SyncSlotPlacement(); // Production CSystem reattaches equal boxes after document reload.
-                   }});
+        const bool bag = std::string_view(name) == "inventory";
+        UI::Placement::RegisterWindow(
+            bag ? mu::ui::window::INTERFACE_INVENTORY : mu::ui::window::INTERFACE_CHARACTER, name,
+            [owner] { return owner; }, bag ? "my_inventory.rml" : "character_info.rml");
+        UI::Placement::MakeGroupDraggable(name, owner->GetPlacedDocument());
     }
-    Rml::ElementDocument* Inventory(int owned, int variant)
+    void ProductionFrame()
+    {
+        UI::Placement::Update();                 // Same pre-input barrier used by real CSystem.
+        RmlUiRuntime::Instance().PrepareFrame(); // Actual offscreen seam, before native capture.
+        UI::RmlBridge::RenderTarget::RenderAll();
+        RmlUiRuntime::Instance().RenderFrame(); // Hook-free publication flush, then prepared render.
+        context->Render();
+    }
+    Rml::ElementDocument* Inventory(int owned, int variant, bool arrange = true)
     {
         auto& m = inventory->m_RmlView.GetModel();
         m.textPx = UI::Scaling::NativeTextPixelSize(UI::Scaling::FontRole::Normal,
@@ -339,14 +426,11 @@ public:
             inventory->m_RmlView.MarkDirty(name);
         inventory->GetPlacedDocument()->Show();
         character->GetPlacedDocument()->Show();
-        Helper(false);
-        Refresh();
-        for (int i = 0; i < 6; ++i)
+        if (arrange)
         {
-            UI::Placement::Arrange();
+            UI::Placement::Arrange(); // One ordinary show arrangement, not a fixture convergence loop.
             Refresh();
         }
-        inventory->SyncNativeLayout();
         UI::Placement::PlacementParticipant::Box assignedBox;
         const bool placed = UI::Placement::SlotBox("inventory", assignedBox);
         std::fprintf(stderr, "Inventory layout %u %u %d placed%d %.2f %.2f %.2f %.2f scale%.4f class%d\n", WindowWidth,
@@ -357,13 +441,17 @@ public:
     }
     void CheckNativeGrid(Rml::ElementDocument* doc)
     {
-        inventory->SyncNativeLayout();
         const auto b = Box(*doc->GetElementById("item_grid"));
         const auto& geometry = inventory->GetInventoryCtrl()->Geometry();
         CHECK(geometry.Left() == doctest::Approx(b.left));
         CHECK(geometry.Top() == doctest::Approx(b.top));
         CHECK(geometry.PitchX() * 8 == doctest::Approx(b.width));
         CHECK(geometry.PitchY() * 8 == doctest::Approx(b.height));
+        const auto image = Box(*doc->GetElementById("item_view"));
+        CHECK(inventory->m_ItemTarget.m_offset.x == doctest::Approx(image.left));
+        CHECK(inventory->m_ItemTarget.m_offset.y == doctest::Approx(image.top));
+        CHECK(inventory->m_ItemTarget.m_size.x == doctest::Approx(image.width));
+        CHECK(inventory->m_ItemTarget.m_size.y == doctest::Approx(image.height));
     }
 
     void CheckCells(Rml::ElementDocument* doc)
@@ -416,6 +504,116 @@ public:
         CHECK(count->IsVisible(true));
         CHECK(!count->GetInnerRML().empty());
     }
+    void CheckCoherent()
+    {
+        Rml::Element* safe = nullptr;
+        for (int i = 0; i < context->GetNumDocuments(); ++i)
+            if (auto* e = context->GetDocument(i)->GetElementById("safe_area"))
+                safe = e;
+        REQUIRE(safe);
+        const auto bounds = Box(*safe);
+        for (const auto& [name, owner] :
+             {std::pair<const char*, mu::ui::window::CObject*>{"inventory", inventory.get()},
+              {"character", character.get()}})
+        {
+            UI::Placement::PlacementParticipant::Box cached;
+            if (!owner->IsVisible())
+            {
+                CHECK_FALSE(UI::Placement::SlotBox(name, cached));
+                continue;
+            }
+            REQUIRE(UI::Placement::SlotBox(name, cached));
+            Rml::Vector2f p, z;
+            REQUIRE(UI::RmlBridge::DrawnBox(*owner->GetPlacedDocument()->GetElementById("panel"), Rml::BoxArea::Border,
+                                            p, z));
+            CAPTURE(name);
+            CAPTURE(cached.scale);
+            if (WindowWidth == 3840 && WindowHeight == 2160)
+            {
+                // Supplemental large-origin Project inverse-map cancellation, NOT a relative tolerance.
+                constexpr float Supplemental4kResidualPhysicalPixels = .25f;
+                const std::array delta{std::abs(p.x - cached.left), std::abs(p.y - cached.top),
+                                       std::abs(z.x - cached.width), std::abs(z.y - cached.height)};
+                for (float residual : delta)
+                    CHECK(residual <= Supplemental4kResidualPhysicalPixels);
+                std::fprintf(stderr, "4k residual %s left%.6f top%.6f width%.6f height%.6f\n", name, delta[0], delta[1],
+                             delta[2], delta[3]);
+            }
+            else
+            {
+                CHECK(p.x == doctest::Approx(cached.left));
+                CHECK(p.y == doctest::Approx(cached.top));
+                CHECK(z.x == doctest::Approx(cached.width));
+                CHECK(z.y == doctest::Approx(cached.height));
+            }
+            CHECK(p.x >= bounds.left - .25f);
+            CHECK(p.y >= bounds.top - .25f);
+            CHECK(p.x + z.x <= bounds.left + bounds.width + .25f);
+            CHECK(p.y + z.y <= bounds.top + bounds.height + .25f);
+        }
+    }
+    void HidePanes()
+    {
+        inventory->CObject::Show(false);
+        character->CObject::Show(false);
+        inventory->GetPlacedDocument()->Hide();
+        character->GetPlacedDocument()->Hide();
+        UI::Placement::Arrange();
+    }
+    void Reopen(bool linked)
+    {
+        inventory->CObject::Show(true);
+        inventory->GetPlacedDocument()->Show();
+        character->CObject::Show(linked);
+        if (linked)
+            character->GetPlacedDocument()->Show();
+        else
+            character->GetPlacedDocument()->Hide();
+        UI::Placement::Arrange();
+        Refresh(); // First paint must already agree with published caches.
+    }
+    void CheckBeforeRealInput()
+    {
+        const auto scene = SceneFlag;
+        const auto loading = LoadingWorld;
+        SceneFlag = MAIN_SCENE;
+        LoadingWorld = 0;
+        inventory->Enable(false);
+        character->Enable(false);
+        helper->Enable(false); // No gameplay/model window updates.
+        InputGeometryProbe probe;
+        int checked = 0;
+        probe.check = [&]
+        {
+            ++checked;
+            CheckCoherent();
+            CheckNativeGrid(inventory->GetPlacedDocument());
+        };
+        constexpr DWORD ProbeId = 0x7fffffff;
+        manager.AddUIObj(ProbeId, &probe);
+        mu::ui::window::CSystem::GetInstance()->Update(); // REAL pre-input phase + native dispatcher.
+        CHECK(checked == 1);
+        manager.RemoveUIObj(ProbeId);
+        inventory->Enable(true);
+        character->Enable(true);
+        helper->Enable(true);
+        SceneFlag = scene;
+        LoadingWorld = loading;
+    }
+    void MoveInternalAnchor()
+    {
+        auto* grid = inventory->GetPlacedDocument()->GetElementById("item_grid");
+        const auto old = Box(*grid);
+        grid->SetProperty("top", "210px");
+        RmlUiRuntime::Instance().PrepareFrame();
+        const auto moved = Box(*grid);
+        CHECK(moved.top != doctest::Approx(old.top));
+        CHECK_FALSE(UI::Placement::Update()); // Outer intrinsic size unchanged: native hook still runs.
+        CheckNativeGrid(inventory->GetPlacedDocument());
+        RmlUiRuntime::Instance().RenderFrame();
+        grid->RemoveProperty("top");
+        ProductionFrame();
+    }
     void CheckSmallInventory(Rml::ElementDocument* doc)
     {
         UI::Placement::PlacementParticipant::Box assigned;
@@ -426,6 +624,7 @@ public:
         CheckInventoryText(doc);
         inventory->PlaceDocument(assigned.left, assigned.top, assigned.scale);
         Refresh();
+        UI::Placement::AfterRmlLayout(context);
     }
     void CheckStable(Rml::ElementDocument* doc)
     {
@@ -437,9 +636,7 @@ public:
         CHECK(image.top + image.height > initial.top + initial.height);
         for (int i = 0; i < 12; ++i)
         {
-            UI::Placement::Update();
-            UI::Placement::Arrange();
-            Refresh();
+            ProductionFrame();
             const auto current = Box(*doc->GetElementById("panel"));
             CHECK(current.left == doctest::Approx(initial.left));
             CHECK(current.top == doctest::Approx(initial.top));
@@ -448,9 +645,243 @@ public:
         }
     }
 
+    void PopulateArmory(bool editing)
+    {
+        auto& a = *character->m_Armory;
+        a.m_Title = "LongName123 · Grand Master · Level 400";
+        a.m_Status = "Allocation confirmed. Character statistics and equipped item bonuses are current.";
+        a.m_Points = "32767";
+        a.m_Budget = "Allocating 32767 / 32767 points";
+        a.m_Ready = a.m_Valid = a.m_Retry = a.m_Ratings = true;
+        a.m_Editing = editing;
+        a.m_SkillName = "Lightning Shock · Master Enhancement";
+        a.m_SkillOutput = "1,234,567–9,876,543";
+        a.m_SkillKind = "Magical damage · area attack";
+        a.m_Costs = "Mana: 1234 / AG: 567 / Cooldown: 120 seconds";
+        a.m_Restriction = "Requires a staff equipped and sufficient character attributes.";
+        a.m_Target = "Target: Level 400 Grand Master · defence 123456";
+        a.m_Resources = {"123456789 / 987654321", "123456789 / 987654321", "123456 / 987654"};
+        a.m_ResourceDetails = {"Base + equipment + skill bonuses", "Maximum mana and regeneration details",
+                               "Current AG and regeneration details"};
+        a.m_ResourceExpanded = {true, true, true};
+        a.m_Attributes.clear();
+        int index = 0;
+        for (const char* label : {"Strength", "Agility", "Vitality", "Energy", "Command"})
+        {
+            UI::Character::ArmoryController::AttributeView row;
+            row.index = index++;
+            row.label = label;
+            row.total = "32,767 (+1234)";
+            row.input = "32767";
+            row.addition = 1234;
+            row.proposed = true;
+            row.note = "Equipment bonus +1,234 · allocated +12,345";
+            row.explanation = "Base attribute plus equipped item bonus";
+            a.m_Attributes.push_back(row);
+        }
+        a.m_Categories.clear();
+        index = 0;
+        for (const char* name : {"Attack", "Defence", "Ratings"})
+        {
+            UI::Character::ArmoryController::CategoryView category;
+            category.name = name;
+            for (const char* label :
+                 {"Excellent damage rate", "Double damage chance", "Additional elemental damage", "Attack speed"})
+            {
+                UI::Character::ArmoryController::RowView row;
+                row.index = index++;
+                row.label = label;
+                row.value = "123,456 (99.99%)";
+                row.detail = "Base + equipment + excellent options + master skill bonuses";
+                row.expanded = true;
+                category.rows.push_back(row);
+            }
+            a.m_Categories.push_back(category);
+        }
+        a.m_Snapshot.rows.resize(index); // Real hover callbacks require view row indices backed by snapshot rows.
+        a.m_Handle.DirtyAllVariables();
+    }
+    void CheckArmoryText()
+    {
+        auto* doc = character->GetPlacedDocument();
+        const auto stripped = [](Rml::String text)
+        {
+            text.erase(std::remove_if(text.begin(), text.end(), [](unsigned char c) { return std::isspace(c); }),
+                       text.end());
+            return text;
+        };
+        int lines = 0;
+        const auto inspect = [&](auto&& self, Rml::Element* e) -> void
+        {
+            if (!e->IsVisible(true))
+                return;
+            if (auto* text = dynamic_cast<Rml::ElementText*>(e))
+            {
+                if (stripped(text->GetText()).empty())
+                    return;
+                auto* parent = text->GetParentNode();
+                REQUIRE(parent);
+                CAPTURE(parent->GetAddress());
+                CAPTURE(text->GetText());
+                Rml::Rectanglef limit;
+                REQUIRE(Rml::ElementUtilities::GetBoundingBox(limit, parent, Rml::BoxArea::Border));
+                const float scale = UI::RmlBridge::DrawnScale(*parent);
+                const auto& metrics = Rml::GetFontEngineInterface()->GetFontMetrics(text->GetFontFaceHandle());
+                CHECK(parent->GetComputedValues().font_size() * scale >= 10.f - .1f);
+                Rml::Vector2f painted;
+                REQUIRE(UI::RmlBridge::DrawnTopLeft(*parent, painted));
+                const auto parentOffset = parent->GetAbsoluteOffset(Rml::BoxArea::Border);
+                const auto offset = text->GetAbsoluteOffset(Rml::BoxArea::Content) - parentOffset;
+                Rml::String rendered;
+                for (const auto& line : text->GetLines())
+                {
+                    rendered += line.text;
+                    ++lines;
+                    const auto baseline = painted + (offset + line.position) * scale;
+                    const float width = Rml::ElementUtilities::GetStringWidth(parent, line.text) * scale;
+                    CHECK(baseline.x >= limit.Left() - .75f);
+                    CHECK(baseline.x + width <= limit.Right() + .75f);
+                    CHECK(baseline.y - metrics.ascent * scale >= limit.Top() - .75f);
+                    CHECK(baseline.y + metrics.descent * scale <= limit.Bottom() + .75f);
+                }
+                CHECK(stripped(rendered) == stripped(text->GetText()));
+            }
+            for (int i = 0; i < e->GetNumChildren(); ++i)
+                self(self, e->GetChild(i));
+        };
+        inspect(inspect, doc);
+        CHECK(lines > 90);
+        Rml::ElementList actions;
+        doc->QuerySelectorAll(actions, "button, input, .gear-slot");
+        for (auto* action : actions)
+        {
+            if (!action->IsVisible(true))
+                continue;
+            CAPTURE(action->GetAddress());
+            action->ScrollIntoView();
+            ProductionFrame();
+            const auto b = Box(*action), panel = Box(*doc->GetElementById("panel"));
+            CHECK(b.width > 0);
+            CHECK(b.height >= action->GetComputedValues().font_size() - .25f);
+            CHECK(b.left >= panel.left - .75f);
+            CHECK(b.left + b.width <= panel.left + panel.width + .75f);
+            CHECK(b.top >= panel.top - .75f);
+            CHECK(b.top + b.height <= panel.top + panel.height + .75f);
+            context->ProcessMouseMove(static_cast<int>(b.left + b.width / 2), static_cast<int>(b.top + b.height / 2),
+                                      0);
+            auto* hit = context->GetHoverElement();
+            while (hit && hit != action)
+                hit = hit->GetParentNode();
+            CHECK(hit == action); // Real engine hit routing; no callbacks activated/clicked.
+        }
+        doc->QuerySelector(".armory-left")->SetScrollTop(0);
+        doc->QuerySelector(".armory-right")->SetScrollTop(0);
+        ProductionFrame();
+    }
+
+    void CheckArmoryGeometry()
+    {
+        auto* doc = character->GetPlacedDocument();
+        auto* panel = doc->GetElementById("panel");
+        auto* face = doc->QuerySelector(".armory-face");
+        REQUIRE(panel);
+        REQUIRE(face);
+        const auto bounds = Box(*panel), actual = Box(*face);
+        CHECK(actual.left == doctest::Approx(bounds.left));
+        CHECK(actual.top == doctest::Approx(bounds.top));
+        CHECK(actual.width == doctest::Approx(bounds.width));
+        CHECK(actual.height == doctest::Approx(bounds.height));
+        const auto* token = doc->GetLocalProperty("--root-scale");
+        REQUIRE(token);
+        CHECK(std::stof(token->ToString()) == doctest::Approx(UI::RmlBridge::DrawnScale(*panel)));
+        for (const char* selector : {"#title", ".status", ".close", ".armory-body"})
+        {
+            auto* e = doc->QuerySelector(selector);
+            REQUIRE(e);
+            const auto b = Box(*e);
+            CHECK(b.left >= bounds.left - .25f);
+            CHECK(b.top >= bounds.top - .25f);
+            CHECK(b.left + b.width <= bounds.left + bounds.width + .25f);
+            CHECK(b.top + b.height <= bounds.top + bounds.height + .25f);
+        }
+        // Real rem/counter-scale authored camera images, full (unclipped) extent, not gear-mask viewport.
+        using UI::RmlBridge::RenderTarget;
+        for (const char* id : {"armory_preview", "armory_item_0", "armory_item_2", "armory_item_7"})
+        {
+            auto* image = doc->GetElementById(id);
+            REQUIRE(image);
+            const auto desired = image->GetBox().GetSize(Rml::BoxArea::Content);
+            bool captured = false;
+            RenderTarget target(
+                [&](std::uint32_t w, std::uint32_t h)
+                {
+                    captured = true;
+                    CHECK(w == std::lround(desired.x));
+                    CHECK(h == std::lround(desired.y));
+                });
+            target.SetEnabled(true);
+            target.BindImage(image);
+            captureRenderer.allowed.insert(captureRenderer.lastCreated + 1);
+            RenderTarget::RenderAll();
+            REQUIRE(captured); // No manual consumer size or gameplay/viewer Sync.
+            CHECK(image->GetAttribute<Rml::String>("src", "") == target.Source());
+        }
+        auto* title = inventory->GetPlacedDocument()->GetElementById("title");
+        REQUIRE(title);
+        const auto header = Box(*title);
+        auto* hit = context->GetElementAtPoint({header.left + 12, header.top + header.height / 2});
+        while (hit && hit != title)
+            hit = hit->GetParentNode();
+        CHECK(hit == title); // Actual title hit, not an alternate handle hiding Armory overflow.
+        NoErrors();
+    }
+
+    void DragAndSave(bool linked)
+    {
+        HidePanes();
+        Reopen(linked);
+        CheckCoherent();
+        auto* doc = inventory->GetPlacedDocument();
+        CheckNativeGrid(doc);
+        auto* title = doc->GetElementById("title");
+        REQUIRE(title);
+        const auto start = Box(*title);
+        UI::Placement::PlacementParticipant::Box before;
+        REQUIRE(UI::Placement::SlotBox("inventory", before));
+        const int x = static_cast<int>(start.left + 12.f), y = static_cast<int>(start.top + start.height / 2.f);
+        context->ProcessMouseMove(x, y, 0);
+        context->ProcessMouseButtonDown(0, 0);
+        context->ProcessMouseMove(x - 60, y + 80, 0);
+        context->ProcessMouseMove(x - 90, y + 100, 0);
+        UI::Placement::Update(); // Real pre-native-input barrier; no manual Arrange.
+        CheckCoherent();
+        CheckNativeGrid(doc);
+        UI::Placement::PlacementParticipant::Box moved;
+        REQUIRE(UI::Placement::SlotBox("inventory", moved));
+        if (!linked)
+            CHECK(moved.left !=
+                  doctest::Approx(before.left)); // Linked group fills available width: clamped, not movable.
+        else
+            CHECK(moved.left == doctest::Approx(before.left));
+        context->ProcessMouseButtonUp(0, 0);
+        REQUIRE(savedPositions.contains(L"group.items"));
+        const auto saved = savedPositions.at(L"group.items");
+        ProductionFrame();
+        CheckCoherent();
+        CHECK(savedPositions.at(L"group.items") == saved);
+        HidePanes();
+        ProductionFrame();
+        Reopen(linked);
+        CheckCoherent();
+        CheckNativeGrid(doc);
+        CHECK(savedPositions.at(L"group.items") == saved);
+    }
+
+    int beforeHooks = 0, afterHooks = 0;
     Rml::Context* context = nullptr;
 
 private:
+    RmlUiRuntimeHooks oldHooks;
     std::filesystem::path cwd;
     std::string theme;
     int width, height, percent;
@@ -459,6 +890,7 @@ private:
     UI::RmlBridge::ThemeFileInterface files;
     ModelLog log;
     mu::ui::window::CManager manager;
+    mu::ui::window::CManager* oldManager = nullptr;
     mu::ui::window::CItemMng items;
     std::unique_ptr<mu::ui::window::CMyInventory> inventory;
     std::unique_ptr<mu::ui::window::CCharacterInfoWindow> character;
@@ -684,7 +1116,461 @@ TEST_CASE("Actual fitted inventory preserves readable header footer and native g
                 f.CheckNativeGrid(doc);
                 f.CheckCells(doc);
                 f.CheckStable(doc);
+                f.CheckCoherent();
                 f.NoErrors();
             }
     }
+}
+
+TEST_CASE("Closed normal inventory reopens compact with coherent first-paint production placement "
+          "[ui][placement][reconciliation]")
+{
+    RmlViewLayoutFixture f;
+    f.CreateInventoryGroup();
+    f.Configure("munolith", {1024, 768, 100});
+    f.Inventory(0, 1);
+    for (bool linked : {false, true})
+        for (const auto v : {Viewport{800, 600, 150}, Viewport{1920, 1080, 75}, Viewport{1024, 768, 100}})
+        {
+            CAPTURE(linked);
+            CAPTURE(v.width);
+            f.HidePanes();
+            f.Configure("munolith", v);
+            f.ProductionFrame();
+            f.ProductionFrame(); // Settle HUD while ordinary windows stay closed.
+            f.Reopen(linked);
+            f.CheckCoherent(); // Before any next Update/rearrange.
+            for (int i = 0; i < 4; ++i)
+            {
+                f.ProductionFrame();
+                f.CheckCoherent();
+            }
+        }
+}
+
+TEST_CASE("Production model capacity and unchanged-size anchors reconcile before native input and capture "
+          "[ui][placement][barrier]")
+{
+    RmlViewLayoutFixture f;
+    f.CreateInventoryGroup();
+    f.Configure("munolith", {800, 600, 150});
+    auto* doc = f.Inventory(0, 1);
+    for (int owned : {1, 2, 0})
+    {
+        f.Inventory(owned, 2, false); // Dirty real model only: no Arrange, invalidation or fixture layout loop.
+        const int before = f.beforeHooks, after = f.afterHooks;
+        f.ProductionFrame();
+        CHECK(f.beforeHooks == before + 1);
+        CHECK(f.afterHooks == after + 1);
+        f.CheckCoherent();
+        f.CheckNativeGrid(doc);
+        f.CheckBeforeRealInput();
+        for (int idle = 0; idle < 8; ++idle)
+        {
+            CHECK_FALSE(UI::Placement::Update());
+            f.ProductionFrame();
+            CHECK_FALSE(UI::Placement::Update());
+        }
+    }
+    f.MoveInternalAnchor();
+    f.CheckBeforeRealInput();
+}
+
+TEST_CASE(
+    "Bound capture sources publish on success and reload without repeated owner hooks [ui][render-target][publication]")
+{
+    using UI::RmlBridge::RenderTarget;
+    RmlViewLayoutFixture f;
+    // Six semantic consumer roles (Armory has character + equipment): all have authored extents.
+    for (const char* id : {"item_view", "armory_preview", "armory_item_0", "hp_item_view", "preview", "photo_image"})
+    {
+        CAPTURE(std::string(id));
+        auto* doc = f.context->LoadDocumentFromMemory(
+            Rml::String("<rml><head><style>img {width:64px;height:32px;} .render-target-pending "
+                        "{opacity:0;}</style></head><body><img id='") +
+            id + "'/></body></rml>");
+        REQUIRE(doc);
+        doc->Show();
+        f.Refresh();
+        auto* image = doc->GetElementById(id);
+        REQUIRE(image);
+        RenderTarget target([](std::uint32_t, std::uint32_t) {});
+        target.SetEnabled(true);
+        const auto firstId = captureRenderer.lastCreated + 1;
+        target.BindImage(image);
+        CHECK(image->IsClassSet("render-target-pending"));
+        CHECK(target.Source().empty());
+        const auto before = Box(*image);
+        const int hooks = f.beforeHooks;
+        RmlUiRuntime::Instance().PrepareFrame();
+        captureRenderer.allowed.insert(firstId);
+        RenderTarget::RenderAll(); // Real capture/promotion/source registry, no GPU.
+        const auto first = target.Source();
+        REQUIRE_FALSE(first.empty());
+        CHECK(image->GetAttribute<Rml::String>("src", "") == first);
+        CHECK_FALSE(image->IsClassSet("render-target-pending"));
+        RmlUiRuntime::Instance().RenderFrame();
+        f.context->Render(); // Real engine samples the successfully promoted registry handle now.
+        CHECK(f.beforeHooks == hooks + 1);
+        const auto after = Box(*image);
+        CHECK(before.width == after.width);
+        CHECK(before.height == after.height);
+        int w = 0, h = 0;
+        CHECK(RenderTarget::Resolve(first, w, h) != nullptr);
+        CHECK(w == 64);
+        CHECK(h == 32);
+        const auto revision = RenderTarget::PublicationRevision();
+        target.BindImage(image);
+        f.ProductionFrame(); // Idle draw/owner sync never republishes old/empty URI.
+        CHECK(RenderTarget::PublicationRevision() == revision);
+        CHECK(image->GetAttribute<Rml::String>("src", "") == first);
+        image->SetProperty("width", "80px");
+        image->SetProperty("height", "40px");
+        RmlUiRuntime::Instance().PrepareFrame();
+        RenderTarget::RenderAll(); // Pending capture denied: ready old source remains, no false promotion.
+        CHECK(target.Source() == first);
+        CHECK(image->GetAttribute<Rml::String>("src", "") == first);
+        const auto secondId = captureRenderer.lastCreated;
+        captureRenderer.allowed.insert(secondId);
+        RenderTarget::RenderAll();
+        const auto second = target.Source();
+        CHECK(second != first);
+        CHECK(image->GetAttribute<Rml::String>("src", "") == second);
+        CHECK(RenderTarget::Resolve(first, w, h) != nullptr); // Retire lag unchanged, old handle still resolvable.
+        for (int i = 0; i < 3; ++i)
+            RenderTarget::RenderAll();
+        CHECK(RenderTarget::Resolve(first, w, h) == nullptr);
+        CHECK(RenderTarget::Resolve(second, w, h) != nullptr);
+        CHECK(w == 80);
+        CHECK(h == 40);
+        CHECK_FALSE(image->IsClassSet("render-target-pending"));
+        doc->Close();
+        f.context->Update(); // Expired observer cannot reference next document generation.
+        doc = f.context->LoadDocumentFromMemory(
+            "<rml><head><style>img {width:64px;height:32px;visibility:hidden;}</style></head><body><img "
+            "id='ready'/></body></rml>");
+        doc->Show();
+        image = doc->GetElementById("ready");
+        target.BindImage(image);
+        f.Refresh();
+        CHECK(image->GetAttribute<Rml::String>("src", "") == second);
+        CHECK_FALSE(image->IsVisible(true));
+        {
+            RenderTarget replacement([](std::uint32_t, std::uint32_t) {});
+            replacement.BindImage(image); // Old owner cannot clobber replacement's readiness/source.
+            target.BindImage(nullptr);
+            CHECK(image->IsClassSet("render-target-pending"));
+        }
+        CHECK_FALSE(image->IsClassSet("render-target-pending"));
+        doc->Close();
+        f.context->Update();
+        target.BindImage(nullptr);
+    }
+}
+
+TEST_CASE("Placement bounds expose bounded safe and unsupported no-safe outcomes without idle retry "
+          "[ui][placement][fallback]")
+{
+    RmlViewLayoutFixture f;
+    f.Configure("munolith", {800, 600, 100});
+    int places = 0;
+    float natural = 100.f;
+    UI::Placement::RegisterParticipant(
+        "inventory", {[] { return true; }, [&] { return UI::Placement::PlacementParticipant::Size{100.f, natural}; },
+                      [&](const UI::Placement::PlacementParticipant::Box* b)
+                      {
+                          if (b && ++places <= 8)
+                              natural = places % 2 ? 110.f : 100.f;
+                      }});
+    UI::Placement::Arrange();
+    CHECK(places <= 9);
+    CHECK(UI::Placement::LastReconciliationResult() == UI::Placement::ReconciliationResult::MeasuredSafe);
+    UI::Placement::PlacementParticipant::Box safe;
+    REQUIRE(UI::Placement::SlotBox("inventory", safe));
+    CHECK(safe.height == doctest::Approx(natural * safe.scale));
+    const int finalPlaces = places;
+    for (int i = 0; i < 8; ++i)
+    {
+        CHECK_FALSE(UI::Placement::Update());
+        CHECK(places == finalPlaces);
+    }
+    // Pathological theme: a screen-sized minimum larger than its workspace at ANY applied scale.
+    float scale = 1.f;
+    UI::Placement::RegisterParticipant(
+        "inventory",
+        {[] { return true; }, [&] { return UI::Placement::PlacementParticipant::Size{1000.f / scale, 1000.f / scale}; },
+         [&](const UI::Placement::PlacementParticipant::Box* b)
+         {
+             if (b)
+                 scale = b->scale;
+         }});
+    UI::Placement::Arrange();
+    CHECK(UI::Placement::LastReconciliationResult() == UI::Placement::ReconciliationResult::Unresolved);
+    CHECK_FALSE(UI::Placement::SlotBox("inventory", safe));
+    for (int i = 0; i < 8; ++i)
+        CHECK_FALSE(UI::Placement::Update());
+    // Unsupported no-safe does NOT hide/close/cancel anything or claim input quarantine.
+    // Relevant corrected sizing recovers naturally, not on every idle or pointer tick.
+    UI::Placement::RegisterParticipant(
+        "inventory", {[] { return true; }, [] { return UI::Placement::PlacementParticipant::Size{100.f, 100.f}; },
+                      [](const auto*) {}});
+    REQUIRE(UI::Placement::Update());
+    CHECK(UI::Placement::LastReconciliationResult() == UI::Placement::ReconciliationResult::Converged);
+    CHECK(UI::Placement::SlotBox("inventory", safe));
+}
+
+TEST_CASE("Layout projection cache refresh uses real render transforms without drawing [ui][placement][transforms]")
+{
+    RmlViewLayoutFixture f;
+    auto* doc = f.context->LoadDocumentFromMemory(R"(<rml><head><style>
+        #outer {position:absolute;left:40px;top:50px;width:180px;height:120px;transform:translate(11px,7px) scale(0.7);transform-origin:left top;background-color:#ffffff;}
+        #scroll {width:90px;height:50px;overflow:auto;}
+        #child {display:block;width:130px;height:180px;transform:scale(1.4285714);transform-origin:left top;background-color:#ff0000;}
+        #hidden {position:absolute;left:7px;top:9px;width:64px;height:32px;visibility:hidden;}
+    </style></head><body><div id="outer"><div id="scroll"><div id="child"/></div><img id="hidden"/></div></body></rml>)");
+    REQUIRE(doc);
+    doc->Show();
+    f.context->Update();
+    auto extra = doc->CreateElement("div");
+    auto* nonDom = extra.get();
+    nonDom->SetProperty("position", "absolute");
+    nonDom->SetProperty("width", "8px");
+    nonDom->SetProperty("height", "9px");
+    auto* parent = doc->GetElementById("outer");
+    parent->AppendChild(std::move(extra), false);
+    doc->UpdateDocument();
+    nonDom->SetBox(Rml::Box({8.f, 9.f}));
+    nonDom->SetOffset({3.f, 4.f}, parent);
+    doc->GetElementById("scroll")->SetScrollTop(20.f);
+    f.context->Update();
+    const int draws = rmlDrawCalls;
+    Rml::ElementUtilities::UpdateTransformCaches(doc); // Actual patched engine methods, parent-first.
+    CHECK(rmlDrawCalls == draws);
+    std::vector<std::pair<Rml::Element*, Rect>> prepared;
+    for (const char* id : {"outer", "scroll", "child", "hidden"})
+    {
+        CAPTURE(std::string(id));
+        auto* e = doc->GetElementById(id);
+        REQUIRE(e);
+        prepared.push_back({e, Box(*e)});
+    }
+    prepared.push_back({nonDom, Box(*nonDom)});
+    f.context->Render();
+    CHECK(rmlDrawCalls > draws);
+    for (const auto& [e, before] : prepared)
+    {
+        const auto after = Box(*e);
+        CHECK(after.left == doctest::Approx(before.left));
+        CHECK(after.top == doctest::Approx(before.top));
+        CHECK(after.width == doctest::Approx(before.width));
+        CHECK(after.height == doctest::Approx(before.height));
+    }
+    doc->GetElementById("outer")->SetProperty("transform", "translate(20px,30px) scale(1.3)");
+    f.context->Update();
+    Rml::ElementUtilities::UpdateTransformCaches(doc->GetElementById("child")); // Ancestors too.
+    const auto changed = Box(*doc->GetElementById("child"));
+    CHECK(changed.width != doctest::Approx(prepared[2].second.width));
+    f.context->Render();
+    const auto painted = Box(*doc->GetElementById("child"));
+    CHECK(painted.left == doctest::Approx(changed.left));
+    CHECK(painted.width == doctest::Approx(changed.width));
+    doc->Close();
+    f.context->Update();
+}
+
+TEST_CASE("Real compact title drag clamps native geometry and saves settled group anchor [ui][placement][drag]")
+{
+    for (const bool linked : {false, true})
+    {
+        RmlViewLayoutFixture f;
+        f.CreateInventoryGroup();
+        f.Configure("munolith", {800, 600, 150});
+        f.Inventory(0, 1);
+        f.DragAndSave(linked);
+    }
+}
+
+TEST_CASE(
+    "Armory canonical geometry and real dense models need no gameplay sync before capture [ui][armory][placement]")
+{
+    RmlViewLayoutFixture f;
+    f.CreateInventoryGroup();
+    for (const auto v : {cases[0], cases[1], cases[2], Viewport{3840, 2160, 100}})
+        for (bool editing : {false, true})
+        {
+            CAPTURE(v.width);
+            CAPTURE(editing);
+            f.Configure("munolith", v);
+            f.Inventory(0, 1);
+            f.PopulateArmory(editing);
+            f.ProductionFrame();
+            f.CheckArmoryGeometry();
+            f.CheckArmoryText();
+            f.CheckCoherent();
+        }
+}
+
+TEST_CASE(
+    "Document canonical token uses live root identity and cleans unplace replacement and reload [ui][placement][token]")
+{
+    RmlViewLayoutFixture f;
+    auto load = [&]
+    {
+        auto* d = f.context->LoadDocumentFromMemory(
+            "<rml><head><style>div {width:100px;height:50px;}</style></head><body><div id='one'/><div "
+            "id='two'/></body></rml>");
+        REQUIRE(d);
+        d->Show();
+        return d;
+    };
+    auto* doc = load();
+    auto* other = load();
+    auto* root = doc->GetElementById("one");
+    UI::RmlBridge::ApplyLayoutScale(root, .75f);
+    REQUIRE(doc->GetLocalProperty("--root-scale"));
+    CHECK(doc->GetLocalProperty("--root-scale")->ToString() == "0.75");
+    CHECK_FALSE(other->GetLocalProperty("--root-scale"));
+    root->SetProperty("visibility", "hidden");
+    UI::RmlBridge::SyncDocumentLayoutScales();
+    CHECK(doc->GetLocalProperty("--root-scale")); // Still-placed hidden root retains its ownership.
+    UI::RmlBridge::ApplyLayoutScale(doc->GetElementById("two"), 1.5f);
+    CHECK(doc->GetLocalProperty("--root-scale")->ToString() == "0.75"); // Conflict never takes over another live root.
+    auto retained = doc->RemoveChild(root);
+    auto replacement = doc->CreateElement("div");
+    replacement->SetId("one");
+    auto* fresh = replacement.get();
+    doc->AppendChild(std::move(replacement));
+    UI::RmlBridge::SyncDocumentLayoutScales();
+    CHECK_FALSE(doc->GetLocalProperty("--root-scale")); // Same ID != same identity.
+    UI::RmlBridge::ApplyLayoutScale(fresh, .5f);
+    CHECK(doc->GetLocalProperty("--root-scale"));
+    UI::RmlBridge::ApplyLayoutScale(fresh, std::numeric_limits<float>::quiet_NaN());
+    CHECK_FALSE(doc->GetLocalProperty("--root-scale"));
+    UI::RmlBridge::SlotPlacement placement;
+    placement.Set(10, 20, .8f);
+    placement.Apply(doc, "one");
+    REQUIRE(doc->GetLocalProperty("--root-scale"));
+    placement.Set(0, 0, 0);
+    placement.Apply(doc, "one");
+    CHECK_FALSE(doc->GetLocalProperty("--root-scale"));
+    placement.Set(10, 20, .8f);
+    placement.Sync(doc, "one");
+    CHECK(doc->GetLocalProperty("--root-scale"));
+    fresh->SetAttribute("data-compact-scale", "invalid");
+    UI::RmlBridge::ApplyLayoutScale(fresh, .8f, false);
+    CHECK_FALSE(doc->GetLocalProperty("--root-scale"));
+    UI::RmlBridge::ApplyLayoutScale(other->GetElementById("one"), 1.25f);
+    doc->Close();
+    f.context->Update();
+    UI::RmlBridge::SyncDocumentLayoutScales();
+    REQUIRE(other->GetLocalProperty("--root-scale"));
+    CHECK(other->GetLocalProperty("--root-scale")->ToString() == "1.25");
+    auto* reloaded = load();
+    placement.Sync(reloaded, "one");
+    CHECK(reloaded->GetLocalProperty("--root-scale"));
+    retained.reset();
+    reloaded->Close();
+    other->Close();
+    f.context->Update();
+    UI::RmlBridge::SyncDocumentLayoutScales();
+}
+
+TEST_CASE("Bound capture extents use final content or full drawn box and defer invalid expired failed capture "
+          "[ui][render-target][extent]")
+{
+    RmlViewLayoutFixture f;
+    f.context->SetDensityIndependentPixelRatio(2.f);
+    auto* doc = f.context->LoadDocumentFromMemory(
+        "<rml><head><style>#crop "
+        "{position:absolute;width:10px;height:10px;overflow:hidden;transform:scale(0.5);transform-origin:left top;} "
+        "img{width:64dp;height:32dp;}.render-target-pending{opacity:0;}</style></head><body><div id='crop'><img "
+        "id='image'/></div></body></rml>");
+    REQUIRE(doc);
+    doc->Show();
+    f.Refresh();
+    auto* image = doc->GetElementById("image");
+    REQUIRE(image);
+    using UI::RmlBridge::RenderTarget;
+    for (auto extent : {RenderTarget::ImageExtent::Content, RenderTarget::ImageExtent::DrawnContent})
+    {
+        int captures = 0;
+        std::uint32_t width = 0, height = 0;
+        RenderTarget target(
+            [&](auto w, auto h)
+            {
+                ++captures;
+                width = w;
+                height = h;
+            });
+        target.SetEnabled(true);
+        target.BindImage(image, true, extent);
+        const int hooks = f.beforeHooks;
+        RmlUiRuntime::Instance().PrepareFrame();
+        RmlUiRuntime::Instance().PrepareFrame(); // Prior preparation skipped submission.
+        CHECK(f.beforeHooks == hooks + 2);
+        captureRenderer.allowed.insert(captureRenderer.lastCreated + 1);
+        RenderTarget::RenderAll();
+        REQUIRE(captures == 1);
+        CHECK(width == (extent == RenderTarget::ImageExtent::Content ? 128 : 64));
+        CHECK(height == (extent == RenderTarget::ImageExtent::Content ? 64 : 32));
+        const auto source = target.Source();
+        RmlUiRuntime::Instance().RenderFrame();
+        CHECK(f.beforeHooks == hooks + 2);
+        image->SetProperty("visibility", "hidden");
+        target.BindImage(image, true, extent);
+        f.ProductionFrame();
+        CHECK_FALSE(image->IsVisible(true));
+        image->RemoveProperty("visibility");
+        image->SetProperty("width", "0px");
+        RmlUiRuntime::Instance().PrepareFrame();
+        const int old = captures;
+        RenderTarget::RenderAll();
+        CHECK(captures == old);
+        CHECK(target.Source() == source);
+        image->SetProperty("width", "80dp");
+        RmlUiRuntime::Instance().PrepareFrame();
+        RenderTarget::RenderAll();
+        CHECK(captures == old); // New-size capture denied.
+        CHECK(target.Source() == source);
+        captureRenderer.allowed.insert(captureRenderer.lastCreated);
+        RenderTarget::RenderAll();
+        CHECK(captures == old + 1);
+        CHECK(target.Source() != source);
+        auto removed = doc->GetElementById("crop")->RemoveChild(image);
+        removed.reset();
+        f.context->Update();
+        const int alive = captures;
+        RenderTarget::RenderAll();
+        CHECK(captures == alive); // Expired observer never captures stale extent.
+        auto replacement = doc->CreateElement("img");
+        replacement->SetId("image");
+        image = replacement.get();
+        doc->GetElementById("crop")->AppendChild(std::move(replacement));
+        f.Refresh();
+    }
+    doc->Close();
+    f.context->Update();
+}
+
+TEST_CASE("Production first-open placement remains coherent across inherited themes [ui][placement][themes]")
+{
+    RmlViewLayoutFixture f;
+    f.CreateInventoryGroup();
+    for (const char* theme : {"legacy", "modern", "munolith"})
+        for (const auto v : cases)
+            for (bool linked : {false, true})
+            {
+                CAPTURE(std::string(theme));
+                CAPTURE(v.width);
+                CAPTURE(linked);
+                f.Configure(theme, v);
+                f.Inventory(0, 1);
+                f.HidePanes();
+                f.ProductionFrame();
+                f.Reopen(linked);
+                f.CheckCoherent();
+                f.ProductionFrame();
+                f.CheckCoherent();
+                f.NoErrors();
+            }
 }

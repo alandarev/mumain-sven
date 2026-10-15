@@ -1,6 +1,6 @@
 <!-- rml-contract-optional-callback: chainfo_increase_stat: Armory uses its validated batch editor armory_step/input/apply instead of immediate one-point requests -->
 <rml><head><title>Character Armory</title><link type="text/rcss" href="base.rcss"/><link type="text/rcss" href="character_info.rcss"/></head>
-<body data-model="character_info" data-style-font-size="armory_unit + 'px'">
+<body data-model="character_info">
 <div id="panel">
 <div class="armory-face counter-scaled">
 <div class="stone"/><div class="stone-shade"/><div class="trim top-left"/><div class="trim top-mid"/><div class="trim top-right"/>

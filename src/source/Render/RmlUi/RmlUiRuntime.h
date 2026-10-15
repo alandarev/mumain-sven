@@ -29,6 +29,7 @@ struct RmlUiRuntimeHooks
     // Before the main context updates each frame, and after each context updates.
     std::function<void()> beforeUpdate;
     std::function<void(Rml::Context*)> afterUpdate;
+    std::function<std::uint64_t()> publicationRevision;
     // A texture source the game draws itself: true if `source` is one, with its texture (null if
     // it has none yet) and size.
     std::function<bool(const Rml::String& source, void*& texture, int& width, int& height)> resolveTexture;
@@ -67,7 +68,11 @@ public:
     void Update();
     void Render();
 
-    // Update() then Render(), in that order -- what Create() registers as the renderer's
+    // Offscreen seam prepares once after model submissions and before native captures.
+    void PrepareFrame();
+    // Render the prepared context; only changed native-image bindings get a hook-free flush.
+    // Fallback without PrepareFrame updates once (front-end/no offscreen callback).
+    // What Create() registers as the renderer's
     // pre-submit callback. Public (not private+friend) only because that registration is a
     // free function (a lambda) rather than a member, and doesn't need any further access.
     void RenderFrame();
@@ -150,5 +155,7 @@ private:
     // a live WidgetTextInputContext can call back into it during document/element teardown.
     std::unique_ptr<TextInputMethodEditor_SDL> m_TextInputMethodEditor;
 
-    Rml::Context* m_Context = nullptr; // owned by Rml::Core, released via Rml::Shutdown()
+    Rml::Context* m_Context = nullptr;
+    bool m_framePrepared = false;
+    std::uint64_t m_preparedPublication = 0; // owned by Rml::Core, released via Rml::Shutdown()
 };

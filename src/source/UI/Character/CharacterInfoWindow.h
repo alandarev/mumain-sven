@@ -22,6 +22,8 @@ namespace mu::ui::window
 {
     class CCharacterInfoWindow : public CObject
     {
+        friend class ::RmlViewLayoutFixture;
+
     public:
         // Kept even though this window no longer renders through the legacy bitmap-atlas system --
         // CGensRanking (IMAGE_RANKBACK_TEXTBOX) aliases its own IMAGE_LIST entries onto these same

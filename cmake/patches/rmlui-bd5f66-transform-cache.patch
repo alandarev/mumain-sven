@@ -1,0 +1,71 @@
+--- a/Include/RmlUi/Core/Element.h
++++ b/Include/RmlUi/Core/Element.h
+@@ -19,0 +20 @@
++class ElementUtilities;
+@@ -789,0 +791 @@
++	friend class Rml::ElementUtilities;
+--- a/Include/RmlUi/Core/ElementUtilities.h
++++ b/Include/RmlUi/Core/ElementUtilities.h
+@@ -105,0 +106,9 @@
++	/// Refresh existing absolute-offset and transform caches after layout, without rendering or advancing a frame.
++	/// Includes ancestors and all descendants (including non-DOM/hidden measured nodes), parent first.
++	static void UpdateTransformCaches(Element* root);
++
++	/// Transform an untransformed absolute layout-plane point (not element-local) to window pixels.
++	/// Prepared caches required; no layout/render/frame advancement. False for non-finite, horizon or
++	/// non-invertible/edge-on geometry, leaving point unchanged. No viewport clipping or AABB conversion.
++	static bool TransformPoint(const Element* element, Vector2f& point);
++
+--- a/Source/Core/ElementUtilities.cpp
++++ b/Source/Core/ElementUtilities.cpp
+@@ -22,0 +23,2 @@
++#include <cmath>
++
+@@ -364,0 +367,47 @@
++}
++
++bool ElementUtilities::TransformPoint(const Element* element, Vector2f& point)
++{
++	if (!element || !std::isfinite(point.x) || !std::isfinite(point.y))
++		return false;
++	const auto* state = element->GetTransformState();
++	const auto* transform = state ? state->GetTransform() : nullptr;
++	if (!transform)
++		return true;
++	const Vector4f projected = *transform * Vector4f(point.x, point.y, 0, 1);
++	if (!std::isfinite(projected.w) || projected.w <= 0)
++		return false;
++	const Vector3f divided = projected.PerspectiveDivide();
++	if (!std::isfinite(divided.x) || !std::isfinite(divided.y) || !std::isfinite(divided.z))
++		return false;
++	Vector2f result(divided.x, divided.y);
++	Vector2f validity = result;
++	if (!element->Project(validity)) // Existing cached engine inverse/plane-validity criteria.
++		return false;
++	point = result;
++	return true;
++}
++
++void ElementUtilities::UpdateTransformCaches(Element* root)
++{
++	if (!root)
++		return;
++	const auto update = [](Element* element) {
++		element->UpdateAbsoluteOffsetAndRenderBoxData();
++		if (element->stacking_context_dirty)
++			element->BuildLocalStackingContext();
++		element->UpdateTransformState();
++	};
++	const auto ancestors = [&](auto&& self, Element* element) -> void {
++		if (!element)
++			return;
++		self(self, element->GetParentNode());
++		update(element);
++	};
++	ancestors(ancestors, root->GetParentNode());
++	const auto descendants = [&](auto&& self, Element* element) -> void {
++		update(element);
++		for (int i = 0; i < element->GetNumChildren(true); ++i)
++			self(self, element->GetChild(i));
++	};
++	descendants(descendants, root);

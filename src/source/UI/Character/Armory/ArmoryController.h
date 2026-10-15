@@ -13,12 +13,15 @@ class DataModelConstructor;
 class ElementDocument;
 } // namespace Rml
 class CUIPhotoViewer;
+class RmlViewLayoutFixture;
 struct tagITEM;
 namespace UI::Character
 {
 // Owns the Armory's live data and native render targets. Presentation stays in RML/RCSS.
 class ArmoryController
 {
+    friend class ::RmlViewLayoutFixture;
+
 public:
     ArmoryController();
     ~ArmoryController();
@@ -80,7 +83,6 @@ private:
     RmlBridge::Tooltip::Config m_SkillTooltip;
     std::array<Rml::String, 3> m_Resources, m_ResourceDetails;
     std::array<bool, 3> m_ResourceExpanded{}, m_ResourceHighlighted{};
-    float m_Unit = 1.f;
     bool m_Shown = false, m_Ready = false, m_Editing = false, m_Waiting = false, m_Valid = false;
     bool m_Ratings = false, m_Retry = false, m_ViewerReady = false, m_OverBudget = false;
     bool m_TooltipNeedsHide = false;

@@ -68,6 +68,8 @@ namespace mu::ui::window
         virtual Rml::ElementDocument* GetPlacedDocument() const { return nullptr; }
         // The id of the element the slot places in that document.
         virtual const char* PlacedRootId() const { return "panel"; }
+        // Geometry/target synchronization only; never gameplay/model Update or preference writes.
+        virtual void SyncNativeLayout() {}
         // The workspace places this window in a slot: its document's root at the slot's top-left
         // (screen pixels), at the slot's scale.
         void PlaceInWorkspace(float left, float top, float scale)

@@ -48,7 +48,6 @@ void ArmoryController::Bind(Rml::DataModelConstructor& c)
     c.Bind("armory_resource_details", &m_ResourceDetails);
     c.Bind("armory_resource_expanded", &m_ResourceExpanded);
     c.Bind("armory_resource_highlighted", &m_ResourceHighlighted);
-    c.Bind("armory_unit", &m_Unit);
     c.Bind("armory_title", &m_Title);
     c.Bind("armory_status", &m_Status);
     c.Bind("armory_points", &m_Points);

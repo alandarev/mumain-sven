@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include <RmlUi/Core/ElementUtilities.h>
 #include "Core/Input/SyntheticInput.h"
 #include "RmlUiRuntime.h"
 #include "RmlUiRenderInterface.h"
@@ -169,6 +170,7 @@ void RmlUiRuntime::Create(int windowWidth, int windowHeight)
 
 void RmlUiRuntime::Destroy()
 {
+    m_framePrepared = false;
     if (!m_Context) return;
 
     if (m_Hooks.beforeDestroy)
@@ -207,6 +209,7 @@ void RmlUiRuntime::Destroy()
 
 void RmlUiRuntime::OnResize(int windowWidth, int windowHeight)
 {
+    m_framePrepared = false;
     if (!m_Context) return;
     for (Rml::Context* context : {m_Context})
     {
@@ -224,6 +227,7 @@ void RmlUiRuntime::Update()
         m_Hooks.beforeUpdate();
     ReleaseStrandedFieldFocus();
     m_Context->Update();
+    Rml::ElementUtilities::UpdateTransformCaches(m_Context->GetRootElement());
     AfterUpdate(m_Context);
 }
 
@@ -377,8 +381,29 @@ void RmlUiRuntime::Render()
     m_RenderInterface->EndFrame();
 }
 
+void RmlUiRuntime::PrepareFrame()
+{
+    // Every actual offscreen frame starts a new preparation, even if the previous submission
+    // was skipped. Destroy/resize invalidates it too; no stale context generation is reused.
+    m_framePrepared = false;
+    if (!m_Context)
+        return;
+    Update(); // Once-frame hooks (including tooltip expiry) run exactly here.
+    m_preparedPublication = m_Hooks.publicationRevision ? m_Hooks.publicationRevision() : 0;
+    m_framePrepared = true;
+}
+
 void RmlUiRuntime::RenderFrame()
 {
-    Update();
+    if (!m_framePrepared)
+        PrepareFrame();
+    if (m_Context && m_Hooks.publicationRevision && m_Hooks.publicationRevision() != m_preparedPublication)
+    {
+        // Only captured/ready URI and readiness-class changes. Bound images have authored sizes;
+        // promotion must be layout-neutral. No owner hooks, gameplay, expiry or recapture loop.
+        m_Context->Update();
+        Rml::ElementUtilities::UpdateTransformCaches(m_Context->GetRootElement());
+    }
+    m_framePrepared = false;
     Render();
 }

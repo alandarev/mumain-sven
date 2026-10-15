@@ -291,6 +291,7 @@ mu_add_test(
     NAME rml_slot_placement_tests
     SOURCES
         test_rml_slot_placement.cpp
+        test_rml_element_projection.cpp
         ${CMAKE_SOURCE_DIR}/src/source/App/Platform/Windows/Winmain.cpp
     LINK_LIBS MuClient
 )
@@ -400,6 +401,7 @@ mu_add_test(
         ${CMAKE_SOURCE_DIR}/src/source/App/Platform/Windows/Winmain.cpp
     LINK_LIBS MuClient
 )
+target_include_directories(rml_styling_regression_tests PRIVATE "${MU_RMLUI_SOURCE}/Source/Core")
 target_compile_definitions(rml_styling_regression_tests PRIVATE
     MU_RMLUI_DIR="${CMAKE_SOURCE_DIR}/src/bin/Data/Interface/RmlUi"
     MU_FONT_DIR="${CMAKE_SOURCE_DIR}/src/bin/fonts"
@@ -531,5 +533,17 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     # Native renderer fonts require a GPU. Supply the same line-height contract from owned TTF faces.
     target_link_options(tooltip_helper_layout_tests PRIVATE
         "LINKER:--wrap=_ZN19CUIRenderTextSDLTtf10LineHeightEN2UI7Scaling8FontRoleE"
-        "LINKER:--wrap=_Z10LoadBitmapPKwjjjbb")
+        "LINKER:--wrap=_Z10LoadBitmapPKwjjjbb"
+        "LINKER:--wrap=_ZN2mu11GetRendererEv"
+        "LINKER:--wrap=_ZN10GameConfig17SetWindowPositionERKNSt7__cxx1112basic_stringIwSt11char_traitsIwESaIwEEEii"
+        "LINKER:--wrap=_ZNK10GameConfig17GetWindowPositionERKNSt7__cxx1112basic_stringIwSt11char_traitsIwESaIwEEERiS8_")
 endif()
+
+FetchContent_GetProperties(SDL3_ttf SOURCE_DIR MU_SDL_TTF_SOURCE)
+add_test(NAME rmlui_transform_patch_reproducibility
+    COMMAND ${CMAKE_COMMAND}
+        -DMU_ROOT=${CMAKE_SOURCE_DIR}
+        -DMU_OUTPUT=${CMAKE_CURRENT_BINARY_DIR}/rmlui_patch_contract
+        -DMU_CONFIGURED=${MU_RMLUI_SOURCE}
+        -DMU_SDL_SOURCE=${MU_SDL_TTF_SOURCE}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/test_rmlui_patch.cmake)

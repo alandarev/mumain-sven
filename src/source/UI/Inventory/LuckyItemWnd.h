@@ -115,7 +115,7 @@ namespace mu::ui::window
         bool Create(CManager* pNewUIMng);
         void	Release(void);
         void	OpeningProcess(void);
-        void SyncNativeLayout();
+        void SyncNativeLayout() override;
         bool m_PendingClose = false;
         bool	ClosingProcess(void);
         bool	UpdateMouseEvent();

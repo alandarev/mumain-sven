@@ -87,12 +87,15 @@
 #include "UI/Dialogs/GenericConfirmDialog.h"
 #include "UI/Dialogs/GenericMenuDialog.h"
 
+class RmlViewLayoutFixture;
+
 namespace mu::ui::window
 {
     class CSystem
     {
-        friend class UiLifecycleFixture;    // Test-owned objects without renderer startup.
-        friend class InventoryInputFixture; // Real native controls without asset/network startup.
+        friend class UiLifecycleFixture;     // Test-owned objects without renderer startup.
+        friend class InventoryInputFixture;  // Real native controls without asset/network startup.
+        friend class ::RmlViewLayoutFixture; // Production placement registry with owned headless windows.
         CManager* m_pNewUIMng;
         CHotKey* m_pNewUIHotKey;
         bool m_mouseInputCaptured = false;

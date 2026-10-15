@@ -2222,6 +2222,8 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR szCmdLine, int nC
     mu::GetRenderer().SetOffscreenRenderCallback([]
     {
         FRAME_PROFILE(UI);
+        // Final model/layout/placement and native targets precede this frame's captures.
+        RmlUiRuntime::Instance().PrepareFrame();
         UI::RmlBridge::RenderTarget::RenderAll();
     });
 

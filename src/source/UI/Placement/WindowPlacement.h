@@ -19,7 +19,8 @@ struct Transform;
 namespace Rml
 {
 class ElementDocument;
-}
+class Context;
+} // namespace Rml
 
 // Places windows where the active theme's workspace.rml puts their slots. Each theme lays out
 // regions and slots in RML/RCSS; this lays the workspace out, reads back each open window's slot
@@ -62,8 +63,20 @@ void RegisterHudWindow(std::string_view name, std::uint32_t windowId, GetWindow 
 
 // Re-places every open component now. Call after a window opens or closes.
 void Arrange();
+// A pathological theme can fail to settle. MeasuredSafe is coherent/current but hit the bound;
+// Unresolved exposes rejected geometry, NOT an input quarantine or a native-readiness claim.
+enum class ReconciliationResult
+{
+    Converged,
+    MeasuredSafe,
+    Unresolved
+};
+ReconciliationResult LastReconciliationResult();
 // Once a frame: re-places windows when the screen size, UI scale or HUD position changed.
-void Update();
+bool Update();
+// Barrier after model layout: reconcile if needed and synchronize native anchors even when the
+// outer size did not change (DOM drag/internal reflow). No gameplay/model updates.
+void AfterRmlLayout(Rml::Context* context);
 // Edges, in screen pixels, of the world the open windows leave uncovered. An open slot in a region
 // marked data-covers-world narrows it from the side of the screen the slot is on.
 float UncoveredWorldLeft();

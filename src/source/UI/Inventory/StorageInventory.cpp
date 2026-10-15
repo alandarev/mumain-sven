@@ -460,6 +460,7 @@ bool CStorageInventory::Render()
 
 void CStorageInventory::SyncNativeLayout()
 {
+    m_ItemTarget.Sync(m_RmlView.Document() ? m_RmlView.Document()->GetElementById("item_view") : nullptr, IsVisible());
     const bool embedded = UI::RmlBridge::ThemeUsesEmbeddedVault();
     if (m_pNewInventoryCtrl)
     {
@@ -468,6 +469,10 @@ void CStorageInventory::SyncNativeLayout()
     }
     if (g_pStorageInventoryExt)
         g_pStorageInventoryExt->SyncEmbeddedLayout(m_RmlView.Document());
+}
+
+void CStorageInventory::SyncRmlModel()
+{
     if (m_pNewInventoryCtrl && m_RmlView.GetModel().gridCells != m_pNewInventoryCtrl->Cells())
     {
         m_RmlView.GetModel().gridCells = m_pNewInventoryCtrl->Cells();
@@ -479,18 +484,12 @@ void CStorageInventory::SyncNativeLayout()
         m_RmlView.GetModel().gridCellsExtra = extra->Cells();
         m_RmlView.MarkDirty("grid_cells_extra");
     }
-}
-
-void CStorageInventory::SyncRmlModel()
-{
-    m_ItemTarget.Sync(m_RmlView.Document() ? m_RmlView.Document()->GetElementById("item_view") : nullptr, IsVisible());
     const bool extraVisible = UI::RmlBridge::ThemeUsesEmbeddedVault() && CharacterAttribute->IsVaultExtended > 0;
     if (m_RmlView.GetModel().extraVisible != extraVisible)
     {
         m_RmlView.GetModel().extraVisible = extraVisible;
         m_RmlView.MarkDirty("extra_visible");
     }
-    SyncNativeLayout();
 
     if (!m_RmlView.Document())
         return;

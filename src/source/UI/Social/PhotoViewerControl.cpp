@@ -120,17 +120,14 @@ void PhotoViewerControl::Sync()
         slot->SetClass("webzen", webzen);
     if (auto* image = m_Document->GetElementById(m_ImageId))
     {
-        // The image's own box in RmlUi pixels, which are physical ones: the character is drawn at
-        // exactly the size it is shown, never scaled.
-        if (!webzen)
+        if (webzen)
         {
-            const auto size = image->GetBox().GetSize(Rml::BoxArea::Content);
-            target.Resize(static_cast<std::uint32_t>(std::lround(size.x)),
-                          static_cast<std::uint32_t>(std::lround(size.y)));
+            target.BindImage(nullptr); // Static-logo owner is not clobbered by a later capture/destructor.
+            if (image->GetAttribute<Rml::String>("src", "") != WebzenLogo)
+                image->SetAttribute("src", Rml::String(WebzenLogo));
         }
-        const Rml::String source = webzen ? Rml::String(WebzenLogo) : target.Source();
-        if (image->GetAttribute<Rml::String>("src", "") != source)
-            image->SetAttribute("src", source);
+        else
+            target.BindImage(image);
     }
     if (!m_Orbit)
         SyncHelp();

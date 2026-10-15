@@ -68,16 +68,11 @@ void Image(Rml::Element* image, RmlBridge::RenderTarget& target, bool enabled)
 {
     target.SetEnabled(enabled);
     if (!image)
-        return;
-    if (enabled)
     {
-        const auto size = image->GetBox().GetSize(Rml::BoxArea::Content);
-        if (size.x > 0 && size.y > 0)
-            target.Resize(std::lround(size.x), std::lround(size.y));
+        target.BindImage(nullptr);
+        return;
     }
-    image->SetProperty("visibility", enabled && !target.Source().empty() ? "visible" : "hidden");
-    if (enabled && !target.Source().empty() && image->GetAttribute<Rml::String>("src", "") != target.Source())
-        image->SetAttribute("src", target.Source());
+    target.BindImage(image, enabled);
 }
 } // namespace
 ArmoryController::ArmoryController() : m_Items(std::make_unique<ITEM[]>(12))
@@ -173,13 +168,6 @@ bool ArmoryController::Sync(Rml::ElementDocument* document, bool shown)
         m_OpenedAt = std::chrono::steady_clock::now();
         for (const char* field : {"armory_attributes", "armory_categories", "armory_editing", "armory_waiting"})
             Dirty(field);
-    }
-    auto* panel = m_Document != nullptr ? m_Document->GetElementById("panel") : nullptr;
-    const float unit = panel != nullptr ? UI::RmlBridge::DrawnScale(*panel) : 1.f;
-    if (unit != m_Unit)
-    {
-        m_Unit = unit;
-        Dirty("armory_unit");
     }
     m_Title = StringUtils::WideToNarrow(CharacterAttribute->Name) + " · " +
               StringUtils::WideToNarrow(gCharacterManager.GetCharacterClassText(CharacterAttribute->Class)) +

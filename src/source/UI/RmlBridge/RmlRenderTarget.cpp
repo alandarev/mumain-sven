@@ -2,11 +2,15 @@
 #include "UI/RmlBridge/RmlRenderTarget.h"
 
 #include "Render/Renderer/MuRenderer.h"
+#include "UI/RmlBridge/RmlElementBox.h"
 #include "Render/RmlUi/RmlUiRuntime.h"
 
 #include <RmlUi/Core/Core.h>
+#include <RmlUi/Core/Element.h>
 
 #include <algorithm>
+#include <cmath>
+#include <limits>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -40,6 +44,10 @@ std::uint64_t s_frame = 0;
 // Never reused, unlike texture ids: a recycled id matching a stale RmlUi cache entry would hand
 // RmlUi a released texture without it ever asking LoadTexture() again.
 std::uint64_t s_nextSerial = 1;
+std::uint64_t s_nextBinding = 1;
+std::uint64_t s_publicationRevision = 0;
+constexpr char kBindingOwner[] = "data-render-target-owner";
+constexpr char kPendingClass[] = "render-target-pending";
 
 std::vector<RenderTarget*>& Targets()
 {
@@ -92,11 +100,13 @@ void ReleaseRetired()
 
 RenderTarget::RenderTarget(Drawer drawer) : m_drawer(std::move(drawer))
 {
+    m_bindingToken = std::to_string(s_nextBinding++);
     Targets().push_back(this);
 }
 
 RenderTarget::~RenderTarget()
 {
+    UnbindImage();
     auto& targets = Targets();
     targets.erase(std::remove(targets.begin(), targets.end(), this), targets.end());
     // Never shown, so nothing can be sampling it.
@@ -122,9 +132,30 @@ void RenderTarget::Resize(std::uint32_t width, std::uint32_t height)
         m_pending = {id, width, height};
 }
 
+bool RenderTarget::PrepareImageExtent()
+{
+    if (!m_imageBound)
+        return true; // Manual/unbound targets retain their explicit size contract.
+    if (!m_image || !m_imageEnabled || m_image->GetAttribute<Rml::String>(kBindingOwner, "") != m_bindingToken)
+        return false;
+    Rml::Vector2f size = m_image->GetBox().GetSize(Rml::BoxArea::Content), offset;
+    if (m_imageExtent == ImageExtent::DrawnContent && !DrawnContentBox(*m_image.get(), offset, size))
+        return false;
+    const auto valid = [](float v)
+    { return std::isfinite(v) && v >= 0.5f && v < static_cast<float>(std::numeric_limits<std::uint32_t>::max()); };
+    if (!valid(size.x) || !valid(size.y))
+        return false; // Never capture stale dimensions or force an unmeasured box to 1px.
+    const auto width = static_cast<std::uint32_t>(std::lround(size.x)),
+               height = static_cast<std::uint32_t>(std::lround(size.y));
+    Resize(width, height);
+    const auto& latest = m_pending.id ? m_pending : m_current;
+    return latest.id && latest.width == width &&
+           latest.height == height; // Allocation failure cannot capture an old-sized target.
+}
+
 void RenderTarget::Draw()
 {
-    if (!m_enabled || !m_drawer)
+    if (!m_enabled || !m_drawer || !PrepareImageExtent())
         return;
     const bool promoting = m_pending.id != 0;
     const Texture target = promoting ? m_pending : m_current;
@@ -144,6 +175,67 @@ void RenderTarget::Draw()
     m_pending = {};
     m_source = kSourcePrefix + std::to_string(s_nextSerial++);
     PublishedSources()[m_source] = {target.id, target.width, target.height};
+    PublishImage();
+}
+
+void RenderTarget::UnbindImage()
+{
+    if (m_image && m_image->GetAttribute<Rml::String>(kBindingOwner, "") == m_bindingToken)
+    {
+        if (!m_boundSource.empty() && m_image->GetAttribute<Rml::String>("src", "") == m_boundSource)
+            m_image->RemoveAttribute("src");
+        m_image->SetClass(kPendingClass, false);
+        m_image->RemoveAttribute(kBindingOwner);
+        ++s_publicationRevision;
+    }
+    m_image.reset();
+    m_boundSource.clear();
+}
+
+void RenderTarget::BindImage(Rml::Element* image, bool enabled, ImageExtent extent)
+{
+    if (m_image != image || (image && image->GetAttribute<Rml::String>(kBindingOwner, "") != m_bindingToken))
+    {
+        UnbindImage();
+        if (image)
+        {
+            m_image = image->GetObserverPtr();
+            // Rebinding cannot leave another target's stale source behind while this owner awaits its first capture.
+            if (!image->GetAttribute<Rml::String>(kBindingOwner, "").empty())
+                image->RemoveAttribute("src");
+            image->SetAttribute(kBindingOwner, m_bindingToken);
+        }
+    }
+    m_imageEnabled = enabled;
+    m_imageBound = image != nullptr;
+    m_imageExtent = extent;
+    PublishImage();
+}
+
+void RenderTarget::PublishImage()
+{
+    if (!m_image || m_image->GetAttribute<Rml::String>(kBindingOwner, "") != m_bindingToken)
+        return;
+    const bool pending = !m_imageEnabled || m_source.empty();
+    bool changed = false;
+    if (m_image->IsClassSet(kPendingClass) != pending)
+    {
+        m_image->SetClass(kPendingClass, pending);
+        changed = true;
+    }
+    if (!pending && m_image->GetAttribute<Rml::String>("src", "") != m_source)
+    {
+        m_image->SetAttribute("src", m_source);
+        m_boundSource = m_source;
+        changed = true;
+    }
+    if (changed)
+        ++s_publicationRevision;
+}
+
+std::uint64_t RenderTarget::PublicationRevision()
+{
+    return s_publicationRevision;
 }
 
 void RenderTarget::RenderAll()
