@@ -941,10 +941,10 @@ int mu::ui::window::CInventoryCtrl::GetEmptySlotCount()
     return iResult;
 }
 
-bool mu::ui::window::CInventoryCtrl::UpdateMouseEvent()
+bool mu::ui::window::CInventoryCtrl::UpdateMouseEvent(bool ownerHandlesShiftTransfer)
 {
-    // A themed grid's Shift-click is its window's fast transfer, not a pickup.
-    if (m_ThemedGrid && !m_bRepairMode && IsRelease(VK_LBUTTON) && IsRepeat(VK_SHIFT))
+    // Input ownership is independent of the theme's choice to draw grid cells.
+    if (ownerHandlesShiftTransfer && !m_bRepairMode && IsRelease(VK_LBUTTON) && IsRepeat(VK_SHIFT))
     {
         m_EventState = EVENT_NONE;
         return true;

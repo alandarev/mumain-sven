@@ -145,7 +145,7 @@ bool CInventoryExtension::UpdateMouseEvent()
     {
         if (const auto m_extension = m_extensions[i])
         {
-            if (!m_extension->UpdateMouseEvent())
+            if (!m_extension->UpdateMouseEvent(UI::RmlBridge::ThemeUsesEmbeddedInventory()))
             {
                 return false;
             }
@@ -473,7 +473,7 @@ bool CInventoryExtension::UpdateEmbeddedMouseEvent()
     if (!UI::RmlBridge::ThemeUsesEmbeddedInventory())
         return true;
     for (int i = 0; i < std::min(OwnedExtensionCount(), EmbeddedExtensionCount); ++i)
-        if (m_extensions[i] && !m_extensions[i]->UpdateMouseEvent())
+        if (m_extensions[i] && !m_extensions[i]->UpdateMouseEvent(UI::RmlBridge::ThemeUsesEmbeddedInventory()))
             return false;
     return true;
 }

@@ -148,7 +148,7 @@ bool CStorageInventoryExt::UpdateEmbeddedMouseEvent()
 {
     if (!IsAvailable())
         return true;
-    if (!m_pNewInventoryCtrl->UpdateMouseEvent())
+    if (!m_pNewInventoryCtrl->UpdateMouseEvent(UI::RmlBridge::ThemeUsesEmbeddedVault()))
         return false;
     ProcessInventoryCtrl();
     return true;
@@ -180,7 +180,7 @@ const CInventoryCtrl* CStorageInventoryExt::GetEmbeddedControl() const
 
 bool CStorageInventoryExt::UpdateMouseEvent()
 {
-    if (m_pNewInventoryCtrl && false == m_pNewInventoryCtrl->UpdateMouseEvent())
+    if (m_pNewInventoryCtrl && false == m_pNewInventoryCtrl->UpdateMouseEvent(UI::RmlBridge::ThemeUsesEmbeddedVault()))
         return false;
 
     ProcessInventoryCtrl();

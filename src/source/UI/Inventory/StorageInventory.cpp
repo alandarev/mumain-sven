@@ -384,7 +384,7 @@ bool CStorageInventory::IsPointerOverPanel()
 
 bool CStorageInventory::UpdateMouseEvent()
 {
-    if (m_pNewInventoryCtrl && false == m_pNewInventoryCtrl->UpdateMouseEvent())
+    if (m_pNewInventoryCtrl && false == m_pNewInventoryCtrl->UpdateMouseEvent(UI::RmlBridge::ThemeUsesEmbeddedVault()))
         return false;
 
     if (UI::RmlBridge::ThemeUsesEmbeddedVault() && !g_pStorageInventoryExt->UpdateEmbeddedMouseEvent())

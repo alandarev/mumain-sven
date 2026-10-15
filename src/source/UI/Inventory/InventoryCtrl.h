@@ -248,7 +248,8 @@ namespace mu::ui::window
         bool FindEmptySlot(IN int cx, IN int cy, OUT int& iColumnX, OUT int& iColumnY);
         int GetEmptySlotCount();
 
-        bool UpdateMouseEvent();
+        // Only an owner implementing Shift transfer may reserve the modified release.
+        bool UpdateMouseEvent(bool ownerHandlesShiftTransfer = false);
         bool Update();
 
         // The window's document draws the grid from Cells(), and the window draws its items

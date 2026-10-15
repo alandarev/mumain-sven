@@ -502,3 +502,18 @@ target_compile_definitions(theme_model_migration_tests PRIVATE
     MU_RMLUI_DIR="${CMAKE_SOURCE_DIR}/src/bin/Data/Interface/RmlUi"
     MU_FONT_DIR="${CMAKE_SOURCE_DIR}/src/bin/fonts"
 )
+
+# Native boundary stubs use the Linux Itanium ABI, leaving the real control/owner input code linked.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    mu_add_test(
+        NAME inventory_input_tests
+        SOURCES test_inventory_input.cpp
+            ${CMAKE_SOURCE_DIR}/src/source/App/Platform/Windows/Winmain.cpp
+        LINK_LIBS MuClient
+    )
+    target_compile_definitions(inventory_input_tests PRIVATE
+        MU_RMLUI_DIR="${CMAKE_SOURCE_DIR}/src/bin/Data/Interface/RmlUi")
+    target_link_options(inventory_input_tests PRIVATE
+        "LINKER:--wrap=_Z10LoadBitmapPKwjjjbb"
+        "LINKER:--wrap=_Z24SendRequestEquipmentItem12STORAGE_TYPEiP7tagITEMS_i")
+endif()

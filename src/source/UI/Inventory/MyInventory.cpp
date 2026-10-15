@@ -675,10 +675,10 @@ void CMyInventory::SetRepairMode(bool bRepair)
 
 bool CMyInventory::UpdateMouseEvent()
 {
-    if (m_pNewInventoryCtrl && !m_pNewInventoryCtrl->UpdateMouseEvent())
+    const bool embedded = UI::RmlBridge::ThemeUsesEmbeddedInventory();
+    if (m_pNewInventoryCtrl && !m_pNewInventoryCtrl->UpdateMouseEvent(embedded))
         return false;
 
-    const bool embedded = UI::RmlBridge::ThemeUsesEmbeddedInventory();
     if (embedded && g_pMyInventoryExt && !g_pMyInventoryExt->UpdateEmbeddedMouseEvent())
         return false;
 
