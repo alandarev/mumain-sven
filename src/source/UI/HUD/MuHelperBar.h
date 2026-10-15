@@ -6,6 +6,7 @@
 #include "UI/RmlBridge/RmlThemedView.h"
 
 namespace Rml { class ElementDocument; }
+class RmlViewLayoutFixture;
 
 namespace mu::ui::window
 {
@@ -18,6 +19,7 @@ namespace mu::ui::window
     class CMuHelperBar : public CObject
     {
     private:
+        friend class ::RmlViewLayoutFixture; // Exercise actual model, view and queued actions headlessly.
         CManager* m_pNewUIMng;
         POINT m_CurHeroPosition;
 

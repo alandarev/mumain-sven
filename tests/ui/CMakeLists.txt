@@ -517,3 +517,18 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         "LINKER:--wrap=_Z10LoadBitmapPKwjjjbb"
         "LINKER:--wrap=_Z24SendRequestEquipmentItem12STORAGE_TYPEiP7tagITEMS_i")
 endif()
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    mu_add_test(
+        NAME tooltip_helper_layout_tests
+        SOURCES test_tooltip_helper_layout.cpp
+            ${CMAKE_SOURCE_DIR}/src/source/App/Platform/Windows/Winmain.cpp
+        LINK_LIBS MuClient
+    )
+    target_compile_definitions(tooltip_helper_layout_tests PRIVATE
+        MU_RMLUI_DIR="${CMAKE_SOURCE_DIR}/src/bin/Data/Interface/RmlUi"
+        MU_FONT_DIR="${CMAKE_SOURCE_DIR}/src/bin/fonts")
+    # Native renderer fonts require a GPU. Supply the same line-height contract from owned TTF faces.
+    target_link_options(tooltip_helper_layout_tests PRIVATE
+        "LINKER:--wrap=_ZN19CUIRenderTextSDLTtf10LineHeightEN2UI7Scaling8FontRoleE")
+endif()

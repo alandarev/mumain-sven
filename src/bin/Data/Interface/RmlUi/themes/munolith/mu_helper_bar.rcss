@@ -9,4 +9,3 @@
 #btn_config { left: auto; right: 30dp; }
 #btn_start, #btn_stop { left: auto; right: 8dp; }
 #btn_config:hover, #btn_start:hover, #btn_stop:hover { border: 1px #c4a65d; }
-.tooltip { top: 100%; margin-top: 3dp; left: 5dp; max-width: 250dp; white-space: normal; padding: 4dp 6dp; background-color: #071711f5; color: #e3d6b4; border: 1px #9c8855; font-size: 12dp; line-height: 1.35em; }

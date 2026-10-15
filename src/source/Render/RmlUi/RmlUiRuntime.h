@@ -123,6 +123,7 @@ public:
     void ProcessTextEditing(const SDL_Event& event);
 
 private:
+    friend class RmlViewLayoutFixture; // Own a headless context without a GPU/window lifecycle.
     RmlUiRuntime() = default;
     ~RmlUiRuntime();
 

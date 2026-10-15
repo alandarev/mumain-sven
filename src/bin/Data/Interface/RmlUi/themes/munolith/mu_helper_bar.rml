@@ -13,21 +13,19 @@
 		<div id="seg_c"></div>
 		<div id="text"><div id="location_name">{{map_name}}</div><div id="location_coordinates">{{coordinate_text}}</div></div>
 
-		<!-- Tooltips are siblings of their trigger button, not children -- see .tooltip in
-		     mu_helper_bar.rcss for the containing-block clamping bug this avoids. -->
-		<div id="btn_config" class="mu-btn" data-event-click="mu_helper_config_click">
+		<!-- Shared hints follow the actual hovered control and native cursor clearance. -->
+		<div id="btn_config" class="mu-btn" data-event-click="mu_helper_config_click" data-attr-data-hint="config_hint">
 			<div class="dot"></div>
 		</div>
-		<span class="tooltip tooltip-config">{{config_hint}}</span>
 		<!-- Start/Stop share one screen position, mutually exclusive by mu_helper_active. -->
-		<div id="btn_start" class="mu-btn" data-class-hidden="mu_helper_active" data-event-click="mu_helper_toggle_click">
+		<div id="btn_start" class="mu-btn" data-class-hidden="mu_helper_active" data-event-click="mu_helper_toggle_click"
+		     data-attr-data-hint="start_hint">
 			<div class="dot"></div>
 		</div>
-		<span class="tooltip tooltip-start">{{start_hint}}</span>
-		<div id="btn_stop" class="mu-btn" data-class-hidden="!mu_helper_active" data-event-click="mu_helper_toggle_click">
+		<div id="btn_stop" class="mu-btn" data-class-hidden="!mu_helper_active" data-event-click="mu_helper_toggle_click"
+		     data-attr-data-hint="stop_hint">
 			<div class="dot"></div>
 		</div>
-		<span class="tooltip tooltip-stop">{{stop_hint}}</span>
 	</div>
 </body>
 </rml>
