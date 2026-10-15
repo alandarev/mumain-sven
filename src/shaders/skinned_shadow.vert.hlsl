@@ -8,7 +8,7 @@ StructuredBuffer<float4> boneRows : register(t0, space0);
 StructuredBuffer<uint> terrainWords : register(t1, space0);
 #endif
 
-// Same layout as skinned_textured.vert.hlsl.
+// The start of skinned_textured.vert.hlsl's Skinning; its Enhanced lighting members follow unused.
 cbuffer Skinning : register(b0, space1)
 {
     float4x4 mvp;
@@ -42,6 +42,8 @@ struct VSOutput
     float2 uv : TEXCOORD0;
     float4 color : TEXCOORD1;
     float fogFactor : TEXCOORD2;
+    // Eye-space depth for per-pixel (Enhanced) fog; basic_textured.frag ignores it.
+    float eyeDepth : TEXCOORD3;
     float clipDist : SV_ClipDistance0;
 };
 
@@ -170,5 +172,6 @@ VSOutput main(VSInput input)
     output.fogFactor = range > 0.001
         ? saturate((fogParameters.y - abs(output.pos.w)) / range)
         : 1.0;
+    output.eyeDepth = abs(output.pos.w);
     return output;
 }
