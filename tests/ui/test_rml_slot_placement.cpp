@@ -240,7 +240,7 @@ TEST_CASE("theme compact breakpoint follows effective placement without changing
         f.Refresh();
         CHECK(panel->IsClassSet("compact-scale") == (scale < 0.9f));
         CHECK(panel->GetAttribute<float>("data-layout-scale", 0.f) == doctest::Approx(scale));
-        CHECK(panel->GetLocalProperty("--root-scale")->ToString() == std::to_string(scale));
+        CHECK(std::stof(panel->GetLocalProperty("--root-scale")->ToString()) == scale);
     }
     panel->SetClass("dragged", true);
     panel->SetProperty("left", "123px");
@@ -295,7 +295,7 @@ TEST_CASE("transform-owned roots opt in without changing legacy CSS or retaining
     panel->SetAttribute("data-compact-scale", "0.9");
     UI::RmlBridge::ApplyLayoutScale(panel, 0.75f, false);
     CHECK(panel->IsClassSet("compact-scale"));
-    CHECK(panel->GetLocalProperty("--root-scale")->ToString() == std::to_string(0.75f));
+    CHECK(std::stof(panel->GetLocalProperty("--root-scale")->ToString()) == 0.75f);
     panel->RemoveAttribute("data-compact-scale");
     UI::RmlBridge::ApplyLayoutScale(panel, 0.75f, false);
     CHECK_FALSE(panel->IsClassSet("compact-scale"));
@@ -327,5 +327,21 @@ TEST_CASE("compact state receives the solver post-fit scale, not preferred windo
         Drawn(doc, "panel", offset, size);
         CHECK(size.x == doctest::Approx(190.f * effective));
         CHECK(size.y == doctest::Approx(429.f * effective));
+    }
+}
+
+TEST_CASE("compact threshold uses exactly the scale published to CSS at adjacent floats [ui][placement]")
+{
+    Fixture f;
+    auto* doc = f.Load();
+    auto* panel = doc->GetElementById("panel");
+    panel->SetAttribute("data-compact-scale", "0.9");
+    const float threshold = 0.9f;
+    for (float scale : {std::nextafter(threshold, 0.f), threshold, std::nextafter(threshold, 1.f)})
+    {
+        CHECK(UI::RmlBridge::ApplyLayoutScale(panel, scale));
+        CHECK(std::stof(panel->GetLocalProperty("--root-scale")->ToString()) == scale);
+        CHECK(panel->GetAttribute<float>("data-layout-scale", 0.f) == scale);
+        CHECK(panel->IsClassSet("compact-scale") == (scale < threshold));
     }
 }

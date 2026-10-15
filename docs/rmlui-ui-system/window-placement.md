@@ -344,3 +344,7 @@ Munolith's `scaled_content.rcss` holds reference lengths for counter-scaled nati
 Its classes replace static inline scale expressions and remain ordinary overrideable selected-theme
 RCSS. Gameplay fractions, projected points, user resize and measured text boxes remain explicit
 state-driven geometry with per-document ownership comments.
+
+The published numeric scale round-trips the actual float; the compact predicate is never compared
+against a separately rounded paint value. Opted-in transform owners paint through the same
+`--root-scale` token. Adjacent floats below/equal/above a threshold are covered by placement tests.

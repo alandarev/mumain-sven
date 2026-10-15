@@ -59,8 +59,10 @@ void RegisterWorkspaceDocument(std::string_view name, std::function<Rml::Element
         element->SetProperty(Rml::PropertyId::Left, Rml::Property(box->left, Rml::Unit::PX));
         element->SetProperty(Rml::PropertyId::Top, Rml::Property(box->top, Rml::Unit::PX));
         const float ratio = box->scale / element->GetContext()->GetDensityIndependentPixelRatio();
-        element->SetProperty("transform", "scale(" + std::to_string(ratio) + ")");
-        ApplyLayoutScale(element, ratio, false);
+        if (ApplyLayoutScale(element, ratio, false))
+            element->SetProperty("transform", "scale(var(--root-scale))");
+        else
+            element->SetProperty("transform", "scale(" + std::to_string(ratio) + ")");
         {
             FRAME_PROFILE(UILayout);
             element->GetOwnerDocument()->UpdateDocument();

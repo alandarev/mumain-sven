@@ -15,7 +15,8 @@ namespace UI::RmlBridge
 // data-layout-scale is read-only observation, never a second model/layout authority.
 // Non-positive/non-finite scale clears placement scale and generated responsive state.
 // publishScale=false for a transform-owned root: missing opt-in leaves its old CSS untouched.
-void ApplyLayoutScale(Rml::Element* root, float effectiveScale, bool publishScale = true);
+// Returns whether opt-in responsive scale is active; transform owners use that same token.
+bool ApplyLayoutScale(Rml::Element* root, float effectiveScale, bool publishScale = true);
 
 // The size a theme's data-fit="fill" slot gives a window (CObject::SetFillPlacementSize()), in
 // the panel's reference units; zero while the window is content-sized.

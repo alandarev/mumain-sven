@@ -12,11 +12,12 @@
 #include <string>
 #include <charconv>
 #include <cmath>
+#include <limits>
 
-void UI::RmlBridge::ApplyLayoutScale(Rml::Element* root, float effectiveScale, bool publishScale)
+bool UI::RmlBridge::ApplyLayoutScale(Rml::Element* root, float effectiveScale, bool publishScale)
 {
     if (root == nullptr)
-        return;
+        return false;
     const bool validScale = std::isfinite(effectiveScale) && effectiveScale > 0.f;
     const auto declaration = root->GetAttribute<Rml::String>("data-compact-scale", "");
     float threshold = 0.f;
@@ -25,7 +26,15 @@ void UI::RmlBridge::ApplyLayoutScale(Rml::Element* root, float effectiveScale, b
                          std::isfinite(threshold) && threshold > 0.f;
     // Attribute presence is cleanup ownership only; its numeric value never supplies layout state.
     const bool hadGeneratedScale = root->HasAttribute("data-layout-scale");
-    const auto scaleText = std::to_string(effectiveScale);
+    std::string scaleText;
+    if (validScale)
+    {
+        // Enough for every finite float at round-trip precision, including sign and exponent.
+        char buffer[32];
+        const auto converted = std::to_chars(buffer, buffer + sizeof(buffer), effectiveScale,
+                                             std::chars_format::general, std::numeric_limits<float>::max_digits10);
+        scaleText.assign(buffer, converted.ptr);
+    }
     if (validScale && (publishScale || optedIn))
     {
         const auto* property = root->GetLocalProperty("--root-scale");
@@ -43,6 +52,7 @@ void UI::RmlBridge::ApplyLayoutScale(Rml::Element* root, float effectiveScale, b
     }
     else
         root->RemoveAttribute("data-layout-scale");
+    return validScale && optedIn;
 }
 
 bool UI::RmlBridge::FillPlacementSize::Set(float newWidth, float newHeight)
