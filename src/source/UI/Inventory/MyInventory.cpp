@@ -641,17 +641,16 @@ void CMyInventory::SyncNativeLayout()
         m_pNewInventoryCtrl->FollowGridPx(document, "item_grid");
 }
 
-bool CMyInventory::GetEquipmentSlotCenter(int slot, POINT& center) const
+bool CMyInventory::GetEquipmentSlotCenter(int slot, Rml::Vector2f& center) const
 {
-    if (slot < 0 || slot >= MAX_EQUIPMENT_INDEX)
+    auto* document = m_RmlView.Document();
+    if (!IsVisible() || !document || UI::RmlBridge::ThemeUsesEmbeddedInventory())
         return false;
-
-    const EQUIPMENT_ITEM& equipmentSlot = m_EquipmentSlots[slot];
-    if (equipmentSlot.width <= 0.f || equipmentSlot.height <= 0.f)
-        return false;
-    center.x = static_cast<LONG>(equipmentSlot.x + equipmentSlot.width / 2.f);
-    center.y = static_cast<LONG>(equipmentSlot.y + equipmentSlot.height / 2.f);
-    return true;
+    for (const SlotAnchor& anchor : SlotAnchors)
+        if (anchor.slot == slot)
+            return UI::RmlBridge::PreparedSlotCenter(document->GetElementById("panel"),
+                                                     document->GetElementById(anchor.id), center);
+    return false;
 }
 
 SEASON3B::REPAIR_MODE CMyInventory::GetRepairMode() const

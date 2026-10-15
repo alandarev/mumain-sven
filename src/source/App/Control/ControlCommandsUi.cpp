@@ -3,11 +3,13 @@
 
 #include "UI/Core/WindowAccess.h"
 #include "UI/Core/WindowSystem.h"
+#include "UI/Character/CharacterInfoWindow.h"
 #include "UI/Dialogs/GenericConfirmDialog.h"
 #include "UI/Dialogs/MessageBox.h"
 #include "UI/Inventory/InventoryCtrl.h"
 #include "UI/Inventory/InventoryExtension.h"
 #include "UI/RmlBridge/RmlElementBox.h"
+#include "UI/RmlBridge/RmlTheme.h"
 
 #include <RmlUi/Core/Element.h>
 
@@ -218,18 +220,20 @@ std::string SquarePixel(const Request& request, CInventoryCtrl& grid, int slot)
 
 std::string EquipmentPixel(const Request& request, int slot)
 {
-    if (!g_pNewUISystem->IsVisible(mu::ui::window::INTERFACE_INVENTORY))
-    {
-        return App::Control::EncodeError(request.EncodedId(), ErrorCode::NotOpen, "the inventory is not open");
-    }
-
-    POINT center{};
-    if (!g_pMyInventory->GetEquipmentSlotCenter(slot, center))
-    {
+    if (slot < 0 || slot >= MAX_EQUIPMENT_INDEX)
         return App::Control::EncodeError(request.EncodedId(), ErrorCode::BadRequest, "no such equipment slot");
-    }
-    return App::Control::EncodeResult(request.EncodedId(),
-                                      Pixel(static_cast<float>(center.x), static_cast<float>(center.y)).dump());
+    const bool embedded = UI::RmlBridge::ThemeUsesEmbeddedInventory();
+    const auto owner = embedded ? mu::ui::window::INTERFACE_CHARACTER : mu::ui::window::INTERFACE_INVENTORY;
+    if (!g_pNewUISystem->IsVisible(owner))
+        return App::Control::EncodeError(request.EncodedId(), ErrorCode::NotOpen, "the equipment window is not open");
+    Rml::Vector2f center;
+    const bool measured = embedded
+                              ? g_pCharacterInfoWindow && g_pCharacterInfoWindow->GetEquipmentSlotCenter(slot, center)
+                              : g_pMyInventory && g_pMyInventory->GetEquipmentSlotCenter(slot, center);
+    if (!measured)
+        return App::Control::EncodeError(request.EncodedId(), ErrorCode::BadRequest,
+                                         "no visible measured equipment slot");
+    return App::Control::EncodeResult(request.EncodedId(), Pixel(center.x, center.y).dump());
 }
 } // namespace
 

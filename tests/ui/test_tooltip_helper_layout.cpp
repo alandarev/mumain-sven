@@ -22,6 +22,9 @@
 #include "UI/Inventory/ItemMng.h"
 #include "UI/Character/CharacterInfoWindow.h"
 #include "UI/Character/Armory/ArmoryController.h"
+#include "UI/HUD/ChatLogWindow.h"
+#include "App/Control/ControlCommands.h"
+#include "json.hpp"
 #include <numeric>
 #include "UI/Placement/WindowPlacement.h"
 #include "UI/RmlBridge/RmlDocumentHints.h"
@@ -44,15 +47,75 @@ std::map<std::wstring, std::pair<int, int>> savedPositions;
 namespace Tip = UI::RmlBridge::Tooltip;
 struct NullRenderer : Rml::RenderInterface
 {
-    Rml::CompiledGeometryHandle CompileGeometry(Rml::Span<const Rml::Vertex>, Rml::Span<const int>) override
+    struct Mesh
     {
-        return 1;
+        std::vector<Rml::Vertex> vertices;
+        std::vector<int> indices;
+    };
+    std::map<Rml::CompiledGeometryHandle, Mesh> meshes;
+    std::vector<Mesh> paint;
+    bool tracePaint = false;
+    Rml::CompiledGeometryHandle nextMesh = 0;
+    Rml::Matrix4f transform = Rml::Matrix4f::Identity();
+    Rml::CompiledGeometryHandle CompileGeometry(Rml::Span<const Rml::Vertex> vertices,
+                                                Rml::Span<const int> indices) override
+    {
+        meshes[++nextMesh] = {{vertices.begin(), vertices.end()}, {indices.begin(), indices.end()}};
+        return nextMesh;
     }
-    void RenderGeometry(Rml::CompiledGeometryHandle, Rml::Vector2f, Rml::TextureHandle) override
+    void RenderGeometry(Rml::CompiledGeometryHandle handle, Rml::Vector2f translation, Rml::TextureHandle) override
     {
         ++rmlDrawCalls;
+        if (!tracePaint)
+            return;
+        Mesh mesh = meshes.at(handle);
+        for (auto& vertex : mesh.vertices)
+        {
+            const auto position = vertex.position + translation;
+            const auto projected = transform * Rml::Vector4f(position.x, position.y, 0.f, 1.f);
+            vertex.position = {projected.x / projected.w, projected.y / projected.w};
+        }
+        paint.push_back(std::move(mesh));
     }
-    void ReleaseGeometry(Rml::CompiledGeometryHandle) override {}
+    void ReleaseGeometry(Rml::CompiledGeometryHandle handle) override
+    {
+        meshes.erase(handle);
+    }
+    void SetTransform(const Rml::Matrix4f* value) override
+    {
+        transform = value ? *value : Rml::Matrix4f::Identity();
+    }
+    // Observe submitted material triangles through the engine's actual render path, not panel boxes.
+    int ChatBackdropPaints(Rml::Vector2f first, Rml::Vector2f second) const
+    {
+        const auto cross = [](Rml::Vector2f a, Rml::Vector2f b) { return a.x * b.y - a.y * b.x; };
+        int count = 0;
+        for (const auto& mesh : paint)
+        {
+            bool coversFirst = false, coversSecond = false;
+            for (size_t i = 0; i + 2 < mesh.indices.size(); i += 3)
+            {
+                const auto& a = mesh.vertices[mesh.indices[i]];
+                const auto& b = mesh.vertices[mesh.indices[i + 1]];
+                const auto& c = mesh.vertices[mesh.indices[i + 2]];
+                if (a.colour.red != 16 * a.colour.alpha / 255 || a.colour.green != 25 * a.colour.alpha / 255 ||
+                    a.colour.blue != 16 * a.colour.alpha / 255 || a.colour.alpha == 0)
+                    continue;
+                const auto covers = [&](Rml::Vector2f p)
+                {
+                    const float x = cross(b.position - a.position, p - a.position);
+                    const float y = cross(c.position - b.position, p - b.position);
+                    const float z = cross(a.position - c.position, p - c.position);
+                    return !((x < 0.f || y < 0.f || z < 0.f) && (x > 0.f || y > 0.f || z > 0.f));
+                };
+                coversFirst |= covers(first);
+                coversSecond |= covers(second);
+            }
+            if (coversFirst && coversSecond)
+                ++count;
+        }
+        return count;
+    }
     Rml::TextureHandle LoadTexture(Rml::Vector2i& size, const Rml::String& source) override
     {
         if (!UI::RmlBridge::RenderTarget::IsSource(source))
@@ -385,6 +448,29 @@ public:
             bag ? mu::ui::window::INTERFACE_INVENTORY : mu::ui::window::INTERFACE_CHARACTER, name,
             [owner] { return owner; }, bag ? "my_inventory.rml" : "character_info.rml");
         UI::Placement::MakeGroupDraggable(name, owner->GetPlacedDocument());
+    }
+    nlohmann::json EquipmentQuery(int slot)
+    {
+        auto* system = mu::ui::window::CSystem::GetInstance();
+        auto* oldInventory = system->m_pNewMyInventory;
+        auto* oldCharacter = system->m_pNewCharacterInfoWindow;
+        system->m_pNewMyInventory = inventory.get();
+        system->m_pNewCharacterInfoWindow = character.get();
+        const int before = beforeHooks, after = afterHooks, clock = log.elapsedReads, draws = rmlDrawCalls;
+        const auto prefs = savedPositions;
+        std::unique_ptr<App::Control::Act> act;
+        const auto request = App::Control::Request::Parse(
+            nlohmann::json{{"cmd", "slot-pixel"}, {"grid", "equipment"}, {"slot", slot}}.dump());
+        const auto reply = App::Control::Commands::SlotPixel(request, act);
+        system->m_pNewMyInventory = oldInventory;
+        system->m_pNewCharacterInfoWindow = oldCharacter;
+        CHECK(act == nullptr);
+        CHECK(beforeHooks == before);
+        CHECK(afterHooks == after);
+        CHECK(log.elapsedReads == clock);
+        CHECK(rmlDrawCalls == draws);
+        CHECK(savedPositions == prefs);
+        return nlohmann::json::parse(reply);
     }
     void ProductionFrame()
     {
@@ -1194,6 +1280,172 @@ public:
         CHECK(savedPositions.at(L"group.items") == saved);
     }
 
+    void CheckChatComposition()
+    {
+
+        using namespace mu::ui::window;
+        CreateInventoryGroup();
+        CChatLogWindow chat;
+        CSystemLogWindow notices;
+        REQUIRE(chat.Create(&manager));
+        REQUIRE(notices.Create(&manager));
+        chat.Show(true);
+        notices.Show(true);
+        notices.AddText(L"Welcome", TYPE_SYSTEM_MESSAGE);
+        chat.AddText(L"Peer", L"Native chat remains readable", TYPE_CHAT_MESSAGE);
+        for (const auto v : {cases[0], cases[1], cases[2], Viewport{3840, 2160, 100}})
+        {
+            CAPTURE(v.width);
+            Configure("munolith", v);
+            Inventory(0, 1);
+            PopulateArmory(false);
+            chat.SyncDocVisibility(true);
+            notices.SyncDocVisibility(true);
+            for (const bool framed : {false, true, false})
+            {
+                CAPTURE(framed);
+                framed ? chat.ShowFrame() : chat.HideFrame();
+                REQUIRE(chat.Update());
+                REQUIRE(notices.Update());
+                ProductionFrame();
+                Rml::ElementDocument* doc = nullptr;
+                for (int i = 0; i < context->GetNumDocuments(); ++i)
+                    if (context->GetDocument(i)->GetSourceURL().find("chat_log.rml") != Rml::String::npos)
+                        doc = context->GetDocument(i);
+                REQUIRE(doc);
+                REQUIRE(doc->IsVisible());
+                CHECK(doc->GetElementById("lines")->GetInnerRML().find("Peer") != Rml::String::npos);
+                auto* panel = doc->GetElementById("panel");
+                REQUIRE(panel);
+                const auto b = Box(*panel);
+                const Rml::Vector2f first(b.left + b.width / 2.f, b.top + b.height / 4.f);
+                const Rml::Vector2f second(b.left + b.width / 2.f, b.top + b.height * .75f);
+                renderer.tracePaint = true;
+                renderer.paint.clear();
+                context->Render();
+                CHECK_FALSE(renderer.paint.empty()); // Actual peers and native-font messages are drawn together.
+                CHECK(renderer.ChatBackdropPaints(first, second) == (framed ? 1 : 0));
+                renderer.tracePaint = false;
+                CHECK(chat.GetBackAlpha() == doctest::Approx(.6f));
+                CHECK(chat.IsShowFrame() == framed);
+                CHECK(notices.IsVisible());
+                CHECK(inventory->IsVisible());
+                CHECK(character->IsVisible());
+                NoErrors();
+            }
+        }
+    }
+    void CheckEquipmentQuery()
+    {
+
+        CreateInventoryGroup();
+        const char* legacySlots[] = {"slot_weapon_right", "slot_weapon_left", "slot_helm",       "slot_armor",
+                                     "slot_pants",        "slot_gloves",      "slot_boots",      "slot_wing",
+                                     "slot_helper",       "slot_amulet",      "slot_ring_right", "slot_ring_left"};
+        for (const char* theme : {"legacy", "modern", "munolith"})
+            for (const auto v : {cases[0], cases[1], cases[2], Viewport{3840, 2160, 100}})
+            {
+                CAPTURE(std::string(theme));
+                CAPTURE(v.width);
+                Configure(theme, v);
+                inventory->CObject::Show(true);
+                character->CObject::Show(true);
+                inventory->GetPlacedDocument()->Show();
+                character->GetPlacedDocument()->Show();
+                Inventory(0, 1);
+                ProductionFrame();
+                const bool embedded = UI::RmlBridge::ThemeUsesEmbeddedInventory();
+                auto* owner = embedded ? static_cast<mu::ui::window::CObject*>(character.get()) : inventory.get();
+                auto* document = owner->GetPlacedDocument();
+                REQUIRE(document);
+                for (int slot = 0; slot < MAX_EQUIPMENT_INDEX; ++slot)
+                {
+                    CAPTURE(slot);
+                    const auto id = embedded ? "armory_slot_" + std::to_string(slot) : legacySlots[slot];
+                    auto* frame = document->GetElementById(id);
+                    REQUIRE(frame);
+                    const auto box = Box(*frame);
+                    const int before = beforeHooks, after = afterHooks, clock = log.elapsedReads, draws = rmlDrawCalls;
+                    const auto prefs = savedPositions;
+                    const auto reply = EquipmentQuery(slot);
+                    CHECK(beforeHooks == before);
+                    CHECK(afterHooks == after);
+                    CHECK(log.elapsedReads == clock);
+                    CHECK(rmlDrawCalls == draws);
+                    CHECK(savedPositions == prefs);
+                    REQUIRE(reply["ok"] == true);
+                    CHECK(reply["result"]["x"].get<float>() == doctest::Approx(box.left + box.width / 2.f));
+                    CHECK(reply["result"]["y"].get<float>() == doctest::Approx(box.top + box.height / 2.f));
+                    auto projected =
+                        Rml::Vector2f(reply["result"]["x"].get<float>(), reply["result"]["y"].get<float>());
+                    REQUIRE(frame->Project(projected));
+                    const auto expected = frame->GetAbsoluteOffset(Rml::BoxArea::Border) +
+                                          frame->GetBox().GetSize(Rml::BoxArea::Border) * .5f;
+                    if (v.width == 3840)
+                    {
+                        CHECK(std::abs(projected.x - expected.x) <= .25f);
+                        CHECK(std::abs(projected.y - expected.y) <= .25f);
+                    }
+                    else
+                    {
+                        CHECK(projected.x == doctest::Approx(expected.x));
+                        CHECK(projected.y == doctest::Approx(expected.y));
+                    }
+                }
+                CHECK(EquipmentQuery(-1)["error"] == "bad_request");
+                CHECK(EquipmentQuery(MAX_EQUIPMENT_INDEX)["error"] == "bad_request");
+                inventory->CObject::Show(!embedded);
+                inventory->GetPlacedDocument()->SetProperty("visibility", embedded ? "hidden" : "visible");
+                ProductionFrame();
+                REQUIRE(EquipmentQuery(EQUIPMENT_HELM)["ok"] == true); // Character-only embedded ownership.
+                owner->CObject::Show(false);
+                owner->GetPlacedDocument()->Hide();
+                CHECK(EquipmentQuery(EQUIPMENT_HELM)["error"] == "not_open");
+                owner->CObject::Show(true);
+                document->Show();
+                if (!embedded)
+                {
+                    character->CObject::Show(false);
+                    character->GetPlacedDocument()->Hide();
+                }
+                ProductionFrame();
+                REQUIRE(EquipmentQuery(EQUIPMENT_HELM)["ok"] == true);
+                const auto helmId = embedded ? "armory_slot_2" : "slot_helm";
+                auto* helm = document->GetElementById(helmId);
+                REQUIRE(helm);
+                helm->SetProperty("display", "none");
+                ProductionFrame();
+                CHECK(EquipmentQuery(EQUIPMENT_HELM)["error"] == "bad_request");
+                helm->RemoveProperty("display");
+                ProductionFrame();
+                REQUIRE(EquipmentQuery(EQUIPMENT_HELM)["ok"] == true);
+                document->Hide();
+                CHECK(EquipmentQuery(EQUIPMENT_HELM)["error"] == "bad_request");
+                document->Show();
+                ProductionFrame();
+                REQUIRE(EquipmentQuery(EQUIPMENT_HELM)["ok"] == true);
+                helm->GetParentNode()->RemoveChild(helm);
+                ProductionFrame();
+                CHECK(EquipmentQuery(EQUIPMENT_HELM)["error"] == "bad_request");
+                // Real view lifecycle rebuild, not coordinates, a surrogate slot or old-cache fallback.
+                if (embedded)
+                    character->m_RmlView.Release();
+                else
+                    inventory->m_RmlView.Release();
+                CHECK(EquipmentQuery(EQUIPMENT_HELM)["error"] == "bad_request");
+                if (embedded)
+                    character->m_RmlView.Ensure();
+                else
+                    inventory->m_RmlView.Ensure();
+                owner->GetPlacedDocument()->Show();
+                CHECK(EquipmentQuery(EQUIPMENT_HELM)["error"] == "bad_request");
+                Inventory(0, 1);
+                ProductionFrame();
+                REQUIRE(EquipmentQuery(EQUIPMENT_HELM)["ok"] == true);
+                NoErrors();
+            }
+    }
+
     int beforeHooks = 0, afterHooks = 0;
     Rml::Context* context = nullptr;
 
@@ -1925,4 +2177,18 @@ TEST_CASE("Existing held cursor layer refreshes camera before capture without re
     RmlViewLayoutFixture f;
     f.Configure("munolith", {1024, 768, 100});
     f.CursorBarrier();
+}
+
+TEST_CASE("Actual chat frame material respects unframed composition with Armory inventory and system log "
+          "[ui][chat][composition][nw3]")
+{
+    RmlViewLayoutFixture f;
+    f.CheckChatComposition();
+}
+
+TEST_CASE("Equipment slot-pixel reads current visible owner DOM without layout or cached geometry "
+          "[ui][equipment][control-query]")
+{
+    RmlViewLayoutFixture f;
+    f.CheckEquipmentQuery();
 }

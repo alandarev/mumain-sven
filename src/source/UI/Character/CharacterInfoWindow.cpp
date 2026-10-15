@@ -23,6 +23,7 @@
 #include "Render/RmlUi/RmlUiRuntime.h"
 #include "UI/RmlBridge/RmlSyncField.h"
 #include "UI/RmlBridge/RmlPointer.h"
+#include "UI/RmlBridge/RmlElementBox.h"
 #include "UI/RmlBridge/RmlWindowClose.h"
 #include "UI/RmlBridge/RmlNativeTextSize.h"
 #include "UI/RmlBridge/RmlTheme.h"
@@ -393,6 +394,15 @@ void mu::ui::window::CCharacterInfoWindow::UnloadImages()
     DeleteBitmap(IMAGE_CHAINFO_TABLE_BOTTOM_LEFT);
     DeleteBitmap(IMAGE_CHAINFO_TABLE_TOP_RIGHT);
     DeleteBitmap(IMAGE_CHAINFO_TABLE_TOP_LEFT);
+}
+
+bool mu::ui::window::CCharacterInfoWindow::GetEquipmentSlotCenter(int slot, Rml::Vector2f& center) const
+{
+    auto* document = m_RmlView.Document();
+    if (!IsVisible() || !document || slot < 0 || slot >= MAX_EQUIPMENT_INDEX)
+        return false;
+    return UI::RmlBridge::PreparedSlotCenter(document->GetElementById("panel"),
+                                             document->GetElementById("armory_slot_" + std::to_string(slot)), center);
 }
 
 void mu::ui::window::CCharacterInfoWindow::ResetEquipmentLevel()

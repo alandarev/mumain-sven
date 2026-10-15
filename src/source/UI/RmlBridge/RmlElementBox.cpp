@@ -4,6 +4,7 @@
 #include <cmath>
 
 #include <RmlUi/Core/Element.h>
+#include <RmlUi/Core/ElementDocument.h>
 #include <RmlUi/Core/ElementUtilities.h>
 
 namespace
@@ -40,6 +41,22 @@ bool UI::RmlBridge::DrawnBox(Rml::Element& element, Rml::BoxArea area, Rml::Vect
 bool UI::RmlBridge::DrawnContentBox(Rml::Element& element, Rml::Vector2f& offset, Rml::Vector2f& size)
 {
     return DrawnBox(element, Rml::BoxArea::Content, offset, size);
+}
+
+bool UI::RmlBridge::PreparedSlotCenter(Rml::Element* root, Rml::Element* element, Rml::Vector2f& center)
+{
+    auto* document = root ? root->GetOwnerDocument() : nullptr;
+    if (!document || !element || element->GetOwnerDocument() != document || !root->IsClassSet("slot-placed") ||
+        !document->IsVisible() || !root->IsVisible(true) || !element->IsVisible(true))
+        return false;
+    Rml::Vector2f offset, size;
+    if (!DrawnBox(*element, Rml::BoxArea::Border, offset, size))
+        return false;
+    const auto measuredCenter = offset + size * .5f;
+    if (!std::isfinite(measuredCenter.x) || !std::isfinite(measuredCenter.y))
+        return false;
+    center = measuredCenter;
+    return true;
 }
 
 bool UI::RmlBridge::DrawnTopLeft(Rml::Element& element, Rml::Vector2f& point)

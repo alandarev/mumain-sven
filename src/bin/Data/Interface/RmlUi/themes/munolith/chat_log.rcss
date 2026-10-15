@@ -1,5 +1,5 @@
 #panel { font-family: "DejaVu Sans"; }
-#backdrop { pointer-events: none; background-color: #101910; border: 1dp #545139; box-sizing: border-box; }
+#chat_backdrop { pointer-events: none; background-color: #101910; border: 1dp #545139; box-sizing: border-box; }
 #resize_handle { drag: drag; top: 0; height: 5dp; decorator: none; background-color: #343d29; border-top: 1dp #a99a62; border-bottom: 1dp #545139; box-sizing: border-box; }
 #lines { align-items: stretch; }
 .chat-line { height: auto; min-height: 1.4em; margin-bottom: 0; white-space: normal; flex-shrink: 0; }

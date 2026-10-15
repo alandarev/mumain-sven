@@ -81,6 +81,8 @@ namespace mu::ui::window
         Rml::ElementDocument* GetFillDocument() const override { return m_RmlView.Document(); }
         Rml::ElementDocument* GetPlacedDocument() const override { return m_RmlView.Document(); }
         void Show(bool bShow) override;
+        // Read-only prepared Armory slot geometry. No model/gameplay/layout synchronization.
+        bool GetEquipmentSlotCenter(int slot, Rml::Vector2f& center) const;
         bool UpdateMouseEvent();
         bool UpdateKeyEvent();
         bool Update();

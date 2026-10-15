@@ -173,9 +173,9 @@ namespace mu::ui::window
 
         bool EquipItem(int iIndex, std::span<const BYTE> pbyItemPacket);
         void UnequipItem(int iIndex);
-        // The center of an equipment slot in window pixels; false for a slot number outside the
-        // equipment or one the theme does not draw.
-        bool GetEquipmentSlotCenter(int slot, POINT& center) const;
+        // Read-only prepared DOM geometry, never the legacy gameplay rectangle cache. Embedded
+        // equipment belongs to the character window; hidden/missing/unmeasured slots return false.
+        bool GetEquipmentSlotCenter(int slot, Rml::Vector2f& center) const;
         void UnequipAllItems();
 
         SEASON3B::REPAIR_MODE GetRepairMode() const override;
