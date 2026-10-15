@@ -45,6 +45,10 @@ namespace mu::ui::window
     class CMainFrameWindow : public CObject
     {
     public:
+        void SyncNativeLayout() override
+        {
+            m_ItemHotKey.SyncNativeLayout(m_RmlView.Document(), IsVisible());
+        }
         CMainFrameWindow();
         virtual ~CMainFrameWindow();
 

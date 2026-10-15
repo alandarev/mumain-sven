@@ -133,7 +133,10 @@ namespace mu::ui::window
     // instance shape.
     class CGenericConfirmDialog : public CObject
     {
+        friend class ::RmlViewLayoutFixture;
+
     public:
+        void SyncNativeLayout() override;
         void Create(CManager* pMng);
         void Release();
 

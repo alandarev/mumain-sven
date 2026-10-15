@@ -14,6 +14,10 @@
 #include "Render/RmlUi/RmlUiRuntime.h"
 #include "UI/HUD/MuHelperBar.h"
 #include "UI/Inventory/MyInventory.h"
+#include "UI/NPCs/NPCShop.h"
+#include "UI/Dialogs/GenericConfirmDialog.h"
+#include "UI/Events/DoppelGangerWindow.h"
+#include "UI/Inventory/CursorItemLayer.h"
 #include "UI/Core/WindowSystem.h"
 #include "UI/Inventory/ItemMng.h"
 #include "UI/Character/CharacterInfoWindow.h"
@@ -67,6 +71,12 @@ struct NullRenderer : Rml::RenderInterface
 };
 struct ModelLog : Rml::SystemInterface
 {
+    int elapsedReads = 0;
+    double GetElapsedTime() override
+    {
+        ++elapsedReads;
+        return Rml::SystemInterface::GetElapsedTime();
+    }
     bool LogMessage(Rml::Log::Type type, const Rml::String& message) override
     {
         if (type <= Rml::Log::LT_WARNING)
@@ -139,6 +149,15 @@ extern "C" int __wrap__ZN19CUIRenderTextSDLTtf10LineHeightEN2UI7Scaling8FontRole
     return static_cast<int>(std::lround(TTF_GetFontHeight(font) / transform.scaleY));
 }
 
+int cursorDrawCalls = 0;
+extern "C" void __wrap__ZN2mu2ui6window11CPickedItem8Render3DEv(mu::ui::window::CPickedItem*)
+{
+    ++cursorDrawCalls; // GPU asset drawing only; real held ownership/camera/projection remain.
+    REQUIRE_FALSE(captureRenderer.scales.empty());
+    CHECK(captureRenderer.scales.front().first == doctest::Approx(1.f));
+    CHECK(captureRenderer.scales.front().second == doctest::Approx(1.f));
+}
+
 extern "C" bool __wrap__Z10LoadBitmapPKwjjjbb(const wchar_t*, GLuint, GLuint, GLuint, bool, bool)
 {
     return true; // Native assets need a GPU; actual view, input and grid geometry remain linked.
@@ -154,6 +173,11 @@ namespace
 class InputGeometryProbe : public mu::ui::window::CObject
 {
 public:
+    int nativeSyncs = 0;
+    void SyncNativeLayout() override
+    {
+        ++nativeSyncs;
+    }
     std::function<void()> check;
     bool Render() override
     {
@@ -223,6 +247,7 @@ public:
     }
     ~RmlViewLayoutFixture()
     {
+        UI::Items::ReleaseCursorItemLayer();
         inventory.reset();
         character.reset();
         helper.reset();
@@ -643,6 +668,298 @@ public:
             CHECK(current.width == doctest::Approx(initial.width));
             CHECK(current.height == doctest::Approx(initial.height));
         }
+    }
+
+    void UnplacedIdle()
+    {
+        using namespace mu::ui::window;
+        InputGeometryProbe friends, flyout;
+        friends.Enable(false);
+        flyout.Enable(false);
+        manager.AddUIObj(INTERFACE_FRIEND, &friends);
+        manager.AddUIObj(INTERFACE_MUHELPER_SKILL_LIST, &flyout);
+        UI::Placement::RegisterName(INTERFACE_FRIEND, "friends");
+        UI::Placement::RegisterWindow(
+            INTERFACE_MUHELPER_SKILL_LIST, "mu_helper_skill_list", [&] { return &flyout; },
+            "mu_helper_skill_picker.rml");
+        ProductionFrame();
+        for (int i = 0; i < 12; ++i)
+            CHECK_FALSE(UI::Placement::Update());
+        friends.Show(false);
+        flyout.Show(false);
+        CHECK(UI::Placement::Update());
+        for (int i = 0; i < 4; ++i)
+            CHECK_FALSE(UI::Placement::Update());
+        friends.Show(true);
+        flyout.Show(true);
+        CHECK(UI::Placement::Update());
+        for (int i = 0; i < 12; ++i)
+            CHECK_FALSE(UI::Placement::Update());
+        const auto scene = SceneFlag;
+        const auto loading = LoadingWorld;
+        SceneFlag = MAIN_SCENE;
+        LoadingWorld = 0;
+        const int before = log.elapsedReads;
+        const auto saves = savedPositions;
+        const int friendSyncs = friends.nativeSyncs, flyoutSyncs = flyout.nativeSyncs;
+        for (int i = 0; i < 12; ++i)
+            CSystem::GetInstance()->Update(); // Real dispatch; no model/gameplay windows enabled.
+        CHECK(log.elapsedReads == before);
+        CHECK(savedPositions == saves);
+        CHECK(friends.nativeSyncs == friendSyncs + 12);
+        CHECK(flyout.nativeSyncs ==
+              flyoutSyncs + 12); // One geometry dispatch per barrier, not registry+manager doubles.
+        SceneFlag = scene;
+        LoadingWorld = loading;
+        manager.RemoveUIObj(INTERFACE_FRIEND);
+        manager.RemoveUIObj(INTERFACE_MUHELPER_SKILL_LIST);
+    }
+    void NpcTransition()
+    {
+        using namespace mu::ui::window;
+        auto npc = std::make_unique<CNPCShop>();
+        npc->m_pNewInventoryCtrl = new CInventoryCtrl;
+        REQUIRE(npc->m_pNewInventoryCtrl->Create(STORAGE_TYPE::UNDEFINED, &items, npc.get(), 8, 15));
+        npc->m_pNewUIMng = &manager;
+        manager.AddUIObj(INTERFACE_NPCSHOP, npc.get());
+        npc->BuildRmlUi();
+        REQUIRE(npc->GetPlacedDocument());
+        npc->CObject::Show(true);
+        npc->GetPlacedDocument()->Show();
+        UI::Placement::RegisterWindow(INTERFACE_NPCSHOP, "npc_shop", [&] { return npc.get(); }, "npc_shop.rml");
+        auto* previous = ItemAttribute;
+        ITEM_ATTRIBUTE attribute{};
+        attribute.Width = attribute.Height = 1;
+        ItemAttribute = &attribute;
+        npc->m_ItemTarget.m_drawer = [](const auto&, const auto&) {}; // GPU asset boundary only.
+        auto stock = [&](int row)
+        {
+            npc->m_pNewInventoryCtrl->RemoveAllItems();
+            ITEM prototype{};
+            prototype.Type = 0;
+            prototype.Durability = 7;
+            auto* item = items.DuplicateItem(&prototype);
+            REQUIRE(item);
+            REQUIRE(npc->m_pNewInventoryCtrl->AddItem(0, row, item));
+            items.DeleteItem(item);
+            npc->m_pNewInventoryCtrl->Render(); // Real control cell state publication, no tooltip/3D drawing here.
+            npc->SyncRmlModel(); // Real owner model phase: cells, stock-derived rows, context and invalidation.
+        };
+        auto coherent = [&]
+        {
+            auto* doc = npc->GetPlacedDocument();
+            const auto image = Box(*doc->GetElementById("item_view"));
+            CHECK(npc->m_ItemTarget.m_offset.x == doctest::Approx(image.left));
+            CHECK(npc->m_ItemTarget.m_offset.y == doctest::Approx(image.top));
+            CHECK(npc->m_ItemTarget.m_size.x == doctest::Approx(image.width));
+            CHECK(npc->m_ItemTarget.m_size.y == doctest::Approx(image.height));
+            const auto grid = Box(*doc->GetElementById("item_grid"));
+            const auto& native = npc->m_pNewInventoryCtrl->Geometry();
+            CHECK(native.Left() == doctest::Approx(grid.left));
+            CHECK(native.Top() == doctest::Approx(grid.top));
+            CHECK(native.PitchX() * 8 == doctest::Approx(grid.width));
+            CHECK(native.PitchY() * npc->m_RmlView.GetModel().rows.size() == doctest::Approx(grid.height));
+        };
+        npc->m_ItemTarget.m_drawer = [&](const auto& offset, const auto& size)
+        {
+            const auto image = Box(*npc->GetPlacedDocument()->GetElementById("item_view"));
+            CHECK(offset.x == doctest::Approx(image.left));
+            CHECK(size.x == doctest::Approx(image.width));
+            REQUIRE_FALSE(captureRenderer.scales.empty());
+            CHECK(captureRenderer.scales.front().first == doctest::Approx(WindowWidth / image.width));
+            CHECK(captureRenderer.scales.front().second == doctest::Approx(WindowHeight / image.height));
+        };
+        auto capture = [&]
+        {
+            coherent();
+            const auto desired = Box(*npc->GetPlacedDocument()->GetElementById("item_view"));
+            captureRenderer.captureExtent = std::pair{static_cast<std::uint32_t>(std::lround(desired.width)),
+                                                      static_cast<std::uint32_t>(std::lround(desired.height))};
+            UI::RmlBridge::RenderTarget::RenderAll();
+            captureRenderer.captureExtent.reset();
+            int w = 0, h = 0;
+            const auto source = npc->m_ItemTarget.m_target.Source();
+            REQUIRE_FALSE(source.empty());
+            REQUIRE(UI::RmlBridge::RenderTarget::Resolve(source, w, h));
+            const auto image = Box(*npc->GetPlacedDocument()->GetElementById("item_view"));
+            CHECK(w == std::lround(image.width));
+            CHECK(h == std::lround(image.height));
+            RmlUiRuntime::Instance().RenderFrame();
+        };
+        for (int row : {0, 14, 2})
+        {
+            stock(row);
+            RmlUiRuntime::Instance().PrepareFrame();
+            capture();
+        }
+        // Real native dispatcher sees final NPC geometry without running another owner model Update.
+        const auto scene = SceneFlag;
+        const auto loading = LoadingWorld;
+        SceneFlag = MAIN_SCENE;
+        LoadingWorld = 0;
+        inventory->Enable(false);
+        character->Enable(false);
+        helper->Enable(false);
+        npc->Enable(false);
+        InputGeometryProbe probe;
+        int inputs = 0;
+        probe.check = [&]
+        {
+            ++inputs;
+            coherent();
+        };
+        manager.AddUIObj(0x7fffffff, &probe);
+        CSystem::GetInstance()->Update();
+        CHECK(inputs == 1);
+        manager.RemoveUIObj(0x7fffffff);
+        SceneFlag = scene;
+        LoadingWorld = loading;
+        inventory->Enable(true);
+        character->Enable(true);
+        helper->Enable(true);
+        // Unchanged-size group title drag: actual Rml events, then pre-input geometry barrier.
+        inventory->CObject::Show(false);
+        inventory->GetPlacedDocument()->Hide();
+        character->CObject::Show(false);
+        character->GetPlacedDocument()->Hide();
+        UI::Placement::Arrange();
+        auto* title = npc->GetPlacedDocument()->GetElementById("title");
+        const auto t = Box(*title);
+        context->ProcessMouseMove(static_cast<int>(t.left + 12), static_cast<int>(t.top + t.height / 2), 0);
+        context->ProcessMouseButtonDown(0, 0);
+        context->ProcessMouseMove(static_cast<int>(t.left - 48), static_cast<int>(t.top + t.height / 2 + 10), 0);
+        UI::Placement::Update();
+        coherent();
+        context->ProcessMouseButtonUp(0, 0);
+        RmlUiRuntime::Instance().PrepareFrame();
+        capture();
+        UI::RmlBridge::ReloadAllThemedDocuments();
+        RmlUiRuntime::Instance().PrepareFrame();
+        capture();
+        npc->CObject::Show(false);
+        npc->GetPlacedDocument()->Hide();
+        RmlUiRuntime::Instance().PrepareFrame();
+        CHECK(npc->m_RmlView.GetModel().rows.size() == 3);
+        CHECK_FALSE(npc->IsTransactionPending());
+        RmlUiRuntime::Instance().RenderFrame();
+        ItemAttribute = previous;
+    }
+
+    void UnregisteredDialogAndSharedView()
+    {
+        using namespace mu::ui::window;
+        auto* previous = ItemAttribute;
+        ITEM_ATTRIBUTE attribute{};
+        attribute.Width = attribute.Height = 1;
+        ItemAttribute = &attribute;
+        CGenericConfirmDialog dialog;
+        dialog.Create(&manager);
+        int actions = 0;
+        GenericDialogConfig cfg;
+        cfg.item3D = ITEM{};
+        cfg.item3D->Type = 0;
+        cfg.onPrimary = [&] { ++actions; };
+        const auto id = dialog.Show(std::move(cfg));
+        dialog.m_Item3DTarget.m_drawer = [](const auto&, const auto&) {};
+        auto check = [&]
+        {
+            auto* doc = dialog.m_RmlView.Document();
+            REQUIRE(doc);
+            const auto image = Box(*doc->GetElementById("gcd_item3d"));
+            CHECK(dialog.m_Item3DTarget.m_offset.x == doctest::Approx(image.left));
+            CHECK(dialog.m_Item3DTarget.m_offset.y == doctest::Approx(image.top));
+            CHECK(dialog.m_Item3DTarget.m_size.x == doctest::Approx(image.width));
+            CHECK(dialog.IsActive(id));
+            CHECK(actions == 0);
+        };
+        RmlUiRuntime::Instance().PrepareFrame();
+        check();
+        RmlUiRuntime::Instance().RenderFrame();
+        auto* panel = dialog.m_RmlView.Document()->GetElementById("panel");
+        const auto start = Box(*panel);
+        context->ProcessMouseMove(static_cast<int>(start.left + 10), static_cast<int>(start.top + 5), 0);
+        context->ProcessMouseButtonDown(0, 0);
+        context->ProcessMouseMove(static_cast<int>(start.left - 10), static_cast<int>(start.top + 35), 0);
+        context->ProcessMouseButtonUp(0, 0);
+        RmlUiRuntime::Instance().PrepareFrame();
+        check();
+        RmlUiRuntime::Instance().RenderFrame();
+        UI::RmlBridge::ReloadAllThemedDocuments();
+        RmlUiRuntime::Instance().PrepareFrame();
+        check();
+        RmlUiRuntime::Instance().RenderFrame();
+        dialog.Cancel(id);
+        dialog.Release();
+        auto* system = CSystem::GetInstance();
+        auto* oldItems = system->m_pNewItemMng;
+        system->m_pNewItemMng = &items;
+        CDoppelGangerWindow event;
+        REQUIRE(event.Create(&manager));
+        event.CObject::Show(true);
+        event.GetPlacedDocument()->Show();
+        std::vector<mu::ui::window::EventItemEntryView::Text> texts(9);
+        for (auto& text : texts)
+            text.text = L"Event entry description";
+        event.m_View.SetTexts(std::move(texts));
+        event.m_View.Sync(true);
+        RmlUiRuntime::Instance().PrepareFrame(); // Real shared-view delegation through manager, no event Update.
+        REQUIRE(event.m_View.m_ItemTarget);
+        const auto image = Box(*event.GetPlacedDocument()->GetElementById("entry_item"));
+        CHECK(event.m_View.m_ItemTarget->m_size.x == doctest::Approx(image.width));
+        CHECK(event.m_View.m_ItemTarget->m_offset.y == doctest::Approx(image.top));
+        RmlUiRuntime::Instance().RenderFrame();
+        event.Release();
+        system->m_pNewItemMng = oldItems;
+        ItemAttribute = previous;
+        NoErrors();
+    }
+    void CursorBarrier()
+    {
+        using namespace mu::ui::window;
+        const int documents = context->GetNumDocuments();
+        UI::Items::SyncCursorItemLayout();
+        CHECK(context->GetNumDocuments() == documents);
+        auto* previous = ItemAttribute;
+        ITEM_ATTRIBUTE attribute{};
+        attribute.Width = attribute.Height = 1;
+        ItemAttribute = &attribute;
+        auto* system = CSystem::GetInstance();
+        auto* old = system->m_pNewItemMng;
+        system->m_pNewItemMng = &items;
+        InputGeometryProbe owner;
+        CInventoryCtrl control;
+        REQUIRE(control.Create(STORAGE_TYPE::UNDEFINED, &items, &owner, 8, 8));
+        ITEM item{};
+        item.Type = 0;
+        item.Durability = 7;
+        REQUIRE(CInventoryCtrl::CreatePickedItem(&control, &item));
+        auto* held = CInventoryCtrl::GetPickedItem();
+        held->ShowPickedItem();
+        UI::Items::SyncCursorItemLayer(); // Normal existing-layer lifecycle; NOT from geometry hook.
+        for (const auto v : {Viewport{1024, 768, 100}, Viewport{800, 600, 150}})
+        {
+            WindowWidth = v.width;
+            WindowHeight = v.height;
+            context->SetDimensions({v.width, v.height});
+            const int before = cursorDrawCalls;
+            RmlUiRuntime::Instance().PrepareFrame();
+            captureRenderer.allowed.insert(captureRenderer.lastCreated + 1);
+            UI::RmlBridge::RenderTarget::RenderAll();
+            CHECK(cursorDrawCalls == before + 1);
+            CHECK(CInventoryCtrl::GetPickedItem() == held);
+            RmlUiRuntime::Instance().RenderFrame();
+        }
+        held->HidePickedItem();
+        RmlUiRuntime::Instance().PrepareFrame();
+        const int hidden = cursorDrawCalls;
+        UI::RmlBridge::RenderTarget::RenderAll();
+        CHECK(cursorDrawCalls == hidden);
+        RmlUiRuntime::Instance().RenderFrame();
+        CHECK(CInventoryCtrl::GetPickedItem() == held);
+        CInventoryCtrl::DeletePickedItem();
+        UI::Items::ReleaseCursorItemLayer();
+        system->m_pNewItemMng = old;
+        ItemAttribute = previous;
     }
 
     void PopulateArmory(bool editing)
@@ -1573,4 +1890,39 @@ TEST_CASE("Production first-open placement remains coherent across inherited the
                 f.CheckCoherent();
                 f.NoErrors();
             }
+}
+
+TEST_CASE("Visible actual name and unslotted registry entries do not arrange every idle tick [ui][placement][unplaced]")
+{
+    for (const char* theme : {"legacy", "modern", "munolith"})
+    {
+        RmlViewLayoutFixture f;
+        f.Configure(theme, {1024, 768, 100});
+        f.UnplacedIdle();
+    }
+}
+TEST_CASE("Real NPC stock model reconciles camera and native grid before first capture [ui][npc][barrier]")
+{
+    for (const auto v : {cases[0], cases[1], cases[2], Viewport{3840, 2160, 100}})
+    {
+        RmlViewLayoutFixture f;
+        f.CreateInventoryGroup();
+        f.Configure("munolith", v);
+        f.Inventory(0, 1);
+        f.NpcTransition();
+    }
+}
+
+TEST_CASE("Manager barrier includes actual unregistered dialog and shared event owner [ui][native-barrier][dialog]")
+{
+    RmlViewLayoutFixture f;
+    f.Configure("munolith", {1024, 768, 100});
+    f.UnregisteredDialogAndSharedView();
+}
+TEST_CASE("Existing held cursor layer refreshes camera before capture without recreating or changing held owner "
+          "[ui][native-barrier][cursor]")
+{
+    RmlViewLayoutFixture f;
+    f.Configure("munolith", {1024, 768, 100});
+    f.CursorBarrier();
 }

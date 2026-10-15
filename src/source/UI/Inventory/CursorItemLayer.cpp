@@ -52,3 +52,12 @@ void UI::Items::ReleaseCursorItemLayer()
     g_Layer->target.Disable();
     g_Layer->view.Release();
 }
+
+void UI::Items::SyncCursorItemLayout()
+{
+    // No creation, document visibility or held-item ownership changes at geometry barriers.
+    if (!g_Layer)
+        return;
+    auto* document = g_Layer->view.Document();
+    g_Layer->target.Sync(document ? document->GetElementById("cursor_item") : nullptr, ShownPickedItem() != nullptr);
+}

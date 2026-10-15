@@ -1,6 +1,9 @@
 #pragma once
 #include "Render/Renderer/MuRenderer.h"
 #include <unordered_set>
+#include <vector>
+#include <optional>
+#include <utility>
 
 // Test only: capture ids/ordering/lifetimes are real RenderTarget paths; no GPU or game drawing.
 class HeadlessCaptureRenderer : public mu::IMuRenderer
@@ -29,11 +32,18 @@ public:
     {
         released.insert(id);
     }
-    std::uint32_t BeginOffscreenCapture(std::uint32_t id, std::uint32_t, std::uint32_t) override
+    std::uint32_t BeginOffscreenCapture(std::uint32_t id, std::uint32_t width, std::uint32_t height) override
     {
-        return allowed.contains(id) ? id : 0;
+        scales.clear();
+        return allowed.contains(id) || (captureExtent && *captureExtent == std::pair{width, height}) ? id : 0;
     }
     void EndOffscreenCapture() override {}
+    void Scale(float x, float y, float) override
+    {
+        scales.emplace_back(x, y);
+    }
+    std::vector<std::pair<float, float>> scales;
+    std::optional<std::pair<std::uint32_t, std::uint32_t>> captureExtent;
     void* GetRawTexture(std::uint32_t id) override
     {
         return reinterpret_cast<void*>(static_cast<std::uintptr_t>(id));

@@ -113,8 +113,7 @@ void mu::ui::window::EventItemEntryView::Sync(bool visible)
 
     // Over the HUD like every panel the original opened.
     UI::RmlBridge::SyncDocumentVisibilityInFront(m_View.Document(), visible);
-    if (m_ItemTarget)
-        m_ItemTarget->Sync(m_View.Document()->GetElementById("entry_item"), visible);
+    SyncNativeLayout(visible);
     if (!visible)
         return;
 
@@ -200,4 +199,10 @@ void mu::ui::window::EventItemEntryView::SetInputValue(const Rml::String& value)
 bool mu::ui::window::EventItemEntryView::IsPointerOver() const
 {
     return UI::RmlBridge::IsPointerOver(m_View.Document());
+}
+
+void mu::ui::window::EventItemEntryView::SyncNativeLayout(bool visible)
+{
+    if (m_ItemTarget)
+        m_ItemTarget->Sync(m_View.Document() ? m_View.Document()->GetElementById("entry_item") : nullptr, visible);
 }

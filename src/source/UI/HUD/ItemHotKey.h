@@ -43,6 +43,7 @@ namespace mu::ui::window
         // Each icon is a render target its slot's .item-icon shows, so RCSS places it like the rest
         // of the slot. Once a frame from SyncRmlModel(): sizes each target to its icon's on-screen
         // box and points the icon at it.
+        void SyncNativeLayout(Rml::ElementDocument* document, bool visible);
         void SyncSlotIcons(Rml::ElementDocument* document);
         // From SyncDocVisibility(), which runs whether or not this window updates.
         void SetSlotIconsShown(bool shown);

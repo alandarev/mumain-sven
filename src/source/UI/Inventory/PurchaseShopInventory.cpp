@@ -246,14 +246,20 @@ bool mu::ui::window::CPurchaseShopInventory::Update()
     return true;
 }
 
+void mu::ui::window::CPurchaseShopInventory::SyncNativeLayout()
+{
+    auto* doc = m_RmlView.Document();
+    m_ItemTarget.Sync(doc ? doc->GetElementById("item_view") : nullptr, IsVisible());
+    if (doc && m_pNewInventoryCtrl)
+        m_pNewInventoryCtrl->FollowGridPx(doc, "item_grid");
+}
+
 void mu::ui::window::CPurchaseShopInventory::SyncRmlModel()
 {
-    m_ItemTarget.Sync(m_RmlView.Document() ? m_RmlView.Document()->GetElementById("item_view") : nullptr, IsVisible());
+    SyncNativeLayout();
     if (!m_RmlView.Document()) return;
     UI::RmlBridge::SyncDocumentVisibility(m_RmlView.Document(), IsVisible());
 
-    if (m_pNewInventoryCtrl)
-        m_pNewInventoryCtrl->FollowGridPx(m_RmlView.Document(), "item_grid");
     if (m_pNewInventoryCtrl && m_RmlView.GetModel().gridCells != m_pNewInventoryCtrl->Cells())
     {
         m_RmlView.GetModel().gridCells = m_pNewInventoryCtrl->Cells();

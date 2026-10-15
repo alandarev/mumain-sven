@@ -10,6 +10,7 @@
 #include "UI/Core/WindowObject.h"
 #include "UI/Core/WindowSystem.h"
 #include "UI/Inventory/InventoryCtrl.h"
+#include "UI/Inventory/CursorItemLayer.h"
 #include "UI/RmlBridge/RmlDraggable.h"
 #include "UI/RmlBridge/RmlElementBox.h"
 #include "UI/RmlBridge/RmlPanelGeometry.h"
@@ -57,6 +58,7 @@ struct Entry
     bool previouslyPlaced = false;
     bool reservesSpace = false;
     bool fill = false;
+    bool hasSlot = false;
     bool unresolved = false;
     Rml::Vector2f measuredSize;
 };
@@ -126,6 +128,18 @@ bool IsOpen(const Entry& entry)
 {
     return entry.participant.visible ? entry.participant.visible()
                                      : g_pNewUISystem != nullptr && g_pNewUISystem->IsVisible(entry.windowId);
+}
+
+bool CanPlace(const Entry& entry)
+{
+    return (entry.getWindow && entry.getWindow() != nullptr) || static_cast<bool>(entry.participant.visible);
+}
+
+void SyncNativeLayouts()
+{
+    if (auto* manager = g_pNewUIMng)
+        manager->SyncNativeLayouts();
+    UI::Items::SyncCursorItemLayout();
 }
 
 Entry* EntryFor(Rml::Element* slot)
@@ -573,15 +587,20 @@ static Rml::ElementList PrepareSlots(Rml::ElementDocument* workspace, const UI::
     Rml::ElementList slots;
     workspace->QuerySelectorAll(slots, ".slot");
     CheckNames(slots);
+    for (auto& [name, entry] : g_windows)
+        entry.hasSlot = false;
     for (Rml::Element* slot : slots)
     {
         Entry* entry = EntryFor(slot);
         mu::ui::window::CObject* window = entry != nullptr && entry->getWindow ? entry->getWindow() : nullptr;
-        const bool open = entry != nullptr && (window != nullptr || entry->participant.visible) && IsOpen(*entry);
+        const bool open = entry != nullptr && CanPlace(*entry) && IsOpen(*entry);
         const bool wantsFill = slot->GetAttribute<Rml::String>("data-fit", "") == "fill";
         const bool fill = open && wantsFill && window != nullptr && window->SupportsFillPlacement();
         if (entry != nullptr)
+        {
+            entry->hasSlot = true;
             entry->fill = fill;
+        }
         if (entry != nullptr)
             entry->reservesSpace = slot->GetParentNode() != nullptr && slot->GetParentNode()->GetAttribute<Rml::String>(
                                                                            "data-participation", "") == "reserve";
@@ -1048,22 +1067,21 @@ static void ArrangeNow()
     RestoreUnslotted(slots);
     workspace->GetContext()->Update();
     Rml::ElementUtilities::UpdateTransformCaches(workspace->GetContext()->GetRootElement());
-    for (const auto& [name, entry] : g_windows)
-        if (auto* window = entry.getWindow ? entry.getWindow() : nullptr)
-            window->SyncNativeLayout();
+    // Public Arrange/Update dispatch native owners once after final layout.
 }
 
 void Arrange()
 {
     // Immediate, so a window opened during this frame's input is drawn and hit-tested in place.
     ArrangeNow();
+    SyncNativeLayouts();
 }
 
 static void CheckIntrinsicSize(Entry& entry, bool visible)
 {
     if (entry.reservesSpace && visible != entry.lastVisible)
         g_reservedSizeChanged = true;
-    if (!visible || entry.fill)
+    if (!visible || entry.fill || !entry.hasSlot || !CanPlace(entry))
         return;
     const auto size = PanelSize(entry); // Cached completed layout; no layout/Arrange on idle getters.
     if (IntrinsicSizeChanged(entry, size))
@@ -1093,18 +1111,17 @@ bool Update()
                          dock.scaleX != g_lastDock.scaleX || dock.offsetY != g_lastDock.offsetY;
     if (arrange)
         ArrangeNow();
-    if (auto* context = RmlUiRuntime::Instance().GetContext())
-        Rml::ElementUtilities::UpdateTransformCaches(context->GetRootElement());
     for (const auto& [name, entry] : g_windows)
     {
         if (mu::ui::window::CObject* window = entry.getWindow ? entry.getWindow() : nullptr)
         {
             window->SyncFillPlacement();
             window->SyncSlotPlacement();
-            if (!arrange)
-                window->SyncNativeLayout();
         }
     }
+    if (auto* context = RmlUiRuntime::Instance().GetContext())
+        Rml::ElementUtilities::UpdateTransformCaches(context->GetRootElement());
+    SyncNativeLayouts();
     return arrange;
 }
 

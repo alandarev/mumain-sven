@@ -509,3 +509,13 @@ int mu::ui::window::CItemHotKey::GetSlotItemCount(int iSlotIndex)
 {
     return GetHotKeyItemIndex(iSlotIndex, true);
 }
+
+void mu::ui::window::CItemHotKey::SyncNativeLayout(Rml::ElementDocument* document, bool visible)
+{
+    for (int i = 0; i < HOTKEY_COUNT; ++i)
+    {
+        auto* icon = document ? document->GetElementById("item_icon_" + std::to_string(i)) : nullptr;
+        if (m_SlotTargets[i])
+            m_SlotTargets[i]->Sync(icon, visible && m_bSlotIconsShown && icon && !icon->IsClassSet("hidden"));
+    }
+}

@@ -29,6 +29,10 @@ public:
     bool Render();
     bool Update();
     bool UpdateMouseEvent();
+    void SyncNativeLayout() override
+    {
+        m_View.SyncNativeLayout(IsVisible());
+    }
     Rml::ElementDocument* GetPlacedDocument() const override { return m_View.Document(); }
     bool UpdateKeyEvent();
 

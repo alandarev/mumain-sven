@@ -237,21 +237,29 @@ bool CInventoryExtension::Render()
     return true;
 }
 
-void CInventoryExtension::SyncRmlModel()
+void CInventoryExtension::SyncNativeLayout()
 {
-    m_ItemTarget.Sync(m_RmlView.Document() ? m_RmlView.Document()->GetElementById("item_view") : nullptr, IsVisible());
-    if (!m_RmlView.Document()) return;
-    UI::RmlBridge::SyncDocumentVisibility(m_RmlView.Document(), IsVisible());
-
+    auto* doc = m_RmlView.Document();
+    m_ItemTarget.Sync(doc ? doc->GetElementById("item_view") : nullptr, IsVisible());
+    if (!doc)
+        return;
     const bool embedded = UI::RmlBridge::ThemeUsesEmbeddedInventory();
     if (m_extensions[0] && !embedded)
-        m_extensions[0]->FollowGridPx(m_RmlView.Document(), "item_grid_1");
+        m_extensions[0]->FollowGridPx(doc, "item_grid_1");
     if (m_extensions[1] && !embedded)
-        m_extensions[1]->FollowGridPx(m_RmlView.Document(), "item_grid_2");
+        m_extensions[1]->FollowGridPx(doc, "item_grid_2");
     if (m_extensions[2])
-        m_extensions[2]->FollowGridPx(m_RmlView.Document(), "item_grid_3");
+        m_extensions[2]->FollowGridPx(doc, "item_grid_3");
     if (m_extensions[3])
-        m_extensions[3]->FollowGridPx(m_RmlView.Document(), "item_grid_4");
+        m_extensions[3]->FollowGridPx(doc, "item_grid_4");
+}
+
+void CInventoryExtension::SyncRmlModel()
+{
+    SyncNativeLayout();
+    if (!m_RmlView.Document())
+        return;
+    UI::RmlBridge::SyncDocumentVisibility(m_RmlView.Document(), IsVisible());
     if (m_extensions[0] && m_RmlView.GetModel().gridCells1 != m_extensions[0]->Cells())
     {
         m_RmlView.GetModel().gridCells1 = m_extensions[0]->Cells();

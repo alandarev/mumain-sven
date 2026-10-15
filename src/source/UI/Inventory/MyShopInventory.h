@@ -20,6 +20,7 @@ namespace mu::ui::window
     class CMyShopInventory : public CObject
     {
     public:
+        void SyncNativeLayout() override;
         enum SHOPTYEP
         {
             PERSONALSHOPSALE = 0,

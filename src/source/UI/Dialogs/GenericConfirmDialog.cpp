@@ -331,9 +331,14 @@ void CGenericConfirmDialog::Resolve(ClickResult which)
 bool CGenericConfirmDialog::Render()
 {
     SyncRmlModel();
-    Rml::ElementDocument* document = m_RmlView.Document();
-    m_Item3DTarget.Sync(document ? document->GetElementById("gcd_item3d") : nullptr, m_bActive && m_Active.item3D);
+    SyncNativeLayout();
     return true;
+}
+
+void CGenericConfirmDialog::SyncNativeLayout()
+{
+    auto* document = m_RmlView.Document();
+    m_Item3DTarget.Sync(document ? document->GetElementById("gcd_item3d") : nullptr, m_bActive && m_Active.item3D);
 }
 
 Rml::String CGenericConfirmDialog::InitialInputText() const

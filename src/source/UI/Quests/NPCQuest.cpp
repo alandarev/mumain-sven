@@ -352,9 +352,14 @@ void CNPCQuest::RmlClickComplete()
     ::PlayBuffer(SOUND_INTERFACE01);
 }
 
-void CNPCQuest::SyncRmlModel()
+void CNPCQuest::SyncNativeLayout()
 {
     m_ItemTarget.Sync(m_RmlView.Document() ? m_RmlView.Document()->GetElementById("nq_item") : nullptr, IsVisible());
+}
+
+void CNPCQuest::SyncRmlModel()
+{
+    SyncNativeLayout();
     if (!m_RmlView.Document())
         return;
 

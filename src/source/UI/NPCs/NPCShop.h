@@ -20,7 +20,10 @@ namespace mu::ui::window
 {
     class CNPCShop : public CObject
     {
+        friend class ::RmlViewLayoutFixture;
+
     public:
+        void SyncNativeLayout() override;
         enum
         {
             NPCSHOP_POS_X = 260,

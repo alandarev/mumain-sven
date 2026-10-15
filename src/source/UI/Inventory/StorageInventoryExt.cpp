@@ -246,22 +246,29 @@ bool CStorageInventoryExt::Render()
     return true;
 }
 
-void CStorageInventoryExt::SyncRmlModel()
+void CStorageInventoryExt::SyncNativeLayout()
 {
+    auto* doc = m_RmlView.Document();
     if (UI::RmlBridge::ThemeUsesEmbeddedVault())
     {
-        // The vault's own document draws the extra grid; this window stays hidden.
         m_ItemTarget.Sync(nullptr, false);
+        return;
+    }
+    m_ItemTarget.Sync(doc ? doc->GetElementById("item_view") : nullptr, IsVisible());
+    if (doc && m_pNewInventoryCtrl)
+        m_pNewInventoryCtrl->FollowGridPx(doc, "item_grid");
+}
+
+void CStorageInventoryExt::SyncRmlModel()
+{
+    SyncNativeLayout();
+    if (UI::RmlBridge::ThemeUsesEmbeddedVault())
+    {
         UI::RmlBridge::SyncDocumentVisibility(m_RmlView.Document(), false);
         return;
     }
-    m_ItemTarget.Sync(m_RmlView.Document() ? m_RmlView.Document()->GetElementById("item_view") : nullptr, IsVisible());
-
     if (!m_RmlView.Document()) return;
     UI::RmlBridge::SyncDocumentVisibility(m_RmlView.Document(), IsVisible());
-
-    if (m_pNewInventoryCtrl)
-        m_pNewInventoryCtrl->FollowGridPx(m_RmlView.Document(), "item_grid");
     if (m_pNewInventoryCtrl && m_RmlView.GetModel().gridCells != m_pNewInventoryCtrl->Cells())
     {
         m_RmlView.GetModel().gridCells = m_pNewInventoryCtrl->Cells();

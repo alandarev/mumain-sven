@@ -6,6 +6,8 @@ namespace UI::Items
 {
 // Once a frame, after the windows: shows the layer while an item is picked up.
 void SyncCursorItemLayer();
+// Existing layer only: follows final prepared geometry before native input/capture.
+void SyncCursorItemLayout();
 // Unloads the layer's document; from CSystem::Release().
 void ReleaseCursorItemLayer();
 } // namespace UI::Items

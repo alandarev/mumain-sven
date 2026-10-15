@@ -52,6 +52,8 @@ namespace mu::ui::window
         bool UpdateKeyEvent();
         bool Update();
         bool Render();
+        // All owned native companions, including dialogs absent from workspace placement.
+        void SyncNativeLayouts();
 
         CObject* GetActiveMouseUIObj();
         CObject* GetActiveKeyUIObj();

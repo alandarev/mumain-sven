@@ -316,3 +316,8 @@ bool mu::ui::window::CManager::CompareKeyEventOrder(IObject* pObj1, IObject* pOb
     return pObj1->GetKeyEventOrder() > pObj2->GetKeyEventOrder();
 }
 
+void mu::ui::window::CManager::SyncNativeLayouts()
+{
+    for (const auto& [id, window] : m_mapUI)
+        window->SyncNativeLayout();
+}

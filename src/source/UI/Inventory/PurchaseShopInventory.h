@@ -20,6 +20,7 @@ namespace mu::ui::window
     private:
 
     public:
+        void SyncNativeLayout() override;
         CPurchaseShopInventory();
         virtual ~CPurchaseShopInventory();
 

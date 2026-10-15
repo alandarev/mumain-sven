@@ -10,6 +10,8 @@ namespace mu::ui::window
 // request.
 class CDoppelGangerWindow : public CObject
 {
+    friend class ::RmlViewLayoutFixture;
+
 private:
     enum
     {
@@ -31,6 +33,10 @@ public:
 
 
     bool UpdateMouseEvent();
+    void SyncNativeLayout() override
+    {
+        m_View.SyncNativeLayout(IsVisible());
+    }
     Rml::ElementDocument* GetPlacedDocument() const override { return m_View.Document(); }
     bool UpdateKeyEvent();
     bool Update();

@@ -26,6 +26,8 @@ class CObject;
 // windows share it for their other button kinds.
 class EventItemEntryView
 {
+    friend class ::RmlViewLayoutFixture;
+
 public:
     // Where a line sits, what colour it is and how it is aligned are the document's
     // <document>_rows.rcss, one :nth-child rule per line. `width` is the box the native renderer
@@ -68,6 +70,7 @@ public:
 
     // Per frame, inside the window's CManager transform scope.
     void Sync(bool visible);
+    void SyncNativeLayout(bool visible);
 
     // A click RmlUi reported since the last call: an unlocked button's index, else -1.
     int TakePressedButton();

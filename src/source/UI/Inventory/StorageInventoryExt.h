@@ -54,6 +54,7 @@ namespace mu::ui::window
         void SyncRmlModel();
 
     public:
+        void SyncNativeLayout() override;
         CStorageInventoryExt();
         ~CStorageInventoryExt() override;
 

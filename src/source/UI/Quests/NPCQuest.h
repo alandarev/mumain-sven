@@ -52,6 +52,7 @@ namespace mu::ui::window
         void Show(bool bShow) override;
 
         bool UpdateMouseEvent();
+        void SyncNativeLayout() override;
         Rml::ElementDocument* GetPlacedDocument() const override { return m_RmlView.Document(); }
         const char* PlacedRootId() const override { return "content_root"; }
         bool UpdateKeyEvent();

@@ -391,3 +391,9 @@ pin into ignored, patch-signature-addressed build output and applies the tracked
 patch there. Core, headers and SDL backends use that reproducible copy. The patch reproducibility
 test checks fresh materialization, idempotence and equality to compiled utility inputs; repinning
 requires explicitly reviewing/updating the patch contract. No vendor commit or pin movement is needed.
+
+Only components with an actual workspace slot and an available placement provider contribute
+intrinsic-size invalidation. Name-only companions and independently placed flyouts keep their own
+layout without restarting workspace fitting on every idle update. Native geometry follows manager
+ownership rather than placement membership: dialogs, shared event previews and existing held-item
+layers must follow final prepared layout too, without running gameplay/model updates again.

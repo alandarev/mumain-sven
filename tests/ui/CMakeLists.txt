@@ -535,6 +535,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         "LINKER:--wrap=_ZN19CUIRenderTextSDLTtf10LineHeightEN2UI7Scaling8FontRoleE"
         "LINKER:--wrap=_Z10LoadBitmapPKwjjjbb"
         "LINKER:--wrap=_ZN2mu11GetRendererEv"
+        "LINKER:--wrap=_ZN2mu2ui6window11CPickedItem8Render3DEv"
         "LINKER:--wrap=_ZN10GameConfig17SetWindowPositionERKNSt7__cxx1112basic_stringIwSt11char_traitsIwESaIwEEEii"
         "LINKER:--wrap=_ZNK10GameConfig17GetWindowPositionERKNSt7__cxx1112basic_stringIwSt11char_traitsIwESaIwEEERiS8_")
 endif()
