@@ -3,10 +3,15 @@
 #include <RmlUi/Core.h>
 #include <RmlUi/Core/ComputedValues.h>
 #include <RmlUi/Core/ElementUtilities.h>
+#include <RmlUi/Core/ElementText.h>
 #include <SDL3_ttf/SDL_ttf.h>
 #include "Data/GameConfig/GameConfig.h"
 #include "Render/RmlUi/RmlUiRuntime.h"
 #include "UI/HUD/MuHelperBar.h"
+#include "UI/Inventory/MyInventory.h"
+#include "UI/Inventory/ItemMng.h"
+#include "UI/Character/CharacterInfoWindow.h"
+#include <numeric>
 #include "UI/Placement/WindowPlacement.h"
 #include "UI/RmlBridge/RmlDocumentHints.h"
 #include "UI/RmlBridge/RmlElementBox.h"
@@ -93,6 +98,16 @@ extern "C" int __wrap__ZN19CUIRenderTextSDLTtf10LineHeightEN2UI7Scaling8FontRole
     return static_cast<int>(std::lround(TTF_GetFontHeight(font) / transform.scaleY));
 }
 
+extern "C" bool __wrap__Z10LoadBitmapPKwjjjbb(const wchar_t*, GLuint, GLuint, GLuint, bool, bool)
+{
+    return true; // Native assets need a GPU; actual view, input and grid geometry remain linked.
+}
+
+namespace
+{
+void CheckInventoryText(Rml::ElementDocument* doc);
+}
+
 class RmlViewLayoutFixture
 {
 public:
@@ -122,6 +137,8 @@ public:
     }
     ~RmlViewLayoutFixture()
     {
+        inventory.reset();
+        character.reset();
         helper.reset();
         UI::Placement::Release();
         Tip::Hide();
@@ -224,6 +241,213 @@ public:
         helper->m_bRmlConfigClicked = helper->m_bRmlToggleClicked = false;
         // Do not call native Update(): queued game actions are deliberately not executed.
     }
+    void CreateInventoryGroup()
+    {
+        using namespace mu::ui::window;
+        CreateHelper();
+        Helper(false); // Real reserved top HUD participates in the same safe-area fit.
+        inventory = std::make_unique<CMyInventory>();
+        inventory->m_pNewInventoryCtrl = new CInventoryCtrl;
+        REQUIRE(inventory->m_pNewInventoryCtrl->Create(STORAGE_TYPE::INVENTORY, &items, inventory.get(), 8, 8,
+                                                       MAX_EQUIPMENT_INDEX));
+        inventory->BuildRmlUi();
+        REQUIRE(inventory->GetPlacedDocument());
+        inventory->CObject::Show(true);
+        inventory->GetPlacedDocument()->Show();
+        character = std::make_unique<CCharacterInfoWindow>();
+        REQUIRE(character->Create(&manager));
+        REQUIRE(character->GetPlacedDocument());
+        character->CObject::Show(true);
+        character->GetPlacedDocument()->Show();
+        RegisterPane("character", character.get());
+        RegisterPane("inventory", inventory.get());
+    }
+    void RegisterPane(const char* name, mu::ui::window::CObject* owner)
+    {
+        UI::Placement::RegisterParticipant(
+            name, {[] { return true; },
+                   [owner]
+                   {
+                       auto* doc = owner->GetPlacedDocument();
+                       auto* root = doc ? doc->GetElementById("panel") : nullptr;
+                       const auto size = root ? root->GetBox().GetSize(Rml::BoxArea::Border) : Rml::Vector2f{};
+                       return UI::Placement::PlacementParticipant::Size{size.x, size.y};
+                   },
+                   [owner](const UI::Placement::PlacementParticipant::Box* b)
+                   {
+                       if (b)
+                           owner->PlaceInWorkspace(b->left, b->top, b->scale);
+                       else
+                           owner->LeaveWorkspace();
+                       owner->SyncSlotPlacement(); // Production CSystem reattaches equal boxes after document reload.
+                   }});
+    }
+    Rml::ElementDocument* Inventory(int owned, int variant)
+    {
+        auto& m = inventory->m_RmlView.GetModel();
+        m.textPx = UI::Scaling::NativeTextPixelSize(UI::Scaling::FontRole::Normal,
+                                                    UI::Scaling::TypographyUnitsTransform(WindowWidth, WindowHeight));
+        m.title = "Inventory";
+        m.setOptionLabel = "[Set option]";
+        m.socketOptionLabel = "[Socket option]";
+        m.goldText = variant == 2 ? "2,000,000,000" : "10,000,000";
+        m.goldLabel = "Zen";
+        m.capacityText = "Free space 24 / " + std::to_string(64 + 32 * owned);
+        m.ownedExtensions = owned;
+        m.rows.resize(8 + 4 * owned);
+        std::iota(m.rows.begin(), m.rows.end(), 0);
+        m.repairVisible = variant != 0;
+        m.repairActive = variant == 2;
+        m.myShopVisible = variant != 0;
+        m.myShopLocked = variant == 2;
+        m.expansionVisible = owned < 2;
+        m.overflowVisible = owned == 2;
+        m.gridCells.resize(64);
+        m.gridCellsExtension1.resize(32);
+        m.gridCellsExtension2.resize(32);
+        m.gridCells[0].count = "3";
+        m.gridCellsExtension1[0].count = "5";
+        m.gridCellsExtension2[0].count = "7";
+        m.gridCells[0].tint = "tint-durability-100";
+        m.deliveryVisible = owned > 0;
+        m.deliveryColumn = 2;
+        m.deliveryRow = 9;
+        m.deliveryWidth = m.deliveryHeight = 2;
+        for (const char* name : {"text_px",
+                                 "title",
+                                 "set_option_label",
+                                 "socket_option_label",
+                                 "gold_text",
+                                 "gold_label",
+                                 "capacity_text",
+                                 "owned_extensions",
+                                 "rows",
+                                 "repair_visible",
+                                 "repair_active",
+                                 "myshop_visible",
+                                 "myshop_locked",
+                                 "expansion_visible",
+                                 "overflow_visible",
+                                 "grid_cells",
+                                 "grid_cells_extension_1",
+                                 "grid_cells_extension_2",
+                                 "delivery_visible",
+                                 "delivery_column",
+                                 "delivery_row",
+                                 "delivery_width",
+                                 "delivery_height"})
+            inventory->m_RmlView.MarkDirty(name);
+        inventory->GetPlacedDocument()->Show();
+        character->GetPlacedDocument()->Show();
+        Helper(false);
+        Refresh();
+        for (int i = 0; i < 6; ++i)
+        {
+            UI::Placement::Arrange();
+            Refresh();
+        }
+        inventory->SyncNativeLayout();
+        UI::Placement::PlacementParticipant::Box assignedBox;
+        const bool placed = UI::Placement::SlotBox("inventory", assignedBox);
+        std::fprintf(stderr, "Inventory layout %u %u %d placed%d %.2f %.2f %.2f %.2f scale%.4f class%d\n", WindowWidth,
+                     WindowHeight, owned, placed, assignedBox.left, assignedBox.top, assignedBox.width,
+                     assignedBox.height, assignedBox.scale,
+                     inventory->GetPlacedDocument()->GetElementById("panel")->IsClassSet("slot-placed"));
+        return inventory->GetPlacedDocument();
+    }
+    void CheckNativeGrid(Rml::ElementDocument* doc)
+    {
+        inventory->SyncNativeLayout();
+        const auto b = Box(*doc->GetElementById("item_grid"));
+        const auto& geometry = inventory->GetInventoryCtrl()->Geometry();
+        CHECK(geometry.Left() == doctest::Approx(b.left));
+        CHECK(geometry.Top() == doctest::Approx(b.top));
+        CHECK(geometry.PitchX() * 8 == doctest::Approx(b.width));
+        CHECK(geometry.PitchY() * 8 == doctest::Approx(b.height));
+    }
+
+    void CheckCells(Rml::ElementDocument* doc)
+    {
+        Rml::ElementList background;
+        doc->QuerySelectorAll(background, ".grid .cell");
+        Rml::ElementList cells;
+        doc->QuerySelectorAll(cells, ".item-cell");
+        std::erase_if(background, [](auto* e) { return !e->IsVisible(true); });
+        std::erase_if(cells, [](auto* e) { return !e->IsVisible(true); });
+        CHECK(cells.size() == 64 + 32 * inventory->m_RmlView.GetModel().ownedExtensions);
+        CHECK(background.size() == cells.size());
+        for (size_t i = 0; i < std::min(background.size(), cells.size()); ++i)
+        {
+            Rml::Vector2f p, z, q, w;
+            REQUIRE(UI::RmlBridge::DrawnBox(*background[i], Rml::BoxArea::Border, p, z));
+            REQUIRE(UI::RmlBridge::DrawnBox(*cells[i], Rml::BoxArea::Border, q, w));
+            CHECK(p.x == doctest::Approx(q.x));
+            CHECK(p.y == doctest::Approx(q.y));
+            CHECK(z.x == doctest::Approx(w.x));
+            CHECK(z.y == doctest::Approx(w.y));
+        }
+        for (const char* id : {"item_grid", "item_grid_extension_1", "item_grid_extension_2"})
+            CheckExtension(doc, id);
+    }
+    void CheckExtension(Rml::ElementDocument* doc, const char* id)
+    {
+        auto* grid = doc->GetElementById(id);
+        if (!grid->IsVisible(true))
+            return;
+        mu::ui::window::CInventoryCtrl control;
+        const int rows = std::string_view(id) == "item_grid" ? 8 : 4;
+        REQUIRE(control.Create(STORAGE_TYPE::INVENTORY, &items, inventory.get(), 8, rows));
+        control.FollowGridPx(doc, id);
+        const auto rect = Box(*grid);
+        const auto& native = control.Geometry();
+        CHECK(native.Left() == doctest::Approx(rect.left));
+        CHECK(native.Top() == doctest::Approx(rect.top));
+        CHECK(native.PitchX() * 8 == doctest::Approx(rect.width));
+        CHECK(native.PitchY() * rows == doctest::Approx(rect.height));
+        auto* counts = doc->GetElementById(std::string(id) + "_counts");
+        REQUIRE(counts);
+        const auto countRect = Box(*counts);
+        CHECK(countRect.left == doctest::Approx(rect.left));
+        CHECK(countRect.top == doctest::Approx(rect.top));
+        CHECK(countRect.width == doctest::Approx(rect.width));
+        CHECK(countRect.height == doctest::Approx(rect.height));
+        auto* count = counts->QuerySelector(".item-count-text");
+        REQUIRE(count);
+        CHECK(count->IsVisible(true));
+        CHECK(!count->GetInnerRML().empty());
+    }
+    void CheckSmallInventory(Rml::ElementDocument* doc)
+    {
+        UI::Placement::PlacementParticipant::Box assigned;
+        REQUIRE(UI::Placement::SlotBox("inventory", assigned));
+        // A smaller post-fit root than the native800 capture: text must keep its native floor.
+        inventory->PlaceDocument(0.f, 0.f, 0.75f);
+        Refresh();
+        CheckInventoryText(doc);
+        inventory->PlaceDocument(assigned.left, assigned.top, assigned.scale);
+        Refresh();
+    }
+    void CheckStable(Rml::ElementDocument* doc)
+    {
+        const auto initial = Box(*doc->GetElementById("panel"));
+        const auto image = Box(*doc->GetElementById("item_view"));
+        CHECK(image.left < initial.left);
+        CHECK(image.top < initial.top);
+        CHECK(image.left + image.width > initial.left + initial.width);
+        CHECK(image.top + image.height > initial.top + initial.height);
+        for (int i = 0; i < 12; ++i)
+        {
+            UI::Placement::Update();
+            UI::Placement::Arrange();
+            Refresh();
+            const auto current = Box(*doc->GetElementById("panel"));
+            CHECK(current.left == doctest::Approx(initial.left));
+            CHECK(current.top == doctest::Approx(initial.top));
+            CHECK(current.width == doctest::Approx(initial.width));
+            CHECK(current.height == doctest::Approx(initial.height));
+        }
+    }
+
     Rml::Context* context = nullptr;
 
 private:
@@ -235,6 +459,9 @@ private:
     UI::RmlBridge::ThemeFileInterface files;
     ModelLog log;
     mu::ui::window::CManager manager;
+    mu::ui::window::CItemMng items;
+    std::unique_ptr<mu::ui::window::CMyInventory> inventory;
+    std::unique_ptr<mu::ui::window::CCharacterInfoWindow> character;
     std::unique_ptr<mu::ui::window::CMuHelperBar> helper;
 };
 
@@ -357,4 +584,107 @@ TEST_CASE("Actual helper idle and hover use one guarded shared hint across theme
             }
             f.NoErrors();
         }
+}
+
+namespace
+{
+void CheckInventoryText(Rml::ElementDocument* doc)
+{
+    auto* panel = doc->GetElementById("panel");
+    REQUIRE(panel);
+    Rml::ElementList labels;
+    doc->QuerySelectorAll(labels, "#title .native-text, .option-label, .capacity, #btn_myshop .native-text, .money "
+                                  ".native-text, .expand .native-text");
+    std::vector<Rect> inks;
+    const auto bounds = Box(*panel);
+    for (auto* label : labels)
+    {
+        if (!label->IsVisible(true))
+            continue;
+        const auto box = Box(*label);
+        const float layoutWidth = label->GetBox().GetSize(Rml::BoxArea::Content).x;
+        const float scale = layoutWidth > 0 ? box.width / layoutWidth : 1.f;
+        const float font = label->GetComputedValues().font_size() * scale;
+        CHECK(font >= 11.f - .1f);
+        const auto text = label->GetInnerRML();
+        float longest = 0.f;
+        int lineCount = 0;
+        Rml::String rendered;
+        for (int i = 0; i < label->GetNumChildren(); ++i)
+            if (auto* node = dynamic_cast<Rml::ElementText*>(label->GetChild(i)))
+                for (const auto& line : node->GetLines())
+                {
+                    longest =
+                        std::max(longest, static_cast<float>(Rml::ElementUtilities::GetStringWidth(label, line.text)));
+                    rendered += line.text;
+                    ++lineCount;
+                }
+        REQUIRE(lineCount > 0);
+        const auto withoutSpaces = [](Rml::String value)
+        {
+            std::erase_if(value, [](char c) { return std::isspace(static_cast<unsigned char>(c)); });
+            return value;
+        };
+        CHECK(withoutSpaces(rendered) == withoutSpaces(text)); // Wrap, never truncate/drop suffixes.
+        const Rect ink{box.left, box.top, longest * scale, font * 1.2f * lineCount};
+        if (auto* button = label->GetParentNode(); button && button->GetTagName() == "button")
+        {
+            const auto target = Box(*button);
+            CHECK(ink.left >= target.left - .1f);
+            CHECK(ink.top >= target.top - .1f);
+            CHECK(ink.left + ink.width <= target.left + target.width + .1f);
+            CHECK(ink.top + ink.height <= target.top + target.height + .1f);
+        }
+        CAPTURE(text);
+        CHECK(ink.left >= bounds.left - .1f);
+        CHECK(ink.left + ink.width <= bounds.left + bounds.width + .1f);
+        CHECK(ink.top >= bounds.top - .1f);
+        CHECK(ink.top + ink.height <= bounds.top + bounds.height + .1f);
+        for (const auto& other : inks)
+            CHECK((ink.left + ink.width <= other.left + .1f || other.left + other.width <= ink.left + .1f ||
+                   ink.top + ink.height <= other.top + .1f || other.top + other.height <= ink.top + .1f));
+        inks.push_back(ink);
+    }
+}
+} // namespace
+
+TEST_CASE("Actual fitted inventory preserves readable header footer and native grid through capacity changes "
+          "[ui][inventory][layout]")
+{
+    RmlViewLayoutFixture f;
+    f.CreateInventoryGroup();
+    for (const auto v : cases)
+    {
+        f.Configure("munolith", v);
+        for (int owned : {0, 1, 2, 0})
+            for (int variant : {0, 1, 2})
+            {
+                CAPTURE(v.width);
+                CAPTURE(v.height);
+                CAPTURE(v.percent);
+                CAPTURE(owned);
+                CAPTURE(variant);
+                auto* doc = f.Inventory(owned, variant);
+                auto* panel = doc->GetElementById("panel");
+                REQUIRE(panel);
+                for (const char* selector : {"#title .native-text", "#set_option", "#socket_option", ".capacity",
+                                             ".money .amount", ".money .zen"})
+                {
+                    auto* text = doc->QuerySelector(selector);
+                    REQUIRE(text);
+                    CHECK(text->IsVisible(true));
+                }
+                CHECK(doc->GetElementById("btn_repair")->IsVisible(true) == (variant != 0));
+                CHECK(doc->GetElementById("btn_myshop")->IsVisible(true) == (variant != 0));
+                Rml::ElementList choices;
+                doc->GetElementsByClassName(choices, "expand");
+                CHECK(std::count_if(choices.begin(), choices.end(), [](auto* e) { return e->IsVisible(true); }) == 1);
+                CheckInventoryText(doc);
+                f.CheckSmallInventory(doc);
+                f.CheckNativeGrid(doc);
+                f.CheckCells(doc);
+                f.CheckStable(doc);
+                f.NoErrors();
+            }
+    }
 }

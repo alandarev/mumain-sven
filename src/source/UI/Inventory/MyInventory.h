@@ -19,6 +19,7 @@
 #include "Core/Globals/_enum.h"
 
 namespace Rml { class ElementDocument; }
+class RmlViewLayoutFixture;
 
 namespace mu::ui::window
 {
@@ -61,6 +62,7 @@ namespace mu::ui::window
         };
 
     private:
+        friend class ::RmlViewLayoutFixture; // Actual fitted inventory view/native anchors in headless tests.
 
         typedef struct tagEQUIPMENT_ITEM
         {
@@ -146,6 +148,7 @@ namespace mu::ui::window
             bool deliveryVisible = false;
             int deliveryColumn = 0, deliveryRow = 0, deliveryWidth = 1, deliveryHeight = 1;
         };
+        void BindGridModel(Rml::DataModelConstructor& c, MyInventoryRmlModel& model);
         void BindRmlModel(Rml::DataModelConstructor& c, MyInventoryRmlModel& model);
         void OnRmlBuilt();
         UI::RmlBridge::ThemedView<MyInventoryRmlModel> m_RmlView{"my_inventory",

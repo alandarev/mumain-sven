@@ -143,8 +143,19 @@ bool CMyInventory::Create(CManager* pNewUIMng)
     return true;
 }
 
+void CMyInventory::BindGridModel(Rml::DataModelConstructor& c, MyInventoryRmlModel& model)
+{
+    UI::Items::RegisterItemGridCells(c);
+    c.Bind("grid_cells", &model.gridCells);
+    c.Bind("grid_cells_extension_1", &model.gridCellsExtension1);
+    c.Bind("grid_cells_extension_2", &model.gridCellsExtension2);
+    c.RegisterArray<std::vector<int>>();
+    c.Bind("rows", &model.rows);
+}
+
 void CMyInventory::BindRmlModel(Rml::DataModelConstructor& c, MyInventoryRmlModel& model)
 {
+    BindGridModel(c, model);
     UI::RmlBridge::BindWindowClose(c, INTERFACE_INVENTORY);
     BindMerchantFeedback(c, model);
     model.textPx = UI::RmlBridge::NativeTextPx(UI::Scaling::FontRole::Normal);
@@ -158,10 +169,6 @@ void CMyInventory::BindRmlModel(Rml::DataModelConstructor& c, MyInventoryRmlMode
     c.Bind("capacity_text", &model.capacityText);
     c.Bind("expansion_visible", &model.expansionVisible);
     c.Bind("overflow_visible", &model.overflowVisible);
-    c.Bind("grid_cells_extension_1", &model.gridCellsExtension1);
-    c.Bind("grid_cells_extension_2", &model.gridCellsExtension2);
-    c.RegisterArray<std::vector<int>>();
-    c.Bind("rows", &model.rows);
 
     c.Bind("repair_visible", &model.repairVisible);
     c.Bind("repair_active", &model.repairActive);
@@ -181,8 +188,6 @@ void CMyInventory::BindRmlModel(Rml::DataModelConstructor& c, MyInventoryRmlMode
     c.Bind("socket_option_active", &model.socketOptionActive);
     c.RegisterArray<std::vector<Rml::String>>();
     c.Bind("slot_states", &model.slotStates);
-    UI::Items::RegisterItemGridCells(c);
-    c.Bind("grid_cells", &model.gridCells);
 
     c.BindEventCallback("my_inventory_set_option_hover",
         [this](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&)

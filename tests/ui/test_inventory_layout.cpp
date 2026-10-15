@@ -155,8 +155,10 @@ TEST_CASE("Embedded inventory preserves cells counts drop and merchant feedback 
                 Rml::Vector2f offset, size;
                 auto* feedback = f.document->QuerySelector(".merchant-delivery");
                 REQUIRE(UI::RmlBridge::DrawnBox(*feedback, Rml::BoxArea::Border, offset, size));
-                CHECK(offset.x == doctest::Approx(200.f + 55.f * scale));
-                CHECK(offset.y == doctest::Approx(80.f + 245.f * scale));
+                Rml::Vector2f gridOffset, gridSize;
+                REQUIRE(UI::RmlBridge::DrawnContentBox(*f.document->GetElementById("item_grid"), gridOffset, gridSize));
+                CHECK(offset.x == doctest::Approx(gridOffset.x + 2.f * gridSize.x / 8.f));
+                CHECK(offset.y == doctest::Approx(gridOffset.y + 10.f * gridSize.y / 8.f));
                 CHECK(size.x == doctest::Approx(40.f * scale));
                 CHECK(size.y == doctest::Approx(40.f * scale));
             }
