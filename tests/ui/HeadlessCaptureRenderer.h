@@ -50,6 +50,22 @@ public:
     }
     std::uint32_t lastCreated = 0;
     std::unordered_set<std::uint32_t> allowed, released;
+    // Native text measuring (CUIRenderTextSDLTtf) for a test that opens real faces; null otherwise.
+    TTF_TextEngine* GetTextEngine() override
+    {
+        return textEngine;
+    }
+    TTF_Font* GetTtfFont() override
+    {
+        return textFont;
+    }
+    TTF_Font* GetTtfFontBold() override
+    {
+        return textFontBold;
+    }
+    TTF_TextEngine* textEngine = nullptr;
+    TTF_Font* textFont = nullptr;
+    TTF_Font* textFontBold = nullptr;
 
 private:
     std::uint32_t serial = 0;

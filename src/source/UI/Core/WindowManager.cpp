@@ -22,6 +22,12 @@ UI::Scaling::Transform mu::ui::window::CManager::MeasuringUnits() const
     return m_unitsFor(static_cast<int>(WindowWidth), static_cast<int>(WindowHeight));
 }
 
+void mu::ui::window::CManager::InMeasuringUnits(const std::function<void()>& measure) const
+{
+    const UI::Scaling::ScopedActiveTransform units(MeasuringUnits());
+    measure();
+}
+
 mu::ui::window::CManager::~CManager()
 {
     RemoveAllUIObjs();

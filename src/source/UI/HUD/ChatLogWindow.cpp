@@ -692,7 +692,8 @@ void mu::ui::window::CChatLogWindow::SyncRmlModel()
 
     UI::RmlBridge::SyncDocumentVisibility(m_RmlView.Document(), IsVisible() && m_bShowChatLog && m_bSceneAllowsShow);
 
-    // A resize keeps a view that was at the bottom there, and leaves a scrolled-up one alone.
+    // A resize keeps a view that was at the bottom there, and a scrolled-up one at its logical end
+    // line (MarkGeometryChanged()).
     const bool following = !m_bShowFrame || IsScrolledToBottom();
     ChatLogRmlModel& model = m_RmlView.GetModel();
 
@@ -704,15 +705,13 @@ void mu::ui::window::CChatLogWindow::SyncRmlModel()
     {
         model.clientHeight = clientHeight;
         m_RmlView.MarkDirty("client_height");
-        m_bFollowTail = following;
-        m_bScrollPending = following;
+        MarkGeometryChanged(following);
     }
     if (model.panelHeight != panelHeight)
     {
         model.panelHeight = panelHeight;
         m_RmlView.MarkDirty("panel_height");
-        m_bFollowTail = following;
-        m_bScrollPending = following;
+        MarkGeometryChanged(following);
     }
     if (model.showFrame != m_bShowFrame)
     {
@@ -792,13 +791,21 @@ void mu::ui::window::CChatLogWindow::SyncNativeLineGeometry()
         {
             model.*field = value;
             m_RmlView.MarkDirty(name);
-            m_bFollowTail = following;
-            m_bScrollPending = following;
+            MarkGeometryChanged(following);
         }
     };
     syncFloat(&ChatLogRmlModel::textPx, "text_px", UI::RmlBridge::NativeTextPx(UI::Scaling::FontRole::Normal));
     syncFloat(&ChatLogRmlModel::linePx, "line_px", CUIRenderTextSDLTtf::LineHeightPx(UI::Scaling::FontRole::Normal));
     syncFloat(&ChatLogRmlModel::rowPx, "row_px", SCROLL_MIDDLE_PART_HEIGHT * dpRatio);
+}
+
+void mu::ui::window::CChatLogWindow::MarkGeometryChanged(bool following)
+{
+    m_bFollowTail = following;
+    m_bScrollPending = following;
+    // The relaid #lines keeps its old pixel offset, which at another size or density is another
+    // line: re-apply the logical end line instead, once laid out, as PageUp/PageDown do.
+    m_bScrollRequest = true;
 }
 
 void mu::ui::window::CChatLogWindow::RebuildLineModel()
@@ -966,6 +973,21 @@ float mu::ui::window::CChatLogWindow::GetKeyEventOrder()
 void mu::ui::window::CChatLogWindow::SeparateText(IN const type_string& strID, IN const type_string& strText,
                                                  MESSAGE_TYPE MsgType, OUT type_string& strText1,
                                                  OUT type_string& strText2)
+{
+    // Messages arrive outside the window manager's callbacks (packet handling runs under the
+    // screen overlay transform), so the split is measured in this window's own units: the ones its
+    // CLIENT_WIDTH and the RmlUi well (dp) are in. Under the overlay a unit is window width / 640,
+    // which at a wide or user-scaled window let a first line run far past the well.
+    const auto separate = [&] { SeparateMeasuredText(strID, strText, MsgType, strText1, strText2); };
+    if (m_pNewUIMng != nullptr)
+        m_pNewUIMng->InMeasuringUnits(separate);
+    else
+        separate();
+}
+
+void mu::ui::window::CChatLogWindow::SeparateMeasuredText(const type_string& strID, const type_string& strText,
+                                                          MESSAGE_TYPE MsgType, type_string& strText1,
+                                                          type_string& strText2)
 {
     g_pRenderText->SetFont(MsgType == TYPE_GM_MESSAGE ? g_hFontBold : g_hFont);
     int max_first_line_size = CLIENT_WIDTH;

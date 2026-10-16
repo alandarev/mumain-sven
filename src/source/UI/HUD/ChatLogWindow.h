@@ -165,6 +165,9 @@ namespace mu::ui::window
         // into view exactly as native's own "follow the tail" behaviour did. Skipped while the
         // user has scrolled up, same as native.
         void ScrollToBottomIfFollowing();
+        // A size, density or text-metric change: re-pins a view that was following, and re-applies
+        // the logical end line (m_iCurrentRenderEndLine) to the relaid view either way.
+        void MarkGeometryChanged(bool following);
         bool IsScrolledToBottom() const;
         // Resolves which rendered line the cursor is over and acts on a right-click, replacing
         // native's own per-line loop in UpdateMouseEvent(). Compares raw window pixels against
@@ -264,6 +267,9 @@ namespace mu::ui::window
 
         void SeparateText(IN const type_string& strID, IN const type_string& strText, MESSAGE_TYPE MsgType,
                           OUT type_string& strText1, OUT type_string& strText2);
+        // SeparateText()'s split, measured in whatever units are active.
+        void SeparateMeasuredText(const type_string& strID, const type_string& strText, MESSAGE_TYPE MsgType,
+                                  type_string& strText1, type_string& strText2);
 
         bool CheckFilterText(const type_string& strTestText);
         void AddFilterWord(const type_string& strWord);

@@ -8,6 +8,7 @@
 #include <vector>
 #include <map>
 #include <algorithm>
+#include <functional>
 
 #include "UI/Core/WindowObject.h"
 
@@ -44,6 +45,9 @@ namespace mu::ui::window
         // The windows' measuring space (TypographyUnitsTransform() unless the owner sets one).
         void SetUnits(UnitsFor unitsFor);
         UI::Scaling::Transform MeasuringUnits() const;
+        // Runs `measure` in that space, for a window measuring native text outside the manager's
+        // own callbacks (a chat message arriving from packet handling).
+        void InMeasuringUnits(const std::function<void()>& measure) const;
 
         CObject* FindUIObj(DWORD dwKey);
         CObject* FindUIObjByRelatedWnd(HWND hWnd) const;

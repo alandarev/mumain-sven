@@ -40,6 +40,7 @@
 #include "UI/RmlBridge/RmlTheme.h"
 #include "UI/RmlBridge/RmlTooltip.h"
 #include "UI/RmlBridge/ThemeFileInterface.h"
+#include "Render/Text/CUIRenderText.h"
 #include "UI/Scaling/UITransform.h"
 #include <filesystem>
 #include <ostream>
@@ -1857,8 +1858,8 @@ public:
         armory.HoverAttribute(-1);
         ProductionFrame();
     }
-    // First and last history rows whose drawn box lies inside the well's drawn content box --
-    // what the clipped log actually shows -- read back from each row's own text.
+    // First and last history rows (message indices) whose drawn box lies inside the well's drawn
+    // content box -- what the clipped log actually shows.
     PaintedRows PaintedHistoryRows()
     {
         auto* lines = Document("chat_log.rml")->GetElementById("lines");
@@ -1873,16 +1874,72 @@ public:
             const float middle = (row.Top() + row.Bottom()) / 2.f;
             if (middle < well.Top() || middle >= well.Bottom())
                 continue;
+            // DOM order is the message vector's order; a seeded row carries its own index.
             const auto text = lines->GetChild(i)->GetInnerRML();
-            const auto at = text.rfind("row ");
-            REQUIRE(at != Rml::String::npos);
-            const int number = std::stoi(text.substr(at + 4));
-            CHECK(number == i); // DOM order is the message vector's order.
-            rows.first = rows.first < 0 ? number : rows.first;
-            rows.last = number;
+            const auto at = text.rfind("SEEDED UI640 row ");
+            if (at != Rml::String::npos)
+                CHECK(std::stoi(text.substr(at + 17)) == i);
+            rows.first = rows.first < 0 ? i : rows.first;
+            rows.last = i;
         }
         return rows;
     }
+    // Painted history rows whose laid-out text runs past the well's visible width (its client
+    // width: inside the padding and left of the scrollbar), with how far, in screen px.
+    std::vector<std::pair<int, float>> ClippedHistoryRows()
+    {
+        auto* lines = Document("chat_log.rml")->GetElementById("lines");
+        Rml::Rectanglef well;
+        REQUIRE(Rml::ElementUtilities::GetBoundingBox(well, lines, Rml::BoxArea::Content));
+        const float visibleRight = lines->GetAbsoluteLeft() + lines->GetClientLeft() + lines->GetClientWidth();
+        std::vector<std::pair<int, float>> clipped;
+        for (int i = 0; i < lines->GetNumChildren(); ++i)
+        {
+            Rml::Element* row = lines->GetChild(i);
+            Rml::Rectanglef box;
+            if (!Rml::ElementUtilities::GetBoundingBox(box, row, Rml::BoxArea::Border))
+                continue;
+            const float middle = (box.Top() + box.Bottom()) / 2.f;
+            if (middle < well.Top() || middle >= well.Bottom())
+                continue;
+            const float textRight =
+                row->GetAbsoluteLeft() + row->GetClientLeft() + std::max(row->GetScrollWidth(), row->GetClientWidth());
+            if (textRight > visibleRight + 0.5f)
+                clipped.emplace_back(i, textRight - visibleRight);
+        }
+        return clipped;
+    }
+    // Real native text measuring (CUIRenderTextSDLTtf over bundled faces opened at their cached
+    // point size, as the renderer does) for the scope of one test: CChatLogWindow::SeparateText()
+    // splits a long message with it.
+    struct NativeTextMeasuring
+    {
+        NativeTextMeasuring()
+        {
+            captureRenderer.textEngine = TTF_CreateSurfaceTextEngine();
+            REQUIRE(captureRenderer.textEngine);
+            captureRenderer.textFont =
+                TTF_OpenFont((std::string(MU_FONT_DIR) + "/DejaVuSans.ttf").c_str(),
+                             static_cast<float>(UI::Scaling::CachedFontPointSize(UI::Scaling::FontRole::Normal)));
+            captureRenderer.textFontBold =
+                TTF_OpenFont((std::string(MU_FONT_DIR) + "/DejaVuSans-Bold.ttf").c_str(),
+                             static_cast<float>(UI::Scaling::CachedFontPointSize(UI::Scaling::FontRole::Bold)));
+            REQUIRE(captureRenderer.textFont);
+            REQUIRE(captureRenderer.textFontBold);
+            REQUIRE(g_pRenderText->Create(nullptr));
+            const UI::Scaling::ScopedActiveTransform units(UI::Scaling::TypographyUnitsTransform(1024, 768));
+            REQUIRE(g_pRenderText->MeasureText(L"W", 1).cx > 0);
+        }
+        ~NativeTextMeasuring()
+        {
+            g_pRenderText->Release();
+            TTF_CloseFont(captureRenderer.textFont);
+            TTF_CloseFont(captureRenderer.textFontBold);
+            TTF_DestroySurfaceTextEngine(captureRenderer.textEngine);
+            captureRenderer.textFont = captureRenderer.textFontBold = nullptr;
+            captureRenderer.textEngine = nullptr;
+        }
+    };
     // F1 (native 1fd5): framed history at its tail painted the OLDEST rows after a same-theme
     // control reload, and PageDown/wheel then moved from there. Production frame order: window
     // Update() (SyncRmlModel), then the context update whose afterUpdate hook runs the chat's
@@ -2053,6 +2110,281 @@ public:
 
         // The exposed wheel scrolls from the restored viewport, not from the top.
         CheckExposedHistory(chat);
+    }
+    // Native d2bf profiles: history seeded at Munolith 1024x768@100 (wrapped rows split by native
+    // SeparateText()), framed at its wrapped tail at 1920x1080@75, then the window resized to
+    // 3840x2160 (dp unchanged) and the UI scale set to 100 (dp changes), then a Munolith reload,
+    // painted older rows -- already before the reload. Viewport-only, scale-only, theme-only and
+    // combined are separated here. Headless the following tail holds in every step (the native tail
+    // loss is not reproduced); a scrolled-away view's logical end line drifted on a density change.
+    // A resize makes Winmain.cpp's HandleWindowResize() steps that reach the UI (it is file-local
+    // there): window size, the active screen-overlay transform the next frame's native measuring
+    // runs under, and RmlUiRuntime::OnResize() with the production scale hooks -- what `window
+    // resize` and `ui scale` reach through MuApplyWindowResolution().
+    void CheckFramedHistoryResize()
+    {
+        using namespace mu::ui::window;
+        auto& runtime = RmlUiRuntime::Instance();
+        const auto startTransform = UI::Scaling::GetActiveTransform();
+        const int startWidth = static_cast<int>(WindowWidth), startHeight = static_cast<int>(WindowHeight);
+        const int startPercent = GameConfig::GetInstance().GetUIScalePercent();
+        auto oldSystem = std::move(runtime.m_SystemInterface);
+        auto oldIme = std::move(runtime.m_TextInputMethodEditor);
+        runtime.m_SystemInterface = std::make_unique<RmlUiSystemInterface>(nullptr);
+        runtime.m_TextInputMethodEditor = std::make_unique<TextInputMethodEditor_SDL>();
+        Rml::SetSystemInterface(runtime.m_SystemInterface.get());
+        Rml::SetTextInputHandler(runtime.m_TextInputMethodEditor.get());
+        const auto fixtureHooks = runtime.m_Hooks;
+        UI::RmlBridge::InstallRuntimeHooks();
+        const auto productionHooks = runtime.m_Hooks;
+        const auto applyWindowSize = [&](int width, int height)
+        {
+            WindowWidth = width;
+            WindowHeight = height;
+            UI::Scaling::SetActiveTransform(UI::Scaling::ScreenOverlayTransform(width, height));
+            runtime.OnResize(width, height);
+        };
+        CChatLogWindow chat;
+        const auto restore = std::unique_ptr<RmlUiRuntime, std::function<void(RmlUiRuntime*)>>(
+            &runtime,
+            [&](auto*)
+            {
+                if (auto* focus = context->GetFocusElement())
+                    focus->Blur();
+                GameConfig::GetInstance().SetUIScalePercent(startPercent);
+                applyWindowSize(startWidth, startHeight);
+                UI::Scaling::SetActiveTransform(startTransform);
+                runtime.SetHooks(fixtureHooks);
+                Rml::SetTextInputHandler(nullptr);
+                Rml::SetSystemInterface(&log);
+                runtime.m_SystemInterface = std::move(oldSystem);
+                runtime.m_TextInputMethodEditor = std::move(oldIme);
+            });
+        const NativeTextMeasuring measuring;
+        auto hooks = fixtureHooks;
+        hooks.dpRatio = productionHooks.dpRatio;
+        hooks.afterScale = productionHooks.afterScale;
+        hooks.afterUpdate = [&, fixture = fixtureHooks.afterUpdate](Rml::Context* c)
+        {
+            fixture(c);
+            chat.AfterRmlLayout(c);
+        };
+        runtime.SetHooks(std::move(hooks));
+        CreateInventoryGroup();
+        CSystemLogWindow notices;
+        CChatInputBox input;
+        REQUIRE(chat.Create(&manager, 6));
+        REQUIRE(notices.Create(&manager));
+        REQUIRE(input.Create(&manager, &chat, &notices));
+        Configure("munolith", {1024, 768, 100});
+        Inventory(0, 1);
+        PopulateArmory(false);
+        CUIPhotoViewer viewer;
+        auto& photo = character->m_Armory->m_PhotoControl;
+        photo.AttachOrbit(character->GetPlacedDocument(), viewer, "armory_model_controls", "armory_preview");
+        const auto detachPhoto = std::unique_ptr<CUIPhotoViewer, std::function<void(CUIPhotoViewer*)>>(
+            &viewer, [&](auto*) { photo.Detach(); });
+        const auto frame = [&]
+        {
+            input.Update();
+            chat.Update();
+            notices.Update();
+            ProductionFrame();
+        };
+        const auto key = [&](Rml::Input::KeyIdentifier identifier)
+        {
+            REQUIRE(Document("chat_input.rml")->GetElementById("chat_field")->Focus());
+            context->ProcessKeyDown(identifier, 0);
+            context->ProcessKeyUp(identifier, 0);
+            frame();
+        };
+        const auto resize = [&](int width, int height, int percent)
+        {
+            GameConfig::GetInstance().SetUIScalePercent(percent);
+            applyWindowSize(width, height);
+            frame();
+            frame();
+        };
+        const auto reload = [&](const char* theme)
+        {
+            std::unique_ptr<App::Control::Act> act;
+            const auto request =
+                App::Control::Request::Parse(std::string(R"({"cmd":"ui","action":"theme","name":")") + theme + "\"}");
+            REQUIRE(App::Control::Commands::Ui(request, act).empty());
+            REQUIRE(act);
+            std::string answer;
+            CHECK(act->Tick(answer) == App::Control::Act::Status::Running);
+            frame();
+            photo.AttachOrbit(character->GetPlacedDocument(), viewer, "armory_model_controls", "armory_preview");
+            photo.Sync();
+            frame();
+            CHECK(act->Tick(answer) == App::Control::Act::Status::Finished);
+            frame();
+        };
+        chat.Show(true);
+        notices.Show(true);
+        chat.SyncDocVisibility(true);
+        notices.SyncDocVisibility(true);
+        resize(1024, 768, 100);
+        // The native fixture's rows (chat_fixture.py), arriving at Munolith 1024x768@100: 34 short
+        // rows, then four long ones that native SeparateText() splits into two lines each.
+        for (int i = 0; i < 34; ++i)
+            chat.AddText(L"QA640", (i < 10 ? L"SEEDED UI640 row 0" : L"SEEDED UI640 row ") + std::to_wstring(i),
+                         TYPE_CHAT_MESSAGE);
+        for (int i = 40; i < 44; ++i)
+            chat.AddText(L"QA640",
+                         L"WRAPSTART" + std::to_wstring(i) +
+                             L" neutral wrapped history row for reflow and anchor check WRAPEND" + std::to_wstring(i),
+                         TYPE_CHAT_MESSAGE);
+        const int tailRow = static_cast<int>(chat.GetNumberOfLines(TYPE_ALL_MESSAGE)) - 1;
+        CHECK(tailRow == 41); // Each wrapped message is two native lines.
+        input.Show(true);
+        frame();
+        REQUIRE(Document("chat_input.rml")->GetElementById("chat_field")->Focus());
+        context->ProcessTextInput("B640 neutral unsent");
+        frame();
+        key(Rml::Input::KI_F5);
+        REQUIRE(chat.IsShowFrame());
+        const auto draft = [&]
+        { return Document("chat_input.rml")->GetElementById("chat_field")->GetAttribute<Rml::String>("value", ""); };
+
+        for (const char* theme : {"legacy", "modern", "munolith"})
+        {
+            CAPTURE(std::string(theme));
+            reload(theme);
+            resize(1920, 1080, 75);
+            for (int i = 0; i < 8; ++i)
+                key(Rml::Input::KI_NEXT);
+            REQUIRE(PaintedHistoryRows().last == tailRow);
+            REQUIRE(chat.GetCurrentRenderEndLine() == tailRow);
+
+            // Resize only, following the tail: the tail stays painted at every step and back. The
+            // first step changes the viewport only (dp unchanged), the second the UI scale (dp).
+            resize(3840, 2160, 75);
+            CHECK(PaintedHistoryRows().last == tailRow);
+            resize(3840, 2160, 100);
+            CHECK(PaintedHistoryRows().last == tailRow);
+            CHECK(chat.GetCurrentRenderEndLine() == tailRow);
+            resize(1920, 1080, 75);
+            CHECK(PaintedHistoryRows().last == tailRow);
+
+            // Resize only, scrolled away: the logical end line survives, the resized view is the one a
+            // reload at that size shows for it, and resizing back paints the original rows again.
+            key(Rml::Input::KI_PRIOR);
+            const auto away = PaintedHistoryRows();
+            const int awayEnd = chat.GetCurrentRenderEndLine();
+            REQUIRE(away.last < tailRow);
+            REQUIRE(away.first > 0);
+            resize(3840, 2160, 75);
+            resize(3840, 2160, 100);
+            CHECK(chat.GetCurrentRenderEndLine() == awayEnd);
+            const auto awayLarge = PaintedHistoryRows();
+            CHECK(awayLarge.last < tailRow);
+            reload(theme);
+            CHECK(PaintedHistoryRows() == awayLarge);
+            resize(1920, 1080, 75);
+            CHECK(chat.GetCurrentRenderEndLine() == awayEnd);
+            CHECK(PaintedHistoryRows() == away);
+
+            // Theme only, at the same size.
+            reload(theme);
+            CHECK(PaintedHistoryRows() == away);
+
+            // Combined, in the native order: two resizes, then a reload of another theme.
+            for (int i = 0; i < 8; ++i)
+                key(Rml::Input::KI_NEXT);
+            REQUIRE(PaintedHistoryRows().last == tailRow);
+            resize(3840, 2160, 75);
+            resize(3840, 2160, 100);
+            reload("munolith");
+            CHECK(PaintedHistoryRows().last == tailRow);
+            reload(theme);
+            resize(1920, 1080, 75);
+            CHECK(PaintedHistoryRows().last == tailRow);
+            key(Rml::Input::KI_PRIOR);
+            CHECK(chat.GetCurrentRenderEndLine() == awayEnd);
+            resize(3840, 2160, 100);
+            reload(theme);
+            resize(1920, 1080, 75);
+            CHECK(chat.GetCurrentRenderEndLine() == awayEnd);
+            CHECK(PaintedHistoryRows() == away);
+
+            // A log the scene hides across a resize restores its view when shown again.
+            chat.SyncDocVisibility(false);
+            frame();
+            resize(3840, 2160, 100);
+            resize(1920, 1080, 75);
+            chat.SyncDocVisibility(true);
+            frame();
+            frame();
+            CHECK(chat.GetCurrentRenderEndLine() == awayEnd);
+            CHECK(PaintedHistoryRows() == away);
+
+            // Navigation continues from the restored view; the tail then follows an append.
+            key(Rml::Input::KI_PRIOR);
+            CHECK(PaintedHistoryRows().last < away.last);
+            for (int i = 0; i < 8; ++i)
+                key(Rml::Input::KI_NEXT);
+            CHECK(PaintedHistoryRows().last == tailRow);
+            CHECK(draft() == "B640 neutral unsent");
+        }
+
+        // An empty filtered view across a resize; restoring the filter returns to the tail, which
+        // follows an append made at the new size.
+        key(Rml::Input::KI_F2);
+        REQUIRE(chat.GetCurrentMsgType() == TYPE_WHISPER_MESSAGE);
+        resize(3840, 2160, 100);
+        key(Rml::Input::KI_F2);
+        CHECK(PaintedHistoryRows().last == tailRow);
+        chat.AddText(L"QA640", L"APPENDED UI640 tail row", TYPE_CHAT_MESSAGE);
+        frame();
+        frame();
+        CHECK(PaintedHistoryRows().last == tailRow + 1);
+        resize(1920, 1080, 75);
+        CHECK(PaintedHistoryRows().last == tailRow + 1);
+        CHECK(draft() == "B640 neutral unsent");
+
+        // The split is measured in the window's own units wherever the message arrives: the same
+        // two lines per long message at every profile, the first fitting the well it arrived in.
+        // Only Legacy and Munolith are held to the fit: Modern draws its rows in its own font
+        // (11dp), wider than the native text the split measures -- an open typography decision.
+        constexpr Viewport profiles[]{{1024, 768, 100}, {800, 600, 150}, {1920, 1080, 75}, {3840, 2160, 100}};
+        const auto arrive = [&](const char* theme, Viewport arrival)
+        {
+            resize(arrival.width, arrival.height, arrival.percent);
+            reload(theme);
+            chat.ClearAll();
+            for (int i = 40; i < 44; ++i)
+                chat.AddText(L"QA640",
+                             L"WRAPSTART" + std::to_wstring(i) +
+                                 L" neutral wrapped history row for reflow and anchor check WRAPEND" +
+                                 std::to_wstring(i),
+                             TYPE_CHAT_MESSAGE);
+            frame();
+            frame();
+        };
+        for (const char* theme : {"legacy", "modern", "munolith"})
+            for (const auto arrival : profiles)
+            {
+                CAPTURE(std::string(theme));
+                CAPTURE(arrival.width);
+                CAPTURE(arrival.percent);
+                arrive(theme, arrival);
+                CHECK(chat.GetNumberOfLines(TYPE_ALL_MESSAGE) == 8);
+            }
+        for (const char* theme : {"legacy", "munolith"})
+            for (const auto arrival : profiles)
+            {
+                CAPTURE(std::string(theme));
+                CAPTURE(arrival.width);
+                CAPTURE(arrival.percent);
+                arrive(theme, arrival);
+                for (const auto& [row, overflow] : ClippedHistoryRows())
+                {
+                    CAPTURE(row);
+                    FAIL_CHECK("arrival row overflows by " << overflow << "px");
+                }
+            }
     }
 
     int beforeHooks = 0, afterHooks = 0;
@@ -2819,4 +3151,10 @@ TEST_CASE("Framed chat history keeps its viewport across theme control reloads [
 {
     RmlViewLayoutFixture f;
     f.CheckFramedHistoryReload();
+}
+
+TEST_CASE("Framed chat history keeps its viewport across window resizes and theme reloads [ui][resize][history]")
+{
+    RmlViewLayoutFixture f;
+    f.CheckFramedHistoryResize();
 }
