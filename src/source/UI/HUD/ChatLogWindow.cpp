@@ -372,20 +372,12 @@ void mu::ui::window::CChatLogWindow::Scrolling(int nRenderEndLine)
         return;
     }
 
-    if ((int)pvecMsgs->size() <= m_nShowingLines)
-    {
-        m_iCurrentRenderEndLine = pvecMsgs->size() - 1;
-    }
-    else
-    {
-        if (nRenderEndLine < m_nShowingLines)
-            m_iCurrentRenderEndLine = m_nShowingLines - 1;
-
-        else if (nRenderEndLine >= (int)pvecMsgs->size())
-            m_iCurrentRenderEndLine = pvecMsgs->size() - 1;
-        else
-            m_iCurrentRenderEndLine = nRenderEndLine;
-    }
+    // Any line of the history may be the end line: ApplyLogicalScroll() aligns its row with the
+    // well's bottom, or shows the top when that row is still on the first page. Wrapped rows are
+    // taller than a native line, so neither the first page's end line nor whether the history
+    // scrolls at all follows from the showing count.
+    const int size = (int)pvecMsgs->size();
+    m_iCurrentRenderEndLine = size == 0 ? -1 : std::clamp(nRenderEndLine, 0, size - 1);
 
     // Nothing renders from m_iCurrentRenderEndLine any more, so a caller that moves it (the chat
     // input box's PageUp/PageDown) has to have it pushed into RmlUi's own scroll offset.
@@ -916,13 +908,12 @@ void mu::ui::window::CChatLogWindow::ApplyLogicalScroll()
 
     // The end line's row ends at the well's bottom, as native drew the end line last. Rows are
     // laid out at their own heights (a wrapped row is taller), so the offset comes from the row
-    // itself, not from its index's share of the scroll range. Native's first page (an end line
-    // before the showing count, fPosRate 0) is the top.
-    const int total = (int)GetNumberOfLines(GetCurrentMsgType());
-    const int showing = (int)GetNumberOfShowingLines();
+    // itself, not from its index's share of the scroll range, and whether the history scrolls at
+    // all is its laid-out height, not its line count. An end line whose row is still on the first
+    // page shows the top (the clamp below), as native's fPosRate 0 did.
     const int end = GetCurrentRenderEndLine();
     float scrollTop = 0.0f;
-    if (total > showing && end >= showing)
+    if (end >= 0)
     {
         if (end >= lines->GetNumChildren())
             return;
@@ -946,9 +937,9 @@ void mu::ui::window::CChatLogWindow::SyncLogicalScrollFromView()
         return;
 
     const int total = (int)GetNumberOfLines(GetCurrentMsgType());
-    const int showing = (int)GetNumberOfShowingLines();
-    if (total <= showing)
+    if (total == 0 || lines->GetScrollHeight() - lines->GetClientHeight() <= 0.0f)
     {
+        // Everything is in view: the end line is the last.
         m_iCurrentRenderEndLine = total - 1;
         return;
     }
@@ -964,7 +955,7 @@ void mu::ui::window::CChatLogWindow::SyncLogicalScrollFromView()
             break;
         end = i;
     }
-    m_iCurrentRenderEndLine = std::clamp(end, showing - 1, total - 1);
+    m_iCurrentRenderEndLine = std::clamp(end, 0, total - 1);
 }
 
 void mu::ui::window::CChatLogWindow::ScrollToBottomIfFollowing()

@@ -2469,6 +2469,112 @@ public:
         CHECK(PaintedHistoryRows().last == tailRow + 1);
         CHECK(draft() == "B640 neutral unsent");
 
+        // Histories whose stored line count is at, below or just above the window's nominal count
+        // (6) while their wrapped rows overflow the well: whether the view scrolls is the laid-out
+        // overflow, not the count. The tail stays at the bottom through PageDown, reload, resize, a
+        // hidden reflow and an append; PageUp reaches the top and PageDown returns. Short rows that
+        // fit, and an empty history, stay put at the top.
+        REQUIRE(chat.GetNumberOfShowingLines() == 6);
+        const std::wstring widest(89, L'W');
+        struct ShortHistory
+        {
+            const char* name;
+            int widest, shorts;
+            bool overflows;
+        };
+        constexpr ShortHistory shortHistories[]{{"below", 2, 0, true},
+                                                {"equal", 3, 0, true},
+                                                {"above", 3, 1, true},
+                                                {"short rows", 0, 3, false},
+                                                {"empty", 0, 0, false}};
+        for (const char* theme : {"legacy", "modern", "munolith"})
+            for (const auto& history : shortHistories)
+            {
+                CAPTURE(std::string(theme));
+                CAPTURE(std::string(history.name));
+                reload(theme);
+                resize(1920, 1080, 75);
+                chat.ClearAll();
+                frame();
+                for (int i = 0; i < history.widest; ++i)
+                    chat.AddText(L"QA640", widest, TYPE_CHAT_MESSAGE);
+                for (int i = 0; i < history.shorts; ++i)
+                    chat.AddText(L"QA640", L"SHORT row " + std::to_wstring(i), TYPE_CHAT_MESSAGE);
+                frame();
+                frame();
+                const int total = static_cast<int>(chat.GetNumberOfLines(TYPE_ALL_MESSAGE));
+                CHECK(total == history.widest * 2 + history.shorts); // Native splits each W message once.
+                // A reload rebuilds the document: look #lines up again every time.
+                const auto lines = [&] { return Document("chat_log.rml")->GetElementById("lines"); };
+                const auto range = [&] { return lines()->GetScrollHeight() - lines()->GetClientHeight(); };
+                REQUIRE((range() > 1.f) == history.overflows);
+                if (history.overflows)
+                {
+                    // The overflow comes from wrapped rows: at least one row laid out on several lines.
+                    int wrapped = 0;
+                    for (int i = 0; i < total; ++i)
+                        for (int c = 0; c < lines()->GetChild(i)->GetNumChildren(); ++c)
+                            if (auto* text = dynamic_cast<Rml::ElementText*>(lines()->GetChild(i)->GetChild(c)))
+                                wrapped += text->GetLines().size() > 1 ? 1 : 0;
+                    CHECK(wrapped > 0);
+                }
+                const auto atTail = [&](const std::string& when)
+                {
+                    CAPTURE(when);
+                    if (total == 0)
+                    {
+                        CHECK(chat.GetCurrentRenderEndLine() == -1);
+                        CHECK(lines()->GetScrollTop() == 0.f);
+                        return;
+                    }
+                    CHECK(chat.GetCurrentRenderEndLine() == total - 1);
+                    const auto anchor = VisibleHistoryAnchor(total);
+                    CHECK(anchor.index == total - 1);
+                    if (history.overflows)
+                    {
+                        CHECK(std::abs(lines()->GetScrollTop() - range()) <= 0.5f);
+                        CHECK(std::abs(anchor.belowBottom) <= 0.5f);
+                    }
+                    else
+                        CHECK(lines()->GetScrollTop() == 0.f);
+                };
+                atTail("arrival");
+                key(Rml::Input::KI_NEXT);
+                atTail("PageDown");
+                reload(theme);
+                atTail("same-theme reload");
+                resize(3840, 2160, 100);
+                atTail("resized");
+                resize(1920, 1080, 75);
+                atTail("resized back");
+                chat.SyncDocVisibility(false);
+                frame();
+                resize(800, 600, 150);
+                resize(1920, 1080, 75);
+                chat.SyncDocVisibility(true);
+                frame();
+                frame();
+                atTail("hidden reflow");
+                for (int i = 0; i < 4; ++i)
+                    key(Rml::Input::KI_PRIOR);
+                CHECK(lines()->GetScrollTop() == 0.f);
+                if (total > 0)
+                {
+                    // The first row is in view; the end line reads back as the last row half inside.
+                    CHECK(VisibleHistoryAnchor(total).index == chat.GetCurrentRenderEndLine());
+                    CHECK(chat.GetCurrentRenderEndLine() >= 0);
+                }
+                for (int i = 0; i < 4; ++i)
+                    key(Rml::Input::KI_NEXT);
+                atTail("PageUp to the top, PageDown back");
+                chat.AddText(L"QA640", L"SHORT appended", TYPE_CHAT_MESSAGE);
+                frame();
+                frame();
+                CHECK(chat.GetCurrentRenderEndLine() == total);
+                CHECK(VisibleHistoryAnchor(total + 1).index == total);
+                CHECK(draft() == "B640 neutral unsent");
+            }
+
         // A scrolled-away view over genuinely mixed row heights keeps its visible anchor -- the same
         // message ending at the well's bottom -- through viewport-only, user-scale, combined,
         // theme, reload and hidden transitions and an append, and Page/wheel continue from it.
