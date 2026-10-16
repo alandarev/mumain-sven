@@ -42,6 +42,7 @@
 #include "UI/RmlBridge/ThemeFileInterface.h"
 #include "UI/Scaling/UITransform.h"
 #include <filesystem>
+#include <ostream>
 
 extern int LoadingWorld;
 
@@ -185,6 +186,16 @@ struct Rect
 {
     float left, top, width, height;
 };
+// The first and last history rows the clipped chat log actually shows.
+struct PaintedRows
+{
+    int first = -1, last = -1;
+    bool operator==(const PaintedRows&) const = default;
+};
+std::ostream& operator<<(std::ostream& os, const PaintedRows& rows)
+{
+    return os << rows.first << ".." << rows.last;
+}
 Rect Box(Rml::Element& e)
 {
     Rml::Vector2f pos, size;
@@ -1846,6 +1857,203 @@ public:
         armory.HoverAttribute(-1);
         ProductionFrame();
     }
+    // First and last history rows whose drawn box lies inside the well's drawn content box --
+    // what the clipped log actually shows -- read back from each row's own text.
+    PaintedRows PaintedHistoryRows()
+    {
+        auto* lines = Document("chat_log.rml")->GetElementById("lines");
+        Rml::Rectanglef well;
+        REQUIRE(Rml::ElementUtilities::GetBoundingBox(well, lines, Rml::BoxArea::Content));
+        PaintedRows rows;
+        for (int i = 0; i < lines->GetNumChildren(); ++i)
+        {
+            Rml::Rectanglef row;
+            if (!Rml::ElementUtilities::GetBoundingBox(row, lines->GetChild(i), Rml::BoxArea::Border))
+                continue;
+            const float middle = (row.Top() + row.Bottom()) / 2.f;
+            if (middle < well.Top() || middle >= well.Bottom())
+                continue;
+            const auto text = lines->GetChild(i)->GetInnerRML();
+            const auto at = text.rfind("row ");
+            REQUIRE(at != Rml::String::npos);
+            const int number = std::stoi(text.substr(at + 4));
+            CHECK(number == i); // DOM order is the message vector's order.
+            rows.first = rows.first < 0 ? number : rows.first;
+            rows.last = number;
+        }
+        return rows;
+    }
+    // F1 (native 1fd5): framed history at its tail painted the OLDEST rows after a same-theme
+    // control reload, and PageDown/wheel then moved from there. Production frame order: window
+    // Update() (SyncRmlModel), then the context update whose afterUpdate hook runs the chat's
+    // AfterRmlLayout() (RmlRuntimeHooks.cpp), then render.
+    void CheckFramedHistoryReload()
+    {
+        using namespace mu::ui::window;
+        auto& runtime = RmlUiRuntime::Instance();
+        auto oldSystem = std::move(runtime.m_SystemInterface);
+        auto oldIme = std::move(runtime.m_TextInputMethodEditor);
+        runtime.m_SystemInterface = std::make_unique<RmlUiSystemInterface>(nullptr);
+        runtime.m_TextInputMethodEditor = std::make_unique<TextInputMethodEditor_SDL>();
+        Rml::SetSystemInterface(runtime.m_SystemInterface.get());
+        Rml::SetTextInputHandler(runtime.m_TextInputMethodEditor.get());
+        const auto fixtureHooks = runtime.m_Hooks;
+        CChatLogWindow chat;
+        const auto restore = std::unique_ptr<RmlUiRuntime, std::function<void(RmlUiRuntime*)>>(
+            &runtime,
+            [&](auto*)
+            {
+                if (auto* focus = context->GetFocusElement())
+                    focus->Blur();
+                runtime.SetHooks(fixtureHooks);
+                Rml::SetTextInputHandler(nullptr);
+                Rml::SetSystemInterface(&log);
+                runtime.m_SystemInterface = std::move(oldSystem);
+                runtime.m_TextInputMethodEditor = std::move(oldIme);
+            });
+        auto hooks = fixtureHooks;
+        hooks.afterUpdate = [&, fixture = fixtureHooks.afterUpdate](Rml::Context* c)
+        {
+            fixture(c);
+            chat.AfterRmlLayout(c);
+        };
+        runtime.SetHooks(std::move(hooks));
+        CreateInventoryGroup();
+        CSystemLogWindow notices;
+        CChatInputBox input;
+        REQUIRE(chat.Create(&manager, 6));
+        REQUIRE(notices.Create(&manager));
+        REQUIRE(input.Create(&manager, &chat, &notices));
+        Configure("munolith", {800, 600, 150});
+        Inventory(0, 1);
+        PopulateArmory(false);
+        CUIPhotoViewer viewer;
+        auto& photo = character->m_Armory->m_PhotoControl;
+        photo.AttachOrbit(character->GetPlacedDocument(), viewer, "armory_model_controls", "armory_preview");
+        const auto detachPhoto = std::unique_ptr<CUIPhotoViewer, std::function<void(CUIPhotoViewer*)>>(
+            &viewer, [&](auto*) { photo.Detach(); });
+        const auto frame = [&]
+        {
+            input.Update();
+            chat.Update();
+            notices.Update();
+            ProductionFrame();
+        };
+        const auto key = [&](Rml::Input::KeyIdentifier identifier)
+        {
+            context->ProcessKeyDown(identifier, 0);
+            context->ProcessKeyUp(identifier, 0);
+            frame();
+        };
+        chat.Show(true);
+        notices.Show(true);
+        chat.SyncDocVisibility(true);
+        notices.SyncDocVisibility(true);
+        for (int i = 0; i < 34; ++i)
+            chat.AddText(L"QA640", L"SEEDED UI640 row " + std::to_wstring(i), TYPE_CHAT_MESSAGE);
+        input.Show(true);
+        frame();
+        auto* field = Document("chat_input.rml")->GetElementById("chat_field");
+        REQUIRE(field->Focus());
+        context->ProcessTextInput("B640 neutral unsent");
+        frame();
+        REQUIRE_FALSE(chat.IsShowFrame());
+        key(Rml::Input::KI_F5);
+        REQUIRE(chat.IsShowFrame());
+        for (auto k : {Rml::Input::KI_PRIOR, Rml::Input::KI_NEXT, Rml::Input::KI_F2, Rml::Input::KI_F2,
+                       Rml::Input::KI_F3, Rml::Input::KI_F3, Rml::Input::KI_F4, Rml::Input::KI_F4, Rml::Input::KI_F4,
+                       Rml::Input::KI_F4, Rml::Input::KI_F4})
+            key(k);
+        REQUIRE(chat.GetNumberOfShowingLines() == 6);
+        frame();
+        const auto tail = PaintedHistoryRows();
+        REQUIRE(tail.last == 33);
+        REQUIRE(tail.first > 0);
+        REQUIRE(chat.GetCurrentRenderEndLine() == 33);
+        const int visibleRows = tail.last - tail.first + 1;
+
+        const auto reload = [&](const char* theme)
+        {
+            std::unique_ptr<App::Control::Act> act;
+            const auto request =
+                App::Control::Request::Parse(std::string(R"({"cmd":"ui","action":"theme","name":")") + theme + "\"}");
+            REQUIRE(App::Control::Commands::Ui(request, act).empty());
+            REQUIRE(act);
+            std::string answer;
+            CHECK(act->Tick(answer) == App::Control::Act::Status::Running);
+            frame();
+            const auto firstObservable = PaintedHistoryRows();
+            photo.AttachOrbit(character->GetPlacedDocument(), viewer, "armory_model_controls", "armory_preview");
+            photo.Sync();
+            frame();
+            CHECK(act->Tick(answer) == App::Control::Act::Status::Finished);
+            frame();
+            CHECK(PaintedHistoryRows() == firstObservable);
+            CHECK(Document("chat_input.rml")->GetElementById("chat_field")->GetAttribute<Rml::String>("value", "") ==
+                  "B640 neutral unsent");
+            return firstObservable;
+        };
+
+        // Following the tail: the reload keeps the tail, and the next message is still followed.
+        CHECK(reload("munolith") == tail);
+        CHECK(chat.GetCurrentRenderEndLine() == 33);
+        CHECK(reload("munolith") == tail);
+        chat.AddText(L"QA640", L"SEEDED UI640 row 34", TYPE_CHAT_MESSAGE);
+        frame();
+        frame();
+        CHECK(PaintedHistoryRows().last == 34);
+
+        // Scrolled away: the reload keeps that viewport; PageUp/PageDown continue from it.
+        field = Document("chat_input.rml")->GetElementById("chat_field");
+        REQUIRE(field->Focus());
+        key(Rml::Input::KI_PRIOR);
+        frame();
+        const auto away = PaintedHistoryRows();
+        REQUIRE(away.last < 34);
+        REQUIRE(away.first > 0);
+        CHECK(reload("munolith") == away);
+        chat.AddText(L"QA640", L"SEEDED UI640 row 35", TYPE_CHAT_MESSAGE);
+        frame();
+        frame();
+        CHECK(PaintedHistoryRows() == away); // A new line does not pull a scrolled-away view.
+        field = Document("chat_input.rml")->GetElementById("chat_field");
+        REQUIRE(field->Focus());
+        key(Rml::Input::KI_PRIOR);
+        frame();
+        CHECK(PaintedHistoryRows().last < away.last);
+        for (int i = 0; i < 4; ++i)
+            key(Rml::Input::KI_NEXT);
+        frame();
+        CHECK(PaintedHistoryRows().last == 35);
+
+        // Default-theme roundtrip at the tail, then back.
+        for (const char* theme : {"legacy", "modern", "munolith"})
+        {
+            CAPTURE(std::string(theme));
+            CHECK(reload(theme).last == 35);
+        }
+        const auto settled = PaintedHistoryRows();
+        CHECK(settled.last - settled.first + 1 == visibleRows);
+
+        // A log the scene hides across the reload (SyncMainSceneHudVisibility()) restores its
+        // scrolled-away view when shown again. ShowChatLog() is not used: it returns to the tail.
+        field = Document("chat_input.rml")->GetElementById("chat_field");
+        REQUIRE(field->Focus());
+        key(Rml::Input::KI_PRIOR);
+        frame();
+        const auto hiddenAway = PaintedHistoryRows();
+        REQUIRE(hiddenAway.last < 35);
+        chat.SyncDocVisibility(false);
+        frame();
+        reload("munolith");
+        chat.SyncDocVisibility(true);
+        frame();
+        frame();
+        CHECK(PaintedHistoryRows() == hiddenAway);
+
+        // The exposed wheel scrolls from the restored viewport, not from the top.
+        CheckExposedHistory(chat);
+    }
 
     int beforeHooks = 0, afterHooks = 0;
     Rml::Context* context = nullptr;
@@ -2605,4 +2813,10 @@ TEST_CASE("Focused visible native-input history survives first same-theme contro
 {
     RmlViewLayoutFixture f;
     f.CheckFocusedControlReload();
+}
+
+TEST_CASE("Framed chat history keeps its viewport across theme control reloads [ui][reload][history]")
+{
+    RmlViewLayoutFixture f;
+    f.CheckFramedHistoryReload();
 }

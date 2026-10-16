@@ -668,6 +668,10 @@ void mu::ui::window::CChatLogWindow::OnRmlReloaded()
 {
     // The next SyncRmlModel() fills the rebuilt document.
     m_bLinesDirty = true;
+    // The rebuilt #lines starts scrolled to the top, but the logical end line still says what the
+    // old one showed: re-apply it once laid out, as a PageUp/PageDown would, so the reload keeps
+    // the tail or the scrolled-away view instead of reading the oldest rows back as the position.
+    m_bScrollRequest = true;
     UI::Placement::Invalidate();
 }
 
