@@ -62,6 +62,7 @@ public:
         REQUIRE(Rml::Initialise());
         context = Rml::CreateContext("rml-themed-view", {320, 240});
         REQUIRE(context != nullptr);
+        context->SetSkipHiddenDocuments(true); // As RmlUiRuntime::Create() sets up the production context.
         resolved = context;
         UI::RmlBridge::SetContextResolver([this](std::string_view) { return resolved; });
         // A folder per run, so concurrent test processes never share theme files.

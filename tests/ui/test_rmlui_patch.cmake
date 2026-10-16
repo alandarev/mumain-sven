@@ -13,7 +13,7 @@ if(NOT first STREQUAL second)
     message(FATAL_ERROR "idempotent preparation changed destination")
 endif()
 execute_process(COMMAND "${CMAKE_COMMAND}" "-DSOURCE_DIR=${first}"
-    "-DPATCH_FILE=${MU_ROOT}/cmake/patches/rmlui-bd5f66-transform-cache.patch"
+    "-DPATCH_FILE=${MU_ROOT}/cmake/patches/rmlui-89a89c-transform-cache.patch"
     -P "${MU_ROOT}/cmake/ApplyGitPatch.cmake" COMMAND_ERROR_IS_FATAL ANY)
 foreach(file Include/RmlUi/Core/Element.h Include/RmlUi/Core/ElementUtilities.h Source/Core/ElementUtilities.cpp)
     file(SHA256 "${first}/${file}" digest)

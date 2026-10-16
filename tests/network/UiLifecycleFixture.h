@@ -70,6 +70,7 @@ public:
         m_rmlContext = m_rmlInitialised ? Rml::CreateContext("ui-lifecycle", {640, 480}) : nullptr;
         if (m_rmlContext != nullptr)
         {
+            m_rmlContext->SetSkipHiddenDocuments(true); // As RmlUiRuntime::Create() sets up the production context.
             m_fixtureFile = std::filesystem::temp_directory_path() /
                 ("mu-ui-lifecycle-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".rml");
             std::ofstream(m_fixtureFile) << "<rml><body data-model='chat_fixture'><input id='chat_field' type='text'/><input id='whisper_field' type='text'/></body></rml>";

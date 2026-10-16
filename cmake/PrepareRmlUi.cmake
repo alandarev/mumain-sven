@@ -1,9 +1,9 @@
 # A tracked project patch without a dirty submodule, pin change or fetched-source-only edit.
 function(mu_prepare_rmlui output source)
-    set(patch "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/patches/rmlui-bd5f66-transform-cache.patch")
-    set(pin "bd5f66a99e67ebe92201ecf87853f616f97b55ee")
+    set(patch "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/patches/rmlui-89a89c-transform-cache.patch")
+    set(pin "89a89c990e1f0e8a65b3b6553165d1bc55b17e81")
     set(helper "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/ApplyGitPatch.cmake")
-    set(expected "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/patches/rmlui-bd5f66-transform-cache.sha256")
+    set(expected "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/patches/rmlui-89a89c-transform-cache.sha256")
     find_package(Git REQUIRED)
     execute_process(COMMAND "${GIT_EXECUTABLE}" -C "${source}" rev-parse HEAD
         OUTPUT_VARIABLE revision OUTPUT_STRIP_TRAILING_WHITESPACE COMMAND_ERROR_IS_FATAL ANY)

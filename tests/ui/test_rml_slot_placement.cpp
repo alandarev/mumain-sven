@@ -34,6 +34,7 @@ public:
         REQUIRE(Rml::Initialise());
         context = Rml::CreateContext("slot-placement", {1920, 1080});
         REQUIRE(context != nullptr);
+        context->SetSkipHiddenDocuments(true); // As RmlUiRuntime::Create() sets up the production context.
     }
 
     ~Fixture()

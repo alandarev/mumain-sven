@@ -2,7 +2,7 @@
 +++ b/Include/RmlUi/Core/Element.h
 @@ -19,0 +20 @@
 +class ElementUtilities;
-@@ -789,0 +791 @@
+@@ -793,0 +795 @@
 +	friend class Rml::ElementUtilities;
 --- a/Include/RmlUi/Core/ElementUtilities.h
 +++ b/Include/RmlUi/Core/ElementUtilities.h

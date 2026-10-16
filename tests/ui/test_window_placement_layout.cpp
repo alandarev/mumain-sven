@@ -79,6 +79,7 @@ TEST_CASE("Workspace shell reserves regions and collapses hidden slots [ui][wind
     REQUIRE(Rml::Initialise());
     auto* context = Rml::CreateContext("workspace-shell", {1920, 1080});
     REQUIRE(context != nullptr);
+    context->SetSkipHiddenDocuments(true); // As RmlUiRuntime::Create() sets up the production context.
     for (const char* theme : {"legacy", "modern"})
     {
         CAPTURE(theme);
@@ -132,6 +133,7 @@ TEST_CASE("The header's corners and the docks the content area caps [ui][window-
     REQUIRE(Rml::Initialise());
     auto* context = Rml::CreateContext("workspace-header", {1024, 768});
     REQUIRE(context != nullptr);
+    context->SetSkipHiddenDocuments(true); // As RmlUiRuntime::Create() sets up the production context.
     constexpr float Scale = 1.6f;
     context->SetDensityIndependentPixelRatio(Scale);
     // The HUD's scale, as UI::RmlBridge::ApplyScaleInputs() gives every context.
@@ -202,6 +204,7 @@ TEST_CASE("A theme-sized slot fills the safe area's height [ui][window-placement
     REQUIRE(Rml::Initialise());
     auto* context = Rml::CreateContext("window-fill", {1920, 1080});
     REQUIRE(context != nullptr);
+    context->SetSkipHiddenDocuments(true); // As RmlUiRuntime::Create() sets up the production context.
 
     for (const char* theme : {"legacy", "modern"})
         for (const std::string window : {"character", "pet"})
@@ -270,6 +273,7 @@ TEST_CASE("Both themes' workspaces place docked windows on the original columns 
     constexpr float HudTop = Height - 51.f * 2.f;
     auto* context = Rml::CreateContext("window-placement", {1920, 1080});
     REQUIRE(context != nullptr);
+    context->SetSkipHiddenDocuments(true); // As RmlUiRuntime::Create() sets up the production context.
 
     for (const char* theme : {"legacy", "modern"})
     {
@@ -332,6 +336,7 @@ TEST_CASE("Munolith companion rows share top edges and stable order [ui][window-
     REQUIRE(Rml::Initialise());
     auto* context = Rml::CreateContext("companion-row", {1920, 1080});
     REQUIRE(context != nullptr);
+    context->SetSkipHiddenDocuments(true); // As RmlUiRuntime::Create() sets up the production context.
     for (const char* companion : {"character", "trade", "storage", "npc_shop", "mix"})
     {
         CAPTURE(companion);

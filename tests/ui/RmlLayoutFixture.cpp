@@ -62,6 +62,7 @@ RmlLayoutFixture::RmlLayoutFixture()
     REQUIRE(Rml::LoadFontFace(fonts + "/DejaVuSans-Bold.ttf"));
     context = Rml::CreateContext("layout-fixture", {1280, 720});
     REQUIRE(context != nullptr);
+    context->SetSkipHiddenDocuments(true); // As RmlUiRuntime::Create() sets up the production context.
 }
 
 RmlLayoutFixture::~RmlLayoutFixture()

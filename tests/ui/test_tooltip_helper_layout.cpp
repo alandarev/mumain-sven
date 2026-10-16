@@ -344,6 +344,7 @@ public:
         REQUIRE(Rml::LoadFontFace(std::string(MU_FONT_DIR) + "/LiberationSans-Regular.ttf", true));
         context = Rml::CreateContext("native-view-layout", {1024, 768});
         REQUIRE(context);
+        context->SetSkipHiddenDocuments(true); // As RmlUiRuntime::Create() sets up the production context.
         RmlUiRuntime::Instance().m_Context = context;
         UI::RmlBridge::SetActiveThemeName("munolith");
         oldHooks = RmlUiRuntime::Instance().m_Hooks;
@@ -2468,6 +2469,38 @@ public:
         resize(1920, 1080, 75);
         CHECK(PaintedHistoryRows().last == tailRow + 1);
         CHECK(draft() == "B640 neutral unsent");
+
+        // Munolith owns its markup and keeps its existing compact text_px bindings.
+        // Legacy follows upstream's native-text size; Modern keeps its explicit 11dp fields.
+        for (const char* theme : {"legacy", "modern", "munolith"})
+            for (const auto profile : {Viewport{1024, 768, 100}, Viewport{1920, 1080, 75}, Viewport{3840, 2160, 100}})
+            {
+                CAPTURE(std::string(theme));
+                CAPTURE(profile.width);
+                reload(theme);
+                resize(profile.width, profile.height, profile.percent);
+                auto* field = Document("chat_input.rml")->GetElementById("chat_field");
+                REQUIRE(field);
+                const float nativePx = UI::RmlBridge::NativeTextPx(UI::Scaling::FontRole::Normal);
+                float expected = nativePx;
+                if (std::string(theme) == "munolith")
+                    expected = std::max(8.f, nativePx * 0.75f);
+                else if (std::string(theme) == "modern")
+                    expected = 11.f * context->GetDensityIndependentPixelRatio();
+                if (std::string(theme) == "munolith")
+                {
+                    CHECK(Document("chat_input.rml")->GetElementById("panel")->GetComputedValues().font_size() ==
+                          doctest::Approx(expected));
+                    CHECK(Document("chat_input.rml")
+                              ->GetElementById("btn_type_0")
+                              ->GetChild(0)
+                              ->GetComputedValues()
+                              .font_size() == doctest::Approx(expected));
+                }
+                CHECK(field->GetComputedValues().font_size() == doctest::Approx(expected));
+                CHECK(Document("chat_input.rml")->GetElementById("whisper_field")->GetComputedValues().font_size() ==
+                      doctest::Approx(expected));
+            }
 
         // Histories whose stored line count is at, below or just above the window's nominal count
         // (6) while their wrapped rows overflow the well: whether the view scrolls is the laid-out
