@@ -914,22 +914,29 @@ void mu::ui::window::CChatLogWindow::ApplyLogicalScroll()
     if (lines == nullptr)
         return;
 
-    // Native's own fPosRate, unchanged -- the fraction of the way down the list the current end
-    // line represents.
-    float fPosRate = 1.0f;
+    // The end line's row ends at the well's bottom, as native drew the end line last. Rows are
+    // laid out at their own heights (a wrapped row is taller), so the offset comes from the row
+    // itself, not from its index's share of the scroll range. Native's first page (an end line
+    // before the showing count, fPosRate 0) is the top.
     const int total = (int)GetNumberOfLines(GetCurrentMsgType());
     const int showing = (int)GetNumberOfShowingLines();
-    if (total > showing)
+    const int end = GetCurrentRenderEndLine();
+    float scrollTop = 0.0f;
+    if (total > showing && end >= showing)
     {
-        if (showing > GetCurrentRenderEndLine())
-            fPosRate = 0.0f;
-        else
-            fPosRate = (float)(GetCurrentRenderEndLine() + 1 - showing) / (float)(total - showing);
+        if (end >= lines->GetNumChildren())
+            return;
+        Rml::Element* row = lines->GetChild(end);
+        // Row offsets are absolute, already less the current scroll: add it back for the content
+        // position. The row's bottom margin is its pitch to the next row, part of the row.
+        const float rowBottom = row->GetAbsoluteTop() + row->GetOffsetHeight() +
+                                row->GetBox().GetEdge(Rml::BoxArea::Margin, Rml::BoxEdge::Bottom) -
+                                (lines->GetAbsoluteTop() + lines->GetClientTop()) + lines->GetScrollTop();
+        scrollTop = rowBottom - lines->GetClientHeight();
     }
-
     const float range = lines->GetScrollHeight() - lines->GetClientHeight();
     if (range > 0.0f)
-        lines->SetScrollTop(std::clamp(fPosRate, 0.0f, 1.0f) * range);
+        lines->SetScrollTop(std::clamp(scrollTop, 0.0f, range));
 }
 
 void mu::ui::window::CChatLogWindow::SyncLogicalScrollFromView()
@@ -946,9 +953,18 @@ void mu::ui::window::CChatLogWindow::SyncLogicalScrollFromView()
         return;
     }
 
-    const float range = lines->GetScrollHeight() - lines->GetClientHeight();
-    const float fPosRate = range > 0.0f ? std::clamp(lines->GetScrollTop() / range, 0.0f, 1.0f) : 1.0f;
-    m_iCurrentRenderEndLine = showing - 1 + (int)(fPosRate * (float)(total - showing) + 0.5f);
+    // The end line is the last row at least half inside the well -- the inverse of
+    // ApplyLogicalScroll() for a view it placed, and the nearest row for one the user scrolled.
+    const float wellBottom = lines->GetAbsoluteTop() + lines->GetClientTop() + lines->GetClientHeight();
+    int end = -1;
+    for (int i = 0; i < std::min(total, lines->GetNumChildren()); ++i)
+    {
+        Rml::Element* row = lines->GetChild(i);
+        if (row->GetAbsoluteTop() + row->GetOffsetHeight() / 2.0f > wellBottom)
+            break;
+        end = i;
+    }
+    m_iCurrentRenderEndLine = std::clamp(end, showing - 1, total - 1);
 }
 
 void mu::ui::window::CChatLogWindow::ScrollToBottomIfFollowing()

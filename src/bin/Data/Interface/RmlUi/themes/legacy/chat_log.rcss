@@ -116,10 +116,13 @@
 /* A line is the native renderer's line height, and the next row starts a row pitch below it. A
    row wider than the well wraps inside it, one native line height per wrapped line, rather than
    running past the frame: a split made at another size or scale, or a remainder the split never
-   breaks, still fits. A row that fits keeps its single native line exactly. */
+   breaks, still fits. A row that fits keeps its single native line exactly. A word too long for a
+   line of its own (unbroken input is legal, up to the chat box's 90 characters and longer from the
+   server) is broken where it reaches the well's edge. */
 .chat-line {
 	display: block;
 	white-space: normal;
+	word-break: break-word;
 	flex-shrink: 0;
 	min-height: var(--line-px, 0px);
 	line-height: var(--line-px, 0px);

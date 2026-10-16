@@ -1990,6 +1990,42 @@ public:
         }
         return overflows;
     }
+    // The history's visible anchor, in the logical history contract (CChatLogWindow's end line): the
+    // last message whose rendered row is at least half inside the well, by message index and text,
+    // and how far that row's bottom (its margin box: a Legacy row's bottom margin is its pitch to
+    // the next row) lies below the well's client bottom, in layout px (0 = the row ends exactly at
+    // the well's bottom; positive = partly cut off).
+    struct HistoryAnchor
+    {
+        int index = -1;
+        Rml::String text;
+        float belowBottom = 0.f;
+        float height = 0.f;
+    };
+    HistoryAnchor VisibleHistoryAnchor(int messages)
+    {
+        auto* lines = Document("chat_log.rml")->GetElementById("lines");
+        const float wellBottom = lines->GetAbsoluteTop() + lines->GetClientTop() + lines->GetClientHeight();
+        HistoryAnchor anchor;
+        for (int i = 0; i < std::min(messages, lines->GetNumChildren()); ++i)
+        {
+            Rml::Element* row = lines->GetChild(i);
+            const float top = row->GetAbsoluteTop(), height = row->GetOffsetHeight();
+            const float pitch = row->GetBox().GetEdge(Rml::BoxArea::Margin, Rml::BoxEdge::Bottom);
+            if (top + height / 2.f <= wellBottom)
+                anchor = {i, row->GetInnerRML(), top + height + pitch - wellBottom, height};
+        }
+        return anchor;
+    }
+    // Rendered heights of the history rows from `first` to `last`.
+    std::vector<float> HistoryRowHeights(int first, int last)
+    {
+        auto* lines = Document("chat_log.rml")->GetElementById("lines");
+        std::vector<float> heights;
+        for (int i = std::max(first, 0); i <= last && i < lines->GetNumChildren(); ++i)
+            heights.push_back(lines->GetChild(i)->GetOffsetHeight());
+        return heights;
+    }
     // Real native text measuring (CUIRenderTextSDLTtf over bundled faces opened at their cached
     // point size, as the renderer does) for the scope of one test: CChatLogWindow::SeparateText()
     // splits a long message with it.
@@ -2433,6 +2469,134 @@ public:
         CHECK(PaintedHistoryRows().last == tailRow + 1);
         CHECK(draft() == "B640 neutral unsent");
 
+        // A scrolled-away view over genuinely mixed row heights keeps its visible anchor -- the same
+        // message ending at the well's bottom -- through viewport-only, user-scale, combined,
+        // theme, reload and hidden transitions and an append, and Page/wheel continue from it.
+        const auto seedMixed = [&]
+        {
+            chat.ClearAll();
+            for (int i = 0; i < 30; ++i)
+                chat.AddText(L"QA640",
+                             i % 4 == 1 ? L"MIXEDLONG" + std::to_wstring(i) +
+                                              L" a much longer neutral history message whose remainder alone needs "
+                                              L"several wrapped lines in the well at every profile MIXEDEND"
+                                        : L"MIXED short row " + std::to_wstring(i),
+                             TYPE_CHAT_MESSAGE);
+            frame();
+            frame();
+        };
+        for (const char* theme : {"legacy", "modern", "munolith"})
+        {
+            CAPTURE(std::string(theme));
+            reload(theme);
+            resize(1920, 1080, 75);
+            seedMixed();
+            const int messages = static_cast<int>(chat.GetNumberOfLines(TYPE_ALL_MESSAGE));
+            for (int i = 0; i < 8; ++i)
+                key(Rml::Input::KI_NEXT);
+            REQUIRE(VisibleHistoryAnchor(messages).index == messages - 1);
+            key(Rml::Input::KI_PRIOR);
+            key(Rml::Input::KI_PRIOR);
+            const auto before = VisibleHistoryAnchor(messages);
+            CAPTURE(before.index);
+            CAPTURE(before.text);
+            REQUIRE(before.index > 0);
+            REQUIRE(before.index < messages - 1);
+            // Genuinely mixed rendered heights around the anchor, before any reflow.
+            const auto heights = HistoryRowHeights(before.index - 4, before.index + 4);
+            REQUIRE(heights.size() >= 5);
+            CHECK(*std::max_element(heights.begin(), heights.end()) >
+                  1.5f * *std::min_element(heights.begin(), heights.end()));
+            // PageUp lands the logical end line exactly at the well's bottom.
+            CHECK(chat.GetCurrentRenderEndLine() == before.index);
+            CHECK(std::abs(before.belowBottom) <= 0.5f);
+            const auto same = [&](const char* when)
+            {
+                CAPTURE(when);
+                const auto now = VisibleHistoryAnchor(messages);
+                CHECK(now.index == before.index);
+                CHECK(now.text == before.text);
+                CHECK(std::abs(now.belowBottom) <= 0.5f);
+                CHECK(chat.GetCurrentRenderEndLine() == before.index);
+            };
+            resize(3840, 2160, 75);
+            same("viewport only");
+            resize(3840, 2160, 100);
+            same("user scale");
+            resize(1920, 1080, 75);
+            same("back");
+            reload(theme);
+            same("same-theme reload");
+            resize(3840, 2160, 100);
+            reload(std::string(theme) == "munolith" ? "legacy" : "munolith");
+            same("combined resize, scale and theme");
+            reload(theme);
+            resize(1920, 1080, 75);
+            same("theme back");
+            chat.SyncDocVisibility(false);
+            frame();
+            resize(800, 600, 150);
+            chat.SyncDocVisibility(true);
+            frame();
+            frame();
+            same("hidden across a resize");
+            resize(1920, 1080, 75);
+            same("hidden back");
+            chat.AddText(L"QA640", L"MIXED appended away", TYPE_CHAT_MESSAGE);
+            frame();
+            frame();
+            same("away append");
+            // Page continuity from the anchor, both ways.
+            key(Rml::Input::KI_NEXT);
+            CHECK(VisibleHistoryAnchor(messages).index > before.index);
+            key(Rml::Input::KI_PRIOR);
+            same("PageDown then PageUp");
+            // The wheel scrolls from the anchor and leaves any offset; the sender hit test names the
+            // row under the pointer (only a message's first line carries its sender; a wrapped
+            // remainder is its own row without one); a resize keeps the message the wheel left at
+            // the bottom.
+            {
+                HidePanes();
+                ProductionFrame();
+                auto* lines = Document("chat_log.rml")->GetElementById("lines");
+                const auto b = Box(*lines);
+                const int x = std::lround(b.left + b.width / 2.f), y = std::lround(b.top + b.height / 2.f);
+                context->ProcessMouseMove(x, y, 0);
+                g_fWindowMouseX = x;
+                g_fWindowMouseY = y;
+                const auto oldScroll = lines->GetScrollTop();
+                MouseWheel = 1;
+                CHECK_FALSE(chat.UpdateMouseEvent());
+                CHECK(MouseWheel == 0);
+                CHECK(lines->GetScrollTop() < oldScroll);
+                frame();
+                frame();
+                Rml::Element* under = nullptr;
+                for (int i = 0; i < lines->GetNumChildren(); ++i)
+                {
+                    Rml::Element* row = lines->GetChild(i);
+                    const float top = row->GetAbsoluteTop();
+                    const float pitch = row->GetBox().GetEdge(Rml::BoxArea::Margin, Rml::BoxEdge::Bottom);
+                    if (y >= top && y < top + row->GetOffsetHeight() + pitch)
+                        under = row;
+                }
+                REQUIRE(under);
+                const bool hasSender = under->GetInnerRML().rfind("QA640 : ", 0) == 0;
+                CHECK(under->IsClassSet("chat-line--pointed") == hasSender);
+                Rml::ElementList pointed;
+                Document("chat_log.rml")->QuerySelectorAll(pointed, ".chat-line--pointed");
+                CHECK(pointed.size() == (hasSender ? 1u : 0u));
+            }
+            const auto wheeled = VisibleHistoryAnchor(messages);
+            REQUIRE(wheeled.index >= 0);
+            resize(3840, 2160, 100);
+            CHECK(VisibleHistoryAnchor(messages).index == wheeled.index);
+            CHECK(std::abs(VisibleHistoryAnchor(messages).belowBottom) <= 0.5f);
+            resize(1920, 1080, 75);
+            CHECK(VisibleHistoryAnchor(messages).index == wheeled.index);
+            CHECK(draft() == "B640 neutral unsent");
+        }
+
         // The split is measured in the window's own units wherever the message arrives: the same
         // two lines per long message at every profile. Rows wrap inside the well in every theme
         // (Legacy and Modern since the operator-approved wrapping; Munolith before), each theme in
@@ -2456,6 +2620,10 @@ public:
                          L"LONGSTART a much longer neutral history message whose remainder alone needs several "
                          L"wrapped lines in the well at every profile LONGEND",
                          TYPE_CHAT_MESSAGE);
+            // Unbroken text is legal input: the chat box takes up to 90 characters (89 W, the widest
+            // ASCII run), and an arriving message is variable-length (200 X).
+            chat.AddText(L"QA640", std::wstring(89, L'W'), TYPE_CHAT_MESSAGE);
+            chat.AddText(L"QA640", L"UNBROKEN" + std::wstring(200, L'X'), TYPE_CHAT_MESSAGE);
             chat.AddText(L"QA640", L"SEEDED UI640 last short row", TYPE_CHAT_MESSAGE);
             frame();
             frame();
@@ -2503,7 +2671,7 @@ public:
                 CAPTURE(arrival.width);
                 CAPTURE(arrival.percent);
                 arrive(theme, arrival);
-                CHECK(chat.GetNumberOfLines(TYPE_ALL_MESSAGE) == 12);
+                CHECK(chat.GetNumberOfLines(TYPE_ALL_MESSAGE) == 16); // Each long message is two lines.
                 const auto arrived = rowTexts();
                 checkFonts(theme);
                 checkFits("arrival");
@@ -2518,15 +2686,27 @@ public:
                 }
             }
 
-        // Negative controls through the same checks: a message without a space wider than the well
-        // is split by native SeparateText() at a character, and its remainder is still one token the
-        // row cannot break, so its glyphs really leave the well -- ink and advance are both caught.
+        // Negative controls through the same checks, on an explicitly malformed fixture: the
+        // unbroken rows forced back to one unbreakable line (nowrap, no word breaking) as test-only
+        // inline style. Their glyphs then really leave the well -- ink and advance are both caught --
+        // and removing the fixture style makes them fit again.
         for (const char* theme : {"legacy", "modern", "munolith"})
         {
             CAPTURE(std::string(theme));
             arrive(theme, {1920, 1080, 75});
             REQUIRE(ClippedHistoryRows().empty());
-            chat.AddText(L"QA640", L"UNBROKEN" + std::wstring(200, L'X'), TYPE_CHAT_MESSAGE);
+            auto* lines = Document("chat_log.rml")->GetElementById("lines");
+            std::vector<Rml::Element*> malformed;
+            for (int i = 0; i < lines->GetNumChildren(); ++i)
+                if (lines->GetChild(i)->GetInnerRML().find("WWWWWWWWWW") != Rml::String::npos ||
+                    lines->GetChild(i)->GetInnerRML().find("XXXXXXXXXX") != Rml::String::npos)
+                    malformed.push_back(lines->GetChild(i));
+            REQUIRE(malformed.size() == 4);
+            for (auto* row : malformed)
+            {
+                row->SetProperty("white-space", "nowrap");
+                row->SetProperty("word-break", "normal");
+            }
             frame();
             frame();
             const auto caught = ClippedHistoryRows();
@@ -2537,6 +2717,14 @@ public:
             };
             CHECK(has("ink"));
             CHECK(has("advance"));
+            for (auto* row : malformed)
+            {
+                row->RemoveProperty("white-space");
+                row->RemoveProperty("word-break");
+            }
+            frame();
+            frame();
+            CHECK(ClippedHistoryRows().empty());
         }
     }
 

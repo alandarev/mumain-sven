@@ -97,12 +97,13 @@
 #panel.framed #lines scrollbarvertical { width: 8dp; }
 
 /* A row wider than the well wraps inside it, a 15dp line per wrapped line, rather than running
-   past the frame (see legacy/chat_log.rcss). flex-shrink 0 keeps a wrapped row its full height in a
-   full well. */
+   past the frame, and a word too long for a line of its own breaks at the edge (see
+   legacy/chat_log.rcss). flex-shrink 0 keeps a wrapped row its full height in a full well. */
 .chat-line {
 	display: block;
 	line-height: 15dp;
 	white-space: normal;
+	word-break: break-word;
 	flex-shrink: 0;
 	padding: 0 4dp;
 	border-left: 2dp transparent;
