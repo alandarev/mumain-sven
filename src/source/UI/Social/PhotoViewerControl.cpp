@@ -52,12 +52,12 @@ void PhotoViewerControl::AttachOrbit(Rml::ElementDocument* document, CUIPhotoVie
 void PhotoViewerControl::AttachTo(Rml::ElementDocument* document, CUIPhotoViewer& viewer, const char* slotId,
                                   const char* imageId, bool orbit)
 {
-    if (m_Document == document && m_Viewer == &viewer && m_Orbit == orbit)
+    if (Document() == document && m_Viewer == &viewer && m_Orbit == orbit)
         return;
     Detach();
     if (document == nullptr)
         return;
-    m_Document = document;
+    m_Document = document->GetObserverPtr();
     m_Viewer = &viewer;
     m_SlotId = slotId;
     m_ImageId = imageId;
@@ -86,9 +86,10 @@ void PhotoViewerControl::AttachTo(Rml::ElementDocument* document, CUIPhotoViewer
 void PhotoViewerControl::Detach()
 {
     Suspend();
-    if (m_Document != nullptr)
+    // A destroyed document has already dropped this listener along with its elements.
+    if (auto* document = Document())
     {
-        if (auto* slot = m_Document->GetElementById(m_SlotId))
+        if (auto* slot = document->GetElementById(m_SlotId))
         {
             slot->RemoveEventListener(Rml::EventId::Mousedown, this);
             if (m_Orbit)
@@ -99,26 +100,27 @@ void PhotoViewerControl::Detach()
                 slot->RemoveEventListener(Rml::EventId::Mousescroll, this);
             }
         }
-        if (auto* help = m_Document->GetElementById(HelpId))
+        if (auto* help = document->GetElementById(HelpId))
             help->RemoveEventListener(Rml::EventId::Mousedown, this);
-        m_Document->RemoveEventListener(Rml::EventId::Mousemove, this);
-        m_Document->RemoveEventListener(Rml::EventId::Mouseup, this);
+        document->RemoveEventListener(Rml::EventId::Mousemove, this);
+        document->RemoveEventListener(Rml::EventId::Mouseup, this);
     }
-    m_Document = nullptr;
+    m_Document = {};
     m_Viewer = nullptr;
     m_Turning = false;
 }
 
 void PhotoViewerControl::Sync()
 {
-    if (m_Document == nullptr || m_Viewer == nullptr)
+    auto* document = Document();
+    if (document == nullptr || m_Viewer == nullptr)
         return;
     const bool webzen = m_Viewer->IsWebzenMail();
     auto& target = m_Viewer->Target();
     target.SetEnabled(!webzen);
-    if (auto* slot = m_Document->GetElementById(m_SlotId))
+    if (auto* slot = document->GetElementById(m_SlotId))
         slot->SetClass("webzen", webzen);
-    if (auto* image = m_Document->GetElementById(m_ImageId))
+    if (auto* image = document->GetElementById(m_ImageId))
     {
         if (webzen)
         {
@@ -130,7 +132,12 @@ void PhotoViewerControl::Sync()
             target.BindImage(image);
     }
     if (!m_Orbit)
-        SyncHelp();
+        SyncHelp(*document);
+}
+
+Rml::ElementDocument* PhotoViewerControl::Document() const
+{
+    return static_cast<Rml::ElementDocument*>(m_Document.get());
 }
 
 void PhotoViewerControl::Suspend()
@@ -144,12 +151,12 @@ void PhotoViewerControl::Suspend()
 // Three white lines left-aligned in a box centred on the well, ending at its bottom -- where
 // RenderTipTextList(..., RT3_SORT_LEFT) put them. Above the character now, since the character is
 // an image inside this same document.
-void PhotoViewerControl::SyncHelp()
+void PhotoViewerControl::SyncHelp(Rml::ElementDocument& document)
 {
     const bool shown = m_Viewer->IsHelpShown() && !m_Viewer->IsWebzenMail();
-    if (auto* help = m_Document->GetElementById(HelpId))
+    if (auto* help = document.GetElementById(HelpId))
         help->SetClass("active", shown);
-    auto* slot = m_Document->GetElementById(SlotId);
+    auto* slot = document.GetElementById(SlotId);
     if (!shown || slot == nullptr)
     {
         UI::RmlBridge::Tooltip::Hide(this);

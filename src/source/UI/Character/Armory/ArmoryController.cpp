@@ -119,7 +119,7 @@ void ArmoryController::Suspend()
 void ArmoryController::Release()
 {
     Suspend();
-    m_Document = nullptr;
+    m_Document = {};
     m_Handle = {};
     Network::Server::Armory::Reset();
 }
@@ -131,7 +131,7 @@ bool ArmoryController::Sync(Rml::ElementDocument* document, bool shown)
             Suspend();
         return false;
     }
-    m_Document = document;
+    m_Document = document->GetObserverPtr();
     if (!shown)
     {
         if (m_Shown)
@@ -365,9 +365,9 @@ void ArmoryController::RefreshHighlights()
                                                [this](const auto& source) { return source.slot == m_HoveredSlot; });
     }
     Dirty("armory_attributes");
-    if (m_Document)
+    if (auto* document = m_Document.get())
         for (int slot = 0; slot < 12; ++slot)
-            if (auto* element = m_Document->GetElementById("armory_slot_" + std::to_string(slot)))
+            if (auto* element = document->GetElementById("armory_slot_" + std::to_string(slot)))
                 element->SetClass("contributes", highlighted[slot]);
     for (auto& category : m_Categories)
         for (auto& row : category.rows)

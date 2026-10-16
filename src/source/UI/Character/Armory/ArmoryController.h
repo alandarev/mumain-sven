@@ -4,12 +4,14 @@
 #include "UI/RmlBridge/RmlTooltip.h"
 #include "UI/Social/PhotoViewerControl.h"
 #include <RmlUi/Core/DataModelHandle.h>
+#include <RmlUi/Core/ObserverPtr.h>
 #include <chrono>
 #include <memory>
 #include <set>
 namespace Rml
 {
 class DataModelConstructor;
+class Element;
 class ElementDocument;
 } // namespace Rml
 class CUIPhotoViewer;
@@ -66,7 +68,8 @@ private:
     void RefreshHighlights();
     void Dirty(const char* name);
     Rml::DataModelHandle m_Handle;
-    Rml::ElementDocument* m_Document = nullptr;
+    // Expires when a theme switch's rebuild retires the document, ahead of the next Sync().
+    Rml::ObserverPtr<Rml::Element> m_Document;
     std::unique_ptr<CUIPhotoViewer> m_Viewer;
     Social::PhotoViewerControl m_PhotoControl;
     std::unique_ptr<tagITEM[]> m_Items;

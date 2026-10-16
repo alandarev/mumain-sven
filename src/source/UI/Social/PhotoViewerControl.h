@@ -1,11 +1,16 @@
 #pragma once
 
 #include <RmlUi/Core/EventListener.h>
+#include <RmlUi/Core/ObserverPtr.h>
 #include <RmlUi/Core/Types.h>
 
 class CUIPhotoViewer;
 
-namespace Rml { class ElementDocument; }
+namespace Rml
+{
+class Element;
+class ElementDocument;
+} // namespace Rml
 
 namespace UI::Social
 {
@@ -45,9 +50,12 @@ private:
                   bool orbit);
     void ProcessOrbitEvent(Rml::Event& event);
     void OrbitDrag(Rml::Event& event);
-    void SyncHelp();
+    void SyncHelp(Rml::ElementDocument& document);
+    Rml::ElementDocument* Document() const;
 
-    Rml::ElementDocument* m_Document = nullptr;
+    // Expires with the document: a theme switch unloads it and the context destroys it on its next
+    // update, which is before an owner that does not detach on unload attaches the rebuilt one.
+    Rml::ObserverPtr<Rml::Element> m_Document;
     CUIPhotoViewer* m_Viewer = nullptr;
     bool m_Turning = false;
     float m_LastX = 0;

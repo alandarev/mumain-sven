@@ -12,6 +12,8 @@
 #include <SDL3_ttf/SDL_ttf.h>
 #include "Data/GameConfig/GameConfig.h"
 #include "Render/RmlUi/RmlUiRuntime.h"
+#include "Render/RmlUi/RmlUiSystemInterface.h"
+#include <RmlUi_Platform_SDL.h>
 #include "UI/HUD/MuHelperBar.h"
 #include "UI/Inventory/MyInventory.h"
 #include "UI/Inventory/ItemHelpView.h"
@@ -23,6 +25,7 @@
 #include "UI/Inventory/ItemMng.h"
 #include "UI/Character/CharacterInfoWindow.h"
 #include "UI/Character/Armory/ArmoryController.h"
+#include "UI/Social/PhotoViewer.h"
 #include "UI/HUD/ChatLogWindow.h"
 #include "UI/Core/WindowCommon.h"
 #include "UI/RmlBridge/RmlStackingOrder.h"
@@ -1726,6 +1729,124 @@ public:
             }
     }
 
+    void CheckFocusedControlReload()
+    {
+        using namespace mu::ui::window;
+        auto& runtime = RmlUiRuntime::Instance();
+        auto oldSystem = std::move(runtime.m_SystemInterface);
+        auto oldIme = std::move(runtime.m_TextInputMethodEditor);
+        runtime.m_SystemInterface = std::make_unique<RmlUiSystemInterface>(nullptr);
+        runtime.m_TextInputMethodEditor = std::make_unique<TextInputMethodEditor_SDL>();
+        Rml::SetSystemInterface(runtime.m_SystemInterface.get());
+        Rml::SetTextInputHandler(runtime.m_TextInputMethodEditor.get());
+        const auto restore = std::unique_ptr<RmlUiRuntime, std::function<void(RmlUiRuntime*)>>(&runtime,
+            [&](auto*)
+            {
+                if (auto* focus = context->GetFocusElement()) focus->Blur();
+                Rml::SetTextInputHandler(nullptr);
+                Rml::SetSystemInterface(&log);
+                runtime.m_SystemInterface = std::move(oldSystem);
+                runtime.m_TextInputMethodEditor = std::move(oldIme);
+            });
+        CreateInventoryGroup();
+        CChatLogWindow chat;
+        CSystemLogWindow notices;
+        CChatInputBox input;
+        REQUIRE(chat.Create(&manager, 6));
+        REQUIRE(notices.Create(&manager));
+        REQUIRE(input.Create(&manager, &chat, &notices));
+        Configure("munolith", {800, 600, 150});
+        Inventory(0, 1);
+        PopulateArmory(false);
+        CUIPhotoViewer viewer;
+        auto& photo = character->m_Armory->m_PhotoControl;
+        photo.AttachOrbit(character->GetPlacedDocument(), viewer, "armory_model_controls", "armory_preview");
+        const auto detachPhoto = std::unique_ptr<CUIPhotoViewer, std::function<void(CUIPhotoViewer*)>>(&viewer,
+            [&](auto*) { photo.Detach(); });
+        auto oldDocument = character->GetPlacedDocument()->GetObserverPtr();
+        chat.Show(true);
+        notices.Show(true);
+        chat.SyncDocVisibility(true);
+        notices.SyncDocVisibility(true);
+        for (int i = 0; i < 34; ++i)
+            chat.AddText(L"QA640", L"SEEDED UI640 row " + std::to_wstring(i), TYPE_CHAT_MESSAGE);
+        chat.Update();
+        notices.Update();
+        chat.ShowFrame();
+        input.Show(true);
+        input.Update();
+        ProductionFrame();
+        chat.AfterRmlLayout(context);
+        auto* field = Document("chat_input.rml")->GetElementById("chat_field");
+        REQUIRE(field->Focus());
+        context->ProcessTextInput("B640 neutral unsent");
+        context->Update();
+        REQUIRE(runtime.GetTypingDocument() == Document("chat_input.rml"));
+        for (auto key : {Rml::Input::KI_PRIOR, Rml::Input::KI_NEXT, Rml::Input::KI_F2, Rml::Input::KI_F2,
+                        Rml::Input::KI_F3, Rml::Input::KI_F3, Rml::Input::KI_F4, Rml::Input::KI_F4,
+                        Rml::Input::KI_F4, Rml::Input::KI_F4, Rml::Input::KI_F4})
+        {
+            context->ProcessKeyDown(key, 0);
+            context->ProcessKeyUp(key, 0);
+            input.Update();
+            chat.Update();
+            ProductionFrame();
+            chat.AfterRmlLayout(context);
+        }
+        REQUIRE(chat.GetNumberOfShowingLines() == 6);
+        REQUIRE(runtime.GetTypingDocument() == Document("chat_input.rml"));
+        REQUIRE(field->GetAttribute<Rml::String>("value", "") == "B640 neutral unsent");
+        std::unique_ptr<App::Control::Act> act;
+        const auto request = App::Control::Request::Parse(R"({"cmd":"ui","action":"theme","name":"munolith"})");
+        const auto reply = App::Control::Commands::Ui(request, act);
+        REQUIRE(reply.empty());
+        REQUIRE(act);
+        std::string answer;
+        act->Tick(answer);
+        ProductionFrame();
+        CHECK_FALSE(oldDocument); // Actual engine retired the old document before the next native model sync.
+        photo.AttachOrbit(character->GetPlacedDocument(), viewer, "armory_model_controls", "armory_preview");
+        photo.Sync();
+        input.Update();
+        chat.Update();
+        notices.Update();
+        ProductionFrame();
+        act->Tick(answer);
+        CHECK_FALSE(answer.empty());
+        CHECK(Document("chat_input.rml")->GetElementById("chat_field")->GetAttribute<Rml::String>("value", "") ==
+              "B640 neutral unsent");
+        CHECK(chat.GetNumberOfLines(TYPE_ALL_MESSAGE) == 34);
+        ProductionFrame();
+
+        // Second same-theme reload: the owner's own document handle (what ArmoryController::Sync()
+        // records) is read by a hover before the next Sync(), and a window hidden across the switch
+        // detaches (Suspend()) from the retired document before attaching the rebuilt one.
+        auto& armory = *character->m_Armory;
+        armory.m_Document = character->GetPlacedDocument()->GetObserverPtr();
+        oldDocument = character->GetPlacedDocument()->GetObserverPtr();
+        act.reset();
+        REQUIRE(App::Control::Commands::Ui(request, act).empty());
+        REQUIRE(act);
+        answer.clear();
+        CHECK(act->Tick(answer) == App::Control::Act::Status::Running);
+        ProductionFrame();
+        CHECK_FALSE(oldDocument);
+        armory.HoverAttribute(0);
+        photo.Detach();
+        photo.AttachOrbit(character->GetPlacedDocument(), viewer, "armory_model_controls", "armory_preview");
+        photo.Sync();
+        input.Update();
+        chat.Update();
+        notices.Update();
+        ProductionFrame();
+        CHECK(act->Tick(answer) == App::Control::Act::Status::Finished);
+        CHECK(Document("chat_input.rml")->GetElementById("chat_field")->GetAttribute<Rml::String>("value", "") ==
+              "B640 neutral unsent");
+        CHECK(chat.GetNumberOfLines(TYPE_ALL_MESSAGE) == 34);
+        armory.HoverAttribute(-1);
+        ProductionFrame();
+    }
+
     int beforeHooks = 0, afterHooks = 0;
     Rml::Context* context = nullptr;
 
@@ -2478,4 +2599,10 @@ TEST_CASE("Declarative passive logs preserve actual paint hit ownership exposed 
 {
     RmlViewLayoutFixture f;
     f.CheckPassiveLogs();
+}
+
+TEST_CASE("Focused visible native-input history survives first same-theme control reload [ui][reload][640]")
+{
+    RmlViewLayoutFixture f;
+    f.CheckFocusedControlReload();
 }
