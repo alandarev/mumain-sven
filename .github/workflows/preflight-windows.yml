@@ -1,0 +1,80 @@
+# Fork-only workflow. It exists in this fork to compile a branch on Windows
+# with MSVC before the branch is offered upstream; upstream's own CI builds
+# Windows only on a push to its default branch. Never part of a pull request
+# to the upstream repository.
+name: Preflight Windows Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      control_socket:
+        description: 'Configure with ENABLE_CONTROL_SOCKET=ON'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    name: Windows Native Build (x64, Release, preflight)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Activate Visual Studio developer environment
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
+        with:
+          arch: x64
+
+      - name: Cache FetchContent and NuGet dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            out/build/windows-ci-x64-release/_deps
+            .nuget
+          key: windows-x64-release-deps-${{ hashFiles('CMakeLists.txt', 'src/CMakeLists.txt', 'ClientLibrary/**/*.csproj', 'ClientLibrary/**/*.props') }}
+          restore-keys: windows-x64-release-deps-
+
+      - name: Cache vcpkg packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            C:/vcpkg/installed
+            C:/vcpkg/packages
+          key: vcpkg-windows-x64-${{ hashFiles('vcpkg.json') }}
+          restore-keys: vcpkg-windows-x64-
+
+      - name: Configure CMake
+        run: >
+          cmake --preset windows-x64
+          -B out/build/windows-ci-x64-release
+          -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake
+          -DVCPKG_CHAINLOAD_TOOLCHAIN_FILE=${{ github.workspace }}/toolchain-x64.cmake
+          -DVCPKG_TARGET_TRIPLET=x64-windows
+          -DVCPKG_INSTALLED_DIR=C:/vcpkg/installed
+          -DVCPKG_MANIFEST_MODE=ON
+          -DENABLE_EDITOR=OFF
+          -DENABLE_CONTROL_SOCKET=${{ inputs.control_socket && 'ON' || 'OFF' }}
+          -DMU_ENABLE_SHADER_COMPILATION=ON
+          -DGLSLANG_EXE=C:/vcpkg/installed/x64-windows/tools/glslang/glslangValidator.exe
+          -DSPIRV_CROSS_EXE=C:/vcpkg/installed/x64-windows/tools/spirv-cross/spirv-cross.exe
+          -DDXC_EXE=C:/vcpkg/installed/x64-windows/tools/directx-dxc/dxc.exe
+          -DMU_COPY_RUNTIME_ASSETS=OFF
+          -DBUILD_TESTING=ON
+
+      - name: Build
+        run: cmake --build out/build/windows-ci-x64-release --config Release
+
+      - name: Run tests
+        run: >
+          ctest --test-dir out/build/windows-ci-x64-release --build-config Release
+          --output-on-failure
+          --no-tests=error
