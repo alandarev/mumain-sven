@@ -131,3 +131,58 @@ TEST_CASE("scene message hit testing survives load order and document rebuilding
     Rml::Shutdown();
     Rml::SetRenderInterface(nullptr);
 }
+
+TEST_CASE("semantic log role removal invalid values and scene baselines cannot retain stale depth [ui][stacking]")
+{
+    NullRenderer renderer;
+    Rml::SetRenderInterface(&renderer);
+    REQUIRE(Rml::Initialise());
+    auto* context = Rml::CreateContext("semantic-stacking", {320, 240});
+    REQUIRE(context);
+    auto* log = context->LoadDocumentFromMemory(kDocument);
+    auto* option = context->LoadDocumentFromMemory(kDocument);
+    REQUIRE(log);
+    REQUIRE(option);
+    log->SetAttribute("data-stacking-role", "passive-log");
+    UI::RmlBridge::ApplyStackingDepth(log, "chat_log.rml");
+    UI::RmlBridge::ApplyDocumentScene(log, "chat_log.rml");
+    UI::RmlBridge::ApplyStackingDepth(option, "option_window.rml");
+    UI::RmlBridge::ApplyDocumentScene(option, "option_window.rml");
+    auto* reference = context->LoadDocumentFromMemory(kDocument);
+    UI::RmlBridge::ApplyStackingDepth(reference, "item_explanation.rml");
+    UI::RmlBridge::ApplyDocumentScene(reference, "item_explanation.rml");
+    reference->SetProperty("z-index", "10.65");
+    const auto scene = SceneFlag;
+    for (auto current : {MAIN_SCENE, CHARACTER_SCENE, MAIN_SCENE})
+    {
+        SceneFlag = current;
+        log->SetAttribute("data-stacking-role", "passive-log");
+        UI::RmlBridge::ApplySceneStackingDepths();
+        context->Update();
+        CHECK(log->GetZIndex() < 2.f); // Under even the lowest ordinary item panel.
+        const auto optionDepth = option->GetZIndex();
+        CHECK(optionDepth > log->GetZIndex());
+        CHECK(reference->GetZIndex() == doctest::Approx(10.65f));
+        for (const char* invalid : {"unknown", "6.9", "PASSIVE-LOG", ""})
+        {
+            log->SetAttribute("data-stacking-role", invalid);
+            UI::RmlBridge::ApplySceneStackingDepths();
+            context->Update();
+            CHECK(log->GetZIndex() == doctest::Approx(6.1f));
+            CHECK(option->GetZIndex() == optionDepth);
+        }
+        log->SetAttribute("data-stacking-role", 1.05f);
+        UI::RmlBridge::ApplySceneStackingDepths();
+        context->Update();
+        CHECK(log->GetZIndex() == doctest::Approx(6.1f));
+        log->SetAttribute("data-stacking-role", "passive-log");
+        UI::RmlBridge::ApplySceneStackingDepths();
+        log->RemoveAttribute("data-stacking-role");
+        UI::RmlBridge::ApplySceneStackingDepths();
+        context->Update();
+        CHECK(log->GetZIndex() == doctest::Approx(6.1f));
+    }
+    SceneFlag = scene;
+    Rml::Shutdown();
+    Rml::SetRenderInterface(nullptr);
+}

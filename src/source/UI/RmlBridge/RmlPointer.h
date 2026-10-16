@@ -10,6 +10,10 @@ class ElementDocument;
 
 namespace UI::RmlBridge
 {
+// Passive rows can draw above an interactive document without becoming its hover target. Check
+// actual document priority before manually claiming a row, rather than its geometry alone.
+bool IsPointerBlockedByHigherDocument(Rml::ElementDocument* document);
+
 // True while RmlUi hovers an element of `document` other than its body: the pointer is over what
 // the document draws and takes pointer events on. A window drawn by a document asks this instead
 // of testing MouseX/MouseY against a box in its own units. The theme decides what takes pointer

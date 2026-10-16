@@ -10,7 +10,7 @@
      the native text size and a background exactly as tall as the measured text, one row every
      15 units (CChatLogWindow::SyncNativeLineGeometry(), physical px). The window, its well and
      the row pitch stay in dp beside the chat input box. -->
-<body data-model="chat_log">
+<body data-model="chat_log" data-stacking-role="passive-log">
 	<div id="panel" data-class-framed="show_frame" data-style-height="panel_height + 'dp'">
 		<div id="chat_backdrop" data-style-opacity="back_alpha"></div>
 		<div id="resize_handle" data-class-hidden="!show_frame"

@@ -7,6 +7,8 @@ namespace
 // Passes the original drew outside its window list (Scenes/MainScene.cpp RenderMainSceneUI(),
 // Scenes/SceneCommon.cpp RenderInfomation(), Scenes/SceneManager.cpp).
 constexpr float BeforeWindowsDepth = 0.5f; // RenderObjectDescription(), RenderInterface()
+// Existing top-row HUD band: over world labels (1), under even the duel board (1.1).
+constexpr float UnderWindowsDepth = 1.05f;
 constexpr float TooltipDepth = 10.69f;     // just under the message boxes, see below
 constexpr float MessageBoxDepth = 10.7f;   // CNewUIMessageBoxMng
 constexpr float NoticesDepth = 20.0f;      // UI::Notices::Render(), after every window
@@ -42,7 +44,7 @@ constexpr DocumentPlacement Placements[] = {
     // The status texts over the world above the HUD, drawn with the name labels.
     {"hud_status.rml", 1.0f, MainScene},
     // The modern theme's top-right button row: under every window, which dock over it.
-    {"main_frame_top.rml", 1.05f, MainScene},
+    {"main_frame_top.rml", UnderWindowsDepth, MainScene},
     // The duel and soccer boards drew under every panel.
     {"duel_window.rml", 1.1f, MainScene},
     {"blood_castle_time.rml", 1.2f, MainScene},
@@ -180,6 +182,11 @@ std::optional<float> StackingDepthForDocument(std::string_view documentName)
     if (placement == nullptr)
         return std::nullopt;
     return placement->depth;
+}
+
+std::optional<float> StackingDepthForRole(std::string_view role)
+{
+    return role == "passive-log" ? std::optional<float>(UnderWindowsDepth) : std::nullopt;
 }
 
 std::optional<DocumentScene> SceneForDocument(std::string_view documentName)

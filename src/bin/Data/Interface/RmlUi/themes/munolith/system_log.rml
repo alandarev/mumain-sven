@@ -7,7 +7,7 @@
 <!-- Legacy override: laid out like the original's RenderMessages() under the HUD layout -- the
      row pitch, each line's background height and the text size are the
      native renderer's, computed in C++ (CSystemLogWindow::SyncNativeGeometry()) in physical px. -->
-<body data-model="system_log">
+<body data-model="system_log" data-stacking-role="passive-log">
 	<div id="panel" data-style-font-size="text_px + 'px'">
 		<div data-for="line : lines"
 		     data-attr-class="'syslog-line syslog-line--' + line.kind" data-class-empty="line.text == ''"

@@ -15,6 +15,7 @@
 #include "Render/RmlUi/RmlUiRuntime.h"
 #include "UI/RmlBridge/RmlSyncField.h"
 #include "UI/RmlBridge/RmlTheme.h"
+#include "UI/RmlBridge/RmlPointer.h"
 #include "UI/RmlBridge/RmlDocumentVisibility.h"
 #include "UI/RmlBridge/RmlWorkspaceParticipant.h"
 #include "UI/Placement/WindowPlacement.h"
@@ -844,50 +845,39 @@ bool mu::ui::window::CChatLogWindow::IsScrolledToBottom() const
     return lines->GetScrollTop() + lines->GetClientHeight() >= lines->GetScrollHeight() - slack;
 }
 
+namespace
+{
+int PointedSender(Rml::Element* lines, const Rml::Vector<ChatLogLineEntry>& entries, float px, float py)
+{
+    if (!lines || UI::RmlBridge::IsPointerBlockedByHigherDocument(lines->GetOwnerDocument()))
+        return -1;
+    Rml::Rectanglef well;
+    if (!Rml::ElementUtilities::GetBoundingBox(well, lines, Rml::BoxArea::Content) || px < well.Left() ||
+        px >= well.Right() || py < well.Top() || py >= well.Bottom())
+        return -1;
+    for (int i = 0; i < lines->GetNumChildren(); ++i)
+    {
+        auto* child = lines->GetChild(i);
+        Rml::Rectanglef row;
+        if (!child || !Rml::ElementUtilities::GetBoundingBox(row, child, Rml::BoxArea::Border))
+            continue;
+        const float localHeight = child->GetOffsetHeight();
+        const float scale = localHeight > 0.f ? row.Height() / localHeight : 1.f;
+        const float gap = child->GetBox().GetEdge(Rml::BoxArea::Margin, Rml::BoxEdge::Bottom) * scale;
+        if (py >= row.Top() && py < row.Bottom() + gap)
+            return i < static_cast<int>(entries.size()) && entries[i].hasId ? i : -1;
+    }
+    return -1;
+}
+} // namespace
+
 void mu::ui::window::CChatLogWindow::UpdatePointedLine()
 {
     ChatLogRmlModel& model = m_RmlView.GetModel();
-    int pointed = -1;
-
-    Rml::Element* lines = m_RmlView.Document() ? m_RmlView.Document()->GetElementById("lines") : nullptr;
-    if (lines != nullptr && IsVisible() && m_bShowChatLog)
-    {
-        // Raw window pixels, the same space GetAbsoluteOffset() reports in -- deliberately NOT
-        // MouseX/MouseY, which CManager has already remapped into this window's layout space.
-        // Comparing the two directly is what keeps this immune to the UI scale.
-        const float px = g_fWindowMouseX;
-        const float py = g_fWindowMouseY;
-
-        // Clip to the scrolling well first, so a line scrolled out of view is never pointed.
-        Rml::Rectanglef well;
-        if (Rml::ElementUtilities::GetBoundingBox(well, lines, Rml::BoxArea::Content) && px >= well.Left() &&
-            px < well.Right() && py >= well.Top() && py < well.Bottom())
-        {
-            for (int i = 0; i < lines->GetNumChildren(); i++)
-            {
-                Rml::Element* child = lines->GetChild(i);
-                if (child == nullptr)
-                    continue;
-
-                // The whole row (native tested SCROLL_MIDDLE_PART_HEIGHT), including the gap under
-                // a line whose background is only as tall as its text (legacy chat_log.rml).
-                Rml::Rectanglef row;
-                if (!Rml::ElementUtilities::GetBoundingBox(row, child, Rml::BoxArea::Border))
-                    continue;
-                const float localHeight = child->GetOffsetHeight();
-                const float scale = localHeight > 0.f ? row.Height() / localHeight : 1.f;
-                const float gap = child->GetBox().GetEdge(Rml::BoxArea::Margin, Rml::BoxEdge::Bottom) * scale;
-                if (py >= row.Top() && py < row.Bottom() + gap)
-                {
-                    // Only a line carrying a sender is a target, matching native -- an
-                    // unattributed system line has nothing to whisper to.
-                    if (i < (int)model.lines.size() && model.lines[i].hasId)
-                        pointed = i;
-                    break;
-                }
-            }
-        }
-    }
+    auto* lines = m_RmlView.Document() ? m_RmlView.Document()->GetElementById("lines") : nullptr;
+    // Raw window pixels, not the manager's remapped MouseX/MouseY; preserve the native row gap.
+    const int pointed =
+        IsVisible() && m_bShowChatLog ? PointedSender(lines, model.lines, g_fWindowMouseX, g_fWindowMouseY) : -1;
 
     if (model.pointedIndex != pointed)
     {

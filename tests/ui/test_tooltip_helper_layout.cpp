@@ -14,6 +14,7 @@
 #include "Render/RmlUi/RmlUiRuntime.h"
 #include "UI/HUD/MuHelperBar.h"
 #include "UI/Inventory/MyInventory.h"
+#include "UI/Inventory/ItemHelpView.h"
 #include "UI/NPCs/NPCShop.h"
 #include "UI/Dialogs/GenericConfirmDialog.h"
 #include "UI/Events/DoppelGangerWindow.h"
@@ -23,6 +24,8 @@
 #include "UI/Character/CharacterInfoWindow.h"
 #include "UI/Character/Armory/ArmoryController.h"
 #include "UI/HUD/ChatLogWindow.h"
+#include "UI/Core/WindowCommon.h"
+#include "UI/RmlBridge/RmlStackingOrder.h"
 #include "App/Control/ControlCommands.h"
 #include "json.hpp"
 #include <numeric>
@@ -84,6 +87,19 @@ struct NullRenderer : Rml::RenderInterface
     void SetTransform(const Rml::Matrix4f* value) override
     {
         transform = value ? *value : Rml::Matrix4f::Identity();
+    }
+    std::pair<int, int> PaintBand(Rml::ColourbPremultiplied colour) const
+    {
+        std::pair<int, int> band{-1, -1};
+        for (int i = 0; i < static_cast<int>(paint.size()); ++i)
+            if (std::any_of(paint[i].vertices.begin(), paint[i].vertices.end(),
+                            [colour](const auto& vertex) { return vertex.colour == colour; }))
+            {
+                if (band.first < 0)
+                    band.first = i;
+                band.second = i;
+            }
+        return band;
     }
     // Observe submitted material triangles through the engine's actual render path, not panel boxes.
     int ChatBackdropPaints(Rml::Vector2f first, Rml::Vector2f second) const
@@ -298,6 +314,7 @@ public:
         {
             ++beforeHooks;
             UI::RmlBridge::SyncDocumentLayoutScales();
+            UI::RmlBridge::ApplySceneStackingDepths();
             Tip::ExpireUnrefreshed();
         };
         hooks.afterUpdate = [this](Rml::Context* c)
@@ -1446,6 +1463,269 @@ public:
             }
     }
 
+    Rml::ElementDocument* Document(const char* name)
+    {
+        for (int i = 0; i < context->GetNumDocuments(); ++i)
+            if (context->GetDocument(i)->GetSourceURL().ends_with(name))
+                return context->GetDocument(i);
+        return nullptr;
+    }
+    void CheckPassivePaint(bool passive, mu::ui::window::CChatLogWindow& chat)
+    {
+        auto* history = Document("chat_log.rml");
+        auto* notices = Document("system_log.rml");
+        REQUIRE(history);
+        REQUIRE(notices);
+        CHECK(history->GetAttribute<Rml::String>("data-stacking-role", "") == (passive ? "passive-log" : ""));
+        CHECK(notices->GetAttribute<Rml::String>("data-stacking-role", "") == (passive ? "passive-log" : ""));
+        CHECK(Document("chat_input.rml")->GetAttribute<Rml::String>("data-stacking-role", "").empty());
+        CHECK(history->IsVisible());
+        CHECK(notices->IsVisible());
+        CHECK(history->GetElementById("lines")->GetInnerRML().find("Peer") != Rml::String::npos);
+        CHECK(notices->GetElementById("panel")->GetInnerRML().find("Welcome") != Rml::String::npos);
+        if (passive)
+        {
+            renderer.tracePaint = true;
+            renderer.paint.clear();
+            context->Render();
+            const auto logs = renderer.PaintBand({9, 15, 9, 153});  // Unmodified authored material at .6.
+            const auto stone = renderer.PaintBand({9, 11, 9, 255}); // Real Armory stone background.
+            REQUIRE(logs.first >= 0);
+            REQUIRE(stone.first >= 0);
+            CHECK(logs.second < stone.first); // Actual system rows and, when framed, chat backdrop.
+            const auto messages = renderer.PaintBand(chat.IsShowFrame() ? Rml::ColourbPremultiplied{8, 14, 7, 170}
+                                                                        : Rml::ColourbPremultiplied{9, 17, 8, 204});
+            REQUIRE(messages.first >= 0);
+            CHECK(messages.second < stone.first); // Chat messages themselves, including unframed history.
+            renderer.tracePaint = false;
+        }
+        else
+        {
+            CHECK(history->GetZIndex() == doctest::Approx(6.1f));
+            CHECK(notices->GetZIndex() == doctest::Approx(6.05f));
+        }
+        CHECK(chat.GetBackAlpha() == doctest::Approx(.6f));
+    }
+    void CheckCoveredHistory(mu::ui::window::CChatLogWindow& chat)
+    {
+        auto* title = inventory->GetPlacedDocument()->GetElementById("title");
+        REQUIRE(title);
+        const auto caption = Box(*title);
+        const int tx = std::lround(caption.left + caption.width / 2.f);
+        const int ty = std::lround(caption.top + caption.height / 2.f);
+        context->ProcessMouseMove(tx, ty, 0);
+        context->ProcessMouseButtonDown(0, 0);
+        context->ProcessMouseMove(tx - 40, ty, 0);
+        context->ProcessMouseMove(tx - WindowWidth, ty + WindowHeight / 2, 0);
+        context->ProcessMouseButtonUp(0, 0);
+        ProductionFrame(); // Actual title/group drag into overlap; no fixture coordinates/placement writes.
+        auto* history = Document("chat_log.rml");
+        const auto handle = Box(*history->GetElementById("resize_handle"));
+        const auto panel = Box(*character->GetPlacedDocument()->GetElementById("panel"));
+        const float left = std::max(handle.left, panel.left),
+                    right = std::min(handle.left + handle.width, panel.left + panel.width);
+        REQUIRE(left < right);
+        const int x = std::lround((left + right) / 2.f), y = std::lround(handle.top + handle.height / 2.f);
+        context->ProcessMouseMove(x, y, 0);
+        auto* hit = context->GetElementAtPoint({static_cast<float>(x), static_cast<float>(y)});
+        REQUIRE(hit);
+        CHECK(hit->GetOwnerDocument() == character->GetPlacedDocument());
+        // Do not activate a protected foreground action; the real engine resolves its hit owner.
+        auto* lines = history->GetElementById("lines");
+        const auto well = Box(*lines);
+        for (int i = 0; i < lines->GetNumChildren(); ++i)
+        {
+            auto* row = lines->GetChild(i);
+            Rml::Vector2f offset, size;
+            if (!UI::RmlBridge::DrawnContentBox(*row, offset, size))
+                continue;
+            const Rect b{offset.x, offset.y, size.x, size.y};
+            const Rml::Vector2f point(std::max(b.left, panel.left) + 2.f, b.top + b.height / 2.f);
+            auto* owner = context->GetElementAtPoint(point);
+            if (!owner || owner->GetOwnerDocument() != character->GetPlacedDocument() || point.x >= b.left + b.width ||
+                point.y < well.top || point.y >= well.top + well.height)
+                continue;
+            context->ProcessMouseMove(std::lround(point.x), std::lround(point.y), 0);
+            g_fWindowMouseX = std::lround(point.x);
+            g_fWindowMouseY = std::lround(point.y);
+            const float oldScroll = lines->GetScrollTop();
+            MouseWheel = 1;
+            CHECK(chat.UpdateMouseEvent());
+            CHECK(MouseWheel == 1);
+            MouseWheel = 0;
+            chat.Update();
+            context->Update();
+            CHECK_FALSE(row->IsClassSet("chat-line--pointed"));
+            CHECK(lines->GetScrollTop() == doctest::Approx(oldScroll));
+            return;
+        }
+        FAIL("No actual history row overlaps the foreground Armory");
+    }
+    void CheckExposedHistory(mu::ui::window::CChatLogWindow& chat)
+    {
+        HidePanes();
+        ProductionFrame();
+        auto* lines = Document("chat_log.rml")->GetElementById("lines");
+        const auto b = Box(*lines);
+        const int x = std::lround(b.left + b.width / 2.f), y = std::lround(b.top + b.height / 2.f);
+        context->ProcessMouseMove(x, y, 0);
+        g_fWindowMouseX = x;
+        g_fWindowMouseY = y;
+        chat.AfterRmlLayout(context);
+        const auto oldScroll = lines->GetScrollTop();
+        REQUIRE(oldScroll > 0.f);
+        MouseWheel = 1;
+        CHECK_FALSE(chat.UpdateMouseEvent());
+        CHECK(MouseWheel == 0);
+        CHECK(lines->GetScrollTop() < oldScroll);
+        chat.Update();
+        context->Update();
+        CHECK(Document("chat_log.rml")->QuerySelector(".chat-line--pointed") != nullptr);
+    }
+    void CheckHistoryNavigation(mu::ui::window::CChatInputBox& input, mu::ui::window::CChatLogWindow& chat)
+    {
+        using namespace mu::ui::window;
+        const auto key = [&](Rml::Input::KeyIdentifier identifier)
+        {
+            context->ProcessKeyDown(identifier, 0);
+            context->ProcessKeyUp(identifier, 0);
+            input.Update();
+            context->Update();
+        };
+        key(Rml::Input::KI_F2);
+        CHECK(chat.GetCurrentMsgType() == TYPE_WHISPER_MESSAGE);
+        key(Rml::Input::KI_F2);
+        CHECK(chat.GetCurrentMsgType() == TYPE_ALL_MESSAGE);
+        key(Rml::Input::KI_F3);
+        CHECK(Document("chat_input.rml")->GetElementById("whisper_field")->HasAttribute("disabled"));
+        key(Rml::Input::KI_F3);
+        CHECK_FALSE(Document("chat_input.rml")->GetElementById("whisper_field")->HasAttribute("disabled"));
+        context->ProcessKeyDown(Rml::Input::KI_F5, 0);
+        context->ProcessKeyUp(Rml::Input::KI_F5, 0);
+        REQUIRE(chat.IsShowFrame());
+        const auto count = chat.GetNumberOfShowingLines();
+        context->ProcessKeyDown(Rml::Input::KI_F4, 0);
+        context->ProcessKeyUp(Rml::Input::KI_F4, 0);
+        CHECK(chat.GetNumberOfShowingLines() != count);
+        const auto end = chat.GetCurrentRenderEndLine();
+        context->ProcessKeyDown(Rml::Input::KI_PRIOR, 0);
+        context->ProcessKeyUp(Rml::Input::KI_PRIOR, 0);
+        CHECK(chat.GetCurrentRenderEndLine() < end);
+        context->ProcessKeyDown(Rml::Input::KI_NEXT, 0);
+        context->ProcessKeyUp(Rml::Input::KI_NEXT, 0);
+        CHECK(chat.GetCurrentRenderEndLine() == end);
+    }
+    void CheckChatKeys(mu::ui::window::CChatInputBox& input, mu::ui::window::CChatLogWindow& chat)
+    {
+        using namespace mu::ui::window;
+        input.Show(true);
+        input.Update();
+        ProductionFrame();
+        auto* field = Document("chat_input.rml")->GetElementById("chat_field");
+        REQUIRE(field);
+        REQUIRE(field->Focus());
+        REQUIRE(input.OwnsFocusedInput());
+        const auto fieldBox = Box(*field);
+        auto* fieldHit =
+            context->GetElementAtPoint({fieldBox.left + fieldBox.width / 2.f, fieldBox.top + fieldBox.height / 2.f});
+        REQUIRE(fieldHit);
+        CHECK(fieldHit->GetOwnerDocument() == Document("chat_input.rml"));
+        if (field->GetAttribute<Rml::String>("value", "").empty())
+            context->ProcessTextInput("unsent");
+        context->Update();
+        const auto draft = field->GetAttribute<Rml::String>("value", "");
+        REQUIRE(draft == "unsent");
+        chat.HideFrame();
+        context->ProcessKeyDown(Rml::Input::KI_F5, 0);
+        CHECK(chat.IsShowFrame());
+        g_pNewKeyInput->SetKeyState(VK_F5, CNewKeyInput::KEY_PRESS);
+        input.UpdateKeyEvent(); // Physical held key after focused callback must NOT run twice.
+        g_pNewKeyInput->SetKeyState(VK_F5, CNewKeyInput::KEY_NONE);
+        CHECK(chat.IsShowFrame());
+        context->ProcessKeyDown(Rml::Input::KI_F5, 0);
+        CHECK(chat.IsShowFrame()); // Repeat suppressed until keyup.
+        context->ProcessKeyUp(Rml::Input::KI_F5, 0);
+        context->ProcessKeyDown(Rml::Input::KI_F5, 0);
+        CHECK_FALSE(chat.IsShowFrame());
+        context->ProcessKeyUp(Rml::Input::KI_F5, 0);
+        CheckHistoryNavigation(input, chat);
+        chat.HideFrame();
+        input.Show(false);
+        field->Blur();
+        g_pNewKeyInput->SetKeyState(VK_F5, CNewKeyInput::KEY_PRESS);
+        CHECK_FALSE(input.UpdateKeyEvent()); // Hidden-input ACK is no frame change.
+        g_pNewKeyInput->SetKeyState(VK_F5, CNewKeyInput::KEY_NONE);
+        CHECK_FALSE(chat.IsShowFrame());
+        CHECK(field->GetAttribute<Rml::String>("value", "") == draft);
+    }
+    void CheckReferencePriority(mu::ui::window::ItemHelpView& reference)
+    {
+        reference.Sync(true, {{"Reference", "white", false, ""}});
+        ProductionFrame();
+        auto* document = Document("item_explanation.rml");
+        REQUIRE(document);
+        if (document->IsClassSet("reference-foreground"))
+            CHECK(document->GetZIndex() == doctest::Approx(UI::RmlBridge::ForegroundPanelLayerDepth));
+        else
+            CHECK(document->GetZIndex() == doctest::Approx(6.5f));
+        reference.Sync(false, {});
+    }
+    void CheckPassiveLogs()
+    {
+        using namespace mu::ui::window;
+        CreateInventoryGroup();
+        CChatLogWindow chat;
+        CSystemLogWindow notices;
+        CChatInputBox input;
+        ItemHelpView reference("item_explanation", "Data/Interface/RmlUi/item_explanation.rml");
+        REQUIRE(chat.Create(&manager, 15));
+        REQUIRE(notices.Create(&manager));
+        REQUIRE(input.Create(&manager, &chat, &notices));
+        chat.Show(true);
+        notices.Show(true);
+        notices.AddText(L"Welcome", TYPE_SYSTEM_MESSAGE);
+        for (int i = 0; i < 60; ++i)
+            chat.AddText(L"Peer", L"Line " + std::to_wstring(i), TYPE_CHAT_MESSAGE);
+        for (const char* selected : {"munolith", "legacy", "modern", "munolith"})
+            for (const auto v : {cases[0], cases[1], cases[2], Viewport{3840, 2160, 100}})
+            {
+                CAPTURE(std::string(selected));
+                CAPTURE(v.width);
+                Configure(selected, v);
+                chat.SetNumberOfShowingLines(15);
+                inventory->CObject::Show(true);
+                character->CObject::Show(true);
+                inventory->GetPlacedDocument()->Show();
+                character->GetPlacedDocument()->Show();
+                Inventory(0, 1);
+                const bool passive = UI::RmlBridge::ThemeUsesEmbeddedInventory();
+                if (passive)
+                    PopulateArmory(false);
+                chat.SyncDocVisibility(true);
+                notices.SyncDocVisibility(true);
+                input.Update();
+                for (const bool frame : {false, true, false})
+                {
+                    frame ? chat.ShowFrame() : chat.HideFrame();
+                    chat.Update();
+                    notices.Update();
+                    ProductionFrame();
+                    chat.AfterRmlLayout(context);
+                    CheckPassivePaint(passive, chat);
+                }
+                chat.ShowFrame();
+                chat.Update();
+                ProductionFrame();
+                chat.AfterRmlLayout(context);
+                if (passive)
+                    CheckCoveredHistory(chat);
+                CheckExposedHistory(chat);
+                CheckChatKeys(input, chat);
+                CheckReferencePriority(reference);
+                NoErrors();
+            }
+    }
+
     int beforeHooks = 0, afterHooks = 0;
     Rml::Context* context = nullptr;
 
@@ -2191,4 +2471,11 @@ TEST_CASE("Equipment slot-pixel reads current visible owner DOM without layout o
 {
     RmlViewLayoutFixture f;
     f.CheckEquipmentQuery();
+}
+
+TEST_CASE("Declarative passive logs preserve actual paint hit ownership exposed history and focused draft "
+          "[ui][chat][passive-logs]")
+{
+    RmlViewLayoutFixture f;
+    f.CheckPassiveLogs();
 }

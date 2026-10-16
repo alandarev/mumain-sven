@@ -146,3 +146,19 @@ TEST_CASE("the held item stays above every item panel and the HUD [ui][stacking]
                              "trade.rml", "storage.rml", "main_frame.rml", "option_window.rml"})
         CHECK_MESSAGE(Depth("cursor_item.rml") > Depth(name), name);
 }
+
+TEST_CASE("passive log semantic band reuses under-window presentation without changing defaults [ui][stacking]")
+{
+    const auto role = UI::RmlBridge::StackingDepthForRole("passive-log");
+    REQUIRE(role);
+    CHECK(*role == Depth("main_frame_top.rml"));
+    CHECK(*role > Depth("world_labels.rml"));
+    CHECK(*role < Depth("duel_window.rml"));
+    CHECK(*role < Depth("trade.rml"));
+    CHECK(*role < Depth("character_info.rml"));
+    CHECK(Depth("chat_log.rml") == doctest::Approx(6.1f));
+    CHECK(Depth("system_log.rml") == doctest::Approx(6.05f));
+    CHECK(Depth("chat_input.rml") > Depth("chat_log.rml"));
+    for (const char* invalid : {"", "unknown", "1.05", "PASSIVE-LOG"})
+        CHECK_FALSE(UI::RmlBridge::StackingDepthForRole(invalid));
+}

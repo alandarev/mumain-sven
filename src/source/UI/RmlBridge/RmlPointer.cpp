@@ -5,6 +5,20 @@
 #include <RmlUi/Core/Element.h>
 #include <RmlUi/Core/ElementDocument.h>
 
+bool UI::RmlBridge::IsPointerBlockedByHigherDocument(Rml::ElementDocument* document)
+{
+    if (document == nullptr || !document->IsVisible())
+        return false;
+    auto* context = document->GetContext();
+    auto* focus = context ? context->GetFocusElement() : nullptr;
+    auto* focusedDocument = focus ? focus->GetOwnerDocument() : nullptr;
+    if (focusedDocument && focusedDocument != document && focusedDocument->IsModal())
+        return true;
+    auto* hover = context ? context->GetHoverElement() : nullptr;
+    auto* owner = hover ? hover->GetOwnerDocument() : nullptr;
+    return owner && owner != document && (owner->IsModal() || owner->GetZIndex() >= document->GetZIndex());
+}
+
 bool UI::RmlBridge::IsPointerOver(Rml::ElementDocument* document)
 {
     if (document == nullptr || !document->IsVisible())

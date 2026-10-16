@@ -121,9 +121,9 @@ namespace UI::RmlBridge
                                           const std::string& modelPlaceholder, const std::string& modelName);
     };
 
-    // Sets the original's layer depth of `documentName` (e.g. "loading.rml", RmlStackingOrder.h)
-    // as the document's z-index. Every themed document gets it when it loads; call it only for a
-    // document loaded some other way.
+    // Sets the table depth of `documentName` (e.g. "loading.rml", RmlStackingOrder.h), or its
+    // declared semantic stacking role. Every themed document gets it when it loads; call it only
+    // for a document loaded some other way.
     void ApplyStackingDepth(Rml::ElementDocument* document, const std::string& documentName);
 
     // Scene gate (RmlStackingOrder.h, DocumentScene). The original drew CNewUIManager's windows
@@ -143,8 +143,8 @@ namespace UI::RmlBridge
     // suspension, so a window closed meanwhile hides its document in the same frame instead of
     // showing it for one.
     void ResumeMainSceneDocuments();
-    // Every frame before RmlUi updates: a DocumentScene::Every document takes its depth for the
-    // running scene.
+    // Existing frame pass: Every documents take their scene depth; role-declaring documents
+    // re-resolve their semantic role against the table baseline, including removal/invalid values.
     void ApplySceneStackingDepths();
 
     // Following theme switches belongs to ThemedView too: only ThemedDocuments may register.

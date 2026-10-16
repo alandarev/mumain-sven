@@ -32,6 +32,11 @@ enum class DocumentScene
 // table does not know (such a document keeps z-index:auto, under every listed one).
 std::optional<float> StackingDepthForDocument(std::string_view documentName);
 
+// Optional semantic presentation on a document body. Unknown/removed roles retain the table
+// default; themes cannot supply a numeric depth through this declaration.
+inline constexpr const char* StackingRoleAttribute = "data-stacking-role";
+std::optional<float> StackingDepthForRole(std::string_view role);
+
 // Scene for a document file name, from the same table; none for a name the table does not know
 // (such a document is never suspended).
 std::optional<DocumentScene> SceneForDocument(std::string_view documentName);

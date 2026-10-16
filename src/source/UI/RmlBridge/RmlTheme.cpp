@@ -340,7 +340,7 @@ namespace UI::RmlBridge
     // Set on the document element of every main-scene document, see
     // SuspendMainSceneDocumentsOutsideMainScene().
     constexpr const char* MainSceneDocumentAttribute = "data-main-scene-document";
-    // A DocumentScene::Every document's depths, in and outside the main scene.
+    // Table-derived baselines, never effective role depths: removal restores the original policy.
     constexpr const char* MainSceneDepthAttribute = "data-main-scene-depth";
     constexpr const char* OtherSceneDepthAttribute = "data-other-scene-depth";
     bool s_mainSceneDocumentsSuspended = false;
@@ -424,6 +424,17 @@ namespace UI::RmlBridge
         return doc;
     }
 
+    namespace
+    {
+    float EffectiveStackingDepth(Rml::ElementDocument& document, float defaultDepth)
+    {
+        const auto* role = document.GetAttribute(StackingRoleAttribute);
+        if (role != nullptr && role->GetType() == Rml::Variant::STRING)
+            return StackingDepthForRole(role->GetReference<Rml::String>()).value_or(defaultDepth);
+        return defaultDepth;
+    }
+    } // namespace
+
     void ApplyStackingDepth(Rml::ElementDocument* document, const std::string& documentName)
     {
         if (document == nullptr)
@@ -435,7 +446,8 @@ namespace UI::RmlBridge
             g_ErrorReport.Write(L"> [RmlTheme] No stacking depth for '%hs'.\r\n", documentName.c_str());
             return;
         }
-        document->SetProperty(Rml::PropertyId::ZIndex, Rml::Property(*depth, Rml::Unit::NUMBER));
+        document->SetProperty(Rml::PropertyId::ZIndex,
+                              Rml::Property(EffectiveStackingDepth(*document, *depth), Rml::Unit::NUMBER));
     }
 
     void ApplyDocumentScene(Rml::ElementDocument* document, const std::string& documentName)
@@ -445,10 +457,11 @@ namespace UI::RmlBridge
         if (SceneForDocument(documentName) == DocumentScene::Main)
             document->SetAttribute(MainSceneDocumentAttribute, true);
         const std::optional<float> mainDepth = StackingDepthForDocument(documentName);
-        if (const std::optional<float> otherDepth = StackingDepthOutsideMainScene(documentName); otherDepth && mainDepth)
+        const auto otherDepth = StackingDepthOutsideMainScene(documentName);
+        if (mainDepth && (otherDepth || document->HasAttribute(StackingRoleAttribute)))
         {
             document->SetAttribute(MainSceneDepthAttribute, *mainDepth);
-            document->SetAttribute(OtherSceneDepthAttribute, *otherDepth);
+            document->SetAttribute(OtherSceneDepthAttribute, otherDepth.value_or(*mainDepth));
         }
     }
 
@@ -463,7 +476,7 @@ namespace UI::RmlBridge
                 Rml::ElementDocument* document = context->GetDocument(documentIndex);
                 if (!document->HasAttribute(attribute))
                     continue;
-                const float depth = document->GetAttribute<float>(attribute, 0.f);
+                const float depth = EffectiveStackingDepth(*document, document->GetAttribute<float>(attribute, 0.f));
                 const Rml::Property* current = document->GetLocalProperty(Rml::PropertyId::ZIndex);
                 if (current == nullptr || current->Get<float>() != depth)
                     document->SetProperty(Rml::PropertyId::ZIndex, Rml::Property(depth, Rml::Unit::NUMBER));

@@ -231,6 +231,15 @@ reference; the ordering constraint is explained in [Engine Findings](engine-find
 The rendering sequence is described in [Frame lifecycle](README.md#frame-lifecycle-render-seams).
 Native content within a window must occupy that document's depth, as described below.
 
+A theme can declare `data-stacking-role="passive-log"` on a log document's `<body>` to place its
+history/notices over world labels but below ordinary windows. Munolith opts its chat history and
+system notices into this role; Legacy/Modern keep the original foreground-log policy. Active chat
+input remains independent and foreground. Framed history controls work where exposed; overlapping
+windows own their covered pixels and input. Message content, frame state, alpha and typography do
+not change. Remove the declaration to restore the default; unknown or numeric roles also retain
+the stacking table's default. Theme reloads re-read the declaration. This is a semantic role, not
+a numeric z-index customization interface.
+
 ## Integrate native content when required
 
 RmlUi owns ordinary 2D chrome, text, icons and layout. Live 3D drawing remains native, but its
