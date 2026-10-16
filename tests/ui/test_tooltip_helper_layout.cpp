@@ -9,6 +9,9 @@
 #include <RmlUi/Core/ComputedValues.h>
 #include <RmlUi/Core/ElementUtilities.h>
 #include <RmlUi/Core/ElementText.h>
+#include <RmlUi/Core/FontEngineInterface.h>
+#include <RmlUi/Core/Mesh.h>
+#include <RmlUi/Core/TextShapingContext.h>
 #include <SDL3_ttf/SDL_ttf.h>
 #include "Data/GameConfig/GameConfig.h"
 #include "Render/RmlUi/RmlUiRuntime.h"
@@ -41,6 +44,7 @@
 #include "UI/RmlBridge/RmlTooltip.h"
 #include "UI/RmlBridge/ThemeFileInterface.h"
 #include "Render/Text/CUIRenderText.h"
+#include "UI/RmlBridge/RmlNativeTextSize.h"
 #include "UI/Scaling/UITransform.h"
 #include <filesystem>
 #include <ostream>
@@ -197,6 +201,25 @@ std::ostream& operator<<(std::ostream& os, const PaintedRows& rows)
 {
     return os << rows.first << ".." << rows.last;
 }
+// How far right a laid-out line's advance (the sum of its glyph advances, not its drawn ink) may
+// reach, in layout px. RmlUi's LineBox::AddBox() offers a wrapping inline fragment
+// RoundUp(line box width - cursor) (Layout/LineBox.cpp), so a wrapped line's advance may end up to
+// one pixel past a line box of fractional width; otherwise the existing half-pixel budget holds.
+// The two are alternatives, never added together.
+float LineAdvanceLimit(float lineBoxLeft, float lineBoxWidth, float cursor, float nominalRight, bool wraps)
+{
+    const float nominal = nominalRight + 0.5f;
+    return wraps ? std::max(nominal, lineBoxLeft + cursor + std::ceil(lineBoxWidth - cursor)) : nominal;
+}
+// A history row's text outside the well: which bound (`box` -- the row's border box past the well's
+// client width; `advance` -- a line's advance past LineAdvanceLimit(); `ink` -- a drawn glyph quad
+// past the well's client edge, where the scrollbar and frame begin) and by how much, in layout px.
+struct HistoryOverflow
+{
+    int row;
+    const char* bound;
+    float overflow;
+};
 Rect Box(Rml::Element& e)
 {
     Rml::Vector2f pos, size;
@@ -1884,30 +1907,88 @@ public:
         }
         return rows;
     }
-    // Painted history rows whose laid-out text runs past the well's visible width (its client
-    // width: inside the padding and left of the scrollbar), with how far, in screen px.
-    std::vector<std::pair<int, float>> ClippedHistoryRows()
+    // History rows -- painted or scrolled out of view, a row's width does not depend on that --
+    // whose text leaves the well's visible width (its client width: inside the padding and left of
+    // the scrollbar). Layout px: the chat log carries no transform, so they are also screen px.
+    // Each laid-out line is checked twice, independently: its advance against the engine's own line
+    // envelope (LineAdvanceLimit(), from the row's content box and the line's cursor), and its ink --
+    // the glyph quads the row's font engine generates for that line at that position, with the row's
+    // own face and font effects, exactly as ElementText draws it -- against the well's client edge.
+    std::vector<HistoryOverflow> ClippedHistoryRows(bool report = false)
     {
         auto* lines = Document("chat_log.rml")->GetElementById("lines");
-        Rml::Rectanglef well;
-        REQUIRE(Rml::ElementUtilities::GetBoundingBox(well, lines, Rml::BoxArea::Content));
-        const float visibleRight = lines->GetAbsoluteLeft() + lines->GetClientLeft() + lines->GetClientWidth();
-        std::vector<std::pair<int, float>> clipped;
+        const float wellRight = lines->GetAbsoluteLeft() + lines->GetClientLeft() + lines->GetClientWidth();
+        auto* fonts = Rml::GetFontEngineInterface();
+        std::vector<HistoryOverflow> overflows;
         for (int i = 0; i < lines->GetNumChildren(); ++i)
         {
             Rml::Element* row = lines->GetChild(i);
-            Rml::Rectanglef box;
-            if (!Rml::ElementUtilities::GetBoundingBox(box, row, Rml::BoxArea::Border))
+            if (!row->IsVisible() || row->GetInnerRML().empty()) // data-for's own template stays hidden
                 continue;
-            const float middle = (box.Top() + box.Bottom()) / 2.f;
-            if (middle < well.Top() || middle >= well.Bottom())
-                continue;
-            const float textRight =
-                row->GetAbsoluteLeft() + row->GetClientLeft() + std::max(row->GetScrollWidth(), row->GetClientWidth());
-            if (textRight > visibleRight + 0.5f)
-                clipped.emplace_back(i, textRight - visibleRight);
+            const float boxRight = row->GetAbsoluteLeft() + row->GetOffsetWidth();
+            if (boxRight > wellRight + 0.5f)
+                overflows.push_back({i, "box", boxRight - wellRight});
+            const float lineBoxLeft = row->GetAbsoluteOffset(Rml::BoxArea::Content).x;
+            const float lineBoxWidth = row->GetBox().GetSize(Rml::BoxArea::Content).x;
+            const auto whiteSpace = row->GetComputedValues().white_space();
+            const bool wraps = whiteSpace == Rml::Style::WhiteSpace::Normal ||
+                               whiteSpace == Rml::Style::WhiteSpace::Prewrap ||
+                               whiteSpace == Rml::Style::WhiteSpace::Preline;
+            float advanceRight = 0.f, advanceLimit = 0.f, inkRight = 0.f;
+            for (int c = 0; c < row->GetNumChildren(); ++c)
+            {
+                auto* text = dynamic_cast<Rml::ElementText*>(row->GetChild(c));
+                if (!text)
+                    continue;
+                const auto face = text->GetFontFaceHandle();
+                REQUIRE(face);
+                const Rml::FontEffectList none;
+                const Rml::FontEffectList* effects = &none;
+                if (text->GetComputedValues().has_font_effect())
+                    if (const Rml::Property* property = text->GetProperty(Rml::PropertyId::FontEffect))
+                        if (Rml::FontEffectsPtr list = property->Get<Rml::FontEffectsPtr>())
+                            effects = &list->list;
+                const auto effectsHandle = fonts->PrepareFontEffects(face, *effects);
+                const auto& computed = text->GetComputedValues();
+                const Rml::TextShapingContext shaping{computed.language(), computed.direction(),
+                                                      computed.font_kerning(), computed.letter_spacing()};
+                const Rml::Vector2f origin = text->GetAbsoluteOffset();
+                for (const auto& line : text->GetLines())
+                {
+                    const float lineLeft = origin.x + line.position.x;
+                    const float cursor = std::max(0.f, lineLeft - lineBoxLeft);
+                    const float limit = LineAdvanceLimit(lineBoxLeft, lineBoxWidth, cursor, wellRight, wraps);
+                    // A wrapped line keeps the space it broke at; the engine does not draw it.
+                    Rml::String drawn = line.text;
+                    while (!drawn.empty() && std::isspace(static_cast<unsigned char>(drawn.back())))
+                        drawn.pop_back();
+                    const float drawnAdvance =
+                        lineLeft + static_cast<float>(fonts->GetStringWidth(face, drawn, shaping));
+                    if (drawnAdvance > limit)
+                        overflows.push_back({i, "advance", drawnAdvance - limit});
+                    Rml::TexturedMeshList meshes;
+                    fonts->GenerateString(*row->GetRenderManager(), face, effectsHandle, line.text, line.position,
+                                          Rml::ColourbPremultiplied(255, 255, 255, 255), 1.f, shaping, meshes);
+                    float lineInk = 0.f;
+                    for (const auto& mesh : meshes)
+                        for (const auto& vertex : mesh.mesh.vertices)
+                            lineInk = std::max(lineInk, origin.x + vertex.position.x);
+                    if (lineInk > wellRight)
+                        overflows.push_back({i, "ink", lineInk - wellRight});
+                    if (drawnAdvance > advanceRight)
+                    {
+                        advanceRight = drawnAdvance;
+                        advanceLimit = limit;
+                    }
+                    inkRight = std::max(inkRight, lineInk);
+                }
+            }
+            if (report && advanceRight > wellRight + 0.5f)
+                MESSAGE("row " << i << " advance " << advanceRight << " beyond the well's " << wellRight
+                               << " + 0.5 within the engine's wrap envelope " << advanceLimit << "; ink " << inkRight
+                               << std::string(inkRight <= wellRight ? " inside" : " OUTSIDE") << " the well");
         }
-        return clipped;
+        return overflows;
     }
     // Real native text measuring (CUIRenderTextSDLTtf over bundled faces opened at their cached
     // point size, as the renderer does) for the scope of one test: CChatLogWindow::SeparateText()
@@ -2257,6 +2338,7 @@ public:
                 key(Rml::Input::KI_NEXT);
             REQUIRE(PaintedHistoryRows().last == tailRow);
             REQUIRE(chat.GetCurrentRenderEndLine() == tailRow);
+            CHECK(ClippedHistoryRows().empty());
 
             // Resize only, following the tail: the tail stays painted at every step and back. The
             // first step changes the viewport only (dp unchanged), the second the UI scale (dp).
@@ -2265,6 +2347,7 @@ public:
             resize(3840, 2160, 100);
             CHECK(PaintedHistoryRows().last == tailRow);
             CHECK(chat.GetCurrentRenderEndLine() == tailRow);
+            CHECK(ClippedHistoryRows().empty());
             resize(1920, 1080, 75);
             CHECK(PaintedHistoryRows().last == tailRow);
 
@@ -2327,6 +2410,12 @@ public:
                 key(Rml::Input::KI_NEXT);
             CHECK(PaintedHistoryRows().last == tailRow);
             CHECK(draft() == "B640 neutral unsent");
+
+            // The exposed wheel and the sender hit test on rows of this theme's (wrapped) heights.
+            CheckExposedHistory(chat);
+            for (int i = 0; i < 8; ++i)
+                key(Rml::Input::KI_NEXT);
+            CHECK(PaintedHistoryRows().last == tailRow);
         }
 
         // An empty filtered view across a resize; restoring the filter returns to the tail, which
@@ -2345,23 +2434,67 @@ public:
         CHECK(draft() == "B640 neutral unsent");
 
         // The split is measured in the window's own units wherever the message arrives: the same
-        // two lines per long message at every profile, the first fitting the well it arrived in.
-        // Only Legacy and Munolith are held to the fit: Modern draws its rows in its own font
-        // (11dp), wider than the native text the split measures -- an open typography decision.
+        // two lines per long message at every profile. Rows wrap inside the well in every theme
+        // (Legacy and Modern since the operator-approved wrapping; Munolith before), each theme in
+        // its own unchanged font, so no text runs past the well -- where the message arrived, nor
+        // after a resize to any other profile. The stored history is never re-split: count, order
+        // and text stay as they arrived.
         constexpr Viewport profiles[]{{1024, 768, 100}, {800, 600, 150}, {1920, 1080, 75}, {3840, 2160, 100}};
         const auto arrive = [&](const char* theme, Viewport arrival)
         {
             resize(arrival.width, arrival.height, arrival.percent);
             reload(theme);
             chat.ClearAll();
+            chat.AddText(L"QA640", L"SEEDED UI640 short row", TYPE_CHAT_MESSAGE);
             for (int i = 40; i < 44; ++i)
                 chat.AddText(L"QA640",
                              L"WRAPSTART" + std::to_wstring(i) +
                                  L" neutral wrapped history row for reflow and anchor check WRAPEND" +
                                  std::to_wstring(i),
                              TYPE_CHAT_MESSAGE);
+            chat.AddText(L"QA640",
+                         L"LONGSTART a much longer neutral history message whose remainder alone needs several "
+                         L"wrapped lines in the well at every profile LONGEND",
+                         TYPE_CHAT_MESSAGE);
+            chat.AddText(L"QA640", L"SEEDED UI640 last short row", TYPE_CHAT_MESSAGE);
             frame();
             frame();
+        };
+        const auto rowTexts = [&]
+        {
+            std::vector<Rml::String> texts;
+            auto* lines = Document("chat_log.rml")->GetElementById("lines");
+            for (int i = 0; i < lines->GetNumChildren(); ++i)
+                texts.push_back(lines->GetChild(i)->GetInnerRML());
+            return texts;
+        };
+        // Each theme's own font, unchanged by wrapping: Legacy and Munolith rows draw the native
+        // text size (chat_log.rml's text_px binding), Modern its 11dp body text.
+        const auto checkFonts = [&](const char* theme)
+        {
+            auto* lines = Document("chat_log.rml")->GetElementById("lines");
+            const bool modern = std::string(theme) == "modern";
+            const float expectedPx = modern ? 11.f * context->GetDensityIndependentPixelRatio()
+                                            : UI::RmlBridge::NativeTextPx(UI::Scaling::FontRole::Normal);
+            for (int i = 0; i < lines->GetNumChildren(); ++i)
+            {
+                Rml::Element* row = lines->GetChild(i);
+                if (!row->IsVisible())
+                    continue;
+                CAPTURE(i);
+                CHECK(row->GetComputedValues().font_size() == doctest::Approx(expectedPx));
+                const auto* family = row->GetProperty("font-family");
+                REQUIRE(family);
+                CHECK(family->ToString() == (modern ? "Liberation Sans" : "DejaVu Sans"));
+            }
+        };
+        const auto checkFits = [&](const std::string& when)
+        {
+            for (const auto& [row, bound, overflow] : ClippedHistoryRows(true))
+            {
+                CAPTURE(row);
+                FAIL_CHECK(when << " row " << std::string(bound) << " overflows the well by " << overflow << "px");
+            }
         };
         for (const char* theme : {"legacy", "modern", "munolith"})
             for (const auto arrival : profiles)
@@ -2370,21 +2503,41 @@ public:
                 CAPTURE(arrival.width);
                 CAPTURE(arrival.percent);
                 arrive(theme, arrival);
-                CHECK(chat.GetNumberOfLines(TYPE_ALL_MESSAGE) == 8);
-            }
-        for (const char* theme : {"legacy", "munolith"})
-            for (const auto arrival : profiles)
-            {
-                CAPTURE(std::string(theme));
-                CAPTURE(arrival.width);
-                CAPTURE(arrival.percent);
-                arrive(theme, arrival);
-                for (const auto& [row, overflow] : ClippedHistoryRows())
+                CHECK(chat.GetNumberOfLines(TYPE_ALL_MESSAGE) == 12);
+                const auto arrived = rowTexts();
+                checkFonts(theme);
+                checkFits("arrival");
+                for (const auto later : profiles)
                 {
-                    CAPTURE(row);
-                    FAIL_CHECK("arrival row overflows by " << overflow << "px");
+                    CAPTURE(later.width);
+                    CAPTURE(later.percent);
+                    resize(later.width, later.height, later.percent);
+                    CHECK(rowTexts() == arrived);
+                    checkFonts(theme);
+                    checkFits("resized");
                 }
             }
+
+        // Negative controls through the same checks: a message without a space wider than the well
+        // is split by native SeparateText() at a character, and its remainder is still one token the
+        // row cannot break, so its glyphs really leave the well -- ink and advance are both caught.
+        for (const char* theme : {"legacy", "modern", "munolith"})
+        {
+            CAPTURE(std::string(theme));
+            arrive(theme, {1920, 1080, 75});
+            REQUIRE(ClippedHistoryRows().empty());
+            chat.AddText(L"QA640", L"UNBROKEN" + std::wstring(200, L'X'), TYPE_CHAT_MESSAGE);
+            frame();
+            frame();
+            const auto caught = ClippedHistoryRows();
+            const auto has = [&](std::string_view bound)
+            {
+                return std::any_of(caught.begin(), caught.end(), [&](const HistoryOverflow& overflow)
+                                   { return overflow.bound == bound && overflow.overflow > 1.f; });
+            };
+            CHECK(has("ink"));
+            CHECK(has("advance"));
+        }
     }
 
     int beforeHooks = 0, afterHooks = 0;
@@ -3157,4 +3310,23 @@ TEST_CASE("Framed chat history keeps its viewport across window resizes and them
 {
     RmlViewLayoutFixture f;
     f.CheckFramedHistoryResize();
+}
+
+TEST_CASE("Chat history line advance limit models RmlUi's rounded-up wrap width [ui][history]")
+{
+    // Layout px. The 3840x2160@100 Munolith case: line box at 10.7331, 711.07 wide, no cursor.
+    CHECK(LineAdvanceLimit(10.7331f, 711.07f, 0.f, 721.8031f, true) == doctest::Approx(722.7331f));
+    CHECK(722.733f <= LineAdvanceLimit(10.7331f, 711.07f, 0.f, 721.8031f, true));
+    CHECK(722.75f > LineAdvanceLimit(10.7331f, 711.07f, 0.f, 721.8031f, true));
+    // An integral width keeps the half-pixel budget only: rounding and budget are never stacked.
+    CHECK(LineAdvanceLimit(10.f, 711.f, 0.f, 721.f, true) == doctest::Approx(721.5f));
+    // A fraction of a half pixel or more: the budget already covers the rounding.
+    CHECK(LineAdvanceLimit(0.f, 100.75f, 0.f, 100.75f, true) == doctest::Approx(101.25f));
+    // A line that starts after a cursor: RoundUp(width - cursor) from the cursor.
+    CHECK(LineAdvanceLimit(50.f, 100.9f, 0.6f, 150.9f, true) == doctest::Approx(151.6f));
+    CHECK(LineAdvanceLimit(50.f, 100.9f, 3.f, 150.9f, true) == doctest::Approx(151.4f));
+    // A line box narrower than the well (row padding): the well's budget bounds it.
+    CHECK(LineAdvanceLimit(14.f, 300.2f, 0.f, 330.f, true) == doctest::Approx(330.5f));
+    // No wrapping: the engine offers no rounded-up width.
+    CHECK(LineAdvanceLimit(10.7331f, 711.07f, 0.f, 721.8031f, false) == doctest::Approx(722.3031f));
 }
