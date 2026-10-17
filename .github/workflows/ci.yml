@@ -19,7 +19,8 @@ permissions:
 jobs:
   quality:
     name: Quality Gates
-    runs-on: ubuntu-latest
+    # Dev CI runner for push, workflow_dispatch and schedule only; every other event keeps the GitHub-hosted runner.
+    runs-on: ${{ fromJSON(contains(fromJSON('["push","workflow_dispatch","schedule"]'), github.event_name) && '["self-hosted","linux","x64","dev-ci","repo-mumain-sven"]' || '"ubuntu-latest"') }}
 
     steps:
       - name: Checkout repository
@@ -499,7 +500,8 @@ jobs:
   build-linux:
     name: Linux Native Build (x64, Release, editor OFF)
     if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    # Dev CI runner for push, workflow_dispatch and schedule only; every other event keeps the GitHub-hosted runner.
+    runs-on: ${{ fromJSON(contains(fromJSON('["push","workflow_dispatch","schedule"]'), github.event_name) && '["self-hosted","linux","x64","dev-ci","repo-mumain-sven"]' || '"ubuntu-latest"') }}
 
     steps:
       - name: Checkout repository
@@ -664,7 +666,8 @@ jobs:
     name: Semantic Release
     needs: [quality, build-windows, build-linux, build-macos]
     if: github.repository == 'sven-n/MuMain' && github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    # Dev CI runner for push, workflow_dispatch and schedule only; every other event keeps the GitHub-hosted runner.
+    runs-on: ${{ fromJSON(contains(fromJSON('["push","workflow_dispatch","schedule"]'), github.event_name) && '["self-hosted","linux","x64","dev-ci","repo-mumain-sven"]' || '"ubuntu-latest"') }}
     permissions:
       contents: write
 
