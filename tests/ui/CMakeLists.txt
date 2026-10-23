@@ -83,6 +83,16 @@ mu_add_test(
     LINK_LIBS MuClient
 )
 
+# The options window's tuning rows of the Enhanced look, and their markup in both bundled themes.
+mu_add_test(
+    NAME tuning_rows_tests
+    SOURCES test_tuning_rows.cpp
+    LINK_LIBS MuClient
+)
+target_compile_definitions(tuning_rows_tests PRIVATE
+    MU_RMLUI_DIR="${CMAKE_SOURCE_DIR}/src/bin/Data/Interface/RmlUi"
+)
+
 mu_add_test(
     NAME guild_mark_palette_tests
     SOURCES
@@ -183,7 +193,9 @@ add_test(
     NAME display_settings_contract
     COMMAND "${CMAKE_COMMAND}"
         "-DMU_CONFIG_CONSTANTS=${CMAKE_SOURCE_DIR}/src/source/Data/GameConfig/GameConfigConstants.h"
+        "-DMU_CONFIG_HEADER=${CMAKE_SOURCE_DIR}/src/source/Data/GameConfig/GameConfig.h"
         "-DMU_CONFIG_SOURCE=${CMAKE_SOURCE_DIR}/src/source/Data/GameConfig/GameConfig.cpp"
+        "-DMU_LOOK_SETTING_SOURCE=${CMAKE_SOURCE_DIR}/src/source/Render/Look/LookPresetSetting.cpp"
         "-DMU_WINMAIN_SOURCE=${CMAKE_SOURCE_DIR}/src/source/App/Platform/Windows/Winmain.cpp"
         "-DMU_CONSOLE_SOURCE=${CMAKE_SOURCE_DIR}/src/source/Core/Utilities/Log/muConsoleDebug.cpp"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/test_display_settings_contract.cmake"

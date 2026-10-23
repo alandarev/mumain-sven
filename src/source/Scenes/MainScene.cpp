@@ -203,7 +203,11 @@ static void InitializeMainScene()
  */
 static void InitializeSceneFrame()
 {
-    EarthQuake *= 0.2f;
+    // Decays per reference frame, like DefaultCamera samples it.
+    if (REFERENCE_FRAME_STEP > 0)
+    {
+        EarthQuake *= 0.2f;
+    }
     InitTerrainLight();
 
     CheckInventory = NULL;
@@ -482,6 +486,16 @@ void SetDisableJoints(bool disabled)
 bool IsJointsDisabledDebug()
 {
     return g_bDisableJointsDebug;
+}
+
+static bool g_bDisableEffectCullingDebug = false;
+void SetDisableEffectCulling(bool disabled)
+{
+    g_bDisableEffectCullingDebug = disabled;
+}
+bool IsEffectCullingDisabledDebug()
+{
+    return g_bDisableEffectCullingDebug;
 }
 
 static bool g_bDisableWingExtraLayersDebug = false;

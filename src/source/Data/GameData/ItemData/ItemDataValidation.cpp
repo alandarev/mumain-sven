@@ -1,6 +1,8 @@
 #include "stdafx.h"
 
 #include "ItemDataValidation.h"
+#include "ItemAttributeConversion.h"
+#include "ItemDescriptionPlaceholders.h"
 #include "ItemEnumNames.h"
 #include "ItemType.h"
 #include "Core/Text/Utf8.h"
@@ -78,6 +80,106 @@ void ValidateName(const ItemDefinition& definition, std::vector<ItemDataIssue>& 
         check(locale, text);
     }
 }
+// The field of a description line's text in one language, as the item file writes it.
+std::string DescriptionTextField(size_t line, std::string_view locale)
+{
+    std::string field = "description[" + std::to_string(line) + "].text";
+    if (locale != LocalizedString::NeutralLocale)
+    {
+        field += "." + std::string(locale);
+    }
+    return field;
+}
+
+std::string ListPlaceholders(const std::set<std::string>& names)
+{
+    if (names.empty())
+    {
+        return "none";
+    }
+    std::string list;
+    for (const std::string& name : names)
+    {
+        list += (list.empty() ? "{" : ", {") + name + "}";
+    }
+    return list;
+}
+
+// A description line's text is written like a name: an English text, and translations under language codes. A blank
+// line has no text in any language. The braces of its placeholders are checked in every language, and each
+// translation has the placeholders of the English text.
+void ValidateDescription(const ItemDefinition& definition, std::vector<ItemDataIssue>& issues)
+{
+    for (size_t index = 0; index < definition.description.size(); ++index)
+    {
+        const LocalizedString& text = definition.description[index].text;
+        if (text.IsEmpty())
+        {
+            continue;
+        }
+        const std::string field = DescriptionTextField(index, LocalizedString::NeutralLocale);
+        if (text.GetNeutral().empty())
+        {
+            AddIssue(issues, ItemDataIssueSeverity::Error, definition, "the English text is missing", field.c_str());
+        }
+        const PlaceholderScan english = ScanPlaceholders(text.GetNeutral());
+        const std::set<std::string> englishNames(english.names.begin(), english.names.end());
+        if (!english.error.empty())
+        {
+            AddIssue(issues, ItemDataIssueSeverity::Error, definition, english.error, field.c_str());
+        }
+        for (const auto& [locale, translation] : text.GetTranslations())
+        {
+            if (!IsValidLocaleCode(locale))
+            {
+                AddIssue(issues, ItemDataIssueSeverity::Error, definition,
+                         "\"" + locale + "\" is not a language code (letters, digits and \"-\" only)", field.c_str());
+            }
+            const std::string translationField = DescriptionTextField(index, locale);
+            const PlaceholderScan scan = ScanPlaceholders(translation);
+            if (!scan.error.empty())
+            {
+                AddIssue(issues, ItemDataIssueSeverity::Error, definition, scan.error, translationField.c_str());
+                continue;
+            }
+            const std::set<std::string> names(scan.names.begin(), scan.names.end());
+            if (english.error.empty() && names != englishNames)
+            {
+                AddIssue(issues, ItemDataIssueSeverity::Error, definition,
+                         "has the placeholders " + ListPlaceholders(names) + ", the English text " +
+                             ListPlaceholders(englishNames),
+                         translationField.c_str());
+            }
+        }
+    }
+}
+
+// The slot of each weapon kind: the left hand (offHand) for bows, shields and
+// books, the right hand (mainHand) for the others. The code looks for a bow or
+// a shield only in the left hand and for a crossbow or a spear only in the
+// right; one-handed swords, axes, maces, staffs and gloves may also go in the
+// left.
+ItemSlot GetWeaponKindSlot(WeaponKind kind)
+{
+    switch (kind)
+    {
+    case WeaponKind::Bow:
+    case WeaponKind::Shield:
+    case WeaponKind::Book:
+        return ItemSlot::OffHand;
+    case WeaponKind::Crossbow:
+    case WeaponKind::Spear:
+    case WeaponKind::Sword:
+    case WeaponKind::Axe:
+    case WeaponKind::Mace:
+    case WeaponKind::Staff:
+    case WeaponKind::Glove:
+        return ItemSlot::MainHand;
+    default:
+        return ItemSlot::None;
+    }
+}
+
 // The item files store slots by name, so every slot needs one.
 void ValidateSlot(const ItemDefinition& definition, std::vector<ItemDataIssue>& issues)
 {
@@ -90,6 +192,90 @@ void ValidateSlot(const ItemDefinition& definition, std::vector<ItemDataIssue>& 
     {
         AddIssue(issues, ItemDataIssueSeverity::Warning, definition, "has a wing tier, but its slot is not \"wings\"",
                  "wingTier");
+    }
+    // Item files saved before a group got its weapon kind have none; nothing fills it in.
+    const WeaponKind groupWeaponKind = GetGroupWeaponKind(definition);
+    if (definition.weaponKind == WeaponKind::None && groupWeaponKind != WeaponKind::None)
+    {
+        AddIssue(issues, ItemDataIssueSeverity::Warning, definition,
+                 std::string("has no weapon kind, but its group gives \"") + FindEnumName(groupWeaponKind) + "\"",
+                 "weaponKind");
+    }
+    const ItemSlot weaponKindSlot = GetWeaponKindSlot(definition.weaponKind);
+    if (weaponKindSlot != ItemSlot::None && definition.slot != weaponKindSlot)
+    {
+        AddIssue(issues, ItemDataIssueSeverity::Warning, definition,
+                 std::string("has the weapon kind \"") + FindEnumName(definition.weaponKind) +
+                     "\", but its slot is not \"" + FindEnumName(weaponKindSlot) + "\"",
+                 "weaponKind");
+    }
+}
+
+// The fixed excellent bonus counts for damage and magic power only.
+void ValidateExcellentBonus(const ItemDefinition& definition, std::vector<ItemDataIssue>& issues)
+{
+    if (definition.excellentBonus != 0 && definition.damageMin == 0 && definition.damageMax == 0 &&
+        definition.magicPower == 0)
+    {
+        AddIssue(issues, ItemDataIssueSeverity::Warning, definition,
+                 "has an excellent bonus, but no damage or magic power it adds to", "excellentBonus");
+    }
+}
+
+// Item files saved before the stat profiles have none; the item then has the
+// default until an edit or a bmd import gives it the profile its data gives.
+void ValidateStatProfileGiven(const ItemDefinition& definition, const ItemStatProfiles& profiles,
+                              std::vector<ItemDataIssue>& issues)
+{
+    const std::string derived = DeriveStatProfile(profiles, definition);
+    if (definition.statProfile.empty() && !derived.empty())
+    {
+        AddIssue(issues, ItemDataIssueSeverity::Warning, definition,
+                 "has no stat profile, but its data gives \"" + derived + "\" (\"" + StatProfileNames::Default +
+                     "\" keeps the default)",
+                 "statProfile");
+    }
+}
+
+// excellentRaisesLevel only matters for an item with a level requirement.
+void ValidateExcellentRaisesLevel(const ItemDefinition& definition, std::vector<ItemDataIssue>& issues)
+{
+    const bool hasLevelRequirement =
+        definition.requirements.level > 0 || definition.requirementsByLevel.Find(ItemRequirement::Level) != nullptr;
+    if (!definition.excellentRaisesLevel && !hasLevelRequirement)
+    {
+        AddIssue(issues, ItemDataIssueSeverity::Warning, definition,
+                 "is set, but the item has no level requirement it would raise", "excellentRaisesLevel");
+    }
+}
+
+// A requirement given by level takes the place of its base value.
+void ValidateRequirementsByLevel(const ItemDefinition& definition, std::vector<ItemDataIssue>& issues)
+{
+    const WORD bases[] = {definition.requirements.level,     definition.requirements.strength,
+                          definition.requirements.dexterity, definition.requirements.energy,
+                          definition.requirements.vitality,  definition.requirements.leadership};
+    for (size_t requirement = 0; requirement < ItemRequirementCount; ++requirement)
+    {
+        if (definition.requirementsByLevel.Find(static_cast<ItemRequirement>(requirement)) != nullptr &&
+            bases[requirement] != 0)
+        {
+            AddIssue(issues, ItemDataIssueSeverity::Warning, definition,
+                     "gives a requirement by level and also its base value, which is not used", "requirementsByLevel");
+        }
+    }
+}
+
+// Only the potion lists are taken in priority order.
+void ValidatePotionPriority(const ItemDefinition& definition, std::vector<ItemDataIssue>& issues)
+{
+    const ItemTagSet potions{ItemTag::HealingPotion, ItemTag::ManaPotion, ItemTag::ComplexPotion,
+                             ItemTag::ShieldPotion};
+    if (definition.potionPriority != 0 && !definition.tags.HasAny(potions))
+    {
+        AddIssue(issues, ItemDataIssueSeverity::Warning, definition,
+                 "has a potion priority, but no healingPotion, manaPotion, complexPotion or shieldPotion tag",
+                 "potionPriority");
     }
 }
 } // namespace
@@ -113,7 +299,157 @@ void ValidateItems(std::span<const ItemDefinition> items, std::vector<ItemDataIs
         }
 
         ValidateName(definition, issues);
+        ValidateDescription(definition, issues);
         ValidateSlot(definition, issues);
+        ValidatePotionPriority(definition, issues);
+        ValidateExcellentBonus(definition, issues);
+        ValidateExcellentRaisesLevel(definition, issues);
+        ValidateRequirementsByLevel(definition, issues);
+    }
+}
+
+// A fixed excellent bonus takes the place of the excellent term of damage and magic power,
+// so it only counts where the item's profile has that term.
+void ValidateExcellentBonusTerms(const ItemDefinition& definition, const ItemStatProfile& profile,
+                                 std::vector<ItemDataIssue>& issues)
+{
+    if (definition.excellentBonus == 0)
+    {
+        return;
+    }
+    const bool damageWithoutTerm =
+        (definition.damageMin > 0 || definition.damageMax > 0) && !profile.Get(ItemStat::Damage).excellent;
+    const bool magicPowerWithoutTerm = definition.magicPower > 0 && !profile.Get(ItemStat::MagicPower).excellent;
+    if (damageWithoutTerm || magicPowerWithoutTerm)
+    {
+        AddIssue(issues, ItemDataIssueSeverity::Warning, definition,
+                 std::string("has an excellent bonus, but its stat profile has no excellent term for its ") +
+                     (damageWithoutTerm ? "damage" : "magic power") + ", so the bonus does not count there",
+                 "excellentBonus");
+    }
+}
+
+void ValidateStatProfiles(std::span<const ItemDefinition> items, const ItemStatProfiles& profiles,
+                          const std::string& statFile, std::vector<ItemDataIssue>& issues)
+{
+    std::set<std::string> used;
+    for (const ItemDefinition& definition : items)
+    {
+        // A deleted item keeps its fields in the item database, but is not saved.
+        if (!definition.Exists())
+        {
+            continue;
+        }
+        const int profile = profiles.Find(definition.statProfile);
+        if (profile == ItemStatProfiles::UnknownProfile)
+        {
+            AddIssue(issues, ItemDataIssueSeverity::Error, definition,
+                     "\"" + definition.statProfile + "\" is not a profile of " + statFile, "statProfile");
+            continue;
+        }
+        ValidateExcellentBonusTerms(definition, profiles.Get(profile), issues);
+        ValidateStatProfileGiven(definition, profiles, issues);
+        if (!definition.statProfile.empty())
+        {
+            used.insert(definition.statProfile);
+        }
+    }
+    for (const std::string& name : profiles.GetProfileNames())
+    {
+        if (!used.contains(name))
+        {
+            issues.push_back({ItemDataIssueSeverity::Warning, statFile, ItemDataIssue::NoItem, ItemDataIssue::NoItem,
+                              "profiles." + name, "no item names this profile"});
+        }
+    }
+}
+
+void ValidateDescriptionPlaceholders(std::span<const ItemDefinition> items, const ItemStatProfiles& profiles,
+                                     const std::string& statFile, std::vector<ItemDataIssue>& issues)
+{
+    std::vector<std::string> known(GetBuiltInPlaceholders().begin(), GetBuiltInPlaceholders().end());
+    for (const std::string& table : profiles.GetTableNames())
+    {
+        known.push_back(MakeTablePlaceholder(table));
+    }
+    for (const ItemDefinition& definition : items)
+    {
+        if (!definition.Exists())
+        {
+            continue;
+        }
+        for (size_t line = 0; line < definition.description.size(); ++line)
+        {
+            // The translations have the English text's placeholders (ValidateItems checks that).
+            const PlaceholderScan scan = ScanPlaceholders(definition.description[line].text.GetNeutral());
+            std::set<std::string> reported;
+            for (const std::string& name : scan.names)
+            {
+                if (GetPlaceholderValue(name, 0, profiles) || !reported.insert(name).second)
+                {
+                    continue;
+                }
+                // A table written without "table:" is suggested with it. Its own name comes first, also when it is
+                // close to a built-in value: {levels} for the table "levels" is not {level}.
+                std::string suggestion;
+                if (GetPlaceholderTable(name).empty() && profiles.FindTable(name) != nullptr)
+                {
+                    suggestion = MakeTablePlaceholder(name);
+                }
+                else
+                {
+                    suggestion = SuggestPlaceholder(name, known);
+                    if (suggestion.empty() && GetPlaceholderTable(name).empty())
+                    {
+                        suggestion = SuggestPlaceholder(MakeTablePlaceholder(name), known);
+                    }
+                }
+                const std::string hint = suggestion.empty() ? "a placeholder is a built-in value ({" +
+                                                                  std::string(LevelPlaceholder) + "}) or a table of " +
+                                                                  statFile + " ({" + MakeTablePlaceholder("name") + "})"
+                                                            : "did you mean {" + suggestion + "}?";
+                issues.push_back({ItemDataIssueSeverity::Error, "", definition.group, definition.number,
+                                  DescriptionTextField(line, LocalizedString::NeutralLocale),
+                                  "has the unknown placeholder {" + name + "}; " + hint});
+            }
+        }
+    }
+}
+
+void ValidateNameLocales(std::span<const ItemDefinition> items, std::span<const char* const> uiLocales,
+                         std::vector<ItemDataIssue>& issues)
+{
+    for (const ItemDefinition& definition : items)
+    {
+        if (!definition.Exists())
+        {
+            continue;
+        }
+        const auto isShown = [&](const std::string& locale)
+        {
+            return std::any_of(uiLocales.begin(), uiLocales.end(),
+                               [&](const char* uiLocale) { return locale == uiLocale; });
+        };
+        for (const auto& [locale, text] : definition.names.GetTranslations())
+        {
+            if (!isShown(locale))
+            {
+                AddIssue(issues, ItemDataIssueSeverity::Warning, definition,
+                         "the " + locale + " name is never shown: the game has no texts in that language");
+            }
+        }
+        for (size_t index = 0; index < definition.description.size(); ++index)
+        {
+            for (const auto& [locale, text] : definition.description[index].text.GetTranslations())
+            {
+                if (!isShown(locale))
+                {
+                    AddIssue(issues, ItemDataIssueSeverity::Warning, definition,
+                             "the " + locale + " text is never shown: the game has no texts in that language",
+                             DescriptionTextField(index, LocalizedString::NeutralLocale).c_str());
+                }
+            }
+        }
     }
 }
 
@@ -171,6 +507,45 @@ void ApplySharedItemModels(std::vector<ItemModelDefinition>& models, std::span<c
         {
             issues.push_back({ItemDataIssueSeverity::Warning, sharedModelsSource, ItemDataIssue::NoItem,
                               ItemDataIssue::NoItem, name, "no item uses the shared model"});
+        }
+    }
+}
+
+void ValidateItemModelLooks(std::span<const ItemModelDefinition> models, LookNameExists renderStyleExists,
+                            LookNameExists itemEffectExists, std::vector<ItemDataIssue>& issues)
+{
+    const auto check =
+        [&](const ItemModelDefinition& model, const char* field, const std::string& name, LookNameExists exists)
+    {
+        if (!name.empty() && !exists(name))
+        {
+            issues.push_back({ItemDataIssueSeverity::Warning, "", model.group, model.number, field,
+                              "there is no look named \"" + name + "\"; the model is drawn plainly"});
+        }
+    };
+    for (const ItemModelDefinition& model : models)
+    {
+        check(model, "renderStyle", model.renderStyle, renderStyleExists);
+        check(model, "itemEffect", model.itemEffect, itemEffectExists);
+    }
+}
+
+void ValidateDirectlySharedModelFiles(std::span<const ItemModelDefinition> models, std::vector<ItemDataIssue>& issues)
+{
+    std::map<std::string, int, std::less<>> entriesByFile;
+    for (const ItemModelDefinition& model : models)
+    {
+        if (model.model.empty() && !model.file.empty())
+        {
+            ++entriesByFile[model.file];
+        }
+    }
+    for (const ItemModelDefinition& model : models)
+    {
+        if (model.model.empty() && !model.file.empty() && entriesByFile[model.file] > 1)
+        {
+            issues.push_back({ItemDataIssueSeverity::Warning, "", model.group, model.number, "file",
+                              "other items name " + model.file + " too; a shared model would open it once"});
         }
     }
 }

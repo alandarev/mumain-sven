@@ -43,10 +43,25 @@ extern int		g_nTaxRate;
 extern int		g_nChaosTaxRate;
 
 // The item help table (/<item name> in the chat): ComputeItemInfo fills a row for each + level of
-// g_iCurrentItem, with a column for each _COLUMN_TYPE.
+// the item it is given, with a column for each _COLUMN_TYPE.
 inline constexpr int iMaxLevel = 15;
-extern int g_iCurrentItem;
 extern int g_iItemInfo[iMaxLevel + 1][_COLUMN_TYPE_COUNT];
+
+// The hero's level and stats, the stats with the bonuses of items and buffs: what the item help
+// table compares with each level's requirements.
+struct ItemInfoHeroStats
+{
+    WORD level;
+    WORD strength;
+    WORD dexterity;
+    WORD energy;
+    WORD vitality;
+    WORD charisma;
+
+    bool operator==(const ItemInfoHeroStats&) const = default;
+};
+
+ItemInfoHeroStats GetItemInfoHeroStats();
 
 ///////////////////////////////////////////////////////////////////////////////
 // guild
@@ -67,10 +82,29 @@ extern int AllRepairGold;
 //////////////////////////////////////////////////////////////////////////
 // text 관련
 //////////////////////////////////////////////////////////////////////////
-extern wchar_t TextList[50][100];
-extern int TextListColor[50];
-extern int TextBold[50];
-extern SIZE Size[50];
+// The rows an item's description may write into a tooltip, on top of the original client's 50: the description
+// gets rows of its own, so it never takes the room the rest of the tooltip needs.
+constexpr int MaxItemDescriptionRows = 32;
+constexpr int MaxTextListRows = 50 + MaxItemDescriptionRows;
+
+extern wchar_t TextList[MaxTextListRows][100];
+extern int TextListColor[MaxTextListRows];
+extern int TextBold[MaxTextListRows];
+extern SIZE Size[MaxTextListRows];
+
+namespace Data::Items
+{
+struct ItemDefinition;
+}
+
+// How wide a text is in the tooltip's text units.
+using ItemTooltipTextMeasure = int (*)(const wchar_t* text, size_t length);
+// Writes the item data's description in the UI's language, with its placeholders filled in for the item's level, into
+// TextList, TextListColor and TextBold from TextNum on: each line wrapped to the tooltip's width and at its line
+// breaks, the pieces in the line's color, a blank line or piece as the tooltip's own blank rows. At most
+// MaxItemDescriptionRows rows.
+void WriteItemDescriptionLines(const Data::Items::ItemDefinition& definition, int level,
+                               ItemTooltipTextMeasure measure);
 
 ///////////////////////////////////////////////////////////////////////////////
 // party
@@ -169,6 +203,7 @@ void RenderItem3DWithHover(float sx, float sy, float Width, float Height, int Ty
 void RenderObjectScreen(int Type, int ItemLevel, int excellentFlags, int ancientDiscriminator, vec3_t Target, int Select, bool PickUp);
 bool GetAttackDamage(int* iMinDamage, int* iMaxDamage);
 void GetItemName(int iType, int iLevel, wchar_t* Text);
+std::wstring GetItemName(int iType, int iLevel);
 std::wstring GetItemDisplayName(ITEM* pItem);
 void GetSpecialOptionText(int Type, wchar_t* Text, WORD Option, BYTE Value, int iMana);
 // The item's information and repair tooltips, anchored in window pixels: their layout runs in the
@@ -189,9 +224,5 @@ void SetGroundItemLabelBuildBudget(int buildBudget);
 void RenderItemName(int i, OBJECT* o, ITEM* ip, bool Sort);
 
 BYTE CaculateFreeTicketLevel(int iType);
-
-bool Check_LuckyItem(int _nIndex, int _nType = 0);
-
-bool IsLuckySetItem(int iType);
 
 #endif //__ZZZINVENTORY_H__

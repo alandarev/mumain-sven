@@ -66,6 +66,7 @@ mu_add_test(
     SOURCES
         test_texture_filtering.cpp
         ${CMAKE_SOURCE_DIR}/src/source/Render/Textures/TextureFiltering.cpp
+        ${CMAKE_SOURCE_DIR}/src/source/Render/Textures/AssetPath.cpp
 )
 
 mu_add_test(
@@ -127,6 +128,18 @@ mu_add_test(
         ${CMAKE_SOURCE_DIR}/src/source/Render/Textures/UpscaleMarker.cpp
 )
 
+# The texture packs whose files CGlobalBitmap reads before those in Data.
+mu_add_test(
+    NAME texture_pack_tests
+    SOURCES
+        test_texture_pack.cpp
+        ${CMAKE_SOURCE_DIR}/src/source/Render/Textures/TexturePack.cpp
+        ${CMAKE_SOURCE_DIR}/src/source/Render/Textures/TexturePackFiles.cpp
+        ${CMAKE_SOURCE_DIR}/src/source/Render/Textures/AssetPath.cpp
+        ${CMAKE_SOURCE_DIR}/src/source/Render/Sprites/GlobalBitmapPath.cpp
+        ${CMAKE_SOURCE_DIR}/src/source/Core/Platform/PathResolve.cpp
+)
+
 mu_add_test(
     NAME sdl_gpu_validation_tests
     SOURCES
@@ -183,8 +196,16 @@ mu_add_test(
         test_look_profile.cpp
         test_look_tuning.cpp
         test_look_preset.cpp
+        test_tuning_controls.cpp
+        test_tuning_session.cpp
+        test_look_layers.cpp
     LINK_LIBS
         MuClient
+)
+# The player tuning tests copy the shipped look and mood files to check they stay untouched, and read
+# the sources for the one place that applies a pending light mood strength.
+target_compile_definitions(look_profile_tests PRIVATE
+    MU_TEST_DATA_DIR="${CMAKE_SOURCE_DIR}/src/bin/Data"
 )
 
 # The light mood against the real terrain light buffers; they come with the
@@ -203,6 +224,28 @@ add_test(
     COMMAND "${CMAKE_COMMAND}"
         "-DMU_SOURCE_DIR=${CMAKE_SOURCE_DIR}/src"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/test_imgui_sdlgpu_backend.cmake"
+)
+
+add_test(
+    NAME particle_cull_keeps_depth_state
+    COMMAND "${CMAKE_COMMAND}"
+        "-DMU_PARTICLE_SOURCE=${CMAKE_SOURCE_DIR}/src/source/Render/Effects/ZzzEffectParticle.cpp"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/test_particle_cull_state.cmake"
+)
+
+set(MU_EFFECTS_DIR "${CMAKE_SOURCE_DIR}/src/source/Render/Effects")
+add_test(
+    NAME create_functions_have_no_fps_gate
+    COMMAND "${CMAKE_COMMAND}"
+        "-DMU_EFFECT_SOURCES=CreateEffect=${MU_EFFECTS_DIR}/ZzzEffect.cpp\;CreateJoint=${MU_EFFECTS_DIR}/ZzzEffectJoint.cpp\;CreateParticle=${MU_EFFECTS_DIR}/ZzzEffectParticle.cpp"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/test_create_has_no_fps_gate.cmake"
+)
+
+add_test(
+    NAME fps_gates_are_not_nested
+    COMMAND "${CMAKE_COMMAND}"
+        "-DMU_SOURCE_DIR=${CMAKE_SOURCE_DIR}/src/source"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/test_no_nested_fps_gate.cmake"
 )
 
 add_test(

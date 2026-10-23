@@ -205,6 +205,17 @@ bool ReadFileHeader(std::string_view text, const std::string& source, int maxFor
     return ReadFileVersion(text, source, maxFormatVersion, root, issues) && ReadGroup(root, source, group, issues);
 }
 
+OrderedJson WriteLocalizedString(const LocalizedString& text)
+{
+    OrderedJson json = OrderedJson::object();
+    json[std::string(LocalizedString::NeutralLocale)] = text.GetNeutral();
+    for (const auto& [locale, translation] : text.GetTranslations())
+    {
+        json[locale] = translation;
+    }
+    return json;
+}
+
 std::string PutListsOnOneLine(const std::string& text, std::string_view key)
 {
     return PutValuesOnOneLine(text, key, '[', ']');
@@ -213,5 +224,53 @@ std::string PutListsOnOneLine(const std::string& text, std::string_view key)
 std::string PutObjectsOnOneLine(const std::string& text, std::string_view key)
 {
     return PutValuesOnOneLine(text, key, '{', '}');
+}
+
+std::string PutListEntriesOnOneLine(const std::string& text, std::string_view key)
+{
+    const std::string listStart = "\"" + std::string(key) + "\": [";
+    std::string result;
+    size_t position = 0;
+    while (true)
+    {
+        const size_t start = text.find(listStart, position);
+        if (start == std::string::npos)
+        {
+            result.append(text, position, std::string::npos);
+            return result;
+        }
+        result.append(text, position, start + listStart.size() - position);
+        position = start + listStart.size();
+        // The newlines and indentation between the entries stay.
+        while (position < text.size() && text[position] != ']')
+        {
+            const char character = text[position];
+            if (character == '{' || character == '[')
+            {
+                result += character;
+                position = AppendOnOneLine(text, position + 1, character, character == '{' ? '}' : ']', result);
+                continue;
+            }
+            result += character;
+            ++position;
+            if (character == '"')
+            {
+                // A text entry, kept as it is.
+                for (; position < text.size(); ++position)
+                {
+                    result += text[position];
+                    if (text[position] == '\\' && position + 1 < text.size())
+                    {
+                        result += text[++position];
+                    }
+                    else if (text[position] == '"')
+                    {
+                        ++position;
+                        break;
+                    }
+                }
+            }
+        }
+    }
 }
 } // namespace Data::Items::Json
