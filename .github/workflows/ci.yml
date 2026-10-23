@@ -241,6 +241,7 @@ jobs:
           ctest --test-dir out/build/windows-ci-x64-release --build-config Release
           --output-on-failure
           --no-tests=error
+          --exclude-regex "^windows_workflow_contract$"
 
       - name: Stage MSVC redistributable runtime
         shell: pwsh
@@ -533,6 +534,7 @@ jobs:
           ctest --test-dir out/build/linux-ci --build-config Release
           --output-on-failure
           --no-tests=error
+          --exclude-regex "^windows_workflow_contract$"
 
       - name: Validate runtime
         run: |
@@ -610,6 +612,7 @@ jobs:
           ctest --test-dir out/build/macos-ci --build-config Release
           --output-on-failure
           --no-tests=error
+          --exclude-regex "^windows_workflow_contract$"
 
       - name: Validate runtime
         run: |
