@@ -1,4 +1,21 @@
 {
   "formatVersion": 1,
-  "models": []
+  "models": [
+    {
+      "model": "MODEL_ELITE_YETI",
+      "file": "Monster/Monster14.glb"
+    },
+    {
+      "model": "MODEL_BUDGE_DRAGON",
+      "file": "Monster/Monster03.glb"
+    },
+    {
+      "model": "MODEL_BLOODY_WOLF",
+      "file": "Monster/Monster44.glb"
+    },
+    {
+      "model": "MODEL_VEPAR",
+      "file": "Monster/Monster35.glb"
+    }
+  ]
 }
