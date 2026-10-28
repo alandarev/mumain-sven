@@ -104,7 +104,7 @@ Missing keys take the defaults below. The options window writes most of them; se
 | **`[Window]`**              | `Width`, `Height`                                                                                     | `1024`, `768`        | Window or fullscreen resolution.                                                                                                                                 |
 | **`[Window]`**              | `Windowed`                                                                                            | `1`                  | `0` runs fullscreen.                                                                                                                                             |
 | **`[Audio]`**               | `SoundVolume`, `MusicVolume`                                                                          | `5`                  | `0` mutes.                                                                                                                                                       |
-| **`[LOGIN]`**               | `Language`                                                                                            | `Eng`                | Game data language: the `Data/Local/<Language>/` folder (item names, map name art).                                                                              |
+| **`[LOGIN]`**               | `Language`                                                                                            | `Eng`                | Game data language: the `Data/Local/<Language>/` folder (quest, skill and minimap texts, map name art). Item, monster and NPC names follow `[UI] Locale`.        |
 | **`[LOGIN]`**               | `RememberMe`, `SavePassword`                                                                          | `0`                  | Remember the account name, and the password too. Both are stored encrypted for this machine and user (`EncryptedUsername`, `EncryptedPassword`).                 |
 | **`[CONNECTION SETTINGS]`** | `ServerIP`, `ServerPort`                                                                              | `localhost`, `44406` | Server to connect to when no `connect` argument is given.                                                                                                        |
 | **`[UI]`**                  | `Locale`                                                                                              | `en`                 | UI language (`en`, `de`, `es`, `id`, `ja`, `pl`, `pt`, `ru`, `tl`, `uk`, `zh-TW`). Switchable at runtime in the options window.                                  |
@@ -184,6 +184,9 @@ Developer diagnostics, read at startup:
 - [Texture packs](docs/texture-packs.md) - installing, choosing and removing
   packs of replacement or 2x/4x textures in `Data/TexturePacks/`, and how to
   make one.
+- [GLB monster models](docs/glb-models.md) - drawing a monster from a glTF
+  binary named in `Data/Models/ModelFiles.json`: the table, the developer
+  overlay, what the loader expects of a file and its log lines.
 - [Build guide](docs/build/README.md) - platform-specific build notes.
 - [In-game tests](docs/in-game-tests.md) - the tester next to developer
   builds that plays test scenarios with real clients against a fresh OpenMU
