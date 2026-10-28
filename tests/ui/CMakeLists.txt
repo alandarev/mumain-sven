@@ -17,6 +17,14 @@ add_test(
 )
 
 mu_add_test(
+    NAME rml_render_target_lifetime_tests
+    SOURCES
+        test_rml_render_target_lifetime.cpp
+        ${CMAKE_SOURCE_DIR}/src/source/App/Platform/Windows/Winmain.cpp
+    LINK_LIBS MuClient
+)
+
+mu_add_test(
     NAME rml_image_crop_tests
     SOURCES test_rml_image_crop.cpp
     LINK_LIBS RmlUi::Core
