@@ -42,13 +42,13 @@ public:
     static std::wstring GetItemFilePath(const std::wstring& language);
 
     // Loads and validates Data/Items, builds the item database and fills
-    // ItemAttribute[]. On errors nothing is changed, false is returned and
-    // errorMessage describes the errors for the player.
+    // ItemAttribute[]. On fatal problems nothing is changed, false is returned and
+    // errorMessage describes the fatal problems for the player.
     bool Load(std::string& errorMessage);
 
     // Loads and validates the item models (Data/Items/Models) into the item
-    // model database. On errors nothing is changed, false is returned and
-    // errorMessage describes the errors for the player.
+    // model database. On fatal problems nothing is changed, false is returned and
+    // errorMessage describes the fatal problems for the player.
     bool LoadModels(std::string& errorMessage);
 
 #ifdef _EDITOR
@@ -76,12 +76,13 @@ public:
     // a pick; otherwise they follow the new item's data.
     bool AddItem(const Data::Items::ItemDefinition& definition, const Data::Items::ItemModelDefinition* model,
                  const Data::Items::ItemDefinition* copiedFrom = nullptr);
-    // Removes the item and its model entry; the item type is free again. False
-    // when there is no item.
+    // Removes the item, or the entry without a name, and its model entry; the
+    // item type is free again. False when the item files have no entry there
+    // (ItemDatabase::FindEntry).
     bool RemoveItem(int itemType);
-    // Moves the item, with its ItemAttribute row and its model, to a free item
-    // type (OnItemsSwapped). False when there is no item or the target is not
-    // free.
+    // Moves the item, or the entry without a name, with its ItemAttribute row
+    // and its model, to a free item type (OnItemsSwapped). False when the item
+    // files have no entry there or the target is not free.
     bool MoveItem(int fromItemType, int toItemType);
 
     // Sets the model entry at its (group, number); an entry without a file and
@@ -167,8 +168,8 @@ public:
     // Validates the item database and the item models (Validate) and writes Data/Items,
     // with the model files of Data/Items/Models whose models changed (moved,
     // edited) since they were loaded, SharedModels.json when a shared model
-    // changed and Stats/ItemStats.json when the item stat file changed. Nothing is written when the data has errors,
-    // and no file is replaced when one of them cannot be written.
+    // changed and Stats/ItemStats.json when the item stat file changed. Nothing is written when the data has fatal
+    // problems, and no file is replaced when one of them cannot be written.
     Data::Items::ItemDataSaveResult Save(std::vector<Data::Items::ItemDataIssue>& issues);
 
     // Replaces all items with the legacy Item_<language>.bmd files. Items the

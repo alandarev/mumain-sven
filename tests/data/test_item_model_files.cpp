@@ -72,6 +72,13 @@ const ItemModelDataLoadResult& ShippedModels()
     return result;
 }
 
+// The models need the entries of their numbers in the item files to be saved.
+const ItemDataLoadResult& ShippedItems()
+{
+    static const ItemDataLoadResult result = LoadItemDataDirectory(DataDirectory / "Items");
+    return result;
+}
+
 using GlowLevels = std::array<int, ItemGlow::ItemLevelCount>;
 
 GlowLevels SameGlowLevel(int level)
@@ -204,7 +211,7 @@ TEST_CASE("Saving the shipped item models from the model database gives the ship
     ItemModelDatabase database;
     database.Build(ShippedModels().models, Data::Effects::GlowColorList{});
     const ItemDataLoadResult items = LoadItemDataDirectory(DataDirectory / "Items");
-    REQUIRE_FALSE(HasErrors(items.issues));
+    REQUIRE_FALSE(HasFatal(items.issues));
     const std::filesystem::path folder =
         std::filesystem::temp_directory_path() / ("mu_test_item_models_" + std::to_string(std::random_device{}()));
     ItemGroupSet allGroups;
@@ -238,11 +245,13 @@ TEST_CASE("Saving writes the shared model file only when it changed [data][items
     ItemModelSave models{folder / "Models", database.GetAllSlots(), {}, ShippedModels().sharedModels, false};
 
     std::vector<ItemDataIssue> issues;
-    CHECK(SaveItemAndModelDataDirectories(folder / "Items", {}, models, issues) == ItemDataSaveResult::Saved);
+    CHECK(SaveItemAndModelDataDirectories(folder / "Items", ShippedItems().items, models, issues) ==
+          ItemDataSaveResult::Saved);
     CHECK_FALSE(std::filesystem::exists(folder / "Models" / SharedItemModelsFileName));
 
     models.sharedModelsChanged = true;
-    CHECK(SaveItemAndModelDataDirectories(folder / "Items", {}, models, issues) == ItemDataSaveResult::Saved);
+    CHECK(SaveItemAndModelDataDirectories(folder / "Items", ShippedItems().items, models, issues) ==
+          ItemDataSaveResult::Saved);
     CHECK(TestFiles::ReadWholeFile(folder / "Models" / SharedItemModelsFileName) ==
           TestFiles::ReadWholeFile(ModelDirectory / SharedItemModelsFileName));
 
@@ -263,7 +272,8 @@ TEST_CASE("Saving writes only the model files of the given groups [data][items]"
     groups.set(SavedGroup);
 
     std::vector<ItemDataIssue> issues;
-    CHECK(SaveItemAndModelDataDirectories(folder / "Items", {}, {folder / "Models", database.GetAllSlots(), groups},
+    CHECK(SaveItemAndModelDataDirectories(folder / "Items", ShippedItems().items,
+                                          {folder / "Models", database.GetAllSlots(), groups},
                                           issues) == ItemDataSaveResult::Saved);
     for (int group = 0; group < MAX_ITEM_TYPE; ++group)
     {

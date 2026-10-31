@@ -96,6 +96,7 @@ using namespace mu::ui::window;
 #include "GameLogic/Combat/DuelMgr.h"
 
 #include "GameLogic/Social/GambleSystem.h"
+#include "GameLogic/Quests/DialogStructure.h"
 #include "GameLogic/Quests/QuestMng.h"
 #include "Scenes/SceneCommon.h"
 #ifdef PBG_ADD_SECRETBUFF
@@ -110,6 +111,7 @@ using namespace mu::ui::window;
 
 #include "MUHelper/MuHelper.h"
 #include "Network/Server/ServerListManager.h"
+#include "Network/Server/ServerMessageTexts.h"
 #include "GameLogic/Items/ItemCategories.h"
 #include "Data/GameData/ItemData/ItemModelSlots.h"
 
@@ -1086,6 +1088,16 @@ void LogSafeCastSizeMismatch(const char* packet_type, std::size_t received, std:
                           static_cast<unsigned>(expected));
 }
 
+// C3 F3 03 CharacterInformationExtended: OpenMU appends the discriminator at
+// 92, so the packet is 93 bytes.
+static_assert(sizeof(PRECEIVE_JOIN_MAP_SERVER_EXTENDED) == 92);
+
+int GetJoinMapServerStage(std::span<const BYTE> packet)
+{
+    constexpr std::size_t StageIndex = sizeof(PRECEIVE_JOIN_MAP_SERVER_EXTENDED);
+    return packet.size() > StageIndex ? packet[StageIndex] : 0;
+}
+
 BOOL ReceiveJoinMapServer(std::span<const BYTE> ReceiveBuffer)
 {
     MouseLButton = false;
@@ -1131,6 +1143,8 @@ BOOL ReceiveJoinMapServer(std::span<const BYTE> ReceiveBuffer)
     CharacterAttribute->MaxAttackSpeed = Data->MaxAttackSpeed;
     CharacterMachine->Gold = Data->Gold;
 
+    // Before LoadWorld, which loads the stage's map parts.
+    gMapManager.SetServerStage(GetJoinMapServerStage(ReceiveBuffer));
     gMapManager.WorldActive = Data->Map;
     gMapManager.LoadWorld(gMapManager.WorldActive);
 
@@ -1376,7 +1390,9 @@ void ReceiveRevival(const BYTE* ReceiveBuffer)
         }
     }
 
-    if (gMapManager.WorldActive != Data->Map)
+    // A revival names no stage of the map.
+    gMapManager.SetServerStage(0);
+    if (!gMapManager.IsServerMapLoaded(Data->Map))
     {
         int OldWorld = gMapManager.WorldActive;
 
@@ -2126,11 +2142,22 @@ void ReceiveMovePosition(const BYTE* ReceiveBuffer)
 
 extern int EnableEvent;
 
+// C3 1C 0F MapChanged: the map number's low byte at 6. MapChangedExtended
+// appends the discriminator at 15, so the packet is 16 bytes.
+static_assert(offsetof(PRECEIVE_TELEPORT_POSITION, Map) == 6);
+static_assert(offsetof(PRECEIVE_TELEPORT_POSITION, MapDiscriminator) == 15);
+
+int GetTeleportStage(const PRECEIVE_TELEPORT_POSITION& packet)
+{
+    return packet.Header.Size > offsetof(PRECEIVE_TELEPORT_POSITION, MapDiscriminator) ? packet.MapDiscriminator : 0;
+}
+
 BOOL ReceiveTeleport(const BYTE* ReceiveBuffer, BOOL bEncrypted)
 {
     UI::Inventory::RestorePickedItem();
 
     auto Data = (LPPRECEIVE_TELEPORT_POSITION)ReceiveBuffer;
+    gMapManager.SetServerStage(GetTeleportStage(*Data));
     Hero->PositionX = Data->PositionX;
     Hero->PositionY = Data->PositionY;
 
@@ -2176,7 +2203,7 @@ BOOL ReceiveTeleport(const BYTE* ReceiveBuffer, BOOL bEncrypted)
         ClearItems();
         ClearCharacters(HeroKey);
         RemoveAllShopTitleExceptHero();
-        if (gMapManager.WorldActive != Data->Map)
+        if (!gMapManager.IsServerMapLoaded(Data->Map))
         {
             int OldWorld = gMapManager.WorldActive;
 
@@ -8297,27 +8324,20 @@ void ReceiveServerCommand(const BYTE* ReceiveBuffer)
     }
     break;
     case 1:
-        if (Data->Cmd2 >= 20)
-        {
-            mu::ui::window::CreateOkMessageBox(I18N::Game::Lookup(830 + Data->Cmd2 - 20));
-        }
-        else
-        {
-            mu::ui::window::CreateOkMessageBox(I18N::Game::Lookup(650 + Data->Cmd2));
-        }
+        mu::ui::window::CreateOkMessageBox(Network::ServerMessages::GetEventNpcLine(Data->Cmd2));
         break;
 
     case 3:
-        mu::ui::window::CreateOkMessageBox(I18N::Game::Lookup(710 + Data->Cmd2));
+        mu::ui::window::CreateOkMessageBox(Network::ServerMessages::GetGoldenArcherLine(Data->Cmd2));
         break;
     case 4:
-        mu::ui::window::CreateOkMessageBox(I18N::Game::Lookup(725 + Data->Cmd2));
+        mu::ui::window::CreateOkMessageBox(Network::ServerMessages::GetRenaLine(Data->Cmd2));
         break;
     case 5:
     {
         UI::Dialogs::ConfirmRequest cfg;
         cfg.acceptLabel = I18N::Game::ConversationIsOver;
-        cfg.lines = { { I18N::Dialog::Lookup(Data->Cmd2), false } };
+        cfg.lines = {{GameLogic::Quests::Dialog::GetText(Data->Cmd2), false}};
         UI::Dialogs::ShowConfirm(std::move(cfg));
     }
     break;
@@ -8427,9 +8447,13 @@ void ReceiveServerCommand(const BYTE* ReceiveBuffer)
         break;
     }
     case 47:
+        mu::ui::window::CreateOkMessageBox(I18N::Game::ThankYouFinallyYouGotItBack);
+        break;
     case 48:
+        mu::ui::window::CreateOkMessageBox(I18N::Game::YouAreBackSafely);
+        break;
     case 49:
-        mu::ui::window::CreateOkMessageBox(I18N::Game::Lookup(1823 + Data->Cmd1 - 47));
+        mu::ui::window::CreateOkMessageBox(I18N::Game::ThankYouForYourHelp);
         break;
     case 55:
     {
@@ -9211,9 +9235,9 @@ void ReceiveDuelResult(const BYTE* ReceiveBuffer)
     UI::Dialogs::ConfirmRequest cfg;
     cfg.duelCaption = I18N::Game::DuelFinished;
     cfg.lines = {
-        { strLine1, false },
-        { strLine2, false },
-        { I18N::Game::Lookup(2697), false },
+        {strLine1, false},
+        {strLine2, false},
+        {L"", false},
     };
     UI::Dialogs::ShowConfirm(std::move(cfg));
     PlayBuffer(SOUND_OPEN_DUELWINDOW);
@@ -10167,11 +10191,19 @@ void ReceiveScratchResult(const BYTE* ReceiveBuffer)
     switch (Data->m_byIsRegistered)
     {
     case 0:
+        mu::ui::window::CreateOkMessageBox(I18N::Game::YouHaveSuccessfullyRegistered);
+        break;
     case 1:
+        mu::ui::window::CreateOkMessageBox(I18N::Game::ThisSerialNumberHasAlreadyBeenRegistered);
+        break;
     case 2:
+        mu::ui::window::CreateOkMessageBox(I18N::Game::YouHaveExceededTheMaxRegistrationNumber);
+        break;
     case 3:
+        mu::ui::window::CreateOkMessageBox(I18N::Game::WrongSerialNumber);
+        break;
     case 4:
-        mu::ui::window::CreateOkMessageBox(I18N::Game::Lookup(886 + Data->m_byIsRegistered));
+        mu::ui::window::CreateOkMessageBox(I18N::Game::UnknownError);
         break;
 
     case 5:
@@ -10613,11 +10645,11 @@ void ReceiveReward(const BYTE* ReceiveBuffer)
 
 namespace
 {
-// The stat a fruit changes and the text id which names it.
+// The stat a fruit changes and the text which names it.
 struct FruitStat
 {
     WORD* Value;
-    int TextIndex;
+    const wchar_t* const* Name;
 };
 
 FruitStat GetFruitStat(BYTE fruit)
@@ -10625,24 +10657,24 @@ FruitStat GetFruitStat(BYTE fruit)
     switch (fruit)
     {
     case 0:
-        return {&CharacterAttribute->Energy, 168};
+        return {&CharacterAttribute->Energy, &I18N::Game::ENG};
     case 1:
-        return {&CharacterAttribute->Vitality, 169};
+        return {&CharacterAttribute->Vitality, &I18N::Game::STA};
     case 2:
-        return {&CharacterAttribute->Dexterity, 167};
+        return {&CharacterAttribute->Dexterity, &I18N::Game::AGI};
     case 3:
-        return {&CharacterAttribute->Strength, 166};
+        return {&CharacterAttribute->Strength, &I18N::Game::STR};
     case 4:
-        return {&CharacterAttribute->Charisma, 1900};
+        return {&CharacterAttribute->Charisma, &I18N::Game::Command};
     default:
-        return {nullptr, 0};
+        return {nullptr, nullptr};
     }
 }
 
 void ShowFruitStatMessage(const wchar_t* format, const FruitStat& stat, WORD point)
 {
     wchar_t text[MAX_GLOBAL_TEXT_STRING];
-    mu_swprintf(text, format, I18N::Game::Lookup(stat.TextIndex), point);
+    mu_swprintf(text, format, *stat.Name, point);
     mu::ui::window::CreateOkMessageBox(text);
 }
 } // namespace

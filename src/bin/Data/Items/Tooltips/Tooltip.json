@@ -640,6 +640,7 @@
       "ru": "Используется для объединения предметов для приглашения на площадь Дьявола.",
       "tl": "Ito ay ginagamit upang pagsamahin ang mga item para sa isang Devil Square Invitation",
       "uk": "Він використовується для комбінування предметів для запрошення Devil Square",
+      "zh-CN": "用于合成恶魔广场入场券",
       "zh-TW": "它用於組合惡魔廣場邀請函的項目"
     },
     "reinforcementJewel": {
@@ -653,6 +654,7 @@
       "ru": "Самоцвет для усиления предмета",
       "tl": "Hiyas para sa pagpapatibay ng item",
       "uk": "Коштовність для посилення предметів",
+      "zh-CN": "用于强化道具的宝石",
       "zh-TW": "強化物品的寶石"
     },
     "grantPowerToReinforcedItem": {
@@ -666,6 +668,7 @@
       "ru": "Предоставьте реальную силу усиленному предмету.",
       "tl": "Bigyan ng aktwal na kapangyarihan ang reinforced item.",
       "uk": "Надати фактичну силу посиленому предмету.",
+      "zh-CN": "用于提升道具的再生属性",
       "zh-TW": "賦予強化物品實際力量。"
     },
     "contactCsTeam": {
@@ -1174,6 +1177,45 @@
       "tl": "Olibo ng pag-ibig",
       "uk": "Оливка кохання",
       "zh-TW": "愛的橄欖"
+    },
+    "cannotBeSold": {
+      "en": "Cannot be sold.",
+      "de": "Kann nicht verkauft werden.",
+      "es": "No se puede vender.",
+      "id": "Tidak bisa dijual.",
+      "ja": "売却不可",
+      "pl": "Nie można sprzedać.",
+      "pt": "Não pode ser vendido.",
+      "ru": "Не подлежит продаже.",
+      "tl": "Hindi maaaring ibenta.",
+      "uk": "Не можна продати.",
+      "zh-TW": "不能出售。"
+    },
+    "canBeUsedAfterDismantling": {
+      "en": "Can be used after dismantling",
+      "de": "Kann nach dem Zerlegen verwendet werden",
+      "es": "Se puede utilizar después del desmontaje.",
+      "id": "Dapat digunakan setelah dibongkar",
+      "ja": "解体の後、使用可能",
+      "pl": "Można użyć po rozpakowaniu",
+      "pt": "Pode ser usado após a desmontagem",
+      "ru": "Можно использовать после демонтажа.",
+      "tl": "Maaaring gamitin pagkatapos i-dismantling",
+      "uk": "Можна використовувати після демонтажу",
+      "zh-TW": "拆卸後即可使用"
+    },
+    "additionalDamagePlusOne": {
+      "en": "Additional Dmg +1",
+      "de": "Zusätzlicher Schaden +1",
+      "es": "Daño adicional +1",
+      "id": "Dmg Tambahan +1",
+      "ja": "追加攻撃力 +1",
+      "pl": "Dodatkowe obrażenia +1",
+      "pt": "Dano Adicional +1",
+      "ru": "Дополнительный урон +1",
+      "tl": "Karagdagang Dmg +1",
+      "uk": "Додатковий Dmg +1",
+      "zh-TW": "附加傷害+1"
     }
   },
   "layouts": [

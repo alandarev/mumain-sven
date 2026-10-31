@@ -120,6 +120,11 @@ only under the `NativeTextSize` capability and requires physical-pixel text geom
 See [`RmlNativeTextFit.h`](../../src/source/UI/RmlBridge/RmlNativeTextFit.h) and
 `generic_menu_dialog.rml`. This is distinct from marquee or wrapping.
 
+Use `.text-fit` for explicit shrink-to-fit in either theme, including the map-name banner.
+It uses the inherited font size as its maximum and reduces that size without transforming glyphs.
+Give the element a bounded width, direct text children and `white-space: nowrap`; physical-pixel
+layout keeps the fitted glyphs sharp.
+
 ## Scrolling pane
 
 **Style contract:** `.scroll-pane` in both themes' `base.rcss`. RmlUi scrolls document content
@@ -223,7 +228,10 @@ behind one active menu. An enabled button runs its callback and closes; Esc uses
 There is no resolution veto. A callback may enqueue the next menu, as the Gem Integration flow does.
 
 Use configuration for content and supported layout variants. `kind` identifies compatibility
-presentation, while `systemMenu` selects the system-menu presentation. Column support is currently
+presentation (the original box the menu copies, `data-kind`, which also switches the document to
+the native-frame layout), while `systemMenu` selects the system-menu presentation. Every caller
+also sets `id`, which only names the menu (`data-id` on the body) so a theme can target one menu
+without new layout rules; it changes nothing by itself. Column support is currently
 limited to the implemented two-column variant; consult the header before adding another shape.
 Frame structure comes from `window_shell.rml`. References: `generic_menu_dialog.rml`, its themed
 assets, and the menu construction in `CustomMessageBox.cpp`.

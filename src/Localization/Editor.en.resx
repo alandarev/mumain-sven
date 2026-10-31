@@ -460,8 +460,8 @@
   <data name="Failed to export items as bmd" xml:space="preserve">
     <value>Failed to export the items as bmd files.</value>
   </data>
-  <data name="Item data has errors" xml:space="preserve">
-    <value>The item data has errors and was not saved. See the console.</value>
+  <data name="Item data has fatal problems" xml:space="preserve">
+    <value>The item data has fatal problems and was not saved. See the console.</value>
   </data>
   <data name="Item data could not be written" xml:space="preserve">
     <value>The item data files could not be written. See the console.</value>
@@ -1288,20 +1288,53 @@
   <data name="Remove the model entry" xml:space="preserve">
     <value>Remove the model entry</value>
   </data>
-  <data name="Item Checks" xml:space="preserve">
-    <value>Item Checks</value>
-  </data>
-  <data name="Check" xml:space="preserve">
-    <value>Check</value>
-  </data>
   <data name="Errors: {0}" xml:space="preserve">
     <value>Errors: {0}</value>
+  </data>
+  <data name="Fatal: {0}" xml:space="preserve">
+    <value>Fatal: {0}</value>
   </data>
   <data name="Warnings: {0}" xml:space="preserve">
     <value>Warnings: {0}</value>
   </data>
+  <data name="Data Checks" xml:space="preserve">
+    <value>Data Checks</value>
+  </data>
+  <data name="Check all data" xml:space="preserve">
+    <value>Check all</value>
+  </data>
+  <data name="Areas" xml:space="preserve">
+    <value>Areas:</value>
+  </data>
+  <data name="Area" xml:space="preserve">
+    <value>Area</value>
+  </data>
+  <data name="What" xml:space="preserve">
+    <value>What</value>
+  </data>
+  <data name="Monster models" xml:space="preserve">
+    <value>Monster models</value>
+  </data>
+  <data name="Model files" xml:space="preserve">
+    <value>Model files</value>
+  </data>
+  <data name="Data checks what note" xml:space="preserve">
+    <value>Items and monsters are checked as their Save would write them; the glTF model file table, the server list, effects and looks as the game reads their files at start.</value>
+  </data>
+  <data name="Data checks save note" xml:space="preserve">
+    <value>Each Save refuses data with fatal problems and saves data with errors and warnings.</value>
+  </data>
+  <data name="Data checks click note" xml:space="preserve">
+    <value>Click a problem to select what it is about and open its tool.</value>
+  </data>
+  <data name="The data changed since the last check; check again." xml:space="preserve">
+    <value>The data changed since the last check; check again.</value>
+  </data>
   <data name="Error" xml:space="preserve">
     <value>Error</value>
+  </data>
+  <data name="Fatal" xml:space="preserve">
+    <value>Fatal</value>
   </data>
   <data name="Warning" xml:space="preserve">
     <value>Warning</value>
@@ -1312,17 +1345,8 @@
   <data name="Message" xml:space="preserve">
     <value>Message</value>
   </data>
-  <data name="No errors or warnings" xml:space="preserve">
-    <value>No errors or warnings</value>
-  </data>
-  <data name="The items changed since the last check; check again." xml:space="preserve">
-    <value>The items changed since the last check; check again.</value>
-  </data>
-  <data name="Save Items refuses data with errors and saves data with warnings." xml:space="preserve">
-    <value>Save Items refuses data with errors and saves data with warnings.</value>
-  </data>
-  <data name="Click a problem of an item to select the item and open the tool of its field." xml:space="preserve">
-    <value>Click a problem of an item to select the item and open the tool of its field.</value>
+  <data name="No fatal problems, errors or warnings" xml:space="preserve">
+    <value>No fatal problems, errors or warnings</value>
   </data>
   <data name="Item Rules" xml:space="preserve">
     <value>Item Rules</value>
@@ -1963,8 +1987,8 @@
   <data name="Server list order note" xml:space="preserve">
     <value>The order of the list is the order of the buttons on the login screen, which shows each change right away. Save writes {0}.</value>
   </data>
-  <data name="Save off after read errors" xml:space="preserve">
-    <value>The file had errors when it was read, so the list has only the groups that could be read. Save is off until the file is fixed and Revert reads it again; it would remove the other groups from the file.</value>
+  <data name="Save off after fatal read problems" xml:space="preserve">
+    <value>The file had fatal problems when it was read, so the list has only the groups that could be read. Save is off until the file is fixed and Revert reads it again; it would remove the other groups from the file.</value>
   </data>
   <data name="Step add" xml:space="preserve">
     <value>Add {0}</value>
@@ -1995,9 +2019,6 @@
   </data>
   <data name="Monster Translations" xml:space="preserve">
     <value>Monster Translations</value>
-  </data>
-  <data name="Monster Checks" xml:space="preserve">
-    <value>Monster Checks</value>
   </data>
   <data name="The monsters changed since this step; it is not undone." xml:space="preserve">
     <value>The monsters changed since this step; it is not undone.</value>
@@ -2107,18 +2128,6 @@
   <data name="Monster names not exported" xml:space="preserve">
     <value>Not every file was written. See the console.</value>
   </data>
-  <data name="Monster" xml:space="preserve">
-    <value>Monster</value>
-  </data>
-  <data name="The monsters changed since the last check; check again." xml:space="preserve">
-    <value>The monsters changed since the last check; check again.</value>
-  </data>
-  <data name="Save Monsters refuses data with errors and saves data with warnings." xml:space="preserve">
-    <value>Save Monsters refuses data with errors and saves data with warnings.</value>
-  </data>
-  <data name="Monster checks click note" xml:space="preserve">
-    <value>Click a problem of a monster to select the monster and open the tool of its field.</value>
-  </data>
   <data name="Item Sync" xml:space="preserve">
     <value>Item Sync</value>
   </data>
@@ -2144,7 +2153,7 @@
     <value>From OpenMU, server {0}</value>
   </data>
   <data name="The diff counts" xml:space="preserve">
-    <value>{0} added, {1} changed, {2} removed items; {3} formula entries</value>
+    <value>{0} added, {1} changed items; {2} formula entries</value>
   </data>
   <data name="Check all" xml:space="preserve">
     <value>Check all</value>
@@ -2470,6 +2479,21 @@
   <data name="Play animation" xml:space="preserve">
     <value>Play</value>
   </data>
+  <data name="Play" xml:space="preserve">
+    <value>Play</value>
+  </data>
+  <data name="Play next attack" xml:space="preserve">
+    <value>Play next attack</value>
+  </data>
+  <data name="Play next attack note" xml:space="preserve">
+    <value>The animation of the next attack that no skill entry plays, counted as the game counts for one monster from its creation.</value>
+  </data>
+  <data name="Played {0}" xml:space="preserve">
+    <value>Played {0}</value>
+  </data>
+  <data name="Plays it once in the Monster Preview, with the attack sounds." xml:space="preserve">
+    <value>Plays it once in the Monster Preview, with the attack sounds.</value>
+  </data>
   <data name="Play this sound" xml:space="preserve">
     <value>Play</value>
   </data>
@@ -2602,59 +2626,32 @@
   <data name="Clear skill after attack" xml:space="preserve">
     <value>after its own attack: when it ends, or another attack or a hit stops it (afterAttack)</value>
   </data>
-  <data name="Reader Hellas" xml:space="preserve">
-    <value>the Hellas handler, on any map</value>
-  </data>
   <data name="Reader Battle Castle guards" xml:space="preserve">
-    <value>the Battle Castle handler, by the guards' models, on any map</value>
-  </data>
-  <data name="Reader Hunting Ground" xml:space="preserve">
-    <value>the Hunting Ground handler, on its map</value>
-  </data>
-  <data name="Reader Aida" xml:space="preserve">
-    <value>the Aida handler, on Aida</value>
-  </data>
-  <data name="Reader Crywolf and Devil Square" xml:space="preserve">
-    <value>the Crywolf handler, on Crywolf and in Devil Square</value>
-  </data>
-  <data name="Reader Kanturu 1st" xml:space="preserve">
-    <value>the Kanturu 1st handler, on Kanturu 1st</value>
-  </data>
-  <data name="Reader Kanturu 2nd and 3rd" xml:space="preserve">
-    <value>the Kanturu 2nd handler, on Kanturu 2nd and 3rd</value>
+    <value>the Battle Castle guards' attack state (AI), by their models, on any map</value>
   </data>
   <data name="Reader Kanturu 3rd" xml:space="preserve">
-    <value>the Kanturu 3rd handler, on Kanturu 3rd</value>
-  </data>
-  <data name="Reader Balgass barracks" xml:space="preserve">
-    <value>the Balgass barracks handler, in the barracks and the refuge</value>
-  </data>
-  <data name="Reader Illusion Temple" xml:space="preserve">
-    <value>the Illusion Temple handler, in Illusion Temple</value>
-  </data>
-  <data name="Reader Swamp of Quiet" xml:space="preserve">
-    <value>the Swamp of Quiet handler, by the models, on its map</value>
+    <value>Maya's scene, on Kanturu 3rd</value>
   </data>
   <data name="Reader Raklion" xml:space="preserve">
-    <value>the Raklion handler, on Raklion and its boss map</value>
+    <value>Selupan's height, sounds and effects, on Raklion and its boss map</value>
   </data>
   <data name="Reader Empire Guardian" xml:space="preserve">
-    <value>the Empire Guardian handler, on the four Empire Guardian maps</value>
+    <value>the bosses' rage (the Berserker skill starts it, appear plays in it), on the four Empire Guardian maps</value>
   </data>
   <data name="Reader Empire Guardian 2" xml:space="preserve">
-    <value>the Empire Guardian 2 handler, on its map</value>
+    <value>the boss's rage, on Empire Guardian 2</value>
   </data>
   <data name="Reader Empire Guardian 3" xml:space="preserve">
-    <value>the Empire Guardian 3 handler, on its map</value>
+    <value>the boss's rage, on Empire Guardian 3</value>
   </data>
   <data name="Reader Empire Guardian 4" xml:space="preserve">
-    <value>the Empire Guardian 4 handler, on its map</value>
+    <value>the bosses' rage, on Empire Guardian 4</value>
   </data>
   <data name="Reader traps" xml:space="preserve">
-    <value>SetPlayerAttack, by the trap models; their effects and sounds stay code</value>
+    <value>the traps' effects, by the trap models</value>
   </data>
-  <data name="Reader Bali" xml:space="preserve">
-    <value>SetPlayerAttack, by Bali's model</value>
+  <data name="Map code that also runs" xml:space="preserve">
+    <value>Map code that also runs:</value>
   </data>
   <data name="Player shaped monsters choose a player attack" xml:space="preserve">
     <value>A player-shaped monster chooses a player attack from its equipment; attacks do not apply to it.</value>
@@ -2677,12 +2674,6 @@
   <data name="Remove the attacks" xml:space="preserve">
     <value>Remove the attacks</value>
   </data>
-  <data name="No code reads these attacks." xml:space="preserve">
-    <value>No handler reads these attacks: they do nothing until code reads them.</value>
-  </data>
-  <data name="Read by" xml:space="preserve">
-    <value>Read by:</value>
-  </data>
   <data name="Monster skills note" xml:space="preserve">
     <value>The monster skill of packet 0x69; the game plays an attack for skills 1 to 77.</value>
   </data>
@@ -2703,6 +2694,45 @@
   </data>
   <data name="A draw" xml:space="preserve">
     <value>A draw</value>
+  </data>
+  <data name="A rotation" xml:space="preserve">
+    <value>A rotation</value>
+  </data>
+  <data name="The generic pattern" xml:space="preserve">
+    <value>The generic pattern (attack 1, attack 2, attack 2)</value>
+  </data>
+  <data name="Played in turn, counted for each monster from its creation." xml:space="preserve">
+    <value>Played in turn, counted for each monster from its creation.</value>
+  </data>
+  <data name="Add an animation" xml:space="preserve">
+    <value>Add an animation</value>
+  </data>
+  <data name="Map" xml:space="preserve">
+    <value>Map</value>
+  </data>
+  <data name="All maps" xml:space="preserve">
+    <value>All maps</value>
+  </data>
+  <data name="Add a map variant" xml:space="preserve">
+    <value>Add a map variant</value>
+  </data>
+  <data name="Plays on" xml:space="preserve">
+    <value>Plays on</value>
+  </data>
+  <data name="No map yet" xml:space="preserve">
+    <value>no map yet</value>
+  </data>
+  <data name="Pick the maps of the variant; until then Save refuses the monsters." xml:space="preserve">
+    <value>Pick the maps of the variant; until then Save refuses the monsters.</value>
+  </data>
+  <data name="Variant maps in another variant" xml:space="preserve">
+    <value>{0}: another variant names this too; while two variants name a map, Save refuses the monsters.</value>
+  </data>
+  <data name="On its maps the variant attacks instead of the monster." xml:space="preserve">
+    <value>On its maps the variant's attacks replace the monster's.</value>
+  </data>
+  <data name="Remove the map variant" xml:space="preserve">
+    <value>Remove the map variant</value>
   </data>
   <data name="Clear the monster skill" xml:space="preserve">
     <value>Clear the monster skill</value>
@@ -2787,5 +2817,131 @@
   </data>
   <data name="Preview volume note" xml:space="preserve">
     <value>The volume of the monster tools' sound previews (Play, the preview's sounds). The game's sound volume stays as it is, and this is not saved.</value>
+  </data>
+  <data name="Taken by the item {0}" xml:space="preserve">
+    <value>Taken by the item {0}</value>
+  </data>
+  <data name="Taken by a model without an item {0}" xml:space="preserve">
+    <value>Taken by a model without an item: {0}</value>
+  </data>
+  <data name="The code calls it {0}" xml:space="preserve">
+    <value>The code calls it {0}</value>
+  </data>
+  <data name="The Item Browser lists it as No item at this number" xml:space="preserve">
+    <value>The Item Browser lists it as "No item at this number"</value>
+  </data>
+  <data name="Entry without a name" xml:space="preserve">
+    <value>Entry without a name</value>
+  </data>
+  <data name="Taken by an entry without a name" xml:space="preserve">
+    <value>Taken by an entry without a name</value>
+  </data>
+  <data name="Its model {0}" xml:space="preserve">
+    <value>Its model: {0}</value>
+  </data>
+  <data name="The Item Browser lists it as Entry without a name" xml:space="preserve">
+    <value>The Item Browser lists it as "Entry without a name"</value>
+  </data>
+  <data name="Update from server" xml:space="preserve">
+    <value>Update from server</value>
+  </data>
+  <data name="Admin panel address" xml:space="preserve">
+    <value>Admin panel address</value>
+  </data>
+  <data name="Update from {0}" xml:space="preserve">
+    <value>Update from {0}</value>
+  </data>
+  <data name="Downloading {0}" xml:space="preserve">
+    <value>Downloading {0} ...</value>
+  </data>
+  <data name="What Update from server does" xml:space="preserve">
+    <value>Update from server downloads the items of an OpenMU server from its admin panel and lists how they differ from the client's, as Import does. Enter an API key of the admin panel; Remember keeps it for the address in the system's key store. Without one, the environment variable {0} fills the field.</value>
+  </data>
+  <data name="Enter the address of the OpenMU admin panel" xml:space="preserve">
+    <value>Enter the address of the OpenMU admin panel, e.g. https://admin.example.org or http://localhost:8080.</value>
+  </data>
+  <data name="The admin panel address must be https" xml:space="preserve">
+    <value>The admin panel's address must start with https://; http:// only works for this computer (localhost, 127.0.0.1, [::1]).</value>
+  </data>
+  <data name="The admin panel could not be reached ({0})" xml:space="preserve">
+    <value>The admin panel could not be reached ({0}).</value>
+  </data>
+  <data name="The api key may not download the items" xml:space="preserve">
+    <value>The API key may not download the items (403): it needs the Viewer role, and the admin panel needs a user.</value>
+  </data>
+  <data name="The admin panel has no item exchange" xml:space="preserve">
+    <value>The admin panel has no item exchange file (404): it needs a newer OpenMU.</value>
+  </data>
+  <data name="Too many requests, try again in a minute" xml:space="preserve">
+    <value>Too many requests (429): try again in a minute.</value>
+  </data>
+  <data name="The admin panel answered with http status {0}" xml:space="preserve">
+    <value>The admin panel answered with HTTP status {0}.</value>
+  </data>
+  <data name="The update was cancelled" xml:space="preserve">
+    <value>The update was cancelled.</value>
+  </data>
+  <data name="The file does not carry all fields of an item, it is not added" xml:space="preserve">
+    <value>The file does not carry all of an item's fields: it is not added.</value>
+  </data>
+  <data name="Every item of the file matches the client" xml:space="preserve">
+    <value>Every item the file has matches the client.</value>
+  </data>
+  <data name="Items only in the client {0} stay unless checked" xml:space="preserve">
+    <value>{0} items are only in the client: they stay as they are unless you check them in their list below.</value>
+  </data>
+  <data name="Only in the client ({0}), not on the server" xml:space="preserve">
+    <value>Only in the client ({0}), not on the server</value>
+  </data>
+  <data name="Only in the client ({0}), not in the file" xml:space="preserve">
+    <value>Only in the client ({0}), not in the file</value>
+  </data>
+  <data name="Copy as Markdown" xml:space="preserve">
+    <value>Copy as Markdown</value>
+  </data>
+  <data name="Copied {0} rows" xml:space="preserve">
+    <value>Copied {0} rows</value>
+  </data>
+  <data name="Copies the list as a Markdown table" xml:space="preserve">
+    <value>Copies the list as a Markdown table (group, number and English name of each item), e.g. for an issue on GitHub.</value>
+  </data>
+  <data name="It removes 0 items from the client" xml:space="preserve">
+    <value>It removes {0} items from the client, with their models. Undo brings them back.</value>
+  </data>
+  <data name="Api key" xml:space="preserve">
+    <value>API key</value>
+  </data>
+  <data name="Remember" xml:space="preserve">
+    <value>Remember</value>
+  </data>
+  <data name="Keeps the key for this address in {0}" xml:space="preserve">
+    <value>Keeps the key for this address in {0}, not in a file.</value>
+  </data>
+  <data name="This build cannot keep the key" xml:space="preserve">
+    <value>This build cannot keep the key: libsecret (the system keyring) was not found when MuEditor was built. The key stays until the editor closes.</value>
+  </data>
+  <data name="The key could not be stored in {0}" xml:space="preserve">
+    <value>The key could not be stored in {0}.</value>
+  </data>
+  <data name="the Windows Credential Manager" xml:space="preserve">
+    <value>the Windows Credential Manager</value>
+  </data>
+  <data name="the macOS Keychain" xml:space="preserve">
+    <value>the macOS Keychain</value>
+  </data>
+  <data name="the system keyring" xml:space="preserve">
+    <value>the system keyring</value>
+  </data>
+  <data name="Enter an api key of the admin panel {0}" xml:space="preserve">
+    <value>Enter an API key of the admin panel (its API keys page; the Viewer role is enough), or set the environment variable {0} before starting the editor.</value>
+  </data>
+  <data name="The admin panel does not know the api key" xml:space="preserve">
+    <value>The admin panel does not know the API key (401).</value>
+  </data>
+  <data name="From the server" xml:space="preserve">
+    <value>From the server</value>
+  </data>
+  <data name="Not saved yet: the changes are only in the editor" xml:space="preserve">
+    <value>Not saved yet: the changes are only in the editor until you save the items.</value>
   </data>
 </root>

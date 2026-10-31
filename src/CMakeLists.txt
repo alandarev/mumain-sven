@@ -278,8 +278,9 @@ target_compile_definitions(MuClient PUBLIC GLM_FORCE_DEPTH_ZERO_TO_ONE)
 target_link_libraries(MuClient PUBLIC SDL3::SDL3 glm::glm spdlog::spdlog)
 find_package(OpenSSL REQUIRED COMPONENTS Crypto)
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND MU_LINK_SDL_PLATFORM_BACKENDS)
-  # SDL also dlopen()s libvulkan.so.1; the same option makes it a DT_NEEDED entry of Main
-  # (linked below) so the loader resolves through the RUNPATH.
+  # SDL dlopen()s libvulkan.so.1 even with this option. Linking the loader into Main (below)
+  # records its directory in Main's RUNPATH, which that dlopen() searches, and makes it a
+  # DT_NEEDED entry: a missing loader then stops Main at start-up, and ldd lists it.
   find_package(Vulkan REQUIRED)
 endif()
 target_link_libraries(MuClient PUBLIC OpenSSL::Crypto)
@@ -419,7 +420,16 @@ endif()
 target_compile_features(Main PUBLIC cxx_std_20)
 target_link_libraries(Main PRIVATE MuClient::MuClient)
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND MU_LINK_SDL_PLATFORM_BACKENDS)
-  target_link_libraries(Main PRIVATE Vulkan::Vulkan)
+  # Main never calls Vulkan itself, so a linker running with --as-needed (GCC's default on Ubuntu
+  # and Debian) drops a plain Vulkan::Vulkan from DT_NEEDED; the RUNPATH stays either way.
+  # MuNoAsNeeded keeps the entry by wrapping the library in --push-state,--no-as-needed and
+  # --pop-state, so the linker must support --push-state (GNU ld and gold do). Link
+  # Vulkan::Vulkan into Main only through this feature: CMake stops with an error when the same
+  # item comes both with and without it.
+  set(CMAKE_LINK_LIBRARY_USING_MuNoAsNeeded
+    "LINKER:--push-state,--no-as-needed" "<LINK_ITEM>" "LINKER:--pop-state")
+  set(CMAKE_LINK_LIBRARY_USING_MuNoAsNeeded_SUPPORTED TRUE)
+  target_link_libraries(Main PRIVATE "$<LINK_LIBRARY:MuNoAsNeeded,Vulkan::Vulkan>")
 endif()
 
 if (MSVC)
@@ -1247,4 +1257,25 @@ endif()
 # code retains its existing OpenGL system-library links above.
 if(ENABLE_EDITOR)
   target_link_libraries(MuClient PUBLIC imgui)
+endif()
+
+# MuEditor remembers the OpenMU API key in the system's key store
+# (MuEditor/Core/SecretStore.cpp): the Windows Credential Manager (advapi32,
+# linked above), the macOS Keychain, and the Linux keyring when libsecret is
+# found. Without libsecret the editor keeps the key only while it runs.
+if(ENABLE_EDITOR)
+  if(APPLE)
+    target_link_libraries(MuClient PUBLIC "-framework Security")
+  elseif(UNIX AND NOT ANDROID)
+    find_package(PkgConfig QUIET)
+    if(PkgConfig_FOUND)
+      pkg_check_modules(MU_LIBSECRET QUIET IMPORTED_TARGET libsecret-1)
+    endif()
+    if(MU_LIBSECRET_FOUND)
+      target_link_libraries(MuClient PUBLIC PkgConfig::MU_LIBSECRET)
+      target_compile_definitions(MuClient PRIVATE MU_HAS_LIBSECRET)
+    else()
+      message(STATUS "libsecret-1 not found: MuEditor cannot remember the OpenMU API key")
+    endif()
+  endif()
 endif()

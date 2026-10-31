@@ -18,7 +18,6 @@ namespace M34CryWolf1st {		//. 크라이울프 점령지
     bool RenderCryWolf1stMonsterObjectMesh(OBJECT* o, BMD* b, int ExtraMon);
     bool RenderCryWolf1stMonsterVisual(CHARACTER* c, OBJECT* o, BMD* b);
     bool AttackEffectCryWolf1stMonster(CHARACTER* c, OBJECT* o, BMD* b);
-    bool SetCurrentActionCrywolfMonster(CHARACTER* c, OBJECT* o);
     bool CreateMist(PARTICLE* pParticleObj);
     void RenderBaseSmoke(void);
 
@@ -38,7 +37,6 @@ namespace M34CryWolf1st {		//. 크라이울프 점령지
     void DoTankerFireFixStartPosition(int SourceX, int SourceY, int PositionX, int PositionY);
 
     void Check_AltarState(int Num, int State);
-    void Set_Message_Box(int Str, int Num, int Key, int ObjNum = -1);
     void Set_Val_Hp(int State);
     void Set_BossMonster(int Val_Hp, int Dl_Num);
     void SetTime(BYTE byHour, BYTE byMinute);
