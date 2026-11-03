@@ -3,6 +3,8 @@
 //////////////////////////////////////////////////////////////////////////
 #pragma once
 
+#include "Render/Models/DrawLook.h"
+
 #include "Render/Models/ZzzBMD.h"
 
 bool    CreateWaterTerrain(int mapIndex);
@@ -16,7 +18,7 @@ void    RenderWaterTerrain(int Texture, float xf, float yf, float SizeX, float S
 void    SettingHellasColor(void);
 BYTE    GetHellasLevel(CLASS_TYPE Class, int Level);
 bool    GetUseLostMap(bool bDrawAlert = false);
-int     RenderHellasItemInfo(ITEM* ip, int textNum);
+int RenderHellasItemInfo(const ITEM* ip, int textNum);
 bool	EnableKalima(CLASS_TYPE Class, int Level, int ItemLevel);
 
 void    AddObjectDescription(wchar_t* Text, vec3_t position);
@@ -27,8 +29,8 @@ bool    MoveHellasObjectSetting(int& objCount, int object);
 bool    MoveHellasObject(OBJECT* o, int& object, int& visibleObject);
 bool    MoveHellasAllObject(OBJECT* o);
 bool    MoveHellasVisual(OBJECT* o);
-bool    RenderHellasVisual(OBJECT* o, BMD* b);
-bool    RenderHellasObjectMesh(OBJECT* o, BMD* b);
+bool UpdateHellasObjectEffects(OBJECT* o, BMD* b);
+bool RenderHellasObjectMesh(const OBJECT* o, DrawLook& look, BMD* b);
 
 int     CreateBigMon(OBJECT* o);
 void    MoveBigMon(OBJECT* o);
@@ -38,7 +40,8 @@ void    CreateMonsterSkill_Poison(OBJECT* o, int AttackTime, BYTE time);
 void    CreateMonsterSkill_Summon(OBJECT* o, int AttackTime, BYTE time);
 
 void    SetActionDestroy_Def(OBJECT* o);
-void    RenderDestroy_Def(OBJECT* o, BMD* b);
+// The vertex spawns and state changes of RenderHellasMonsterObjectMesh, for a character the last frame drew.
+void UpdateHellasObjectMeshEffects(OBJECT* o, BMD* b);
 CHARACTER* CreateHellasMonster(EMonsterType Type, int PositionX, int PositionY, int Key);
 
 
@@ -46,6 +49,6 @@ bool    AttackEffect_HellasMonster(CHARACTER* c, CHARACTER* tc, OBJECT* o, OBJEC
 void    MonsterMoveWaterSmoke(OBJECT* o);
 void    MonsterDieWaterSmoke(OBJECT* o);
 bool    MoveHellasMonsterVisual(OBJECT* o, BMD* b);
-bool    RenderHellasMonsterCloth(CHARACTER* c, OBJECT* o, bool Translate = true, int Select = 0);
-bool    RenderHellasMonsterObjectMesh(OBJECT* o, BMD* b);
-bool    RenderHellasMonsterVisual(CHARACTER* c, OBJECT* o, BMD* b);
+bool RenderHellasMonsterCloth(const CHARACTER* c, const OBJECT* o, bool Translate = true, int Select = 0);
+bool RenderHellasMonsterObjectMesh(const OBJECT* o, DrawLook& look, BMD* b);
+bool UpdateHellasMonsterEffects(CHARACTER* c, OBJECT* o, BMD* b);
