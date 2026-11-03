@@ -47,9 +47,6 @@ concurrency:
 permissions:
   contents: read
 
-env:
-  DOTNET_NOLOGO: 'true'
-
 jobs:
   windows:
     name: Windows x64 Release, editor ${{ matrix.editor }}
@@ -123,7 +120,6 @@ jobs:
       - name: Configure CMake
         run: >
           cmake --preset windows-x64
-          "-DOPENMU_PACKETS_VERSION=$(dotnet msbuild ClientLibrary/MUnique.Client.Library.csproj -nologo -getProperty:OpenMuPacketsVersion)"
           -B out/build/fork-ci-windows
           -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake
           -DVCPKG_CHAINLOAD_TOOLCHAIN_FILE=${{ github.workspace }}/toolchain-x64.cmake
@@ -191,7 +187,6 @@ jobs:
       - name: Configure CMake
         run: >
           cmake --preset linux-x64
-          "-DOPENMU_PACKETS_VERSION=$(dotnet msbuild ClientLibrary/MUnique.Client.Library.csproj -nologo -getProperty:OpenMuPacketsVersion)"
           -B out/build/fork-ci-linux-editor
           -DENABLE_EDITOR=ON
           -DENABLE_CONTROL_SOCKET=ON
@@ -238,7 +233,6 @@ jobs:
       - name: Configure CMake
         run: >
           cmake --preset macos-arm64
-          "-DOPENMU_PACKETS_VERSION=$(dotnet msbuild ClientLibrary/MUnique.Client.Library.csproj -nologo -getProperty:OpenMuPacketsVersion)"
           -B out/build/fork-ci-macos-editor
           -DENABLE_EDITOR=ON
           -DENABLE_CONTROL_SOCKET=ON

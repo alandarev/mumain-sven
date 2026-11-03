@@ -18,9 +18,6 @@ concurrency:
 permissions:
   contents: read
 
-env:
-  DOTNET_NOLOGO: 'true'
-
 jobs:
   quality:
     name: Quality Gates
@@ -33,10 +30,28 @@ jobs:
       release: ${{ steps.plan.outputs.release }}
 
     steps:
+      # Game data except what the gates read (RmlUi documents, fonts, Dec2.dat) is about 700 MB that only the native
+      # tests use; downloading it took 30 s to 3 min depending on GitHub.
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          # A pull request diffs against the merge commit's first parent, so it needs only one commit of history.
+          fetch-depth: 2
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /*
+            !/src/bin/*
+            /src/bin/fonts/
+            /src/bin/Data/
+            !/src/bin/Data/*
+            /src/bin/Data/Interface/
+            /src/bin/Data/Dec2.dat
+
+      # Commits, tags and file lists for the diffs and release check, without every past asset version; git fetches
+      # the few old file versions a diff needs on demand.
+      - name: Fetch history
+        if: github.event_name != 'pull_request'
+        run: git fetch --quiet --filter=blob:none --unshallow --tags origin
 
       - name: Select native builds
         id: plan
@@ -78,10 +93,8 @@ jobs:
         with:
           path: |
             ~/.cache/pip
-            /usr/bin/cppcheck
-            /usr/share/cppcheck
-          key: quality-tools-cppcheck-${{ runner.os }}-v2
-          restore-keys: quality-tools-cppcheck-${{ runner.os }}-
+          key: quality-tools-pip-${{ runner.os }}-v1
+          restore-keys: quality-tools-pip-${{ runner.os }}-
 
       - name: Install quality tools
         run: |
@@ -204,7 +217,6 @@ jobs:
       - name: Configure CMake
         run: >
           cmake --preset windows-x64
-          "-DOPENMU_PACKETS_VERSION=$(dotnet msbuild ClientLibrary/MUnique.Client.Library.csproj -nologo -getProperty:OpenMuPacketsVersion)"
           -B out/build/windows-ci-x64-release
           -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake
           -DVCPKG_CHAINLOAD_TOOLCHAIN_FILE=${{ github.workspace }}/toolchain-x64.cmake
@@ -558,15 +570,16 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            out/build/linux-ci/_deps
+            # Downloaded sources only: ninja recompiles restored *-build folders, and ccache covers that.
+            out/build/linux-ci/_deps/*-src
+            out/build/linux-ci/_deps/*-subbuild
             .nuget
-          key: linux-x64-release-deps-${{ hashFiles('CMakeLists.txt', 'src/CMakeLists.txt', 'ClientLibrary/**/*.csproj', 'ClientLibrary/**/*.props') }}
-          restore-keys: linux-x64-release-deps-
+          key: linux-x64-release-dep-sources-${{ hashFiles('CMakeLists.txt', 'src/CMakeLists.txt', 'cmake/patches/**', 'cmake/ApplyGitPatch.cmake', 'ClientLibrary/**/*.csproj', 'ClientLibrary/**/*.props') }}
+          restore-keys: linux-x64-release-dep-sources-
 
       - name: Configure CMake
         run: >
           cmake --preset linux-x64
-          "-DOPENMU_PACKETS_VERSION=$(dotnet msbuild ClientLibrary/MUnique.Client.Library.csproj -nologo -getProperty:OpenMuPacketsVersion)"
           -B out/build/linux-ci
           -DCMAKE_C_COMPILER_LAUNCHER=ccache
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
@@ -598,6 +611,7 @@ jobs:
           --output-on-failure
           --no-tests=error
           --label-exclude static
+          --parallel 4
 
       - name: Validate runtime
         run: |
@@ -680,15 +694,16 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            out/build/macos-ci/_deps
+            # Downloaded sources only: ninja recompiles restored *-build folders, and ccache covers that.
+            out/build/macos-ci/_deps/*-src
+            out/build/macos-ci/_deps/*-subbuild
             .nuget
-          key: macos-arm64-release-deps-${{ hashFiles('CMakeLists.txt', 'src/CMakeLists.txt', 'ClientLibrary/**/*.csproj', 'ClientLibrary/**/*.props') }}
-          restore-keys: macos-arm64-release-deps-
+          key: macos-arm64-release-dep-sources-${{ hashFiles('CMakeLists.txt', 'src/CMakeLists.txt', 'cmake/patches/**', 'cmake/ApplyGitPatch.cmake', 'ClientLibrary/**/*.csproj', 'ClientLibrary/**/*.props') }}
+          restore-keys: macos-arm64-release-dep-sources-
 
       - name: Configure CMake
         run: >
           cmake --preset macos-arm64
-          "-DOPENMU_PACKETS_VERSION=$(dotnet msbuild ClientLibrary/MUnique.Client.Library.csproj -nologo -getProperty:OpenMuPacketsVersion)"
           -B out/build/macos-ci
           -DENABLE_EDITOR=OFF
           -DMU_COPY_RUNTIME_ASSETS=OFF
@@ -721,6 +736,7 @@ jobs:
           --output-on-failure
           --no-tests=error
           --label-exclude static
+          --parallel 4
 
       - name: Validate runtime
         run: |
