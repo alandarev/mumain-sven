@@ -21,7 +21,8 @@ permissions:
 jobs:
   quality:
     name: Quality Gates
-    runs-on: ubuntu-latest
+    # Dev CI runner for push, workflow_dispatch and schedule only; pull requests stay GitHub-hosted.
+    runs-on: ${{ fromJSON(contains(fromJSON('["push","workflow_dispatch","schedule"]'), github.event_name) && '["self-hosted","linux","x64","dev-ci","repo-mumain-sven"]' || '"ubuntu-latest"') }}
     outputs:
       linux: ${{ steps.plan.outputs.linux }}
       macos: ${{ steps.plan.outputs.macos }}
@@ -60,7 +61,27 @@ jobs:
       - name: Run static checks
         run: |
           cmake -S tests/static -B out/static-checks
-          ctest --test-dir out/static-checks -C Release --parallel 4 --output-on-failure --no-tests=error
+          ctest --test-dir out/static-checks -C Release --parallel 4 --output-on-failure --no-tests=error --exclude-regex "^windows_workflow_contract$"
+          # Run the complete upstream contract; accept only our intentional runner spelling difference.
+          python3 - <<'PY'
+          import subprocess
+          import sys
+
+          result = subprocess.run(
+              [sys.executable, "tests/test_windows_workflow_contract.py", "."],
+              capture_output=True, text=True,
+          )
+          expected_runner_mismatch = (
+              "Workflow contract failed:\n"
+              "- Linux Native Build (x64, Release, editor OFF) missing runs-on: ubuntu-latest"
+          )
+          if result.returncode == 1 and not result.stdout and result.stderr.strip() == expected_runner_mismatch:
+              print("Workflow contract: all checks executed; only intentional fork runner mismatch accepted")
+          else:
+              sys.stdout.write(result.stdout)
+              sys.stderr.write(result.stderr)
+              sys.exit(result.returncode)
+          PY
 
       - name: Validate game data inputs
         run: |
@@ -501,7 +522,8 @@ jobs:
     name: Linux Native Build (x64, Release, editor OFF)
     needs: quality
     if: needs.quality.outputs.linux == 'true'
-    runs-on: ubuntu-latest
+    # Dev CI runner for push, workflow_dispatch and schedule only; pull requests stay GitHub-hosted.
+    runs-on: ${{ fromJSON(contains(fromJSON('["push","workflow_dispatch","schedule"]'), github.event_name) && '["self-hosted","linux","x64","dev-ci","repo-mumain-sven"]' || '"ubuntu-latest"') }}
     timeout-minutes: 90
     env:
       CCACHE_DIR: ${{ github.workspace }}/.ccache
@@ -775,7 +797,8 @@ jobs:
     name: Semantic Release
     needs: [quality, build-windows, build-linux, build-macos, required]
     if: needs.quality.outputs.release == 'true'
-    runs-on: ubuntu-latest
+    # Dev CI runner for push, workflow_dispatch and schedule only; pull requests stay GitHub-hosted.
+    runs-on: ${{ fromJSON(contains(fromJSON('["push","workflow_dispatch","schedule"]'), github.event_name) && '["self-hosted","linux","x64","dev-ci","repo-mumain-sven"]' || '"ubuntu-latest"') }}
     permissions:
       contents: write
 
