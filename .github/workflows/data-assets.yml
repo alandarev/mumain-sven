@@ -20,7 +20,8 @@ jobs:
   release-data:
     name: Publish data asset
     if: github.repository == 'sven-n/MuMain'
-    runs-on: ubuntu-latest
+    # Dev CI runner for push, workflow_dispatch and schedule only; every other event keeps the GitHub-hosted runner.
+    runs-on: ${{ fromJSON(contains(fromJSON('["push","workflow_dispatch","schedule"]'), github.event_name) && '["self-hosted","linux","x64","dev-ci","repo-mumain-sven"]' || '"ubuntu-latest"') }}
 
     steps:
       - name: Checkout repository
