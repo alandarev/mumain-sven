@@ -5,6 +5,7 @@
 #include "stdafx.h"
 #include "App/Control/DrawPurityCheck.h"
 #include "Core/Utilities/DrawSpawnCheck.h"
+#include "Audio/SoundSource.h"
 #include "Core/Input/KeyState.h"
 #include "Core/Input/SyntheticInput.h"
 #include <cstdio>
@@ -497,6 +498,11 @@ static void UpdateActiveScene()
     case MAIN_SCENE:
         MoveMainScene();
         break;
+    // The other values, listed without a default: a value added later fails the build here.
+    case SERVER_LIST_SCENE:
+    case WEBZEN_SCENE:
+    case LOADING_SCENE:
+        break;
     }
 }
 
@@ -528,6 +534,8 @@ static void UpdateLoginAndCharacterScenes()
     dDeltaTick = MIN(dDeltaTick, 200.0 * FPS_ANIMATION_FACTOR);
 
     CInput::Instance().Update();
+    // The scenes' windows' sounds are the interface's (Q-SM13).
+    const Audio::ScopedSoundPlace ui(Audio::SoundKind::Interface, -1, nullptr);
     CSceneUICoordinator::Instance().Update(dDeltaTick);
 }
 
@@ -1126,7 +1134,11 @@ static void ManageMainSceneAudio()
     if (SceneFlag != MAIN_SCENE)
         return;
 
-    PlayWorldAmbientSounds();
+    {
+        // The map's wind, rain and forest: ambience, with no place (Q-SM13).
+        const Audio::ScopedSoundPlace ambience(Audio::SoundKind::MapAmbience, -1, nullptr);
+        PlayWorldAmbientSounds();
+    }
     StopInactiveAmbientSounds();
     ManageBackgroundMusic();
 }
@@ -1278,6 +1290,9 @@ void RenderScene(HDC hDC)
         case CHARACTER_SCENE:
         case MAIN_SCENE:
             MainScene(hDC);
+            break;
+        // The other values, listed without a default: a value added later fails the build here.
+        case SERVER_LIST_SCENE:
             break;
         }
 

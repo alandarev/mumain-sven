@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "Core/Utilities/Random.h"
 #include "App/Control/ControlTaps.h"
+#include "Audio/SoundPlaces.h"
 #include "Core/Utilities/Log/MuLogger.h"
 #include "UI/Chat/Chat.h"
 #include "UI/Chat/ChatMessages.h"
@@ -42,6 +43,7 @@
 #include "Network/Reconnect/LoginSceneReconnect.h"
 #include "Network/Reconnect/ReconnectManager.h"
 #include "Network/IncomingPacketQueue.h"
+#include "Network/EndpointForLog.h"
 #include "I18N/All.h"
 
 #include "Audio/DSPlaySound.h"
@@ -55,6 +57,7 @@
 #include "GameLogic/Pets/GIPetManager.h"
 #include "GameLogic/Pets/w_PetProcess.h"
 #include "Network/Server/CSMapServer.h"
+#include "Network/Server/IllusionTempleResult.h"
 #include "Network/Server/TransformViewportEntry.h"
 #include "GameLogic/NPCs/npcGateSwitch.h"
 #include "GameLogic/Items/CComGem.h"
@@ -395,7 +398,9 @@ BOOL CreateSocket(const wchar_t* IpAddr, unsigned short Port)
         bResult = FALSE;
         wchar_t connectError[256];
         mu_swprintf_s(connectError, L"Cannot connect to %ls:%d. Server may be offline.", IpAddr, Port);
-        g_ErrorReport.Write(L"NET: %ls\r\n", connectError);
+        // The dialog names the address; the log, which players post, follows Network::DescribeEndpointForLog.
+        g_ErrorReport.Write(L"NET: Cannot connect to %hs. Server may be offline.\r\n",
+                            Network::DescribeEndpointForLog(mu_wchar_to_utf8(IpAddr), Port).c_str());
         g_ErrorReport.WriteCurrentTime();
         delete SocketClient;
         SocketClient = nullptr;
@@ -1689,7 +1694,13 @@ void ReceiveDeleteInventory(const BYTE* ReceiveBuffer)
 
 int CalcItemLength(std::span<const BYTE> ReceiveBuffer)
 {
-    auto Data = safe_cast<PITEM_EXTENDED_BASE>(ReceiveBuffer);
+    const int available = static_cast<int>(ReceiveBuffer.size());
+    auto Data = safe_cast<PITEM_EXTENDED_BASE>(ReceiveBuffer, "item");
+    if (Data == nullptr)
+    {
+        return available;
+    }
+
     int size = 5;
     if (Data->OptionFlags & ItemOptionFlags::HasOption)
     {
@@ -1713,11 +1724,16 @@ int CalcItemLength(std::span<const BYTE> ReceiveBuffer)
 
     if (Data->OptionFlags & ItemOptionFlags::HasSockets)
     {
-        auto socketCount = ReceiveBuffer[size] & 0xF;
+        const int socketCount = size < available ? ReceiveBuffer[size] & 0xF : 0;
         size++;
         size += socketCount;
     }
 
+    if (size > available)
+    {
+        g_ConsoleDebug->Write(MCD_ERROR, L"Item data cut short: %d of %d bytes", available, size);
+        return available;
+    }
     return size;
 }
 
@@ -2060,7 +2076,7 @@ void ReceiveNotice(const BYTE* ReceiveBuffer)
     }
     else if (Data->Result >= 10 && Data->Result <= 15)
     {
-        if (Data->Notice != nullptr && Data->Notice[0] != '\0')
+        if (Data->Notice[0] != '\0')
         {
             UI::Hud::AddSlideNotice(Data->Count, Data->Delay, Text, Data->Result - 10, Data->Speed / 10.0f,
                                     Data->Color);
@@ -4049,6 +4065,8 @@ void ReceiveMagicFinish(const BYTE* ReceiveBuffer)
     case AT_SKILL_ALICE_BERSERKER_STR:
         UnRegisterBuff(eBuff_Berserker, o);
         break;
+    default:
+        break;
     }
 }
 
@@ -4230,6 +4248,9 @@ BOOL ReceiveMagic(const BYTE* ReceiveBuffer, int Size, BOOL bEncrypted)
     CHARACTER* tc = &CharactersClient[TargetIndex];
     OBJECT* so = &sc->Object;
     OBJECT* to = &tc->Object;
+    // The skill's sounds play for the caster (Q-SM13).
+    std::optional<Audio::ScopedSoundPlace> casterPlace;
+    Audio::PlaceCharacter(casterPlace, *sc);
 
     if (MagicNumber != AT_SKILL_COMBO)
     {
@@ -5234,6 +5255,9 @@ BOOL ReceiveMagicContinue(const BYTE* ReceiveBuffer, int Size, BOOL bEncrypted)
 
     CHARACTER* sc = &CharactersClient[FindCharacterIndex(Key)];
     OBJECT* so = &sc->Object;
+    // The skill's sounds play for the caster (Q-SM13).
+    std::optional<Audio::ScopedSoundPlace> casterPlace;
+    Audio::PlaceCharacter(casterPlace, *sc);
 
     sc->Skill = MagicNumber;
 
@@ -5705,6 +5729,9 @@ void ReceiveMagicPosition(const BYTE* ReceiveBuffer, int Size)
 
     CHARACTER* c = &CharactersClient[Index];
     OBJECT* o = &c->Object;
+    // The skill's sounds play for the caster (Q-SM13).
+    std::optional<Audio::ScopedSoundPlace> casterPlace;
+    Audio::PlaceCharacter(casterPlace, *c);
     CreateMagicShiny(c);
     PlayBuffer(SOUND_MAGIC);
     SetAction(o, PLAYER_SKILL_HELL);
@@ -6196,6 +6223,9 @@ void ReceiveGetItem(std::span<const BYTE> ReceiveBuffer)
             {
                 mu_swprintf(szMessage, L"%d %ls %ls", getGold, I18N::Game::Zen, I18N::Game::Obtained);
                 UI::Chat::PostSystem(szMessage, mu::ui::window::TYPE_SYSTEM_MESSAGE);
+                // Zen picked up sounds like a picked-up item; the original
+                // played nothing (Q-SM12).
+                PlayBuffer(SOUND_GET_ITEM01, &Hero->Object);
             }
         }
         else
@@ -11453,8 +11483,6 @@ void ReceiveCrownSwitchState(const BYTE* ReceiveBuffer)
 
     if (CrownSwitch == nullptr)
         return;
-    if (CrownSwitch->ID == nullptr)
-        return;
 
     switch (static_cast<CrownSwitchState>(pData->m_byState))
     {
@@ -11477,9 +11505,7 @@ void ReceiveCrownSwitchState(const BYTE* ReceiveBuffer)
         int otherKey = ((int)(pData->m_byKeyH) << 8) + pData->m_byKeyL;
         int otherIndex = FindCharacterIndex(otherKey);
         CHARACTER* other = &CharactersClient[otherIndex];
-        UI::Siege::ShowCrownNotice(UI::Siege::CrownNotice::SwitchActivatedByOther,
-                                    other != nullptr && other->ID != nullptr ? other->ID : L"",
-                                    CrownSwitch->ID);
+        UI::Siege::ShowCrownNotice(UI::Siege::CrownNotice::SwitchActivatedByOther, other->ID, CrownSwitch->ID);
         break;
     }
     }
@@ -12202,25 +12228,36 @@ void ReceiveCursedTempleHolyItemRelics(const BYTE* ReceiveBuffer)
 {
 }
 
-void ReceiveCursedTempleGameResult(const BYTE* ReceiveBuffer)
+void ReceiveCursedTempleGameResult(std::span<const BYTE> receiveBuffer)
 {
-    auto data = (LPPMSG_CURSED_TEMPLE_RESULT)ReceiveBuffer;
-
-    std::vector<UI::CursedTemple::PlayerResult> players;
-    players.reserve(data->btUserCount);
-    int Offset = sizeof(PMSG_CURSED_TEMPLE_RESULT);
-    for (int i = 0; i < data->btUserCount; ++i)
+    static_assert(sizeof(PMSG_CURSED_TEMPLE_RESULT) == Network::Packets::IllusionTempleResult::HeaderSize);
+    static_assert(sizeof(PMSG_CURSED_TEMPLE_USER_ADD_EXP) == Network::Packets::IllusionTempleResult::PlayerSize);
+    static_assert(offsetof(PMSG_CURSED_TEMPLE_USER_ADD_EXP, btClass) == 12);
+    const auto result = Network::Packets::ParseIllusionTempleResult(receiveBuffer);
+    if (!result)
     {
-        auto player = (LPPMSG_CURSED_TEMPLE_USER_ADD_EXP)(ReceiveBuffer + Offset);
-        wchar_t name[MAX_USERNAME_SIZE + 1]{};
-        CMultiLanguage::ConvertFromUtf8(name, player->GameId, MAX_USERNAME_SIZE);
-        players.push_back({ name, player->byMapNumber, static_cast<SEASON3A::eCursedTempleTeam>(player->btTeam),
-                            gCharacterManager.ChangeServerClassTypeToClientClassType(player->btClass),
-                            player->nAddExp });
-        Offset += sizeof(PMSG_CURSED_TEMPLE_USER_ADD_EXP);
+        mu::log::Get("network")->warn("NET: Invalid Illusion Temple result packet dropped");
+        return;
     }
 
-    UI::CursedTemple::ShowMatchResult({ data->btAlliedPoint, data->btIllusionPoint, players });
+    std::vector<UI::CursedTemple::PlayerResult> players;
+    players.reserve(result->playerCount);
+    bool unknownClass = false;
+    for (const auto& player : std::span(result->players).first(result->playerCount))
+    {
+        wchar_t name[MAX_USERNAME_SIZE + 1]{};
+        CMultiLanguage::ConvertFromUtf8(name, player.name.data(), MAX_USERNAME_SIZE);
+        unknownClass |= !player.playerClass.has_value();
+        players.push_back(
+            {name, player.mapNumber, static_cast<SEASON3A::eCursedTempleTeam>(player.team),
+             gCharacterManager.ChangeServerClassTypeToClientClassType(player.playerClass.value_or(DarkWizard)),
+             player.addedExperience});
+    }
+    if (unknownClass)
+        mu::log::Get("network")->warn(
+            "NET: Illusion Temple result contains an unknown packed class; using Dark Wizard");
+
+    UI::CursedTemple::ShowMatchResult({result->alliedPoints, result->illusionPoints, players});
 }
 
 void ReceiveCursedTempleState(const BYTE* ReceiveBuffer)
@@ -14692,7 +14729,7 @@ static void ProcessPacket(const BYTE* ReceiveBuffer, int32_t Size)
             ReceiveCursedTempleEnterInfo(ReceiveBuffer);
             break;
         case 0x04:
-            ReceiveCursedTempleGameResult(ReceiveBuffer);
+            ReceiveCursedTempleGameResult(received_span);
             break;
         case 0x06:
             ReceiveCursedTempSkillPoint(ReceiveBuffer);
@@ -14943,6 +14980,8 @@ bool CheckExceptionBuff(eBuffState buff, OBJECT* o, bool iserase)
             g_CharacterUnRegisterBuffList(o, bufflist);
         }
         break;
+        default:
+            break;
         }
 
         return true;
@@ -15015,6 +15054,8 @@ bool CheckExceptionBuff(eBuffState buff, OBJECT* o, bool iserase)
             g_CharacterUnRegisterBuff(o, eBuff_CastleRegimentDefense);
     }
     break;
+    default:
+        break;
     }
     return true;
 }
@@ -15198,6 +15239,8 @@ void InsertBuffLogicalEffect(eBuffState buff, OBJECT* o, const int bufftime)
             g_RegisterBuffTime(buff, bufftime);
         }
         break;
+        default:
+            break;
         }
     }
 }
@@ -15354,6 +15397,8 @@ void ClearBuffLogicalEffect(eBuffState buff, OBJECT* o)
             g_UnRegisterBuffTime(buff);
         }
         break;
+        default:
+            break;
         }
     }
 }
@@ -15573,6 +15618,8 @@ void InsertBuffPhysicalEffect(eBuffState buff, OBJECT* o)
         CreateEffect(BITMAP_LIGHT_RED, o->Position, o->Angle, o->Light, 2, o, -1, 0, 0, 0, 1.5f);
     }
     break;
+    default:
+        break;
     }
 }
 
@@ -15759,6 +15806,8 @@ void ClearBuffPhysicalEffect(eBuffState buff, OBJECT* o)
         DeleteEffect(BITMAP_LIGHT_RED, o, 2);
     }
     break;
+    default:
+        break;
     }
 }
 

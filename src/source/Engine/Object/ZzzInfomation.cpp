@@ -5,6 +5,8 @@
 #include "Core/Utilities/Random.h"
 #include "UI/Core/UIManager.h"
 #include "Engine/Object/ZzzInfomation.h"
+#include "Data/DataHandler/DataFileIO.h"
+#include "Core/Utilities/FileHandle.h"
 
 #include <codecvt>
 #include <sstream>
@@ -23,6 +25,8 @@
 #include "GameLogic/Pets/GIPetManager.h"
 #include "GameLogic/Items/CComGem.h"
 #include "GameLogic/Items/ItemCategories.h"
+#include "GameLogic/Items/ItemOptionSlots.h"
+#include "GameLogic/Items/ItemOptions.h"
 #include "GameLogic/Items/ItemStats.h"
 #include "UI/Inventory/InventoryCtrl.h"
 #include "Network/Server/SocketSystem.h"
@@ -51,69 +55,69 @@ int  AbuseNameFilterNumber = 0;
 
 void OpenFilterFile(const wchar_t* FileName)
 {
-    FILE* fp = _wfopen(FileName, L"rb");
-    if (fp == NULL)
+    Core::Utilities::FileHandle fp(_wfopen(FileName, L"rb"));
+    if (!fp)
     {
-        wchar_t Text[256];
-        mu_swprintf(Text, L"%ls - File not exist.", FileName);
-        g_ErrorReport.Write(Text);
-        MessageBox(g_hWnd, Text, NULL, MB_OK);
-        SendMessage(g_hWnd, WM_DESTROY, 0, 0);
+        DataFileIO::ReportUnusableFile(FileName, L"File not exist.");
         return;
     }
 
     int Size = 20;
-    BYTE* Buffer = new BYTE[Size * MAX_FILTERS];
-    fread(Buffer, Size * MAX_FILTERS, 1, fp);
-    DWORD dwCheckSum;
-    fread(&dwCheckSum, sizeof(DWORD), 1, fp);
-    fclose(fp);
+    std::vector<BYTE> content(static_cast<std::size_t>(Size) * MAX_FILTERS);
+    BYTE* Buffer = content.data();
+    // The list ends at its first empty entry; the checksum behind the table is not checked. A file made for a
+    // smaller table ends early, after that entry, and still loads.
+    const std::size_t entries = fread(Buffer, Size, MAX_FILTERS, fp.get());
+    fp.reset();
 
+    bool ended = false;
     {
         BYTE* pSeek = Buffer;
-        for (int i = 0; i < MAX_FILTERS; i++)
+        for (std::size_t i = 0; i < entries; i++)
         {
             BuxConvert(pSeek, Size);
             memcpy(AbuseFilter[i], pSeek, Size);
             if (AbuseFilter[i][0] == 0)
             {
-                AbuseFilterNumber = i;
+                AbuseFilterNumber = static_cast<int>(i);
+                ended = true;
                 break;
             }
             pSeek += Size;
         }
     }
 
-    delete[] Buffer;
+    if (!ended && entries < MAX_FILTERS)
+    {
+        DataFileIO::ReportUnusableFile(FileName, L"File corrupted.");
+    }
+    else if (entries < MAX_FILTERS)
+    {
+        // A file cut short after the list's end loads the same way; the error log says how much was there.
+        g_ErrorReport.Write(L"%ls - %d of %d filter entries; the list ends at entry %d.\r\n", FileName,
+                            static_cast<int>(entries), MAX_FILTERS, AbuseFilterNumber);
+    }
 }
 
 void OpenNameFilterFile(const wchar_t* FileName)
 {
-    FILE* fp = _wfopen(FileName, L"rb");
-    if (fp == NULL)
+    Core::Utilities::FileHandle fp(_wfopen(FileName, L"rb"));
+    if (!fp)
     {
-        wchar_t Text[256];
-        mu_swprintf(Text, L"%ls - File not exist.", FileName);
-        g_ErrorReport.Write(Text);
-        MessageBox(g_hWnd, Text, NULL, MB_OK);
-        SendMessage(g_hWnd, WM_DESTROY, 0, 0);
+        DataFileIO::ReportUnusableFile(FileName, L"File not exist.");
         return;
     }
     int Size = 20;
-    BYTE* Buffer = new BYTE[Size * MAX_NAMEFILTERS];
-
-    fread(Buffer, Size * MAX_NAMEFILTERS, 1, fp);
+    std::vector<BYTE> content(static_cast<std::size_t>(Size) * MAX_NAMEFILTERS);
+    BYTE* Buffer = content.data();
 
     DWORD dwCheckSum;
-    fread(&dwCheckSum, sizeof(DWORD), 1, fp);
-    fclose(fp);
-    if (dwCheckSum != GenerateCheckSum2(Buffer, Size * MAX_NAMEFILTERS, 0x2BC1))
+    const bool complete = DataFileIO::ReadExact(fp.get(), Buffer, Size * MAX_NAMEFILTERS) &&
+                          DataFileIO::ReadExact(fp.get(), &dwCheckSum, sizeof(DWORD));
+    fp.reset();
+    if (!complete || dwCheckSum != GenerateCheckSum2(Buffer, Size * MAX_NAMEFILTERS, 0x2BC1))
     {
-        wchar_t Text[256];
-        mu_swprintf(Text, L"%ls - File corrupted.", FileName);
-        g_ErrorReport.Write(Text);
-        MessageBox(g_hWnd, Text, NULL, MB_OK);
-        SendMessage(g_hWnd, WM_DESTROY, 0, 0);
+        DataFileIO::ReportUnusableFile(FileName, L"File corrupted.");
     }
     else
     {
@@ -130,7 +134,6 @@ void OpenNameFilterFile(const wchar_t* FileName)
             pSeek += Size;
         }
     }
-    delete[] Buffer;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -139,27 +142,42 @@ void OpenNameFilterFile(const wchar_t* FileName)
 
 void OpenGateScript(const wchar_t* FileName)
 {
-    FILE* fp = _wfopen(FileName, L"rb");
-    if (fp != NULL)
+    Core::Utilities::FileHandle fp(_wfopen(FileName, L"rb"));
+    if (fp)
     {
         int Size = sizeof(GATE_ATTRIBUTE);
-        BYTE* Buffer = new BYTE[Size];
+        std::vector<BYTE> record(static_cast<std::size_t>(Size));
+        BYTE* Buffer = record.data();
+        int loaded = 0;
+        bool corrupted = false;
         for (int i = 0; i < MAX_GATES; i++)
         {
-            fread(Buffer, Size, 1, fp);
+            // A file made for fewer gates ends between two of them; the gates it lacks stay empty. A file that
+            // ends inside a gate is corrupt.
+            const std::size_t read = fread(Buffer, 1, Size, fp.get());
+            if (read == 0 && feof(fp.get()))
+            {
+                break;
+            }
+            if (read != static_cast<std::size_t>(Size))
+            {
+                DataFileIO::ReportUnusableFile(FileName, L"File corrupted.");
+                corrupted = true;
+                break;
+            }
             BuxConvert(Buffer, Size);
             memcpy(&GateAttribute[i], Buffer, Size);
+            ++loaded;
         }
-        delete[] Buffer;
-        fclose(fp);
+        // A file cut short between two gates loads the same way; the error log says how many there were.
+        if (!corrupted && loaded < MAX_GATES)
+        {
+            g_ErrorReport.Write(L"%ls - %d of %d gates; the others stay empty.\r\n", FileName, loaded, MAX_GATES);
+        }
     }
     else
     {
-        wchar_t Text[256];
-        mu_swprintf(Text, L"%ls - File not exist.", FileName);
-        g_ErrorReport.Write(Text);
-        MessageBox(g_hWnd, Text, NULL, MB_OK);
-        SendMessage(g_hWnd, WM_DESTROY, 0, 0);
+        DataFileIO::ReportUnusableFile(FileName, L"File not exist.");
     }
 }
 
@@ -294,28 +312,23 @@ void CalcWingOptions(ITEM* ip)
     {
         if (ip->ExcellentFlags & 0x01)
         {
-            ip->SpecialValue[ip->SpecialNum] = 50 + ip->Level * 5;
-            ip->Special[ip->SpecialNum] = AT_IMPROVE_HP_MAX; ip->SpecialNum++;
+            GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_HP_MAX, 50 + ip->Level * 5);
         }
         if ((ip->ExcellentFlags >> 1) & 0x01)
         {
-            ip->SpecialValue[ip->SpecialNum] = 50 + ip->Level * 5;
-            ip->Special[ip->SpecialNum] = AT_IMPROVE_MP_MAX; ip->SpecialNum++;
+            GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_MP_MAX, 50 + ip->Level * 5);
         }
         if ((ip->ExcellentFlags >> 2) & 0x01)
         {
-            ip->SpecialValue[ip->SpecialNum] = 3;
-            ip->Special[ip->SpecialNum] = AT_ONE_PERCENT_DAMAGE; ip->SpecialNum++;
+            GameLogic::Items::AddOptionSlot(*ip, AT_ONE_PERCENT_DAMAGE, 3);
         }
         if ((ip->ExcellentFlags >> 3) & 0x01)
         {
-            ip->SpecialValue[ip->SpecialNum] = 50;
-            ip->Special[ip->SpecialNum] = AT_IMPROVE_AG_MAX; ip->SpecialNum++;
+            GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_AG_MAX, 50);
         }
         if ((ip->ExcellentFlags >> 4) & 0x01)
         {
-            ip->SpecialValue[ip->SpecialNum] = 5;
-            ip->Special[ip->SpecialNum] = AT_IMPROVE_ATTACK_SPEED; ip->SpecialNum++;
+            GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_ATTACK_SPEED, 5);
         }
     }
     else if (ip->Type == ITEM_CAPE_OF_LORD
@@ -323,51 +336,43 @@ void CalcWingOptions(ITEM* ip)
     {
         if (ip->ExcellentFlags & 0x01)
         {
-            ip->SpecialValue[ip->SpecialNum] = 50 + ip->Level * 5;
-            ip->Special[ip->SpecialNum] = AT_IMPROVE_HP_MAX; ip->SpecialNum++;
+            GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_HP_MAX, 50 + ip->Level * 5);
         }
 
         if ((ip->ExcellentFlags >> 1) & 0x01)
         {
-            ip->SpecialValue[ip->SpecialNum] = 50 + ip->Level * 5;
-            ip->Special[ip->SpecialNum] = AT_IMPROVE_MP_MAX; ip->SpecialNum++;
+            GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_MP_MAX, 50 + ip->Level * 5);
         }
 
         if ((ip->ExcellentFlags >> 2) & 0x01)
         {
-            ip->SpecialValue[ip->SpecialNum] = 3;
-            ip->Special[ip->SpecialNum] = AT_ONE_PERCENT_DAMAGE; ip->SpecialNum++;
+            GameLogic::Items::AddOptionSlot(*ip, AT_ONE_PERCENT_DAMAGE, 3);
         }
 
         if ((ip->ExcellentFlags >> 3) & 0x01
             && (ip->Type != ITEM_CAPE_OF_FIGHTER)
         )
         {
-            ip->SpecialValue[ip->SpecialNum] = 10 + ip->Level * 5;
-            ip->Special[ip->SpecialNum] = AT_SET_OPTION_IMPROVE_CHARISMA; ip->SpecialNum++;
+            GameLogic::Items::AddOptionSlot(*ip, AT_SET_OPTION_IMPROVE_CHARISMA, 10 + ip->Level * 5);
         }
     }
     else if (GameLogic::Items::IsThirdTierWing(ip))
     {
         if (ip->ExcellentFlags & 0x01)
         {
-            ip->SpecialValue[ip->SpecialNum] = 5;
-            ip->Special[ip->SpecialNum] = AT_ONE_PERCENT_DAMAGE; ip->SpecialNum++;
+            GameLogic::Items::AddOptionSlot(*ip, AT_ONE_PERCENT_DAMAGE, 5);
         }
         if ((ip->ExcellentFlags >> 1) & 0x01)
         {
-            ip->SpecialValue[ip->SpecialNum] = 5;
-            ip->Special[ip->SpecialNum] = AT_DAMAGE_REFLECTION; ip->SpecialNum++;
+            GameLogic::Items::AddOptionSlot(*ip, AT_DAMAGE_REFLECTION, 5);
         }
         if ((ip->ExcellentFlags >> 2) & 0x01)
         {
-            ip->SpecialValue[ip->SpecialNum] = 5;
-            ip->Special[ip->SpecialNum] = AT_RECOVER_FULL_LIFE; ip->SpecialNum++;
+            GameLogic::Items::AddOptionSlot(*ip, AT_RECOVER_FULL_LIFE, 5);
         }
         if ((ip->ExcellentFlags >> 3) & 0x01)
         {
-            ip->SpecialValue[ip->SpecialNum] = 5;
-            ip->Special[ip->SpecialNum] = AT_RECOVER_FULL_MANA; ip->SpecialNum++;
+            GameLogic::Items::AddOptionSlot(*ip, AT_RECOVER_FULL_MANA, 5);
         }
     }
 }
@@ -379,34 +384,34 @@ void CalcExcellentOptions(ITEM* ip)
         // todo: add enum for these flags
         if ((ip->ExcellentFlags >> 5) & 1)
         {
-            ip->Special[ip->SpecialNum] = AT_IMPROVE_LIFE; ip->SpecialNum++;
+            GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_LIFE);
         }
         if ((ip->ExcellentFlags >> 4) & 1)
         {
-            ip->Special[ip->SpecialNum] = AT_IMPROVE_MANA; ip->SpecialNum++;
+            GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_MANA);
         }
         if ((ip->ExcellentFlags >> 3) & 1)
         {
-            ip->Special[ip->SpecialNum] = AT_DECREASE_DAMAGE; ip->SpecialNum++;
+            GameLogic::Items::AddOptionSlot(*ip, AT_DECREASE_DAMAGE);
         }
         if ((ip->ExcellentFlags >> 2) & 1)
         {
-            ip->Special[ip->SpecialNum] = AT_REFLECTION_DAMAGE; ip->SpecialNum++;
+            GameLogic::Items::AddOptionSlot(*ip, AT_REFLECTION_DAMAGE);
         }
         if ((ip->ExcellentFlags >> 1) & 1)
         {
-            ip->Special[ip->SpecialNum] = AT_IMPROVE_BLOCKING_PERCENT; ip->SpecialNum++;
+            GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_BLOCKING_PERCENT);
         }
         if ((ip->ExcellentFlags) & 1)
         {
-            ip->Special[ip->SpecialNum] = AT_IMPROVE_GAIN_GOLD; ip->SpecialNum++;
+            GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_GAIN_GOLD);
         }
     }
     if ((ip->Type >= ITEM_SWORD && ip->Type < ITEM_STAFF + MAX_ITEM_INDEX) || (ip->Type >= ITEM_PENDANT_OF_LIGHTING && ip->Type <= ITEM_PENDANT_OF_FIRE) || (ip->Type >= ITEM_PENDANT_OF_ICE && ip->Type <= ITEM_PENDANT_OF_ABILITY))
     {
         if ((ip->ExcellentFlags >> 5) & 1)
         {
-            ip->Special[ip->SpecialNum] = AT_EXCELLENT_DAMAGE; ip->SpecialNum++;
+            GameLogic::Items::AddOptionSlot(*ip, AT_EXCELLENT_DAMAGE);
         }
         if ((ip->Type >= ITEM_STAFF && ip->Type < ITEM_STAFF + MAX_ITEM_INDEX) ||
             (ip->Type == ITEM_PENDANT_OF_LIGHTING)
@@ -414,40 +419,35 @@ void CalcExcellentOptions(ITEM* ip)
         {
             if ((ip->ExcellentFlags >> 4) & 1)
             {
-                ip->SpecialValue[ip->SpecialNum] = CharacterAttribute->Level / 20;
-                ip->Special[ip->SpecialNum] = AT_IMPROVE_MAGIC_LEVEL; ip->SpecialNum++;
+                GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_MAGIC_LEVEL, CharacterAttribute->Level / 20);
             }
             if ((ip->ExcellentFlags >> 3) & 1)
             {
-                ip->SpecialValue[ip->SpecialNum] = 2;
-                ip->Special[ip->SpecialNum] = AT_IMPROVE_MAGIC_PERCENT; ip->SpecialNum++;
+                GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_MAGIC_PERCENT, 2);
             }
         }
         else
         {
             if ((ip->ExcellentFlags >> 4) & 1)
             {
-                ip->SpecialValue[ip->SpecialNum] = CharacterAttribute->Level / 20;
-                ip->Special[ip->SpecialNum] = AT_IMPROVE_DAMAGE_LEVEL; ip->SpecialNum++;
+                GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_DAMAGE_LEVEL, CharacterAttribute->Level / 20);
             }
             if ((ip->ExcellentFlags >> 3) & 1)
             {
-                ip->SpecialValue[ip->SpecialNum] = 2;
-                ip->Special[ip->SpecialNum] = AT_IMPROVE_DAMAGE_PERCENT; ip->SpecialNum++;
+                GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_DAMAGE_PERCENT, 2);
             }
         }
         if ((ip->ExcellentFlags >> 2) & 1)
         {
-            ip->SpecialValue[ip->SpecialNum] = 7;
-            ip->Special[ip->SpecialNum] = AT_IMPROVE_ATTACK_SPEED; ip->SpecialNum++;
+            GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_ATTACK_SPEED, 7);
         }
         if ((ip->ExcellentFlags >> 1) & 1)
         {
-            ip->Special[ip->SpecialNum] = AT_IMPROVE_GAIN_LIFE; ip->SpecialNum++;
+            GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_GAIN_LIFE);
         }
         if ((ip->ExcellentFlags) & 1)
         {
-            ip->Special[ip->SpecialNum] = AT_IMPROVE_GAIN_MANA; ip->SpecialNum++;
+            GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_GAIN_MANA);
         }
     }
     if (ip->Type == ITEM_WIZARDS_RING)
@@ -455,31 +455,18 @@ void CalcExcellentOptions(ITEM* ip)
         switch (ip->Level)
         {
         case 0:
-            ip->SpecialValue[ip->SpecialNum] = 10;
-            ip->Special[ip->SpecialNum] = AT_IMPROVE_MAGIC_PERCENT; ip->SpecialNum++;
-            ip->SpecialValue[ip->SpecialNum] = 10;
-            ip->Special[ip->SpecialNum] = AT_IMPROVE_DAMAGE_PERCENT; ip->SpecialNum++;
-            ip->SpecialValue[ip->SpecialNum] = 10;
-            ip->Special[ip->SpecialNum] = AT_IMPROVE_ATTACK_SPEED; ip->SpecialNum++;
-            break;
         case 3:
-            ip->SpecialValue[ip->SpecialNum] = 10;
-            ip->Special[ip->SpecialNum] = AT_IMPROVE_MAGIC_PERCENT; ip->SpecialNum++;
-            ip->SpecialValue[ip->SpecialNum] = 10;
-            ip->Special[ip->SpecialNum] = AT_IMPROVE_DAMAGE_PERCENT; ip->SpecialNum++;
-            ip->SpecialValue[ip->SpecialNum] = 10;
-            ip->Special[ip->SpecialNum] = AT_IMPROVE_ATTACK_SPEED; ip->SpecialNum++;
+            GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_MAGIC_PERCENT, 10);
+            GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_DAMAGE_PERCENT, 10);
+            GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_ATTACK_SPEED, 10);
             break;
         }
     }
     if (ip->Type == ITEM_LETHAL_WIZARDS_RING)
     {
-        ip->SpecialValue[ip->SpecialNum] = 15;
-        ip->Special[ip->SpecialNum] = AT_IMPROVE_MAGIC_PERCENT; ip->SpecialNum++;
-        ip->SpecialValue[ip->SpecialNum] = 15;
-        ip->Special[ip->SpecialNum] = AT_IMPROVE_DAMAGE_PERCENT; ip->SpecialNum++;
-        ip->SpecialValue[ip->SpecialNum] = 10;
-        ip->Special[ip->SpecialNum] = AT_IMPROVE_ATTACK_SPEED; ip->SpecialNum++;
+        GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_MAGIC_PERCENT, 15);
+        GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_DAMAGE_PERCENT, 15);
+        GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_ATTACK_SPEED, 10);
     }
 }
 
@@ -514,38 +501,11 @@ void SetItemAttributes(ITEM* ip)
     {
         if (p->m_wSkillIndex != 0)
         {
-            ip->Special[ip->SpecialNum] = p->m_wSkillIndex;
-            ip->SpecialNum++;
+            GameLogic::Items::AddOptionSlot(*ip, p->m_wSkillIndex);
         }
     }
 
-    if (ip->HasLuck)
-    {
-        if (ip->Type >= ITEM_SWORD && ip->Type < ITEM_BOOTS + MAX_ITEM_INDEX)
-        {
-            if (!GameLogic::Items::IsAmmunition(ip))
-            {
-                ip->Special[ip->SpecialNum] = AT_LUCK;
-                ip->SpecialNum++;
-            }
-        }
-        if ((ip->Type >= ITEM_WING && ip->Type <= ITEM_WINGS_OF_DARKNESS) || (ip->Type >= ITEM_WING_OF_CURSE && ip->Type <= ITEM_WINGS_OF_DESPAIR))
-        {
-            ip->Special[ip->SpecialNum] = AT_LUCK;
-            ip->SpecialNum++;
-        }
-        if (ip->Type == ITEM_CAPE_OF_LORD
-            || ip->Type == ITEM_CAPE_OF_FIGHTER)
-        {
-            ip->Special[ip->SpecialNum] = AT_LUCK;
-            ip->SpecialNum++;
-        }
-        if (GameLogic::Items::IsThirdTierWing(ip))
-        {
-            ip->Special[ip->SpecialNum] = AT_LUCK;
-            ip->SpecialNum++;
-        }
-    }
+    GameLogic::Items::AddLinkedOptions(*ip, Data::Items::ItemOptionType::Luck);
 
     int Option3 = ip->OptionLevel;
     if (Option3)
@@ -554,18 +514,15 @@ void SetItemAttributes(ITEM* ip)
         {
             if (Option3 & 0x01)
             {
-                ip->SpecialValue[ip->SpecialNum] = 5;
-                ip->Special[ip->SpecialNum] = AT_DAMAGE_ABSORB; ip->SpecialNum++;
+                GameLogic::Items::AddOptionSlot(*ip, AT_DAMAGE_ABSORB, 5);
             }
             if ((Option3 >> 1) & 0x01)
             {
-                ip->SpecialValue[ip->SpecialNum] = 50;
-                ip->Special[ip->SpecialNum] = AT_IMPROVE_AG_MAX; ip->SpecialNum++;
+                GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_AG_MAX, 50);
             }
             if ((Option3 >> 2) & 0x01)
             {
-                ip->SpecialValue[ip->SpecialNum] = 5;
-                ip->Special[ip->SpecialNum] = AT_IMPROVE_ATTACK_SPEED; ip->SpecialNum++;
+                GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_ATTACK_SPEED, 5);
             }
         }
         else
@@ -574,253 +531,207 @@ void SetItemAttributes(ITEM* ip)
             {
                 if (!GameLogic::Items::IsAmmunition(ip))
                 {
-                    ip->SpecialValue[ip->SpecialNum] = Option3 * 4;
-                    ip->Special[ip->SpecialNum] = AT_IMPROVE_DAMAGE; ip->SpecialNum++;
+                    GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_DAMAGE, Option3 * 4);
                 }
             }
             if (ip->Type >= ITEM_STAFF && ip->Type < ITEM_STAFF + MAX_ITEM_INDEX)
             {
-                ip->SpecialValue[ip->SpecialNum] = Option3 * 4;
-                if (GameLogic::Items::IsSummonerBook(ip))
-                    ip->Special[ip->SpecialNum] = AT_IMPROVE_CURSE;
-                else
-                    ip->Special[ip->SpecialNum] = AT_IMPROVE_MAGIC;
-                ip->SpecialNum++;
+                const WORD option = GameLogic::Items::IsSummonerBook(ip) ? AT_IMPROVE_CURSE : AT_IMPROVE_MAGIC;
+                GameLogic::Items::AddOptionSlot(*ip, option, Option3 * 4);
             }
             if (ip->Type >= ITEM_SHIELD && ip->Type < ITEM_SHIELD + MAX_ITEM_INDEX)
             {
-                ip->SpecialValue[ip->SpecialNum] = Option3 * 5;
-                ip->Special[ip->SpecialNum] = AT_IMPROVE_BLOCKING; ip->SpecialNum++;
+                GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_BLOCKING, Option3 * 5);
             }
             if (ip->Type >= ITEM_HELM && ip->Type < ITEM_BOOTS + MAX_ITEM_INDEX)
             {
-                ip->SpecialValue[ip->SpecialNum] = Option3 * 4;
-                ip->Special[ip->SpecialNum] = AT_IMPROVE_DEFENSE; ip->SpecialNum++;
+                GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_DEFENSE, Option3 * 4);
             }
             if (ip->Type >= ITEM_RING_OF_ICE && ip->Type < ITEM_HELPER + MAX_ITEM_INDEX && ip->Type != ITEM_CAPE_OF_LORD)
             {
                 if (ip->Type == ITEM_RING_OF_MAGIC)
                 {
-                    ip->SpecialValue[ip->SpecialNum] = Option3;
-                    ip->Special[ip->SpecialNum] = AT_IMPROVE_MAX_MANA; ip->SpecialNum++;
+                    GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_MAX_MANA, Option3);
                 }
                 else if (ip->Type == ITEM_PENDANT_OF_ABILITY)
                 {
-                    ip->SpecialValue[ip->SpecialNum] = Option3;
-                    ip->Special[ip->SpecialNum] = AT_IMPROVE_MAX_AG; ip->SpecialNum++;
+                    GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_MAX_AG, Option3);
                 }
                 else
                 {
-                    ip->SpecialValue[ip->SpecialNum] = Option3;
-                    ip->Special[ip->SpecialNum] = AT_LIFE_REGENERATION; ip->SpecialNum++;
+                    GameLogic::Items::AddOptionSlot(*ip, AT_LIFE_REGENERATION, Option3);
                 }
             }
             if (ip->Type == ITEM_WING)
             {
-                ip->SpecialValue[ip->SpecialNum] = Option3;
-                ip->Special[ip->SpecialNum] = AT_LIFE_REGENERATION; ip->SpecialNum++;
+                GameLogic::Items::AddOptionSlot(*ip, AT_LIFE_REGENERATION, Option3);
             }
             else if (ip->Type == ITEM_WINGS_OF_HEAVEN || ip->Type == ITEM_WING_OF_CURSE)
             {
-                ip->SpecialValue[ip->SpecialNum] = Option3 * 4;
-                ip->Special[ip->SpecialNum] = AT_IMPROVE_MAGIC; ip->SpecialNum++;
+                GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_MAGIC, Option3 * 4);
             }
             else if (ip->Type == ITEM_WINGS_OF_SATAN)
             {
-                ip->SpecialValue[ip->SpecialNum] = Option3 * 4;
-                ip->Special[ip->SpecialNum] = AT_IMPROVE_DAMAGE; ip->SpecialNum++;
+                GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_DAMAGE, Option3 * 4);
             }
             else if (ip->Type == ITEM_WINGS_OF_SPIRITS)
             {
                 if (ip->OptionType == 2)
                 {
-                    ip->SpecialValue[ip->SpecialNum] = Option3;
-                    ip->Special[ip->SpecialNum] = AT_LIFE_REGENERATION; ip->SpecialNum++;
+                    GameLogic::Items::AddOptionSlot(*ip, AT_LIFE_REGENERATION, Option3);
                 }
                 if (ip->OptionType == 0)
                 {
-                    ip->SpecialValue[ip->SpecialNum] = Option3 * 4;
-                    ip->Special[ip->SpecialNum] = AT_IMPROVE_DAMAGE; ip->SpecialNum++;
+                    GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_DAMAGE, Option3 * 4);
                 }
             }
             else if (ip->Type == ITEM_WINGS_OF_SOUL)
             {
                 if (ip->OptionType == 0)
                 {
-                    ip->SpecialValue[ip->SpecialNum] = Option3;
-                    ip->Special[ip->SpecialNum] = AT_LIFE_REGENERATION; ip->SpecialNum++;
+                    GameLogic::Items::AddOptionSlot(*ip, AT_LIFE_REGENERATION, Option3);
                 }
                 if (ip->OptionType == 2)
                 {
-                    ip->SpecialValue[ip->SpecialNum] = Option3 * 4;
-                    ip->Special[ip->SpecialNum] = AT_IMPROVE_MAGIC; ip->SpecialNum++;
+                    GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_MAGIC, Option3 * 4);
                 }
             }
             else if (ip->Type == ITEM_WINGS_OF_DRAGON)
             {
                 if (ip->OptionType == 2)
                 {
-                    ip->SpecialValue[ip->SpecialNum] = Option3 * 4;
-                    ip->Special[ip->SpecialNum] = AT_IMPROVE_DAMAGE; ip->SpecialNum++;
+                    GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_DAMAGE, Option3 * 4);
                 }
                 if (ip->OptionType == 0)
                 {
-                    ip->SpecialValue[ip->SpecialNum] = Option3;
-                    ip->Special[ip->SpecialNum] = AT_LIFE_REGENERATION; ip->SpecialNum++;
+                    GameLogic::Items::AddOptionSlot(*ip, AT_LIFE_REGENERATION, Option3);
                 }
             }
             else if (ip->Type == ITEM_WINGS_OF_DARKNESS)
             {
                 if (ip->OptionType == 2)
                 {
-                    ip->SpecialValue[ip->SpecialNum] = Option3 * 4;
-                    ip->Special[ip->SpecialNum] = AT_IMPROVE_DAMAGE; ip->SpecialNum++;
+                    GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_DAMAGE, Option3 * 4);
                 }
                 if (ip->OptionType == 0)
                 {
-                    ip->SpecialValue[ip->SpecialNum] = Option3 * 4;
-                    ip->Special[ip->SpecialNum] = AT_IMPROVE_MAGIC; ip->SpecialNum++;
+                    GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_MAGIC, Option3 * 4);
                 }
             }
             else if (ip->Type == ITEM_CAPE_OF_LORD)
             {
-                ip->SpecialValue[ip->SpecialNum] = Option3 * 4;
-                ip->Special[ip->SpecialNum] = AT_IMPROVE_DAMAGE; ip->SpecialNum++;
+                GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_DAMAGE, Option3 * 4);
             }
             else if (ip->Type == ITEM_CAPE_OF_FIGHTER)
             {
                 if (ip->OptionType == 2)
                 {
-                    ip->SpecialValue[ip->SpecialNum] = Option3 * 4;
-                    ip->Special[ip->SpecialNum] = AT_IMPROVE_DAMAGE; ip->SpecialNum++;
+                    GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_DAMAGE, Option3 * 4);
                 }
                 if (ip->OptionType == 0)
                 {
-                    ip->SpecialValue[ip->SpecialNum] = Option3;
-                    ip->Special[ip->SpecialNum] = AT_LIFE_REGENERATION; ip->SpecialNum++;
+                    GameLogic::Items::AddOptionSlot(*ip, AT_LIFE_REGENERATION, Option3);
                 }
             }
             else if (ip->Type == ITEM_WINGS_OF_DESPAIR)
             {
-                ip->SpecialValue[ip->SpecialNum] = Option3 * 4;
-
                 if (ip->OptionType == 2)
                 {
-                    ip->Special[ip->SpecialNum] = AT_IMPROVE_MAGIC;
+                    GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_MAGIC, Option3 * 4);
                 }
                 if (ip->OptionType == 0)
                 {
-                    ip->Special[ip->SpecialNum] = AT_IMPROVE_CURSE;
+                    GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_CURSE, Option3 * 4);
                 }
-
-                ip->SpecialNum++;
             }
             else if (ip->Type == ITEM_WING_OF_STORM)
             {
                 if (ip->OptionType == 0)
                 {
-                    ip->SpecialValue[ip->SpecialNum] = Option3;
-                    ip->Special[ip->SpecialNum] = AT_LIFE_REGENERATION; ip->SpecialNum++;
+                    GameLogic::Items::AddOptionSlot(*ip, AT_LIFE_REGENERATION, Option3);
                 }
                 else if (ip->OptionType == 2)
                 {
-                    ip->SpecialValue[ip->SpecialNum] = Option3 * 4;
-                    ip->Special[ip->SpecialNum] = AT_IMPROVE_DEFENSE; ip->SpecialNum++;
+                    GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_DEFENSE, Option3 * 4);
                 }
                 else if (ip->OptionType == 3)
                 {
-                    ip->SpecialValue[ip->SpecialNum] = Option3 * 4;
-                    ip->Special[ip->SpecialNum] = AT_IMPROVE_DAMAGE; ip->SpecialNum++;
+                    GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_DAMAGE, Option3 * 4);
                 }
             }
             else if (ip->Type == ITEM_WING_OF_ETERNAL)
             {
                 if (ip->OptionType == 0)
                 {
-                    ip->SpecialValue[ip->SpecialNum] = Option3;
-                    ip->Special[ip->SpecialNum] = AT_LIFE_REGENERATION; ip->SpecialNum++;
+                    GameLogic::Items::AddOptionSlot(*ip, AT_LIFE_REGENERATION, Option3);
                 }
                 else if (ip->OptionType == 2)
                 {
-                    ip->SpecialValue[ip->SpecialNum] = Option3 * 4;
-                    ip->Special[ip->SpecialNum] = AT_IMPROVE_DEFENSE; ip->SpecialNum++;
+                    GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_DEFENSE, Option3 * 4);
                 }
                 else if (ip->OptionType == 3)
                 {
-                    ip->SpecialValue[ip->SpecialNum] = Option3 * 4;
-                    ip->Special[ip->SpecialNum] = AT_IMPROVE_MAGIC; ip->SpecialNum++;
+                    GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_MAGIC, Option3 * 4);
                 }
             }
             else if (ip->Type == ITEM_WING_OF_ILLUSION)
             {
                 if (ip->OptionType == 0)
                 {
-                    ip->SpecialValue[ip->SpecialNum] = Option3;
-                    ip->Special[ip->SpecialNum] = AT_LIFE_REGENERATION; ip->SpecialNum++;
+                    GameLogic::Items::AddOptionSlot(*ip, AT_LIFE_REGENERATION, Option3);
                 }
                 else if (ip->OptionType == 2)
                 {
-                    ip->SpecialValue[ip->SpecialNum] = Option3 * 4;
-                    ip->Special[ip->SpecialNum] = AT_IMPROVE_DEFENSE; ip->SpecialNum++;
+                    GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_DEFENSE, Option3 * 4);
                 }
                 else if (ip->OptionType == 3)
                 {
-                    ip->SpecialValue[ip->SpecialNum] = Option3 * 4;
-                    ip->Special[ip->SpecialNum] = AT_IMPROVE_DAMAGE; ip->SpecialNum++;
+                    GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_DAMAGE, Option3 * 4);
                 }
             }
             else if (ip->Type == ITEM_WING_OF_RUIN)
             {
                 if (ip->OptionType == 0)
                 {
-                    ip->SpecialValue[ip->SpecialNum] = Option3;
-                    ip->Special[ip->SpecialNum] = AT_LIFE_REGENERATION; ip->SpecialNum++;
+                    GameLogic::Items::AddOptionSlot(*ip, AT_LIFE_REGENERATION, Option3);
                 }
                 else if (ip->OptionType == 2)
                 {
-                    ip->SpecialValue[ip->SpecialNum] = Option3 * 4;
-                    ip->Special[ip->SpecialNum] = AT_IMPROVE_MAGIC; ip->SpecialNum++;
+                    GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_MAGIC, Option3 * 4);
                 }
                 else if (ip->OptionType == 3)
                 {
-                    ip->SpecialValue[ip->SpecialNum] = Option3 * 4;
-                    ip->Special[ip->SpecialNum] = AT_IMPROVE_DAMAGE; ip->SpecialNum++;
+                    GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_DAMAGE, Option3 * 4);
                 }
             }
             else if (ip->Type == ITEM_CAPE_OF_EMPEROR || ip->Type == ITEM_CAPE_OF_OVERRULE)
             {
                 if (ip->OptionType == 0)
                 {
-                    ip->SpecialValue[ip->SpecialNum] = Option3;
-                    ip->Special[ip->SpecialNum] = AT_LIFE_REGENERATION; ip->SpecialNum++;
+                    GameLogic::Items::AddOptionSlot(*ip, AT_LIFE_REGENERATION, Option3);
                 }
                 else if (ip->OptionType == 2)
                 {
-                    ip->SpecialValue[ip->SpecialNum] = Option3 * 4;
-                    ip->Special[ip->SpecialNum] = AT_IMPROVE_DEFENSE; ip->SpecialNum++;
+                    GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_DEFENSE, Option3 * 4);
                 }
                 else if (ip->OptionType == 3)
                 {
-                    ip->SpecialValue[ip->SpecialNum] = Option3 * 4;
-                    ip->Special[ip->SpecialNum] = AT_IMPROVE_DAMAGE; ip->SpecialNum++;
+                    GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_DAMAGE, Option3 * 4);
                 }
             }
             else if (ip->Type == ITEM_WING_OF_DIMENSION)
             {
                 if (ip->OptionType == 0)
                 {
-                    ip->SpecialValue[ip->SpecialNum] = Option3;
-                    ip->Special[ip->SpecialNum] = AT_LIFE_REGENERATION; ip->SpecialNum++;
+                    GameLogic::Items::AddOptionSlot(*ip, AT_LIFE_REGENERATION, Option3);
                 }
                 else if (ip->OptionType == 2)
                 {
-                    ip->SpecialValue[ip->SpecialNum] = Option3 * 4;
-                    ip->Special[ip->SpecialNum] = AT_IMPROVE_CURSE; ip->SpecialNum++;
+                    GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_CURSE, Option3 * 4);
                 }
                 else if (ip->OptionType == 3)
                 {
-                    ip->SpecialValue[ip->SpecialNum] = Option3 * 4;
-                    ip->Special[ip->SpecialNum] = AT_IMPROVE_MAGIC; ip->SpecialNum++;
+                    GameLogic::Items::AddOptionSlot(*ip, AT_IMPROVE_MAGIC, Option3 * 4);
                 }
             }
         }

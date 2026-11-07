@@ -8,6 +8,7 @@
 #include "Core/Platform/PathResolve.h"
 #include "Core/Utilities/Log/MuLogger.h"
 #include "Core/Platform/WinCompat.h"
+#include "Core/Text/Utf8Path.h"
 
 #include <algorithm>
 #include <cmath>
@@ -134,6 +135,14 @@ bool MiniAudioBackend::AddSlotsUpTo(int buffer)
     m_soundLoaded.resize(count);
     m_activeChannel.resize(count);
     m_loadedChannels.resize(count);
+    m_mixGain.resize(count, 1.0f);
+    m_mixGroup.resize(count);
+    m_channelVolume.resize(count);
+    m_channelLevel.resize(count);
+    m_channelGain.resize(count);
+    m_channelGroup.resize(count);
+    m_channelMixed.resize(count);
+    m_starts.resize(count);
     return true;
 }
 
@@ -274,15 +283,62 @@ void MiniAudioBackend::LoadSound(ESound buffer, const wchar_t* filename, int cha
 // ---------------------------------------------------------------------------
 bool MiniAudioBackend::PlaySound(ESound buffer, const void* pObject, bool looped)
 {
-    return StartSound(buffer, pObject, looped, m_sfxVolume);
+    return StartSound(buffer, pObject, looped, 1.0f, true);
 }
 
 bool MiniAudioBackend::PlaySoundAtLevel(ESound buffer, float level)
 {
-    return StartSound(buffer, nullptr, false, std::clamp(level, 0.0f, 1.0f));
+    return StartSound(buffer, nullptr, false, std::clamp(level, 0.0f, 1.0f), false);
 }
 
-bool MiniAudioBackend::StartSound(ESound buffer, const void* pObject, bool looped, float volume)
+bool MiniAudioBackend::PlaySoundOnFreeChannel(ESound buffer, float level)
+{
+    if (!m_initialized)
+    {
+        return false;
+    }
+    const int bufIdx = static_cast<int>(buffer);
+    if (!HasSlot(bufIdx) || !m_soundLoaded[bufIdx])
+    {
+        return false;
+    }
+
+    // Round the channels as DirectSound did; a channel that still plays keeps
+    // playing (DirectSound's Play on a playing buffer did nothing).
+    const int ch = m_activeChannel[bufIdx];
+    m_activeChannel[bufIdx] = (ch + 1) % m_loadedChannels[bufIdx];
+    ma_sound* pSound = &m_sounds[bufIdx][ch];
+    if (ma_sound_is_playing(pSound))
+    {
+        return true;
+    }
+
+    // The channel has ended or never played: from the start, once, at its
+    // level of the effect volume.
+    ma_sound_seek_to_pcm_frame(pSound, 0);
+    ma_sound_set_looping(pSound, MA_FALSE);
+    StartChannelVolume(bufIdx, ch, std::clamp(level, 0.0f, 1.0f), true);
+    ma_sound_start(pSound);
+    ++m_starts[bufIdx];
+    return true;
+}
+
+void MiniAudioBackend::StartChannelVolume(int buffer, int channel, float level, bool mixed)
+{
+    m_channelLevel[buffer][channel] = level;
+    m_channelGain[buffer][channel] = m_mixGain[buffer];
+    m_channelGroup[buffer][channel] = m_mixGroup[buffer];
+    SetChannelVolume(buffer, channel, mixed ? m_sfxVolume * level : level, mixed);
+}
+
+void MiniAudioBackend::SetChannelVolume(int buffer, int channel, float volume, bool mixed)
+{
+    m_channelVolume[buffer][channel] = volume;
+    m_channelMixed[buffer][channel] = mixed;
+    ma_sound_set_volume(&m_sounds[buffer][channel], mixed ? volume * m_channelGain[buffer][channel] : volume);
+}
+
+bool MiniAudioBackend::StartSound(ESound buffer, const void* pObject, bool looped, float level, bool mixed)
 {
     if (!m_initialized)
     {
@@ -343,10 +399,14 @@ bool MiniAudioBackend::StartSound(ESound buffer, const void* pObject, bool loope
     // start() is subject to a data race on the first mix tick.
     ma_sound_set_looping(pSound, looped ? MA_TRUE : MA_FALSE);
 
-    // The effect volume, or a preview's own level.
-    ma_sound_set_volume(pSound, volume);
+    // Its level of the effect volume, or a preview's own level.
+    StartChannelVolume(bufIdx, ch, level, mixed);
 
     ma_sound_start(pSound);
+    if (mixed)
+    {
+        ++m_starts[bufIdx];
+    }
 
     return true;
 }
@@ -468,7 +528,7 @@ void MiniAudioBackend::SetVolume(ESound buffer, long vol)
     const float linear = DbToLinear(vol);
     for (int ch = 0; ch < m_loadedChannels[bufIdx]; ++ch)
     {
-        ma_sound_set_volume(&m_sounds[bufIdx][ch], linear);
+        SetChannelVolume(bufIdx, ch, linear, m_channelMixed[bufIdx][ch]);
     }
 }
 
@@ -519,6 +579,7 @@ void MiniAudioBackend::PlayMusic(const char* name, bool enforce)
 
     std::erase(m_failedMusicNames, identity);
     m_currentMusicName = std::move(identity);
+    ++m_musicStarts;
 }
 
 bool MiniAudioBackend::HasFailedMusicTrack(const char* name) const
@@ -535,7 +596,7 @@ bool MiniAudioBackend::StartMusicStream(const std::string& identity)
     const std::string filePath = MuResolvePath(identity.c_str());
 #endif
     std::error_code error;
-    if (!std::filesystem::is_regular_file(std::filesystem::u8path(filePath), error))
+    if (!std::filesystem::is_regular_file(Core::Text::PathFromUtf8(filePath), error))
     {
         mu::log::Get("audio")->error("AUDIO: MiniAudioBackend::PlayMusic -- unavailable music file '{}' ({})",
             filePath, error ? error.message() : "not a regular file");
@@ -543,7 +604,9 @@ bool MiniAudioBackend::StartMusicStream(const std::string& identity)
     }
 
     // Synchronous init keeps IsEndMusic() accurate while starting. Missing files never reach
-    // the resource-manager job queue; decoder failures are remembered by PlayMusic().
+    // the resource-manager job queue; decoder failures are remembered by PlayMusic(). The pinned
+    // miniaudio is patched so a failed stream load cannot stall the next one
+    // (cmake/patches/miniaudio-0.11.25-stream-load-signal-order.patch).
     ma_result result = ma_sound_init_from_file(&m_engine, filePath.c_str(), MA_SOUND_FLAG_STREAM,
         nullptr, nullptr, &m_musicSound);
     if (result != MA_SUCCESS)
@@ -554,7 +617,7 @@ bool MiniAudioBackend::StartMusicStream(const std::string& identity)
     }
 
     ma_sound_set_looping(&m_musicSound, MA_TRUE);
-    ma_sound_set_volume(&m_musicSound, m_bgmVolume);
+    ma_sound_set_volume(&m_musicSound, m_bgmVolume * m_musicMixGain);
     result = ma_sound_start(&m_musicSound);
     if (result != MA_SUCCESS)
     {
@@ -631,14 +694,10 @@ bool MiniAudioBackend::IsEndMusic()
 // Mirrors wzAudioGetStreamOffsetRange() return value from MuMain.cpp.
 // Returns 0 when not initialized or no music loaded.
 //
-// Music is loaded with
-// MA_SOUND_FLAG_STREAM | MA_SOUND_FLAG_ASYNC. For streaming sounds,
-// ma_sound_get_length_in_pcm_frames() returns MA_RESULT indicating the length
-// is unavailable while the stream is still opening — totalFrames stays 0.
-// Fix: use ma_sound_get_cursor_in_seconds() for the cursor and
-// ma_sound_get_length_in_seconds() for the total length. The seconds API uses
-// the data-source length which streams can report even while decoding.
-// If length is still unavailable (streaming not yet started), fall back to 0.
+// Music is streamed with MA_SOUND_FLAG_STREAM and loaded synchronously, so the
+// stream's length is known once PlayMusic() has started it. Cursor and length
+// are read in seconds. A length of 0 (an empty file or a format that cannot
+// report one) gives 0.
 // ---------------------------------------------------------------------------
 int MiniAudioBackend::GetMusicPosition()
 {
@@ -651,15 +710,14 @@ int MiniAudioBackend::GetMusicPosition()
     float cursorSeconds = 0.0f;
     ma_sound_get_cursor_in_seconds(&m_musicSound, &cursorSeconds);
 
-    // Get total track length in seconds — works for streaming sounds unlike
-    // ma_sound_get_length_in_pcm_frames() which returns 0 until fully decoded.
+    // Get total track length in seconds
     float totalSeconds = 0.0f;
     ma_sound_get_length_in_seconds(&m_musicSound, &totalSeconds);
 
     if (totalSeconds <= 0.0f)
     {
-        // Length not yet available (stream still opening) — return 0.
-        // Callers checking for "IsEndMusic()" should use IsEndMusic() instead.
+        // No length to divide by. Callers checking for the end of the track
+        // should use IsEndMusic() instead.
         return 0;
     }
 
@@ -698,7 +756,41 @@ void MiniAudioBackend::SetBGMVolume(float level)
     m_bgmVolume = std::clamp(level, 0.0f, 1.0f);
     if (m_initialized && m_musicLoaded)
     {
-        ma_sound_set_volume(&m_musicSound, m_bgmVolume);
+        ma_sound_set_volume(&m_musicSound, m_bgmVolume * m_musicMixGain);
+    }
+}
+
+void MiniAudioBackend::SetMusicMixGain(float gain)
+{
+    m_musicMixGain = std::clamp(gain, 0.0f, 1.0f);
+    if (m_initialized && m_musicLoaded)
+    {
+        ma_sound_set_volume(&m_musicSound, m_bgmVolume * m_musicMixGain);
+    }
+}
+
+void MiniAudioBackend::SetSoundMixGain(ESound buffer, int group, float gain)
+{
+    const int bufIdx = static_cast<int>(buffer);
+    if (!HasSlot(bufIdx))
+    {
+        return;
+    }
+    m_mixGain[bufIdx] = std::clamp(gain, 0.0f, 1.0f);
+    m_mixGroup[bufIdx] = group;
+    if (!m_initialized || !m_soundLoaded[bufIdx])
+    {
+        return;
+    }
+    // The group's playing copies follow at once (a muted loop keeps running
+    // silently); copies another group started keep their gain.
+    for (int ch = 0; ch < m_loadedChannels[bufIdx]; ++ch)
+    {
+        if (m_channelMixed[bufIdx][ch] && m_channelGroup[bufIdx][ch] == group)
+        {
+            m_channelGain[bufIdx][ch] = m_mixGain[bufIdx];
+            ma_sound_set_volume(&m_sounds[bufIdx][ch], m_channelVolume[bufIdx][ch] * m_mixGain[bufIdx]);
+        }
     }
 }
 
@@ -714,7 +806,8 @@ void MiniAudioBackend::SetSFXVolume(float level)
     {
         return;
     }
-    // Update all currently-loaded SFX slots
+    // Each game copy that is loaded keeps its level of the new volume (a map
+    // object copy its distance's); a preview keeps its own level.
     for (int buf = 0; buf < GetSlotCount(); ++buf)
     {
         if (!m_soundLoaded[buf])
@@ -723,7 +816,10 @@ void MiniAudioBackend::SetSFXVolume(float level)
         }
         for (int ch = 0; ch < m_loadedChannels[buf]; ++ch)
         {
-            ma_sound_set_volume(&m_sounds[buf][ch], m_sfxVolume);
+            if (m_channelMixed[buf][ch])
+            {
+                SetChannelVolume(buf, ch, m_sfxVolume * m_channelLevel[buf][ch], true);
+            }
         }
     }
 }
@@ -739,6 +835,45 @@ float MiniAudioBackend::GetBGMVolume() const
 float MiniAudioBackend::GetSFXVolume() const
 {
     return m_sfxVolume;
+}
+
+std::uint32_t MiniAudioBackend::GetSoundStarts(ESound buffer) const
+{
+    const int bufIdx = static_cast<int>(buffer);
+    return HasSlot(bufIdx) ? m_starts[bufIdx] : 0;
+}
+
+std::uint32_t MiniAudioBackend::GetMusicStarts() const
+{
+    return m_musicStarts;
+}
+
+bool MiniAudioBackend::IsSoundPlaying(ESound buffer) const
+{
+    const int bufIdx = static_cast<int>(buffer);
+    if (!m_initialized || !HasSlot(bufIdx) || !m_soundLoaded[bufIdx])
+    {
+        return false;
+    }
+    for (int ch = 0; ch < m_loadedChannels[bufIdx]; ++ch)
+    {
+        if (m_channelMixed[bufIdx][ch] && ma_sound_is_playing(&m_sounds[bufIdx][ch]))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+float MiniAudioBackend::GetSoundLength(ESound buffer) const
+{
+    const int bufIdx = static_cast<int>(buffer);
+    if (!m_initialized || !HasSlot(bufIdx) || !m_soundLoaded[bufIdx])
+    {
+        return 0.0f;
+    }
+    float seconds = 0.0f;
+    return ma_sound_get_length_in_seconds(&m_sounds[bufIdx][0], &seconds) == MA_SUCCESS ? seconds : 0.0f;
 }
 
 // ---------------------------------------------------------------------------

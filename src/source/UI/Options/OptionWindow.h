@@ -46,18 +46,18 @@ namespace mu::ui::window
 
         void Show(bool bShow) override;
 
-        bool UpdateMouseEvent();
-        bool UpdateKeyEvent();
+        bool UpdateMouseEvent() override;
+        bool UpdateKeyEvent() override;
         // While a tuning slider holds the keys, only this window gets them, so Escape still closes it.
         bool TakesTypingFrom(const Rml::ElementDocument* document) const override
         {
             return document == m_RmlView.Document();
         }
-        bool Update();
-        bool Render();
+        bool Update() override;
+        bool Render() override;
 
-        float GetLayerDepth();	//. 10.5f
-        float GetKeyEventOrder();	// 10.f;
+        float GetLayerDepth() override;    //. 10.5f
+        float GetKeyEventOrder() override; // 10.f;
 
         void OpenningProcess();
         void ClosingProcess();
@@ -211,6 +211,7 @@ namespace mu::ui::window
         void RmlUIScaleChanged(int index);
         // Saves the choice only: the texture loader reads the pack at startup.
         void RmlTexturePackChanged(int index);
+        void RmlToggleS6PlayerModels();
         void RmlClickClose();
 
         // One tuning slider (UI::Options::TuningRow) as the RmlUi model binds it.
@@ -402,6 +403,9 @@ namespace mu::ui::window
             Rml::String texturePackValueLabel;
             // The row's hint: where packs come from and that a change needs a restart.
             Rml::String texturePackTooltip;
+            bool useS6PlayerModels = true;
+            Rml::String s6PlayerModelsLabel;
+            Rml::String s6PlayerModelsTooltip;
         };
         void BindRmlModel(Rml::DataModelConstructor& c, OptionRmlModel& model);
         void SyncImpliedEffectRows(OptionRmlModel& model);
