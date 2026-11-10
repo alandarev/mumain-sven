@@ -49,6 +49,7 @@
 #include "Data/GameData/ItemData/ItemDatabase.h"
 #include "GameLogic/Items/ItemNameParts.h"
 #include "Data/GameData/ItemData/ItemDescriptionPlaceholders.h"
+#include "Data/GameData/ItemData/ItemTooltipLines.h"
 #include "Data/GameData/ItemData/ItemType.h"
 #include "Core/Text/TextLineWrap.h"
 #include "Core/Text/Utf8.h"
@@ -498,6 +499,16 @@ bool IsCanTrade()
 
 int TextNum = 0;
 int SkipNum = 0;
+
+void ClearTooltipRows()
+{
+    for (int row = 0; row < MaxTextListRows; ++row)
+    {
+        TextList[row][0] = L'\0';
+        TextListColor[row] = TEXT_COLOR_WHITE;
+        TextBold[row] = false;
+    }
+}
 
 void RequireClass(ITEM_ATTRIBUTE* pItem)
 {
@@ -1383,8 +1394,9 @@ static void WriteItemDescriptionLine(const Data::Items::ItemDefinition& definiti
     const size_t length =
         lineText == nullptr
             ? 0
-            : TooltipText::Write(TooltipText::Compile(lineText->Get(locale), line.values, &definition, locale), level,
-                                 values, filled, std::size(filled));
+            : TooltipText::Write(TooltipText::Compile(lineText->Get(locale), line.values, &definition, locale,
+                                                      Data::Items::GetTextLanguage(*lineText, locale)),
+                                 level, values, filled, std::size(filled));
     const std::wstring text(filled, length);
     // A blank line is one blank piece. So is a blank line inside a text (`\n\n`, or a text that starts with
     // `\n`): a row left empty would end the tooltip there.
@@ -1484,8 +1496,9 @@ void WriteItemTooltipLayoutRow(const Data::Items::TooltipLayoutLine& line, const
     // the row, as the tooltip's own lines are.
     const std::string_view locale = I18N::GetCurrentLocale();
     if (text == nullptr || text->IsEmpty() ||
-        TooltipText::Write(TooltipText::Compile(text->Get(locale), line.values, nullptr, locale), level, values,
-                           TextList[TextNum], std::size(TextList[TextNum])) == 0)
+        TooltipText::Write(TooltipText::Compile(text->Get(locale), line.values, nullptr, locale,
+                                                Data::Items::GetTextLanguage(*text, locale)),
+                           level, values, TextList[TextNum], std::size(TextList[TextNum])) == 0)
     {
         // A blank line, as the tooltip writes its own; so is a text without one in the UI's language: a row left
         // empty would end the tooltip there.
@@ -1680,7 +1693,8 @@ static std::optional<std::wstring> ItemNameLineText(const Data::Items::ItemNameL
     const std::string& locale = g_ItemDatabase.GetDisplayLocale();
     // A longer text is cut here; reading the item warns about one (Data::Items::MaxNameLineLength).
     wchar_t filled[Data::Items::MaxNameLineLength + 1];
-    const size_t length = TooltipText::Write(TooltipText::Compile(text->Get(locale), line.values, &definition, locale),
+    const size_t length = TooltipText::Write(TooltipText::Compile(text->Get(locale), line.values, &definition, locale,
+                                                                  Data::Items::GetTextLanguage(*text, locale)),
                                              level, values, filled, std::size(filled));
     if (length == 0)
         return std::nullopt;
@@ -1785,12 +1799,7 @@ static ItemTooltipBuild BuildItemTooltipText(const ITEM* ip, bool Sell, int Inve
 
     TextNum = 0;
     SkipNum = 0;
-
-    ZeroMemory(TextListColor, 20 * sizeof(int));
-    for (int i = 0; i < 30; i++)
-    {
-        TextList[i][0] = 0;
-    }
+    ClearTooltipRows();
 
     if (!Sell && (GameLogic::Items::IsDarkLordPet(ip)))
     {
@@ -2510,10 +2519,7 @@ RepairInfoText BuildRepairInfoText(const ITEM* ip)
     ITEM_ATTRIBUTE* p = &ItemAttribute[ip->Type];
     TextNum = 0;
     SkipNum = 0;
-    for (int i = 0; i < 30; i++)
-    {
-        TextList[i][0] = 0;
-    }
+    ClearTooltipRows();
 
     int Level = ip->Level;
     // The name and its color as the item's tooltip has them.
