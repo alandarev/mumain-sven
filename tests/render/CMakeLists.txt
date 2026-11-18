@@ -111,7 +111,7 @@ mu_add_test(
         ${CMAKE_SOURCE_DIR}/src/source/Render/PostProcessing/BloomSource.cpp
         ${CMAKE_SOURCE_DIR}/src/source/Render/PostProcessing/ColorGradingTable.cpp
         ${CMAKE_SOURCE_DIR}/src/source/Render/PostProcessing/SceneBoundary.cpp
-    LINK_LIBS SDL3::SDL3
+    LINK_LIBS SDL3::SDL3 mu_test_content mu_test_path_resolve
 )
 
 mu_add_test(
@@ -142,7 +142,19 @@ mu_add_test(
         test_bmd_modulus_cipher.cpp
         ${CMAKE_SOURCE_DIR}/src/source/Render/Models/BmdModulusCipher.cpp
     LINK_LIBS
-        MuCryptopp
+        MuDep::Cryptopp
+)
+
+# The formats of a world's terrain files (Render/Terrain/TerrainFileFormat): the classic and the later seasons'
+# .map/.att cipher, object record sizes by version, 24-bit height maps by size, light bitmaps.
+mu_add_test(
+    NAME terrain_file_format_tests
+    SOURCES
+        test_terrain_file_format.cpp
+        ${CMAKE_SOURCE_DIR}/src/source/Render/Terrain/TerrainFileFormat.cpp
+        ${CMAKE_SOURCE_DIR}/src/source/Render/Models/BmdModulusCipher.cpp
+    LINK_LIBS
+        MuDep::Cryptopp
 )
 
 # The OZT reader of CGlobalBitmap::OpenTga, without the renderer, and the holes it finds in a texture's alpha.
@@ -174,9 +186,9 @@ mu_add_test(
         test_texture_pack.cpp
         ${CMAKE_SOURCE_DIR}/src/source/Render/Textures/TexturePack.cpp
         ${CMAKE_SOURCE_DIR}/src/source/Render/Textures/TexturePackFiles.cpp
-        ${CMAKE_SOURCE_DIR}/src/source/Render/Sprites/GlobalBitmapPath.cpp
     LINK_LIBS
         mu_test_asset_path
+        mu_test_content
         mu_test_path_resolve
 )
 
@@ -186,10 +198,14 @@ mu_add_test(
         test_sdl_gpu_validation.cpp
 )
 
+# The shipped shader formats and the device's creation properties; the test brings its own target adapter.
 mu_add_test(
-    NAME aura_joint_lifecycle_tests
+    NAME gpu_shader_formats_tests
     SOURCES
-        test_aura_joint_lifecycle.cpp
+        test_gpu_shader_formats.cpp
+        ${CMAKE_SOURCE_DIR}/src/source/Render/Renderer/GpuDevice.cpp
+    LINK_LIBS
+        SDL3::SDL3
 )
 
 mu_add_test(
@@ -298,7 +314,7 @@ mu_add_test(
     LINK_LIBS
         MuClient
 )
-# The player tuning tests copy the shipped look and mood files to check they stay untouched, and read
+# The player tuning tests copy the shipped look file to check it stays untouched, and read
 # the sources for the one place that applies a pending light mood strength.
 target_compile_definitions(look_profile_tests PRIVATE
     MU_TEST_DATA_DIR="${CMAKE_SOURCE_DIR}/src/bin/Data"
@@ -442,41 +458,12 @@ if(MU_ENABLE_SHADER_COMPILATION
     )
 endif()
 
-add_executable(texture_failure_fixture test_texture_failure.cpp
-    ${CMAKE_SOURCE_DIR}/src/source/Render/Textures/TextureFailure.cpp)
-target_include_directories(texture_failure_fixture PRIVATE ${CMAKE_SOURCE_DIR}/src/source)
-add_test(NAME texture_failure_emulator_arguments COMMAND "${Python3_EXECUTABLE}"
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_texture_failure_emulator.py")
-
-# Python owns the exit-status assertion, so CTest cannot automatically add the
-# target's cross-compilation emulator to the nested executable invocation.
-set(texture_failure_emulator)
-if(CMAKE_CROSSCOMPILING)
-    get_target_property(texture_failure_emulator texture_failure_fixture CROSSCOMPILING_EMULATOR)
-    if(NOT texture_failure_emulator)
-        set(texture_failure_emulator)
-    endif()
-endif()
-add_test(NAME texture_failure_continue COMMAND "${Python3_EXECUTABLE}"
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_texture_failure_subprocess.py" 0
-    ${texture_failure_emulator} $<TARGET_FILE:texture_failure_fixture> continue
-    COMMAND_EXPAND_LISTS)
-add_test(NAME texture_failure_fatal COMMAND "${Python3_EXECUTABLE}"
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_texture_failure_subprocess.py" 1
-    ${texture_failure_emulator} $<TARGET_FILE:texture_failure_fixture> fatal
-    COMMAND_EXPAND_LISTS)
-add_test(NAME texture_failure_dispatch_continue COMMAND "${Python3_EXECUTABLE}"
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_texture_failure_subprocess.py" 0
-    ${texture_failure_emulator} $<TARGET_FILE:texture_failure_fixture> dispatch-continue
-    COMMAND_EXPAND_LISTS)
-add_test(NAME texture_failure_dispatch_fatal COMMAND "${Python3_EXECUTABLE}"
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_texture_failure_subprocess.py" 1
-    ${texture_failure_emulator} $<TARGET_FILE:texture_failure_fixture> dispatch-fatal
-    COMMAND_EXPAND_LISTS)
-add_test(NAME texture_failure_dispatch_decline COMMAND "${Python3_EXECUTABLE}"
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_texture_failure_subprocess.py" 1
-    ${texture_failure_emulator} $<TARGET_FILE:texture_failure_fixture> dispatch-decline
-    COMMAND_EXPAND_LISTS)
+mu_add_test(
+    NAME texture_failure_tests
+    SOURCES
+        test_texture_failure.cpp
+        ${CMAKE_SOURCE_DIR}/src/source/Render/Textures/TextureFailure.cpp
+)
 
 mu_add_test(
     NAME bitmap_loader_tests

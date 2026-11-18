@@ -3,17 +3,12 @@
 ///////////////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
+#include "Core/Platform/Quit.h"
+#include "Core/Content/ContentStore.h"
 #include "Data/DataHandler/DataFileIO.h"
 #include "Core/Utilities/FileHandle.h"
 #include "Core/Utilities/Random.h"
 #include "Core/Utilities/DrawSpawnCheck.h"
-#ifdef __APPLE__
-#include <OpenGL/gl.h>
-#include <OpenGL/glu.h>
-#else
-#include <GL/gl.h>
-#include <GL/glu.h>
-#endif
 #include <math.h>
 #include <iterator>
 #include <vector>
@@ -29,6 +24,7 @@
 #include "Render/Effects/ZzzEffect.h"
 #include "Render/Renderer/MuRenderer.h"
 #include "Render/Renderer/RenderUtils.h"
+#include "Render/Terrain/TerrainFileFormat.h"
 #include "Render/Terrain/TerrainHeightGrid.h"
 #include "Core/Utilities/FrameProfiler.h"
 #include "Render/Lighting/DynamicLightHistory.h"
@@ -154,22 +150,20 @@ void InitTerrainMappingLayer()
 
 void ExitProgram()
 {
-    MessageBoxW(g_hWnd, I18N::Game::DataError, NULL, MB_OK);
-    PostQuitMessage(0);
+    Core::Platform::ShowFatalError(L"Error", I18N::Game::DataError);
 }
 
 
 int OpenTerrainAttribute(wchar_t* FileName)
 {
-    Core::Utilities::FileHandle file(_wfopen(FileName, L"rb"));
+    Content::Stream file = Content::OpenIO(FileName);
     if (!file)
     {
         wchar_t Text[256];
         mu_swprintf(Text, L"%ls file not found.", FileName);
         g_ErrorReport.Write(Text);
         g_ErrorReport.Write(L"\r\n");
-        MessageBox(g_hWnd, Text, NULL, MB_OK);
-        SendMessage(g_hWnd, WM_DESTROY, 0, 0);
+        Core::Platform::ShowFatalError(L"Error", Text);
         return (-1);
     }
     // Read file data
@@ -180,13 +174,10 @@ int OpenTerrainAttribute(wchar_t* FileName)
         DataFileIO::ReportUnusableFile(FileName, L"File corrupted.");
         return (-1);
     }
-    const int file_size = static_cast<int>(file_data->size());
 
-    // Decrypt file data
-    int iSize = MapFileDecrypt(NULL, file_data->data(), file_size);
-    std::vector<unsigned char> decrypted(static_cast<std::size_t>(iSize));
+    std::vector<unsigned char> decrypted = Render::Terrain::FileFormat::DecryptTerrainFile(*file_data);
+    const int iSize = static_cast<int>(decrypted.size());
     unsigned char* decrypted_data = decrypted.data();
-    MapFileDecrypt(decrypted_data, file_data->data(), file_size);
 
     // Check file size
     bool extAtt = false;
@@ -269,14 +260,14 @@ int OpenTerrainAttribute(wchar_t* FileName)
 
 bool SaveTerrainAttribute(wchar_t* FileName, int iMap)
 {
+    const Content::RefreshAfterWrite refreshAfterWrite;
     FILE* fp = _wfopen(FileName, L"wb");
     if (fp == NULL) {
         wchar_t Text[256];
         mu_swprintf_s(Text, std::size(Text), L"%ls file not found.", FileName);
         g_ErrorReport.Write(Text);
         g_ErrorReport.Write(L"\r\n");
-        MessageBox(g_hWnd, Text, NULL, MB_OK);
-        SendMessage(g_hWnd, WM_DESTROY, 0, 0);
+        Core::Platform::ShowFatalError(L"Error", Text);
         return false;
     }
     const BYTE Version = 0;
@@ -356,9 +347,12 @@ void SetTerrainWaterState(std::list<int>& terrainIndex, int state)
     }
 }
 
+// A .map file: version and map number bytes, two tile layers and an alpha layer of one byte a tile each.
+constexpr std::size_t MappingFileSize = 2 + 3 * TERRAIN_SIZE * TERRAIN_SIZE;
+
 int OpenTerrainMapping(wchar_t* FileName) {
     InitTerrainMappingLayer();
-    Core::Utilities::FileHandle file(_wfopen(FileName, L"rb"));
+    Content::Stream file = Content::OpenIO(FileName);
     if (!file)
     {
         return -1;
@@ -370,12 +364,14 @@ int OpenTerrainMapping(wchar_t* FileName) {
     {
         return -1;
     }
-    const int EncBytes = static_cast<int>(EncData->size());
 
-    int DataBytes = MapFileDecrypt(NULL, EncData->data(), EncBytes);
-    std::vector<unsigned char> Decrypted(static_cast<std::size_t>(DataBytes));
+    std::vector<unsigned char> Decrypted = Render::Terrain::FileFormat::DecryptTerrainFile(*EncData);
+    if (Decrypted.size() < MappingFileSize)
+    {
+        DataFileIO::ReportUnusableFile(FileName, L"File corrupted.");
+        return -1;
+    }
     unsigned char* Data = Decrypted.data();
-    MapFileDecrypt(Data, EncData->data(), EncBytes);
 
     int DataPtr = 0;
     DataPtr += 1;
@@ -406,6 +402,7 @@ int OpenTerrainMapping(wchar_t* FileName) {
 
 bool SaveTerrainMapping(wchar_t* FileName, int iMapNumber)
 {
+    const Content::RefreshAfterWrite refreshAfterWrite;
     FILE* fp = _wfopen(FileName, L"wb");
     BYTE Version = 0;
     fwrite(&Version, 1, 1, fp);
@@ -661,9 +658,47 @@ void CreateTerrainLight_Part(int xi, int yi)
     }
 }
 
+namespace
+{
+// "Data\<name without its extension>.<extension>", where the terrain loaders look for a world's files.
+std::wstring DataFileWithExtension(const wchar_t* name, const wchar_t* extension)
+{
+    std::wstring path = name;
+    const auto dot = path.find_last_of(L'.');
+    if (dot != std::wstring::npos)
+        path.resize(dot);
+    return L"Data\\" + path + L"." + extension;
+}
+
+// Later seasons' maps ship their light map as a bitmap .OZB and no .OZJ. False when the world has an .OZJ or no
+// readable .OZB, so the JPEG is read as before.
+bool OpenTerrainLightBitmap(const wchar_t* FileName)
+{
+    if (Content::OpenIO(DataFileWithExtension(FileName, L"OZJ")))
+        return false;
+    Content::Stream file = Content::OpenIO(DataFileWithExtension(FileName, L"OZB"));
+    if (!file)
+        return false;
+    const std::optional<std::vector<BYTE>> content = DataFileIO::ReadAll(file.get());
+    if (!content)
+        return false;
+    const std::vector<std::array<float, 3>> light = Render::Terrain::FileFormat::ReadLightBitmap(*content);
+    if (light.empty())
+        return false;
+    for (std::size_t i = 0; i < light.size(); ++i)
+    {
+        TerrainLight[i][0] = light[i][0];
+        TerrainLight[i][1] = light[i][1];
+        TerrainLight[i][2] = light[i][2];
+    }
+    return true;
+}
+} // namespace
+
 void OpenTerrainLight(wchar_t* FileName)
 {
-    OpenJpegBuffer(FileName, &TerrainLight[0][0]);
+    if (!OpenTerrainLightBitmap(FileName))
+        OpenJpegBuffer(FileName, &TerrainLight[0][0]);
     // Apply corrections to the loaded terrain light
     for (int i = 0; i < TERRAIN_SIZE * TERRAIN_SIZE; i++)
     {
@@ -733,9 +768,10 @@ unsigned char BMPHeader[1080];
 // one (the OpenTerrainHeightNew path).
 unsigned char OZBPrefix[4] = { 0x42, 0x4D, 0x38, 0x04 };
 
-bool IsTerrainHeightExtMap(int iWorld)
+bool IsTerrainHeightExtFile(const wchar_t* FileName)
 {
-    return (iWorld == WD_42CHANGEUP3RD_2ND || gMapManager.IsPKField() || iWorld == WD_66DOPPLEGANGER2);
+    Content::Stream file = Content::OpenIO(DataFileWithExtension(FileName, L"OZB"));
+    return file && Render::Terrain::FileFormat::IsHeightMap24Bit(static_cast<std::size_t>(SDL_GetIOSize(file.get())));
 }
 
 bool OpenTerrainHeight(wchar_t* filename)
@@ -758,61 +794,53 @@ bool OpenTerrainHeight(wchar_t* filename)
     wcscat_s(FileName, NewFileName);
     wcscat_s(FileName, L"OZB");
 
-    FILE* fp;
-    errno_t err = _wfopen_s(&fp, FileName, L"rb");
-    if (err != 0 || fp == NULL)
+    Content::Stream fp = Content::OpenIO(FileName);
+    if (!fp)
     {
         wchar_t Text[256];
         mu_swprintf_s(Text, std::size(Text), L"%ls file not found.", FileName);
         g_ErrorReport.Write(Text);
         g_ErrorReport.Write(L"\r\n");
-        MessageBox(g_hWnd, Text, NULL, MB_OK);
-        SendMessage(g_hWnd, WM_DESTROY, 0, 0);
+        Core::Platform::ShowFatalError(L"Error", Text);
         return false;
     }
 
-    if (fseek(fp, 0, SEEK_END) != 0)
+    const Sint64 ioSize = SDL_GetIOSize(fp.get());
+    if (ioSize < 0)
     {
-        fclose(fp);
         wchar_t Text[256];
         mu_swprintf_s(Text, std::size(Text), L"Failed to seek in %ls.", FileName);
         g_ErrorReport.Write(Text);
         g_ErrorReport.Write(L"\r\n");
-        MessageBox(g_hWnd, Text, NULL, MB_OK);
-        SendMessage(g_hWnd, WM_DESTROY, 0, 0);
+        Core::Platform::ShowFatalError(L"Error", Text);
         return false;
     }
 
-    long fileSize = ftell(fp);
+    long fileSize = static_cast<long>(ioSize);
     const long RequiredSize = Size + 4;
     if (fileSize < 0 || fileSize < RequiredSize)
     {
-        fclose(fp);
         wchar_t Text[256];
         mu_swprintf_s(Text, std::size(Text), L"%ls is too small (%ld bytes, needs %ld).", FileName, fileSize, RequiredSize);
         g_ErrorReport.Write(Text);
         g_ErrorReport.Write(L"\r\n");
-        MessageBox(g_hWnd, Text, NULL, MB_OK);
-        SendMessage(g_hWnd, WM_DESTROY, 0, 0);
+        Core::Platform::ShowFatalError(L"Error", Text);
         return false;
     }
 
-    if (fseek(fp, 0, SEEK_SET) != 0 || fread(OZBPrefix, 1, 4, fp) != 4)
+    if (SDL_SeekIO(fp.get(), 0, SDL_IO_SEEK_SET) != 0 || SDL_ReadIO(fp.get(), OZBPrefix, 4) != 4)
     {
-        fclose(fp);
         wchar_t Text[256];
         mu_swprintf_s(Text, std::size(Text), L"Failed to rewind %ls.", FileName);
         g_ErrorReport.Write(Text);
         g_ErrorReport.Write(L"\r\n");
-        MessageBox(g_hWnd, Text, NULL, MB_OK);
-        SendMessage(g_hWnd, WM_DESTROY, 0, 0);
+        Core::Platform::ShowFatalError(L"Error", Text);
         return false;
     }
 
     auto* Buffer = new unsigned char[Size];
 
-    size_t readBytes = fread(Buffer, 1, Size, fp);
-    fclose(fp);
+    size_t readBytes = SDL_ReadIO(fp.get(), Buffer, Size);
     if (readBytes != Size)
     {
         delete[] Buffer;
@@ -820,8 +848,7 @@ bool OpenTerrainHeight(wchar_t* filename)
         mu_swprintf_s(Text, std::size(Text), L"Failed to read %ls (expected %d bytes, got %zu).", FileName, Size, readBytes);
         g_ErrorReport.Write(Text);
         g_ErrorReport.Write(L"\r\n");
-        MessageBox(g_hWnd, Text, NULL, MB_OK);
-        SendMessage(g_hWnd, WM_DESTROY, 0, 0);
+        Core::Platform::ShowFatalError(L"Error", Text);
         return false;
     }
 
@@ -847,6 +874,7 @@ bool OpenTerrainHeight(wchar_t* filename)
 
 bool SaveTerrainHeight(wchar_t* name)
 {
+    const Content::RefreshAfterWrite refreshAfterWrite;
     auto* Buffer = new unsigned char[256 * 256];
     for (int i = 0; i < 256; i++)
     {
@@ -919,15 +947,14 @@ bool OpenTerrainHeightNew(const wchar_t* strFilename)
     wcscat(FileName, NewFileName);
     wcscat(FileName, L"OZB");
 
-    Core::Utilities::FileHandle file(_wfopen(FileName, L"rb"));
+    Content::Stream file = Content::OpenIO(FileName);
     if (!file)
     {
         wchar_t Text[256];
         mu_swprintf(Text, L"%ls file not found.", FileName);
         g_ErrorReport.Write(Text);
         g_ErrorReport.Write(L"\r\n");
-        MessageBox(g_hWnd, Text, NULL, MB_OK);
-        SendMessage(g_hWnd, WM_DESTROY, 0, 0);
+        Core::Platform::ShowFatalError(L"Error", Text);
         return false;
     }
 
